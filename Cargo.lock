@@ -2706,9 +2706,11 @@ dependencies = [
  "anyhow",
  "glam",
  "log",
+ "thiserror 2.0.20",
  "void-bsp",
  "void-console",
  "void-kv",
+ "void-map",
  "void-math",
  "void-physics",
 ]
