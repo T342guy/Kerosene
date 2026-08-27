@@ -822,6 +822,7 @@ dependencies = [
  "env_logger",
  "glam",
  "log",
+ "thiserror 2.0.20",
  "void-asset",
  "void-kv",
  "void-math",

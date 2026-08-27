@@ -3,3 +3,11 @@
 *.vbsp
 content/maps/*.vbsp
 .DS_Store
+
+# Compiled content. Reproducible with scripts/build-content.sh from the
+# sources that are committed (.vmap, .png, .obj).
+*.vtex
+*.vault
+*.prt
+*.lin
+content/maps/*.vbsp
