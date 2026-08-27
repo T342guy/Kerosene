@@ -1,0 +1,18 @@
+[package]
+name = "alchemy"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+void-asset.workspace = true
+void-kv.workspace = true
+void-math.workspace = true
+anyhow.workspace = true
+clap.workspace = true
+log.workspace = true
+env_logger.workspace = true
+image.workspace = true
+glam.workspace = true

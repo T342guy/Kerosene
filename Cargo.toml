@@ -1,0 +1,71 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/void-math",
+    "crates/void-kv",
+    "crates/void-console",
+    "crates/void-vfs",
+    "crates/void-asset",
+    "crates/void-map",
+    "crates/void-bsp",
+    "crates/void-physics",
+    "crates/void-entity",
+    "crates/void-render",
+    "crates/void-engine",
+    "crates/void-game",
+    "apps/void",
+    "tools/chisel",
+    "tools/cleave",
+    "tools/umbra",
+    "tools/radiance",
+    "tools/alchemy",
+    "tools/forge",
+    "tools/vault",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.94"
+license = "MIT OR Apache-2.0"
+authors = ["VoidEngine contributors"]
+repository = "https://github.com/t342guy/voidengine"
+
+[workspace.dependencies]
+void-math    = { path = "crates/void-math" }
+void-kv      = { path = "crates/void-kv" }
+void-console = { path = "crates/void-console" }
+void-vfs     = { path = "crates/void-vfs" }
+void-asset   = { path = "crates/void-asset" }
+void-map     = { path = "crates/void-map" }
+void-bsp     = { path = "crates/void-bsp" }
+void-physics = { path = "crates/void-physics" }
+void-entity  = { path = "crates/void-entity" }
+void-render  = { path = "crates/void-render" }
+void-engine  = { path = "crates/void-engine" }
+void-game    = { path = "crates/void-game" }
+
+anyhow      = "1"
+thiserror   = "2"
+clap        = { version = "4", features = ["derive"] }
+log         = "0.4"
+env_logger  = "0.11"
+bytemuck    = { version = "1", features = ["derive"] }
+rayon       = "1"
+glam        = { version = "0.30", features = ["bytemuck"] }
+image       = { version = "0.25", default-features = false, features = ["png", "jpeg", "tga"] }
+wgpu        = "26"
+winit       = "0.30"
+egui        = "0.32"
+egui-wgpu   = "0.32"
+egui-winit  = { version = "0.32", default-features = false, features = ["links", "wayland", "x11"] }
+pollster    = "0.4"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 4
+
+# Tool compiles (Cleave/Umbra/Radiance) are brutally slow in a debug build.
+[profile.dev.package."*"]
+opt-level = 2
