@@ -336,15 +336,29 @@ mod tests {
     use super::*;
     use crate::prt::PortalGraph;
 
-    /// Three rooms in a line: 0 - 1 - 2, joined by two portals. The rooms are
-    /// offset so that room 0 has no straight line of sight into room 2.
-    fn dogleg() -> PortalGraph {
-        // Portal A between clusters 0 and 1, in the plane x = 0.
-        // Portal B between clusters 1 and 2, in the plane y = 0, well off to
-        // one side, so seeing through both at once is impossible.
-        let prt = "VPRT1\n3\n2\n\
-            4 0 1 (0 0 0) (0 0 64) (0 64 64) (0 64 0)\n\
-            4 1 2 (128 0 0) (128 0 64) (192 0 64) (192 64 0)\n";
+    /// Four clusters in a chain: 0 -A- 1 -B- 2 -C- 3.
+    ///
+    /// A and B are aligned; C is offset far enough in +Y to sit outside the
+    /// sight cone that A casts through B. Cluster 0 must therefore be unable
+    /// to see cluster 3, which is precisely what separating planes are for.
+    ///
+    /// Each winding's own plane normal points at the first cluster listed,
+    /// matching what Cleave writes.
+    fn occluded_chain() -> PortalGraph {
+        let prt = "VPRT1\n4\n3\n\
+            4 0 1 (0 0 32) (0 0 0) (0 32 0) (0 32 32)\n\
+            4 1 2 (64 0 32) (64 0 0) (64 32 0) (64 32 32)\n\
+            4 2 3 (128 80 32) (128 80 0) (128 112 0) (128 112 32)\n";
+        PortalGraph::parse(prt).unwrap()
+    }
+
+    /// The same chain, but with C aligned with A and B so everything is in
+    /// plain sight down a straight corridor.
+    fn open_chain() -> PortalGraph {
+        let prt = "VPRT1\n4\n3\n\
+            4 0 1 (0 0 32) (0 0 0) (0 32 0) (0 32 32)\n\
+            4 1 2 (64 0 32) (64 0 0) (64 32 0) (64 32 32)\n\
+            4 2 3 (128 0 32) (128 0 0) (128 32 0) (128 32 32)\n";
         PortalGraph::parse(prt).unwrap()
     }
 
@@ -376,7 +390,7 @@ mod tests {
     fn visibility_is_symmetric() {
         // If A can see B then B can see A; an asymmetric PVS makes geometry
         // pop in and out depending on which way you walked into a room.
-        let g = dogleg();
+        let g = occluded_chain();
         let r = compute(&g, false);
         for a in 0..g.clusters {
             for b in 0..g.clusters {
@@ -393,7 +407,7 @@ mod tests {
     fn full_vis_is_never_more_permissive_than_base_vis() {
         // The full flow may only ever *remove* visibility. If it added any,
         // it would be hiding a bug that shows up as geometry disappearing.
-        let g = dogleg();
+        let g = occluded_chain();
         let full = compute(&g, false);
         let fast = compute(&g, true);
         for c in 0..g.clusters {
@@ -407,17 +421,42 @@ mod tests {
 
     #[test]
     fn fast_vis_matches_the_base_estimate() {
-        let g = dogleg();
+        let g = occluded_chain();
         let fast = compute(&g, true);
         assert_eq!(fast.final_visible, fast.base_visible);
     }
 
     #[test]
     fn a_chain_of_rooms_stays_connected_through_its_neighbours() {
-        let g = dogleg();
+        let g = occluded_chain();
         let r = compute(&g, false);
         assert!(r.cluster_vis[0].test(1), "adjacent rooms must see each other");
         assert!(r.cluster_vis[1].test(2));
+        assert!(r.cluster_vis[2].test(3));
+    }
+
+    #[test]
+    fn a_straight_corridor_is_visible_end_to_end() {
+        let r = compute(&open_chain(), false);
+        assert!(r.cluster_vis[0].test(3), "you can see straight down an aligned corridor");
+    }
+
+    #[test]
+    fn an_offset_opening_is_culled_away() {
+        // The headline behaviour: the third opening lies outside the cone the
+        // first casts through the second, so the far room is invisible even
+        // though a chain of portals connects them.
+        let g = occluded_chain();
+        let full = compute(&g, false);
+        let fast = compute(&g, true);
+
+        assert!(fast.cluster_vis[0].test(3), "base vis floods through and over-estimates");
+        assert!(
+            !full.cluster_vis[0].test(3),
+            "full vis should cull cluster 3 from cluster 0"
+        );
+        assert!(!full.cluster_vis[3].test(0), "and symmetrically");
+        assert!(full.final_visible < fast.final_visible, "the full pass must cull something");
     }
 
     #[test]
@@ -470,7 +509,7 @@ mod tests {
 
     #[test]
     fn results_are_deterministic() {
-        let g = dogleg();
+        let g = occluded_chain();
         let a = compute(&g, false);
         let b = compute(&g, false);
         assert_eq!(a.cluster_vis, b.cluster_vis);
