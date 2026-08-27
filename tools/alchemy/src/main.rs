@@ -193,6 +193,7 @@ fn batch(dir: &Path, out_root: &Path, make_materials: bool) -> Result<()> {
     if images.is_empty() { bail!("no images found under {}", dir.display()); }
 
     let mut compiled = 0usize;
+    let mut kept = 0usize;
     for (path, relative) in &images {
         let name = relative.trim_end_matches(|c| c != '.').trim_end_matches('.');
         // A file ending in `_normal` or `_n` is taken to be a normal map. The
@@ -206,6 +207,15 @@ fn batch(dir: &Path, out_root: &Path, make_materials: bool) -> Result<()> {
 
         if make_materials && !is_normal {
             let mat_path = out_root.join(format!("{name}.vmat"));
+            // Never overwrite a material that already exists. Materials are
+            // authored -- a designer sets the surface property, the shader,
+            // the blend mode -- and this only generates a starting point.
+            // Clobbering that on every batch compile would be a good way to
+            // lose an afternoon's work.
+            if mat_path.exists() {
+                kept += 1;
+                continue;
+            }
             let mut material = Material::new(Shader::Lit);
             material.set("$basetexture", name);
             // Wire up a matching normal map if one was compiled alongside.
@@ -218,6 +228,9 @@ fn batch(dir: &Path, out_root: &Path, make_materials: bool) -> Result<()> {
     }
 
     println!("alchemy: compiled {compiled} textures into {}", out_root.display());
+    if kept > 0 {
+        println!("  kept {kept} existing materials (delete one to regenerate it)");
+    }
     Ok(())
 }
 

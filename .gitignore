@@ -1,14 +1,13 @@
 /target
 
-# Compiled content. Reproducible with scripts/build-content.sh from the
-# sources that are committed (.vmap, .png, .obj).
+# Build outputs, reproducible with scripts/build-content.sh from the sources
+# committed beside them (.vmap, .png, .obj, .vmat).
 *.vtex
+*.vmdl
 *.vault
 *.prt
 *.lin
 content/maps/*.vbsp
-content/materials/
-content/models/
 
 **/*.rs.bk
 .DS_Store
