@@ -15,7 +15,7 @@ mod obj;
 
 use anyhow::{Context, Result, bail};
 use clap::{Parser, Subcommand};
-use obj::{INCHES_PER_METRE, ObjMesh, UpAxis};
+use obj::{ObjMesh, UpAxis, VU_PER_METRE};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use void_asset::{Mesh, Model, Vertex};
@@ -48,7 +48,7 @@ enum Command {
         #[arg(long, default_value_t = 1.0)]
         scale: f32,
 
-        /// Treat the source as metres and convert to inches.
+        /// Treat the source as metres and convert to void units.
         #[arg(long)]
         scale_metres: bool,
 
@@ -75,7 +75,7 @@ fn main() -> Result<()> {
             recompute_normals,
         } => {
             let out = output.unwrap_or_else(|| source.with_extension("voidmdl"));
-            let scale = scale * if scale_metres { INCHES_PER_METRE } else { 1.0 };
+            let scale = scale * if scale_metres { VU_PER_METRE } else { 1.0 };
             let up = if z_up { UpAxis::Z } else { UpAxis::Y };
             compile(&source, &out, &default_material, &materials, scale, up, recompute_normals)
         }

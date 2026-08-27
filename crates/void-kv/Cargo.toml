@@ -7,4 +7,7 @@ license.workspace = true
 authors.workspace = true
 
 [dependencies]
+# Only for `format_float`: how a coordinate is written must not differ
+# between the file writers and the editor's readouts.
+void-math.workspace = true
 thiserror.workspace = true

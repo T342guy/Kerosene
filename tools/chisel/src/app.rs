@@ -8,7 +8,7 @@
 //! Everything here turns a gesture into a call on [`Document`] and draws the
 //! result. The decisions all live in the modules it calls.
 
-use crate::compile::{CompileJob, CompileMessage, CompileSettings, available_tools};
+use crate::compile::{CompileJob, CompileMessage, CompileSettings, Quality, available_tools};
 use crate::document::Document;
 use crate::inspector::{self, PropertyRow};
 use crate::tools::{Tool, ToolKind};
@@ -25,6 +25,16 @@ use void_math::Vec3;
 /// A bare minimum so the entity tool is not simply broken without content;
 /// the real list comes from the game's `.voiddef`.
 const FALLBACK_CLASSES: &[&str] = &["info_player_start", "light", "logic_relay"];
+
+/// How fast the 3D camera flies by default, in void units per second.
+///
+/// A shade above a player's running speed, so moving through a level in the
+/// editor feels like the pace it will be played at. Shift doubles it, Alt
+/// halves it, and the wheel changes it while flying.
+const DEFAULT_FLY_SPEED: f32 = 384.0;
+
+/// The width of the bars between panes, in points.
+const SPLITTER: f32 = 5.0;
 
 /// Materials offered in the material picker when the content tree cannot be
 /// scanned.
@@ -58,6 +68,12 @@ pub struct ChiselApp {
     pub content_root: PathBuf,
     /// The game's entity class definitions, read from the content tree.
     pub schema: Schema,
+    /// The route out of a leaking map, from the last compile.
+    pub leak: crate::leak::LeakTrace,
+    /// Where the four panes divide, as fractions of the area. Dragged.
+    pub split: egui::Vec2,
+    /// How fast the 3D camera flies, in void units per second.
+    pub fly_speed: f32,
     /// The rasterised 3D panes, kept until something they depend on moves.
     previews: [Option<Preview>; 4],
     /// In-progress property edits, held until the field is done with.
@@ -77,6 +93,13 @@ struct Preview {
 struct PropertyEdit {
     entity: u32,
     rows: Vec<PropertyRow>,
+    /// The entity's outputs, buffered for the same reason the rows are.
+    ///
+    /// Rebuilding these from the document every frame is what made the output
+    /// fields impossible to type into: each keystroke landed in a temporary
+    /// that was thrown away and re-cloned before the next frame drew, so the
+    /// caret moved and the text never changed.
+    connections: Vec<Connection>,
     dirty: bool,
     /// The document revision these rows were read from, so an undo or an edit
     /// made elsewhere refreshes them instead of being overwritten by a stale
@@ -105,6 +128,9 @@ impl ChiselApp {
             models,
             content_root,
             schema: loaded.schema,
+            leak: crate::leak::LeakTrace::default(),
+            split: egui::vec2(0.5, 0.5),
+            fly_speed: DEFAULT_FLY_SPEED,
             previews: [const { None }; 4],
             properties: None,
         }
@@ -159,9 +185,10 @@ impl ChiselApp {
 
     pub fn ui(&mut self, ctx: &Context) {
         if let Some(job) = &mut self.compile {
+            let was_finished = job.finished;
             job.poll();
-            if job.finished && !self.show_compile {
-                self.status = if job.failed { "compile failed".into() } else { "compile finished".into() };
+            if job.finished && !was_finished {
+                self.after_compile();
             }
             ctx.request_repaint();
         }
@@ -173,6 +200,38 @@ impl ChiselApp {
         self.status_bar(ctx);
         self.compile_window(ctx);
         self.viewports_panel(ctx);
+    }
+
+    /// Pick up whatever the compile left behind.
+    ///
+    /// Chiefly the leak trace: Cleave writes one beside the map when the world
+    /// is not sealed, and it is only worth writing if something draws it. A
+    /// clean compile clears the last one, so a fixed leak stops being shown.
+    fn after_compile(&mut self) {
+        let Some(job) = &self.compile else { return };
+        let failed = job.failed;
+        let map = job
+            .output()
+            .map(|p| p.to_path_buf())
+            .or_else(|| self.document.path.clone().map(|p| p.with_extension("voidbsp")));
+
+        self.leak = map
+            .as_deref()
+            .and_then(crate::leak::LeakTrace::beside)
+            .unwrap_or_default();
+
+        self.status = if failed {
+            "compile failed".into()
+        } else if let Some(at) = self.leak.origin() {
+            format!(
+                "compiled, but the map LEAKS -- follow the red line from {} {} {}",
+                void_math::format_float(at.x),
+                void_math::format_float(at.y),
+                void_math::format_float(at.z),
+            )
+        } else {
+            "compile finished".into()
+        };
     }
 
     fn shortcuts(&mut self, ctx: &Context) {
@@ -262,7 +321,7 @@ impl ChiselApp {
                 Action::Tool(kind) => self.tool.set_kind(kind),
                 Action::Finer => self.document.grid.finer(),
                 Action::Coarser => self.document.grid.coarser(),
-                Action::Compile => self.start_compile(CompileSettings::fast()),
+                Action::Compile => self.compile_now(Quality::Fast),
             }
         }
     }
@@ -301,14 +360,19 @@ impl ChiselApp {
 
                 ui.menu_button("map", |ui| {
                     if ui.button("compile (fast)  F9").clicked() {
-                        self.start_compile(CompileSettings::fast());
+                        self.compile_now(Quality::Fast);
                         ui.close();
                     }
                     if ui.button("compile (full)").clicked() {
-                        self.start_compile(CompileSettings::full());
+                        self.compile_now(Quality::Full);
                         ui.close();
                     }
                     ui.separator();
+                    if !self.leak.is_empty() && ui.button("clear the leak trace").clicked() {
+                        self.leak = crate::leak::LeakTrace::default();
+                        self.status = "leak trace cleared".into();
+                        ui.close();
+                    }
                     if ui.button("check for problems").clicked() {
                         let problems = self.document.problems();
                         self.status = if problems.is_empty() {
@@ -356,7 +420,8 @@ impl ChiselApp {
             ui.label(RichText::new("grid").strong());
             ui.horizontal(|ui| {
                 if ui.small_button("[").clicked() { self.document.grid.finer(); }
-                ui.label(void_kv::format_float(self.document.grid.size));
+                ui.label(RichText::new(void_math::units::length_short(self.document.grid.size)).monospace())
+                    .on_hover_text(void_math::units::length(self.document.grid.size));
                 if ui.small_button("]").clicked() { self.document.grid.coarser(); }
             });
 
@@ -401,10 +466,11 @@ impl ChiselApp {
         let Some(edit) = self.properties.as_mut() else { return };
         if !edit.dirty { return }
         edit.dirty = false;
-        let (id, rows) = (edit.entity, edit.rows.clone());
+        let (id, rows, connections) = (edit.entity, edit.rows.clone(), edit.connections.clone());
         self.document.apply("edit properties", |doc| {
             if let Some(entity) = doc.find_entity_mut(id) {
                 inspector::apply(entity, &rows);
+                entity.connections = connections;
             }
         });
         let revision = self.document.revision();
@@ -434,6 +500,7 @@ impl ChiselApp {
             Some(PropertyEdit {
                 entity: id,
                 rows: inspector::rows(spec, entity),
+                connections: entity.connections.clone(),
                 dirty: false,
                 revision,
             })
@@ -562,113 +629,162 @@ impl ChiselApp {
     }
 
     /// The output wiring: which of this entity's outputs fires what, where.
-    fn outputs_section(&mut self, ui: &mut egui::Ui, id: u32, spec: Option<&void_entity::ClassSpec>) {
+    fn outputs_section(&mut self, ui: &mut egui::Ui, _id: u32, spec: Option<&void_entity::ClassSpec>) {
         ui.separator();
         ui.label(RichText::new("outputs").strong());
 
-        let connections = match self.document.find_entity(id) {
-            Some(e) => e.connections.clone(),
-            None => return,
-        };
         let outputs: Vec<String> = spec
             .map(|s| s.outputs.iter().map(|o| o.name.clone()).collect())
             .unwrap_or_default();
         let targets = inspector::target_names(&self.document);
+        // Worked out before the buffer is borrowed, because the answer depends
+        // on the whole map rather than on this entity.
+        let inputs_for: Vec<Vec<String>> = self
+            .properties
+            .as_ref()
+            .map(|edit| {
+                edit.connections
+                    .iter()
+                    .map(|c| inspector::inputs_for_target(&self.schema, &self.document, &c.target))
+                    .collect()
+            })
+            .unwrap_or_default();
 
-        if connections.is_empty() {
+        let Some(edit) = self.properties.as_mut() else { return };
+        if edit.connections.is_empty() {
             ui.label(RichText::new("nothing wired up").weak().size(11.0));
         }
 
-        let mut edited: Option<(usize, Option<Connection>)> = None;
-        for (index, connection) in connections.iter().enumerate() {
-            let mut c = connection.clone();
-            let mut changed = false;
+        let mut remove = None;
+        let mut commit = false;
+        for (index, connection) in edit.connections.iter_mut().enumerate() {
+            let empty = Vec::new();
+            let inputs = inputs_for.get(index).unwrap_or(&empty);
             egui::Frame::group(ui.style()).show(ui, |ui| {
                 ui.horizontal(|ui| {
-                    changed |= combo_or_text(ui, ("out", id, index), &mut c.output, &outputs, 110.0);
+                    let r = combo_or_text(ui, ("out", index), &mut connection.output, &outputs, 150.0);
+                    edit.dirty |= r.changed;
+                    commit |= r.finished;
                     if ui.small_button("x").on_hover_text("remove this output").clicked() {
-                        edited = Some((index, None));
+                        remove = Some(index);
                     }
                 });
                 ui.horizontal(|ui| {
                     ui.label(RichText::new("to").size(11.0).weak());
-                    changed |= combo_or_text(ui, ("tgt", id, index), &mut c.target, &targets, 150.0);
+                    let r = combo_or_text(ui, ("tgt", index), &mut connection.target, &targets, 190.0);
+                    edit.dirty |= r.changed;
+                    commit |= r.finished;
                 });
-                let inputs = inspector::inputs_for_target(&self.schema, &self.document, &c.target);
                 ui.horizontal(|ui| {
                     ui.label(RichText::new("fire").size(11.0).weak());
-                    changed |= combo_or_text(ui, ("in", id, index), &mut c.input, &inputs, 150.0);
+                    let r = combo_or_text(ui, ("in", index), &mut connection.input, inputs, 180.0);
+                    edit.dirty |= r.changed;
+                    commit |= r.finished;
                 });
                 ui.horizontal(|ui| {
                     ui.label(RichText::new("after").size(11.0).weak());
-                    changed |= ui
-                        .add(egui::DragValue::new(&mut c.delay).speed(0.05).range(0.0..=600.0).suffix(" s"))
-                        .changed();
+                    let r = ui.add(
+                        egui::DragValue::new(&mut connection.delay)
+                            .speed(0.05)
+                            .range(0.0..=600.0)
+                            .suffix(" s"),
+                    );
+                    edit.dirty |= r.changed();
+                    commit |= r.drag_stopped() || r.lost_focus();
+
                     ui.label(RichText::new("param").size(11.0).weak());
-                    changed |= ui.add(egui::TextEdit::singleline(&mut c.parameter).desired_width(80.0)).changed();
+                    let r = ui.add(
+                        egui::TextEdit::singleline(&mut connection.parameter).desired_width(90.0),
+                    );
+                    edit.dirty |= r.changed();
+                    commit |= r.lost_focus();
                 });
-                ui.horizontal(|ui| {
-                    let mut once = !c.is_unlimited();
-                    if ui.checkbox(&mut once, RichText::new("only once").size(11.0)).changed() {
-                        c.times_to_fire = if once { 1 } else { -1 };
-                        changed = true;
-                    }
-                });
+                let mut once = !connection.is_unlimited();
+                if ui.checkbox(&mut once, RichText::new("only once").size(11.0)).changed() {
+                    connection.times_to_fire = if once { 1 } else { -1 };
+                    edit.dirty = true;
+                    commit = true;
+                }
             });
-            if changed && edited.is_none() {
-                edited = Some((index, Some(c)));
-            }
         }
 
-        if let Some((index, replacement)) = edited {
-            self.document.apply(
-                if replacement.is_some() { "edit output" } else { "remove output" },
-                |doc| {
-                    if let Some(entity) = doc.find_entity_mut(id) {
-                        match replacement {
-                            Some(c) => entity.connections[index] = c,
-                            None => { entity.connections.remove(index); }
-                        }
-                    }
-                },
-            );
+        if let Some(index) = remove {
+            edit.connections.remove(index);
+            edit.dirty = true;
+            commit = true;
         }
 
         if ui.button("+ add output").clicked() {
             let output = outputs.first().cloned().unwrap_or_else(|| "OnTrigger".to_string());
             let target = targets.first().cloned().unwrap_or_default();
-            self.document.apply("add output", |doc| {
-                if let Some(entity) = doc.find_entity_mut(id) {
-                    entity.connect(Connection::new(&output, &target, "Trigger"));
-                }
-            });
+            edit.connections.push(Connection::new(&output, &target, "Trigger"));
+            edit.dirty = true;
+            commit = true;
         }
+
+        if commit { self.commit_properties(); }
     }
 
     fn status_bar(&mut self, ctx: &Context) {
+        use void_math::units;
+
         egui::TopBottomPanel::bottom("status").show(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.label(RichText::new(&self.status).monospace().size(11.0));
                 ui.separator();
                 ui.label(
                     RichText::new(format!(
-                        "{} brushes  {} entities  grid {}  {}",
+                        "{} brushes  {} entities",
                         self.document.map.solid_count(),
                         self.document.map.entities.len(),
-                        void_kv::format_float(self.document.grid.size),
-                        self.viewports[self.active].kind.label(),
                     ))
                     .monospace()
                     .size(11.0),
                 );
+                ui.separator();
+                ui.label(RichText::new(format!("grid {}", units::length_short(self.document.grid.size))).monospace().size(11.0))
+                    .on_hover_text(format!(
+                        "One grid square is {}.\nDistances in VoidEngine are void units: \
+                         1 vu is one inch, a player is {} tall and runs at {}.",
+                        units::length(self.document.grid.size),
+                        units::length(units::PLAYER_HEIGHT),
+                        units::speed(units::PLAYER_SPEED),
+                    ));
+                ui.separator();
+                ui.label(RichText::new(self.viewports[self.active].kind.label()).monospace().size(11.0));
+
                 if let Some(bounds) = self.document.selection_bounds() {
                     let size = bounds.size();
+                    let centre = bounds.center();
                     ui.separator();
                     ui.label(
-                        RichText::new(format!("selection {:.0} x {:.0} x {:.0}", size.x, size.y, size.z))
+                        RichText::new(format!(
+                            "selection {} x {} x {} vu",
+                            void_math::format_float(size.x),
+                            void_math::format_float(size.y),
+                            void_math::format_float(size.z),
+                        ))
+                        .monospace()
+                        .size(11.0),
+                    )
+                    .on_hover_text(format!(
+                        "{}\nheight {}\ncentred at {} {} {} vu",
+                        units::size(size.x, size.y, size.z),
+                        units::in_players(size.z),
+                        void_math::format_float(centre.x),
+                        void_math::format_float(centre.y),
+                        void_math::format_float(centre.z),
+                    ));
+                }
+
+                if !self.viewports[self.active].kind.is_2d() {
+                    ui.separator();
+                    ui.label(
+                        RichText::new(format!("fly {}", units::length_short(self.fly_speed) + "/s"))
                             .monospace()
                             .size(11.0),
-                    );
+                    )
+                    .on_hover_text("WASD to fly, Q and E for down and up, Shift to hurry, Alt to creep. Ctrl-wheel changes the speed.");
                 }
             });
         });
@@ -695,6 +811,9 @@ impl ChiselApp {
 
         if !self.show_compile { return; }
         let mut open = true;
+        // Collected inside the window and acted on after it, so the closure
+        // does not need a second mutable borrow of the app.
+        let mut start: Option<Option<Quality>> = None;
         egui::Window::new("compile")
             .open(&mut open)
             .default_size([560.0, 380.0])
@@ -710,7 +829,37 @@ impl ChiselApp {
                     ui.add(egui::Slider::new(&mut settings.samples, 1..=4).text("samples"));
                     ui.add(egui::Slider::new(&mut settings.bounces, 0..=4).text("bounces"));
                 });
-                ui.checkbox(&mut settings.ignore_leaks, "build even if the map leaks");
+                ui.checkbox(&mut settings.ignore_leaks, "build even if the map leaks")
+                    .on_hover_text(
+                        "A map that leaks has no sealed inside, so visibility is near \
+                         useless and light bleeds through walls. Cleave normally \
+                         refuses to build one. With this it builds anyway and writes a \
+                         .voidleak trace beside the map showing the way out.",
+                    );
+
+                ui.separator();
+                ui.horizontal(|ui| {
+                    let running = self.compile.as_ref().is_some_and(|j| !j.finished);
+                    if ui
+                        .add_enabled(!running, egui::Button::new("compile"))
+                        .on_hover_text("Compile with exactly the settings above.")
+                        .clicked()
+                    {
+                        start = Some(None);
+                    }
+                    if ui.add_enabled(!running, egui::Button::new("fast")).clicked() {
+                        start = Some(Some(Quality::Fast));
+                    }
+                    if ui.add_enabled(!running, egui::Button::new("full")).clicked() {
+                        start = Some(Some(Quality::Full));
+                    }
+                    if running { ui.spinner(); }
+                    if let Some(path) =
+                        self.compile.as_ref().filter(|j| j.finished && !j.failed).and_then(|j| j.output())
+                    {
+                        ui.label(RichText::new(format!("built {}", path.display())).size(11.0).weak());
+                    }
+                });
                 ui.separator();
 
                 if let Some(job) = &self.compile {
@@ -734,6 +883,26 @@ impl ChiselApp {
                 }
             });
         self.show_compile = open;
+        match start {
+            Some(Some(quality)) => self.compile_now(quality),
+            Some(None) => {
+                let settings = self.compile_settings.clone();
+                self.start_compile(settings);
+            }
+            None => {}
+        }
+    }
+
+    /// Compile at a quality preset, keeping every other setting the compile
+    /// window is showing.
+    ///
+    /// The presets used to build a whole fresh `CompileSettings`, which threw
+    /// away the leak checkbox on the way to the compiler -- so ticking it did
+    /// nothing at all.
+    fn compile_now(&mut self, quality: Quality) {
+        self.compile_settings.set_quality(quality);
+        let settings = self.compile_settings.clone();
+        self.start_compile(settings);
     }
 
     fn start_compile(&mut self, settings: CompileSettings) {
@@ -772,15 +941,58 @@ impl ChiselApp {
                 return;
             }
 
-            let half = egui::vec2(available.width() * 0.5, available.height() * 0.5);
+            // Panes divide at a draggable fraction rather than at the middle.
+            // Half of laying out a level is looking at one view closely and
+            // the others only for reference.
+            self.split.x = self.split.x.clamp(0.1, 0.9);
+            self.split.y = self.split.y.clamp(0.1, 0.9);
+            let cut = egui::pos2(
+                available.min.x + available.width() * self.split.x,
+                available.min.y + available.height() * self.split.y,
+            );
+            let half = SPLITTER * 0.5;
+            let (l, r) = (available.min.x, available.max.x);
+            let (t, b) = (available.min.y, available.max.y);
             let rects = [
-                egui::Rect::from_min_size(available.min, half),
-                egui::Rect::from_min_size(available.min + egui::vec2(half.x, 0.0), half),
-                egui::Rect::from_min_size(available.min + egui::vec2(0.0, half.y), half),
-                egui::Rect::from_min_size(available.min + half, half),
+                egui::Rect::from_min_max(egui::pos2(l, t), egui::pos2(cut.x - half, cut.y - half)),
+                egui::Rect::from_min_max(egui::pos2(cut.x + half, t), egui::pos2(r, cut.y - half)),
+                egui::Rect::from_min_max(egui::pos2(l, cut.y + half), egui::pos2(cut.x - half, b)),
+                egui::Rect::from_min_max(egui::pos2(cut.x + half, cut.y + half), egui::pos2(r, b)),
             ];
             for (index, rect) in rects.into_iter().enumerate() {
-                self.viewport_ui(ui, index, rect.shrink(1.0));
+                self.viewport_ui(ui, index, rect);
+            }
+
+            // Registered after the panes so they take the pointer first: a
+            // splitter a viewport can steal the drag from is one that only
+            // works some of the time.
+            let vertical =
+                egui::Rect::from_min_max(egui::pos2(cut.x - half, t), egui::pos2(cut.x + half, b));
+            let horizontal =
+                egui::Rect::from_min_max(egui::pos2(l, cut.y - half), egui::pos2(r, cut.y + half));
+            for (bar, axis) in [(vertical, 0usize), (horizontal, 1usize)] {
+                let response = ui.interact(bar, ui.id().with(("splitter", axis)), egui::Sense::drag());
+                if response.hovered() || response.dragged() {
+                    ui.ctx().set_cursor_icon(if axis == 0 {
+                        egui::CursorIcon::ResizeHorizontal
+                    } else {
+                        egui::CursorIcon::ResizeVertical
+                    });
+                }
+                if response.dragged() {
+                    let (delta, extent) = if axis == 0 {
+                        (response.drag_delta().x, available.width())
+                    } else {
+                        (response.drag_delta().y, available.height())
+                    };
+                    self.split[axis] = (self.split[axis] + delta / extent.max(1.0)).clamp(0.1, 0.9);
+                }
+                let lit = response.hovered() || response.dragged();
+                ui.painter().rect_filled(
+                    bar,
+                    0.0,
+                    if lit { draw::colors::SELECTED } else { draw::colors::GRID_MAJOR },
+                );
             }
         });
     }
@@ -793,18 +1005,35 @@ impl ChiselApp {
         let kind = self.viewports[index].kind;
 
         if kind.is_2d() {
-            draw::draw_2d(&painter, rect, &self.viewports[index], &self.document, &self.tool);
+            draw::draw_2d(&painter, rect, &self.viewports[index], &self.document, &self.tool, &self.leak);
         } else {
             self.draw_preview(ui, &painter, index, rect);
         }
 
-        painter.text(
-            rect.min + egui::vec2(6.0, 4.0),
-            egui::Align2::LEFT_TOP,
-            kind.label(),
-            egui::FontId::monospace(11.0),
-            draw::colors::TEXT,
-        );
+        // The pane's label is a menu: any pane can show any view. Six flat
+        // views exist, and a layout that could only ever reach three of them
+        // was the reason to add the other three.
+        let header =
+            egui::Rect::from_min_size(rect.min + egui::vec2(4.0, 3.0), egui::vec2(112.0, 18.0));
+        let mut chosen = None;
+        ui.scope_builder(egui::UiBuilder::new().max_rect(header), |ui| {
+            ui.style_mut().visuals.override_text_color = Some(draw::colors::TEXT);
+            egui::ComboBox::from_id_salt(("view", index))
+                .selected_text(RichText::new(kind.label()).monospace().size(11.0))
+                .width(104.0)
+                .show_ui(ui, |ui| {
+                    for option in crate::viewport::ViewportKind::all() {
+                        if ui.selectable_label(option == kind, option.label()).clicked() {
+                            chosen = Some(option);
+                        }
+                    }
+                });
+        });
+        if let Some(option) = chosen {
+            self.viewports[index].set_kind(option);
+            self.status = format!("pane {} shows {}", index + 1, option.label());
+        }
+
         painter.rect_stroke(
             rect,
             0.0,
@@ -818,6 +1047,44 @@ impl ChiselApp {
 
         if response.hovered() { self.active = index; }
         self.viewport_input(index, rect, &response, ui);
+    }
+
+
+    /// Fly the 3D camera with the keyboard.
+    ///
+    /// WASD along the view, Q and E straight up and down, Shift to hurry and
+    /// Alt to creep. Movement is per second rather than per frame, so it does
+    /// not depend on how fast the pane happens to be redrawing.
+    ///
+    /// Only the pane under the pointer moves, and only while nothing is being
+    /// typed into -- otherwise naming an entity `wasd_door` would fly the
+    /// camera across the level.
+    fn fly(&mut self, index: usize, response: &egui::Response, ui: &egui::Ui) {
+        if ui.ctx().wants_keyboard_input() { return }
+        if !(response.hovered() || response.dragged()) { return }
+
+        let (forward, side, up, fast, slow, dt) = ui.input(|i| {
+            let held = |k: Key| i.key_down(k);
+            (
+                (held(Key::W) as i32 - held(Key::S) as i32) as f32,
+                (held(Key::D) as i32 - held(Key::A) as i32) as f32,
+                (held(Key::E) as i32 - held(Key::Q) as i32) as f32,
+                i.modifiers.shift,
+                i.modifiers.alt,
+                // Clamped: a frame that took a second (a compile finishing, a
+                // window being dragged) must not teleport the camera.
+                i.stable_dt.min(0.1),
+            )
+        });
+        if forward == 0.0 && side == 0.0 && up == 0.0 { return }
+
+        let speed = self.fly_speed * if fast { 2.5 } else { 1.0 } * if slow { 0.25 } else { 1.0 };
+        let viewport = &mut self.viewports[index];
+        viewport.eye += viewport.fly_step(forward, side, up, speed * dt);
+
+        // Held keys produce no events, so without this the view moves one
+        // frame and stops until the pointer twitches.
+        ui.ctx().request_repaint();
     }
 
     /// Draw a 3D pane, rasterising it again only if it would look different.
@@ -898,6 +1165,86 @@ impl ChiselApp {
                 egui::Color32::WHITE,
             );
         }
+
+        self.draw_move_ghost(painter, index, rect);
+        self.draw_leak_3d(painter, index, rect);
+    }
+
+    /// The leak trace, over the 3D image.
+    ///
+    /// Not depth-tested on purpose: the whole point is to follow it *through*
+    /// the wall it escapes by.
+    fn draw_leak_3d(&self, painter: &egui::Painter, index: usize, rect: egui::Rect) {
+        if self.leak.is_empty() { return }
+        let viewport = &self.viewports[index];
+        let basis = viewport.angles.vectors();
+        let aspect = rect.width() / rect.height().max(1.0);
+        let half_y = (void_render::vertical_fov(viewport.fov, aspect) * 0.5).tan().max(1e-4);
+        let half_x = half_y * aspect;
+
+        let camera = draw::to_camera_space(&self.leak.points, viewport.eye, basis);
+        let stroke = egui::Stroke::new(2.0, draw::colors::LEAK);
+        for pair in camera.windows(2) {
+            // Clip the segment to the near plane rather than dropping it: the
+            // camera is usually inside the room the leak starts in.
+            let (mut a, mut b) = (pair[0], pair[1]);
+            if a.z < draw::NEAR && b.z < draw::NEAR { continue }
+            if a.z < draw::NEAR {
+                a = a + (b - a) * ((draw::NEAR - a.z) / (b.z - a.z));
+            } else if b.z < draw::NEAR {
+                b = b + (a - b) * ((draw::NEAR - b.z) / (a.z - b.z));
+            }
+            let project = |c: Vec3| {
+                egui::pos2(
+                    rect.center().x + (c.x / (c.z * half_x)) * rect.width() * 0.5,
+                    rect.center().y - (c.y / (c.z * half_y)) * rect.height() * 0.5,
+                )
+            };
+            painter.line_segment([project(a), project(b)], stroke);
+        }
+    }
+
+    /// Outline where a dragged selection will land, over the 3D image.
+    ///
+    /// Stroked on top rather than rasterised into the pane, for two reasons:
+    /// the cached image does not have to be thrown away on every mouse move,
+    /// and a ghost that is hidden by the wall you are dragging something
+    /// behind is a ghost that is no use.
+    fn draw_move_ghost(&self, painter: &egui::Painter, index: usize, rect: egui::Rect) {
+        let Some(drag) = &self.tool.drag else { return };
+        if self.tool.kind != ToolKind::Select || !drag.is_dragging { return }
+
+        let viewport = &self.viewports[index];
+        let basis = viewport.angles.vectors();
+        let aspect = rect.width() / rect.height().max(1.0);
+        let half_y = (void_render::vertical_fov(viewport.fov, aspect) * 0.5).tan().max(1e-4);
+        let half_x = half_y * aspect;
+        let project = |camera: Vec3| -> egui::Pos2 {
+            egui::pos2(
+                rect.center().x + (camera.x / (camera.z * half_x)) * rect.width() * 0.5,
+                rect.center().y - (camera.y / (camera.z * half_y)) * rect.height() * 0.5,
+            )
+        };
+
+        let stroke = egui::Stroke::new(1.5, draw::colors::TOOL_PREVIEW);
+        for polygon in draw::ghost_outline(&self.document, drag.delta()) {
+            let camera = draw::to_camera_space(&polygon, viewport.eye, basis);
+            // An entity marker is a line segment, not a loop; clipping a loop
+            // is the wrong operation for it.
+            let clipped = if polygon.len() > 2 {
+                draw::clip_near(&camera, draw::NEAR)
+            } else if camera.iter().all(|p| p.z >= draw::NEAR) {
+                camera
+            } else {
+                continue;
+            };
+            if clipped.len() < 2 { continue }
+            let points: Vec<egui::Pos2> = clipped.iter().map(|p| project(*p)).collect();
+            let last = if points.len() > 2 { points.len() } else { points.len() - 1 };
+            for i in 0..last {
+                painter.line_segment([points[i], points[(i + 1) % points.len()]], stroke);
+            }
+        }
     }
 
     fn viewport_input(
@@ -919,6 +1266,16 @@ impl ChiselApp {
                         let (x, y) = local(pos);
                         self.viewports[index].zoom_at(1.0 + scroll * 0.002, x, y);
                     }
+                } else if ui.input(|i| i.modifiers.ctrl) {
+                    // Ctrl-wheel sets how fast the camera flies, the way it
+                    // does in every 3D application.
+                    self.fly_speed = (self.fly_speed * (1.0 + scroll * 0.004)).clamp(16.0, 8192.0);
+                    self.status = format!("fly speed {}", void_math::units::speed(self.fly_speed));
+                } else if ui.input(|i| i.modifiers.ctrl) {
+                    // Ctrl-wheel sets how fast the camera flies, as it does in
+                    // every other 3D application.
+                    self.fly_speed = (self.fly_speed * (1.0 + scroll * 0.004)).clamp(16.0, 8192.0);
+                    self.status = format!("fly speed {}", void_math::units::speed(self.fly_speed));
                 } else {
                     let forward = self.viewports[index].angles.forward();
                     self.viewports[index].eye += forward * scroll * 2.0;
@@ -943,6 +1300,14 @@ impl ChiselApp {
             viewport.angles.yaw -= delta.x * 0.25;
             viewport.angles.pitch += delta.y * 0.25;
             viewport.angles = viewport.angles.clamped_view();
+        }
+
+        if !kind.is_2d() {
+            self.fly(index, response, ui);
+        }
+
+        if !kind.is_2d() {
+            self.fly(index, response, ui);
         }
 
         if !kind.is_2d() {
@@ -1161,11 +1526,12 @@ fn property_widget(
             KeyKind::Material | KeyKind::Model => {
                 let options: &[String] = if row.kind == KeyKind::Material { materials } else { models };
                 let mut text = row.text().to_string();
-                if combo_or_text(ui, id, &mut text, options, 190.0) {
+                let r = combo_or_text(ui, id, &mut text, options, 190.0);
+                if r.changed {
                     row.value = Some(text);
                     out.changed = true;
-                    out.finished = true;
                 }
+                out.finished |= r.finished;
             }
             KeyKind::String | KeyKind::TargetSource | KeyKind::TargetDestination => {
                 let mut text = row.text().to_string();
@@ -1201,16 +1567,18 @@ fn property_widget(
 /// entity you have not placed is a normal way to work.
 fn combo_or_text(
     ui: &mut egui::Ui,
-    id: impl std::hash::Hash,
+    id: impl std::hash::Hash + Clone,
     value: &mut String,
     options: &[String],
     width: f32,
-) -> bool {
-    let mut changed = false;
+) -> WidgetResult {
+    let mut out = WidgetResult { changed: false, finished: false };
     let text_width = (width - 30.0).max(60.0);
-    changed |= ui
-        .add(egui::TextEdit::singleline(value).desired_width(text_width))
-        .lost_focus();
+
+    let response = ui.add(egui::TextEdit::singleline(value).desired_width(text_width));
+    out.changed |= response.changed();
+    out.finished |= response.lost_focus();
+
     if !options.is_empty() {
         let mut picked = None;
         egui::ComboBox::from_id_salt(id).selected_text("").width(24.0).show_ui(ui, |ui| {
@@ -1222,10 +1590,11 @@ fn combo_or_text(
         });
         if let Some(p) = picked {
             *value = p;
-            changed = true;
+            out.changed = true;
+            out.finished = true;
         }
     }
-    changed
+    out
 }
 
 /// Models offered where a key holds one.
@@ -1375,6 +1744,6 @@ mod tests {
         assert_eq!(panes[0].kind, ViewportKind::Perspective);
         assert_eq!(panes[1].kind, ViewportKind::Top);
         assert_eq!(panes[2].kind, ViewportKind::Front);
-        assert_eq!(panes[3].kind, ViewportKind::Side);
+        assert_eq!(panes[3].kind, ViewportKind::Right);
     }
 }

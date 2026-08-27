@@ -19,8 +19,11 @@ use std::collections::HashMap;
 use thiserror::Error;
 use void_math::Vec3;
 
-/// Inches per metre, for the common case of a metric source file.
-pub const INCHES_PER_METRE: f32 = 39.3701;
+/// Void units per metre, for the common case of a metric source file.
+///
+/// Re-exported from `void-math` rather than written out again: the scale of
+/// the world is one fact, and two copies of it is one copy too many.
+pub use void_math::units::VU_PER_METRE;
 
 #[derive(Debug, Error)]
 pub enum ObjError {

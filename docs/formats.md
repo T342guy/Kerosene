@@ -14,6 +14,10 @@
 
 Text where a person edits or reviews it; binary where the engine loads it.
 
+Every coordinate in every one of them is in **void units** -- one void unit is
+one inch, a player is 72 of them tall. Angles are degrees, times are seconds,
+and Z is up.
+
 ## KeyValues
 
 The text format `.voidmap`, `.voidmat`, `.voiddef` and the compiled entity lump

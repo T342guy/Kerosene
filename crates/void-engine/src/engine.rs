@@ -342,7 +342,7 @@ impl Engine {
         let scale = self.console.float("sv_falldamage_scale");
         let damage = (speed - safe) * scale;
         self.player.health -= damage;
-        self.console.developer(format!("fall damage {damage:.0} at {speed:.0} units/s"));
+        self.console.developer(format!("fall damage {damage:.0} at {speed:.0} vu/s"));
         if self.player.health <= 0.0 {
             self.console.print("you died");
             self.player.health = 100.0;
@@ -387,14 +387,14 @@ impl Engine {
 fn register_cvars(console: &mut Console) {
     console.register_cvar_ranged("sv_tickrate", "64", Some(10.0), Some(256.0), ConVarFlags::NONE, "Server simulation steps per second.");
     console.register_cvar("sv_cheats", "0", ConVarFlags::NOTIFY | ConVarFlags::REPLICATED, "Allow cheat commands and convars.");
-    console.register_cvar("sv_gravity", "800", ConVarFlags::REPLICATED, "World gravity in units/s^2.");
-    console.register_cvar("sv_maxspeed", "320", ConVarFlags::REPLICATED, "Maximum ground speed in units/s.");
+    console.register_cvar("sv_gravity", "800", ConVarFlags::REPLICATED, "World gravity, in void units per second squared.");
+    console.register_cvar("sv_maxspeed", "320", ConVarFlags::REPLICATED, "Maximum ground speed, in void units per second.");
     console.register_cvar("sv_accelerate", "10", ConVarFlags::REPLICATED, "Ground acceleration.");
     console.register_cvar("sv_airaccelerate", "10", ConVarFlags::REPLICATED, "Air acceleration.");
     console.register_cvar("sv_friction", "4", ConVarFlags::REPLICATED, "Ground friction.");
     console.register_cvar("sv_stopspeed", "100", ConVarFlags::REPLICATED, "Speed below which friction is applied as though at this speed.");
     console.register_cvar("sv_stepsize", "18", ConVarFlags::REPLICATED, "Tallest step walked up without jumping.");
-    console.register_cvar("sv_jump_height", "57", ConVarFlags::REPLICATED, "Height a jump reaches, in units.");
+    console.register_cvar("sv_jump_height", "57", ConVarFlags::REPLICATED, "Height a jump reaches, in void units.");
     console.register_cvar("sv_air_max_wishspeed", "30", ConVarFlags::REPLICATED, "Air acceleration speed cap. This is what makes air strafing work.");
     console.register_cvar("sv_falldamage_safe", "580", ConVarFlags::REPLICATED, "Landing speed below which falling is harmless.");
     console.register_cvar("sv_falldamage_scale", "0.25", ConVarFlags::REPLICATED, "Damage per unit/s of landing speed above the safe threshold.");

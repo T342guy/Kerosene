@@ -34,11 +34,77 @@ pub mod colors {
     pub const ENTITY: Color32 = Color32::from_rgb(120, 170, 255);
     pub const TOOL_PREVIEW: Color32 = Color32::from_rgb(255, 120, 200);
     pub const TEXT: Color32 = Color32::from_rgb(160, 168, 180);
+    /// The leak trace. Deliberately the loudest thing on screen: it is only
+    /// ever drawn when the map is broken.
+    pub const LEAK: Color32 = Color32::from_rgb(255, 70, 70);
 }
 
 /// Every fourth grid line is drawn brighter, so it is possible to count
 /// squares at a glance rather than by dragging along them.
 const MAJOR_EVERY: i64 = 4;
+
+/// The selection's outline, moved by a drag, as world-space polygons.
+///
+/// A move used to show only the rubber band between where the drag started
+/// and where the pointer is, which says nothing about where the thing being
+/// moved will end up. This is the shape it will land in, drawn where it will
+/// land -- the answer to the question a person is actually asking while
+/// dragging.
+///
+/// Point entities come back as a small cross so they are not invisible during
+/// a move, which is the case where guessing is hardest.
+pub fn ghost_outline(document: &Document, delta: Vec3) -> Vec<Vec<Vec3>> {
+    let mut polygons = Vec::new();
+
+    for (entity, solid) in document.map.all_solids() {
+        let moving = document.selection.solids.contains(&solid.id)
+            || document.selection.entities.contains(&entity.id);
+        if !moving { continue }
+        for (_, winding) in solid.face_windings() {
+            polygons.push(winding.points.iter().map(|p| *p + delta).collect());
+        }
+    }
+
+    for entity in document.map.entities.iter().filter(|e| e.solids.is_empty()) {
+        if !document.selection.entities.contains(&entity.id) { continue }
+        let at = entity.origin() + delta;
+        const ARM: f32 = 8.0;
+        for axis in 0..3 {
+            let mut a = at;
+            let mut b = at;
+            a[axis] -= ARM;
+            b[axis] += ARM;
+            polygons.push(vec![a, b]);
+        }
+    }
+
+    polygons
+}
+
+/// Stroke world-space polygons into a 2D pane.
+fn stroke_polygons(
+    painter: &Painter,
+    rect: Rect,
+    viewport: &Viewport,
+    polygons: &[Vec<Vec3>],
+    stroke: Stroke,
+) {
+    for polygon in polygons {
+        let points: Vec<Pos2> = polygon
+            .iter()
+            .map(|p| {
+                let (x, y) = viewport.world_to_screen(*p);
+                Pos2::new(rect.min.x + x, rect.min.y + y)
+            })
+            .collect();
+        // A two-point "polygon" is a line, not a loop: closing it would draw
+        // an entity marker's arms twice.
+        let last = if points.len() > 2 { points.len() } else { points.len().saturating_sub(1) };
+        for i in 0..last {
+            painter.line_segment([points[i], points[(i + 1) % points.len()]], stroke);
+        }
+    }
+}
 
 /// Draw one 2D pane.
 pub fn draw_2d(
@@ -47,6 +113,7 @@ pub fn draw_2d(
     viewport: &Viewport,
     document: &Document,
     tool: &Tool,
+    leak: &crate::leak::LeakTrace,
 ) {
     painter.rect_filled(rect, 0.0, colors::BACKGROUND);
     draw_grid(painter, rect, viewport, document);
@@ -100,7 +167,8 @@ pub fn draw_2d(
         }
     }
 
-    draw_tool_preview(painter, rect, viewport, tool);
+    draw_leak(painter, rect, viewport, leak);
+    draw_tool_preview(painter, rect, viewport, document, tool);
 }
 
 /// Grid lines, coarsening automatically as the view zooms out.
@@ -181,9 +249,42 @@ fn draw_solid_outline(
 }
 
 /// The rubber band or ghost the current tool is showing.
-fn draw_tool_preview(painter: &Painter, rect: Rect, viewport: &Viewport, tool: &Tool) {
+fn draw_tool_preview(
+    painter: &Painter,
+    rect: Rect,
+    viewport: &Viewport,
+    document: &Document,
+    tool: &Tool,
+) {
     let Some(drag) = &tool.drag else { return };
     if !drag.is_dragging && tool.kind != ToolKind::Block { return; }
+
+    // A select drag moves the selection. Show where it is going, not the
+    // rectangle the pointer swept out -- the rectangle is not a thing that
+    // exists after the drag ends.
+    if tool.kind == ToolKind::Select {
+        let delta = drag.delta();
+        let ghost = ghost_outline(document, delta);
+        if ghost.is_empty() { return }
+        stroke_polygons(painter, rect, viewport, &ghost, Stroke::new(1.5, colors::TOOL_PREVIEW));
+
+        let (h, v, _) = viewport.kind.axes();
+        let anchor = viewport.world_to_screen(drag.current);
+        painter.text(
+            Pos2::new(rect.min.x + anchor.0 + 10.0, rect.min.y + anchor.1 + 10.0),
+            egui::Align2::LEFT_TOP,
+            format!(
+                "{} {}, {} {}",
+                axis_name(h),
+                void_math::units::length_short(delta[h]),
+                axis_name(v),
+                void_math::units::length_short(delta[v]),
+            ),
+            egui::FontId::monospace(11.0),
+            colors::TOOL_PREVIEW,
+        );
+        return;
+    }
 
     let bounds = drag.bounds();
     let (h, v, _) = viewport.kind.axes();
@@ -201,16 +302,53 @@ fn draw_tool_preview(painter: &Painter, rect: Rect, viewport: &Viewport, tool: &
         egui::StrokeKind::Middle,
     );
 
-    // The size in world units, which is what a designer is actually reading
-    // off the screen while dragging.
+    // The size in void units, which is what a designer is actually reading
+    // off the screen while dragging. Without a unit on it the number is just
+    // a number.
     let size = bounds.size();
     painter.text(
         preview.right_bottom() + Vec2::new(4.0, 4.0),
         egui::Align2::LEFT_TOP,
-        format!("{:.0} x {:.0}", size[h], size[v]),
+        format!(
+            "{} x {} vu",
+            void_math::format_float(size[h]),
+            void_math::format_float(size[v])
+        ),
         egui::FontId::monospace(11.0),
         colors::TOOL_PREVIEW,
     );
+}
+
+/// Draw the route out of a leaking map.
+///
+/// A leak file that nothing draws is a list of coordinates, and finding a
+/// one-unit gap in a large map from coordinates is not a reasonable thing to
+/// ask. Follow the line to the wall it goes through.
+fn draw_leak(painter: &Painter, rect: Rect, viewport: &Viewport, leak: &crate::leak::LeakTrace) {
+    if leak.is_empty() { return }
+    let stroke = Stroke::new(2.0, colors::LEAK);
+    let to_screen = |world: Vec3| {
+        let (x, y) = viewport.world_to_screen(world);
+        Pos2::new(rect.min.x + x, rect.min.y + y)
+    };
+    for pair in leak.points.windows(2) {
+        painter.line_segment([to_screen(pair[0]), to_screen(pair[1])], stroke);
+    }
+    if let Some(start) = leak.origin() {
+        painter.text(
+            to_screen(start) + Vec2::new(6.0, -14.0),
+            egui::Align2::LEFT_TOP,
+            "leak",
+            egui::FontId::monospace(11.0),
+            colors::LEAK,
+        );
+    }
+}
+
+/// The name of a world axis, for a readout that would otherwise be two
+/// unlabelled numbers.
+pub fn axis_name(axis: usize) -> &'static str {
+    ["x", "y", "z"][axis.min(2)]
 }
 
 /// Near plane distance, in inches.
@@ -476,6 +614,98 @@ mod tests {
         document.current_material = "dev/wall".into();
         apply_action(&mut document, &viewport, ToolAction::ApplyMaterialAt(Vec3::new(32.0, 32.0, 0.0)));
         assert!(document.find_solid(id).unwrap().sides.iter().all(|s| s.material == "dev/wall"));
+    }
+
+    // ---- the move ghost --------------------------------------------------
+
+    /// Two boxes in the world, so a move has something to move and something
+    /// to leave behind.
+    fn two_brushes() -> (Document, u32, u32) {
+        let mut document = Document::new();
+        document.grid.size = 16.0;
+        let a = document.create_block(Vec3::new(0.0, 0.0, 0.0), Vec3::new(64.0, 64.0, 64.0));
+        let b = document.create_block(Vec3::new(256.0, 0.0, 0.0), Vec3::new(320.0, 64.0, 64.0));
+        document.selection.clear();
+        (document, a, b)
+    }
+
+    #[test]
+    fn nothing_selected_means_no_ghost() {
+        let (document, _, _) = two_brushes();
+        assert!(ghost_outline(&document, Vec3::new(64.0, 0.0, 0.0)).is_empty());
+    }
+
+    #[test]
+    fn the_ghost_is_the_selection_where_it_will_land() {
+        // The bug: a drag drew the rubber band between where the pointer
+        // started and where it is now, which says nothing about where the
+        // brush ends up. This is the shape, at the destination.
+        let (mut document, a, _) = two_brushes();
+        document.selection.solids.insert(a);
+
+        let before = document.find_solid(a).expect("the brush exists").bounds();
+        let delta = Vec3::new(64.0, -32.0, 16.0);
+        let ghost = ghost_outline(&document, delta);
+        assert_eq!(ghost.len(), 6, "six faces of one box");
+
+        let mut min = Vec3::splat(f32::MAX);
+        let mut max = Vec3::splat(f32::MIN);
+        for polygon in &ghost {
+            for p in polygon {
+                min = min.min(*p);
+                max = max.max(*p);
+            }
+        }
+        assert!((min - (before.min + delta)).length() < 1e-3, "ghost is not at the destination");
+        assert!((max - (before.max + delta)).length() < 1e-3);
+    }
+
+    #[test]
+    fn an_unselected_brush_leaves_no_ghost_behind() {
+        let (mut document, a, _) = two_brushes();
+        document.selection.solids.insert(a);
+        let ghost = ghost_outline(&document, Vec3::ZERO);
+        assert_eq!(ghost.len(), 6, "only the selected box, not both");
+        for polygon in &ghost {
+            for p in polygon {
+                assert!(p.x <= 64.0 + 1e-3, "a brush that is not selected was drawn as moving");
+            }
+        }
+    }
+
+    #[test]
+    fn a_selected_point_entity_ghosts_as_a_marker() {
+        // The hardest case to guess at: a point entity has no faces, so
+        // without this it simply vanishes for the length of the drag.
+        let (mut document, _, _) = two_brushes();
+        let id = document.create_entity("light", Vec3::new(96.0, 96.0, 96.0));
+        document.selection.clear();
+        document.selection.entities.insert(id);
+
+        let delta = Vec3::new(0.0, 0.0, 64.0);
+        let ghost = ghost_outline(&document, delta);
+        assert_eq!(ghost.len(), 3, "three arms of a cross: {ghost:?}");
+        for arm in &ghost {
+            assert_eq!(arm.len(), 2, "an arm is a line segment, not a loop");
+            let midpoint = (arm[0] + arm[1]) * 0.5;
+            assert!(
+                (midpoint - Vec3::new(96.0, 96.0, 160.0)).length() < 1e-3,
+                "an arm is centred at {midpoint:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn selecting_a_brush_entity_ghosts_all_of_its_brushes() {
+        let (mut document, a, b) = two_brushes();
+        document.selection.solids.insert(a);
+        document.selection.solids.insert(b);
+        let entity = document.tie_to_entity("func_door").expect("brushes tie to an entity");
+
+        document.selection.clear();
+        document.selection.entities.insert(entity);
+        let ghost = ghost_outline(&document, Vec3::new(0.0, 0.0, 32.0));
+        assert_eq!(ghost.len(), 12, "both brushes of the door move together");
     }
 
     #[test]

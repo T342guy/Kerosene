@@ -46,15 +46,49 @@ impl Default for CompileSettings {
     }
 }
 
+/// How much work a compile should do.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Quality {
+    /// Skip the expensive passes. Right while a layout is still moving.
+    Fast,
+    /// Everything, at full quality.
+    Full,
+}
+
 impl CompileSettings {
     /// The quick settings for iterating on a layout.
     pub fn fast() -> Self {
-        CompileSettings { fast_vis: true, samples: 1, bounces: 0, ..Default::default() }
+        let mut s = CompileSettings::default();
+        s.set_quality(Quality::Fast);
+        s
     }
 
     /// Everything, at full quality.
     pub fn full() -> Self {
-        CompileSettings { fast_vis: false, samples: 3, bounces: 2, ..Default::default() }
+        let mut s = CompileSettings::default();
+        s.set_quality(Quality::Full);
+        s
+    }
+
+    /// Apply a quality preset, leaving every other choice alone.
+    ///
+    /// The distinction matters: "compile fast" is a statement about how much
+    /// work to do, not a request to forget that this map is allowed to leak.
+    /// Replacing the whole settings struct is what made the leak checkbox do
+    /// nothing at all.
+    pub fn set_quality(&mut self, quality: Quality) {
+        match quality {
+            Quality::Fast => {
+                self.fast_vis = true;
+                self.samples = 1;
+                self.bounces = 0;
+            }
+            Quality::Full => {
+                self.fast_vis = false;
+                self.samples = 3;
+                self.bounces = 2;
+            }
+        }
     }
 }
 
@@ -278,6 +312,40 @@ mod tests {
         assert!(!full.fast_vis);
         assert!(full.bounces > 0);
         assert!(full.samples > 1);
+    }
+
+    #[test]
+    fn a_quality_preset_leaves_the_other_choices_alone() {
+        // The bug: "compile (fast)" built a whole new settings struct, so the
+        // leak checkbox -- and every other choice in the compile window -- was
+        // silently discarded on the way to the compiler.
+        let mut settings = CompileSettings {
+            ignore_leaks: true,
+            run_after: false,
+            run_vis: false,
+            run_lighting: false,
+            ..Default::default()
+        };
+        settings.set_quality(Quality::Fast);
+        assert!(settings.ignore_leaks, "a leaking map was told to build anyway");
+        assert!(!settings.run_after);
+        assert!(!settings.run_vis);
+        assert!(!settings.run_lighting);
+        assert!(settings.fast_vis, "and the preset still did its own job");
+
+        settings.set_quality(Quality::Full);
+        assert!(settings.ignore_leaks);
+        assert!(!settings.fast_vis);
+        assert_eq!(settings.bounces, 2);
+    }
+
+    #[test]
+    fn ignoring_leaks_reaches_the_command_line() {
+        // The checkbox is only meaningful if the flag arrives at cleave.
+        let mut args = vec!["map.voidmap".to_string()];
+        let settings = CompileSettings { ignore_leaks: true, ..Default::default() };
+        if settings.ignore_leaks { args.push("--ignore-leaks".into()); }
+        assert!(args.iter().any(|a| a == "--ignore-leaks"));
     }
 
     #[test]

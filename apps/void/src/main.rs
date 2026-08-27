@@ -87,7 +87,7 @@ fn run_headless(config: EngineConfig, ticks: u64) -> Result<()> {
     println!("  entities: {}", engine.entities.len());
     let player = &engine.player;
     println!("  player at {:?}", player.movement.origin);
-    println!("  speed {:.0} units/s, on ground: {}", player.movement.ground_speed(), player.movement.on_ground);
+    println!("  speed {}, on ground: {}", void_math::units::speed(player.movement.ground_speed()), player.movement.on_ground);
     println!("  health {:.0}", player.health);
 
     // Anything the run logged as a problem is worth surfacing: a headless run

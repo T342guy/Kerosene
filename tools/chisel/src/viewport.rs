@@ -1,28 +1,41 @@
 // SPDX-License-Identifier: LGPL-3.0-or-later
-//! Viewports: the four panes a level is built in.
+//! Viewports: the panes a level is built in.
 //!
-//! Three are orthographic and axis-aligned -- top, front and side -- and one
-//! is a perspective 3D view. That layout is Hammer's, and it is not
-//! nostalgia: brush geometry is axis-aligned far more often than not, and an
-//! orthographic view along an axis is the only way to place a vertex exactly
-//! without a numeric entry box.
+//! Six are orthographic and axis-aligned -- top, bottom, front, back, left and
+//! right -- and one is a perspective 3D view. That layout is Hammer's, and it
+//! is not nostalgia: brush geometry is axis-aligned far more often than not,
+//! and an orthographic view along an axis is the only way to place a vertex
+//! exactly without a numeric entry box.
 //!
 //! Each 2D view maps two world axes onto the screen. Screen Y grows downward
 //! while every world axis it shows grows upward, so the vertical mapping is
 //! always inverted -- a detail that produces a vertically mirrored editor if
 //! it is missed in one direction and not the other.
+//!
+//! The horizontal mapping is not always the same either. Opposite views show
+//! the same pair of axes but from opposite sides, so one of each pair runs its
+//! horizontal axis backwards: walking left in a `Left` view is walking right
+//! in a `Right` one. Getting that wrong does not look broken, which is what
+//! makes it worth being explicit about -- it just quietly mirrors half the
+//! editor.
 
 use void_math::{Aabb, Angles, Vec3};
 
 /// Which view a pane is showing.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum ViewportKind {
-    /// Looking down: X right, Y up.
+    /// Looking down, from +Z: X right, Y up.
     Top,
-    /// Looking along +Y: X right, Z up.
+    /// Looking up, from -Z: X left, Y up.
+    Bottom,
+    /// Looking along +Y, from -Y: X right, Z up.
     Front,
-    /// Looking along -X: Y right, Z up.
-    Side,
+    /// Looking along -Y, from +Y: X left, Z up.
+    Back,
+    /// Looking along -X, from +X: Y right, Z up.
+    Right,
+    /// Looking along +X, from -X: Y left, Z up.
+    Left,
     /// The 3D view.
     Perspective,
 }
@@ -31,10 +44,26 @@ impl ViewportKind {
     pub fn label(self) -> &'static str {
         match self {
             ViewportKind::Top => "top (x/y)",
+            ViewportKind::Bottom => "bottom (x/y)",
             ViewportKind::Front => "front (x/z)",
-            ViewportKind::Side => "side (y/z)",
+            ViewportKind::Back => "back (x/z)",
+            ViewportKind::Right => "right (y/z)",
+            ViewportKind::Left => "left (y/z)",
             ViewportKind::Perspective => "3D",
         }
+    }
+
+    /// Every kind a pane can be set to, in the order the menu shows them.
+    pub fn all() -> [ViewportKind; 7] {
+        [
+            ViewportKind::Perspective,
+            ViewportKind::Top,
+            ViewportKind::Bottom,
+            ViewportKind::Front,
+            ViewportKind::Back,
+            ViewportKind::Left,
+            ViewportKind::Right,
+        ]
     }
 
     /// `(horizontal, vertical, depth)` world axes, as indices.
@@ -43,11 +72,35 @@ impl ViewportKind {
     /// cannot determine and what a drag in this view must leave alone.
     pub fn axes(self) -> (usize, usize, usize) {
         match self {
-            ViewportKind::Top => (0, 1, 2),
-            ViewportKind::Front => (0, 2, 1),
-            ViewportKind::Side => (1, 2, 0),
+            ViewportKind::Top | ViewportKind::Bottom => (0, 1, 2),
+            ViewportKind::Front | ViewportKind::Back => (0, 2, 1),
+            ViewportKind::Right | ViewportKind::Left => (1, 2, 0),
             // Meaningless for the 3D view; callers check the kind first.
             ViewportKind::Perspective => (0, 1, 2),
+        }
+    }
+
+    /// Which way the horizontal axis runs on screen: `+1` right, `-1` left.
+    ///
+    /// A view and its opposite show the same plane from opposite sides, and
+    /// only this distinguishes them.
+    pub fn h_sign(self) -> f32 {
+        match self {
+            ViewportKind::Bottom | ViewportKind::Back | ViewportKind::Left => -1.0,
+            _ => 1.0,
+        }
+    }
+
+    /// The view looking at the same plane from the other side.
+    pub fn opposite(self) -> ViewportKind {
+        match self {
+            ViewportKind::Top => ViewportKind::Bottom,
+            ViewportKind::Bottom => ViewportKind::Top,
+            ViewportKind::Front => ViewportKind::Back,
+            ViewportKind::Back => ViewportKind::Front,
+            ViewportKind::Right => ViewportKind::Left,
+            ViewportKind::Left => ViewportKind::Right,
+            ViewportKind::Perspective => ViewportKind::Perspective,
         }
     }
 
@@ -94,14 +147,30 @@ impl Viewport {
             Viewport::new(ViewportKind::Perspective),
             Viewport::new(ViewportKind::Top),
             Viewport::new(ViewportKind::Front),
-            Viewport::new(ViewportKind::Side),
+            Viewport::new(ViewportKind::Right),
         ]
+    }
+
+    /// Change what this pane shows, keeping where it is looking.
+    ///
+    /// Switching between 2D and 3D keeps the centre: the 3D camera is put a
+    /// sensible distance back from whatever the flat view was framing, and a
+    /// flat view is centred on wherever the camera was. Losing your place on
+    /// every switch is what makes people stop using the other views.
+    pub fn set_kind(&mut self, kind: ViewportKind) {
+        if kind == self.kind { return }
+        match (self.kind.is_2d(), kind.is_2d()) {
+            (true, false) => self.eye = self.center - self.angles.forward() * 512.0,
+            (false, true) => self.center = self.eye + self.angles.forward() * 256.0,
+            _ => {}
+        }
+        self.kind = kind;
     }
 
     /// Project a world point into pane-local pixels.
     pub fn world_to_screen(&self, world: Vec3) -> (f32, f32) {
         let (h, v, _) = self.kind.axes();
-        let x = (world[h] - self.center[h]) * self.zoom + self.size.0 * 0.5;
+        let x = (world[h] - self.center[h]) * self.zoom * self.kind.h_sign() + self.size.0 * 0.5;
         // Screen Y grows downward; every world axis shown grows upward.
         let y = self.size.1 * 0.5 - (world[v] - self.center[v]) * self.zoom;
         (x, y)
@@ -114,7 +183,7 @@ impl Viewport {
     pub fn screen_to_world(&self, x: f32, y: f32, depth: f32) -> Vec3 {
         let (h, v, d) = self.kind.axes();
         let mut world = Vec3::ZERO;
-        world[h] = (x - self.size.0 * 0.5) / self.zoom + self.center[h];
+        world[h] = (x - self.size.0 * 0.5) / (self.zoom * self.kind.h_sign()) + self.center[h];
         world[v] = (self.size.1 * 0.5 - y) / self.zoom + self.center[v];
         world[d] = depth;
         world
@@ -156,7 +225,7 @@ impl Viewport {
     /// Pan by a screen-space delta.
     pub fn pan(&mut self, dx: f32, dy: f32) {
         let (h, v, _) = self.kind.axes();
-        self.center[h] -= dx / self.zoom;
+        self.center[h] -= dx / (self.zoom * self.kind.h_sign());
         self.center[v] += dy / self.zoom;
     }
 
@@ -176,6 +245,21 @@ impl Viewport {
         let fit_h = self.size.0 / size[h].max(1.0);
         let fit_v = self.size.1 / size[v].max(1.0);
         self.zoom = (fit_h.min(fit_v) * 0.8).clamp(MIN_ZOOM, MAX_ZOOM);
+    }
+
+    /// How far the camera moves for one step of fly controls.
+    ///
+    /// Forward and sideways follow where the camera is looking; up and down do
+    /// not. Pressing "up" while looking at the floor has to go up, because
+    /// that is what a person means by up -- tying it to the camera's own up
+    /// vector makes the control useless at exactly the angles you need it.
+    ///
+    /// The direction is normalised before scaling, so holding two keys is not
+    /// faster than holding one.
+    pub fn fly_step(&self, forward: f32, side: f32, up: f32, distance: f32) -> Vec3 {
+        let basis = self.angles.vectors();
+        let motion = basis.forward * forward + basis.right * side + Vec3::Z * up;
+        motion.normalize_or_zero() * distance
     }
 
     /// A ray from the 3D camera through a pane pixel, for picking.
@@ -232,15 +316,147 @@ mod tests {
     }
 
     #[test]
+    fn opposite_views_show_the_same_plane_from_the_other_side() {
+        for kind in ViewportKind::all() {
+            if !kind.is_2d() { continue }
+            let other = kind.opposite();
+            assert_ne!(other, kind, "{kind:?} has no opposite");
+            assert_eq!(other.axes(), kind.axes(), "{kind:?} and its opposite show different axes");
+            assert_eq!(
+                other.h_sign(),
+                -kind.h_sign(),
+                "{kind:?} and its opposite run their horizontal axis the same way"
+            );
+            assert_eq!(other.opposite(), kind);
+        }
+    }
+
+    #[test]
+    fn a_point_lands_on_opposite_sides_of_two_opposing_views() {
+        // The whole reason `h_sign` exists: the same world point must appear
+        // mirrored, not identical, in a view and its opposite.
+        for kind in [ViewportKind::Top, ViewportKind::Front, ViewportKind::Right] {
+            let (h, _, _) = kind.axes();
+            let mut point = Vec3::ZERO;
+            point[h] = 100.0;
+
+            let a = pane(kind);
+            let b = pane(kind.opposite());
+            let (ax, _) = a.world_to_screen(point);
+            let (bx, _) = b.world_to_screen(point);
+            let middle = a.size.0 * 0.5;
+            assert!(ax > middle, "{kind:?} should show +{h} to the right");
+            assert!(bx < middle, "{:?} should show +{h} to the left", kind.opposite());
+            assert!((ax - middle + (bx - middle)).abs() < 1e-3, "not a mirror image");
+        }
+    }
+
+    #[test]
+    fn a_click_in_an_opposite_view_still_unprojects_to_where_it_was() {
+        for kind in ViewportKind::all() {
+            if !kind.is_2d() { continue }
+            let view = pane(kind);
+            let (h, v, _) = kind.axes();
+            let mut point = Vec3::ZERO;
+            point[h] = -37.0;
+            point[v] = 91.0;
+            let (x, y) = view.world_to_screen(point);
+            let back = view.screen_to_world(x, y, 0.0);
+            assert!((back[h] - point[h]).abs() < 1e-3, "{kind:?} horizontal round trip");
+            assert!((back[v] - point[v]).abs() < 1e-3, "{kind:?} vertical round trip");
+        }
+    }
+
+    #[test]
+    fn panning_moves_the_view_the_way_the_pointer_went_in_every_kind() {
+        for kind in ViewportKind::all() {
+            if !kind.is_2d() { continue }
+            let mut view = pane(kind);
+            let under_cursor = view.screen_to_world(100.0, 100.0, 0.0);
+            view.pan(40.0, 25.0);
+            let now = view.screen_to_world(140.0, 125.0, 0.0);
+            let (h, v, _) = kind.axes();
+            assert!((now[h] - under_cursor[h]).abs() < 1e-3, "{kind:?} horizontal pan drifted");
+            assert!((now[v] - under_cursor[v]).abs() < 1e-3, "{kind:?} vertical pan drifted");
+        }
+    }
+
+    #[test]
+    fn switching_a_pane_between_2d_and_3d_keeps_your_place() {
+        let mut view = pane(ViewportKind::Top);
+        view.center = Vec3::new(500.0, 300.0, 64.0);
+        view.set_kind(ViewportKind::Perspective);
+        // The camera is behind the point it was centred on, looking at it.
+        let to_centre = Vec3::new(500.0, 300.0, 64.0) - view.eye;
+        assert!(to_centre.length() > 1.0, "the camera landed on top of the target");
+        assert!(
+            to_centre.normalize().dot(view.angles.forward()) > 0.99,
+            "the camera is not looking at what the flat view was showing"
+        );
+
+        view.set_kind(ViewportKind::Front);
+        assert!(
+            (view.center - Vec3::new(500.0, 300.0, 64.0)).length() < 300.0,
+            "the flat view came back somewhere else entirely"
+        );
+    }
+
+    #[test]
+    fn flying_forward_follows_where_the_camera_looks() {
+        let mut view = pane(ViewportKind::Perspective);
+        view.angles = Angles::new(0.0, 90.0, 0.0);
+        let step = view.fly_step(1.0, 0.0, 0.0, 100.0);
+        assert!((step - view.angles.forward() * 100.0).length() < 1e-3);
+        assert!((step.length() - 100.0).abs() < 1e-3);
+    }
+
+    #[test]
+    fn flying_up_is_world_up_however_the_camera_is_pointed() {
+        for pitch in [-89.0f32, -45.0, 0.0, 45.0, 89.0] {
+            let mut view = pane(ViewportKind::Perspective);
+            view.angles = Angles::new(pitch, 37.0, 0.0);
+            let step = view.fly_step(0.0, 0.0, 1.0, 100.0);
+            assert!(
+                (step - Vec3::Z * 100.0).length() < 1e-3,
+                "at pitch {pitch} 'up' went {step:?} instead of straight up"
+            );
+        }
+    }
+
+    #[test]
+    fn holding_two_directions_is_not_faster_than_one() {
+        let mut view = pane(ViewportKind::Perspective);
+        view.angles = Angles::new(0.0, 0.0, 0.0);
+        let one = view.fly_step(1.0, 0.0, 0.0, 100.0);
+        let two = view.fly_step(1.0, 1.0, 0.0, 100.0);
+        assert!((one.length() - two.length()).abs() < 1e-3, "diagonal flying was faster");
+    }
+
+    #[test]
+    fn pressing_nothing_moves_nothing() {
+        let view = pane(ViewportKind::Perspective);
+        assert_eq!(view.fly_step(0.0, 0.0, 0.0, 100.0), Vec3::ZERO);
+    }
+
+    #[test]
+    fn strafing_is_perpendicular_to_looking() {
+        let mut view = pane(ViewportKind::Perspective);
+        view.angles = Angles::new(20.0, 145.0, 0.0);
+        let side = view.fly_step(0.0, 1.0, 0.0, 1.0);
+        assert!(side.dot(view.angles.forward()).abs() < 1e-3);
+        assert!(side.z.abs() < 1e-3, "strafing should stay level, went {side:?}");
+    }
+
+    #[test]
     fn each_2d_view_shows_the_axes_it_should() {
         assert_eq!(ViewportKind::Top.axes(), (0, 1, 2));
         assert_eq!(ViewportKind::Front.axes(), (0, 2, 1));
-        assert_eq!(ViewportKind::Side.axes(), (1, 2, 0));
+        assert_eq!(ViewportKind::Right.axes(), (1, 2, 0));
     }
 
     #[test]
     fn the_view_centre_maps_to_the_pane_centre() {
-        for kind in [ViewportKind::Top, ViewportKind::Front, ViewportKind::Side] {
+        for kind in [ViewportKind::Top, ViewportKind::Front, ViewportKind::Right] {
             let v = pane(kind);
             let (x, y) = v.world_to_screen(v.center);
             assert!((x - 400.0).abs() < 1e-3 && (y - 300.0).abs() < 1e-3, "{kind:?}");
@@ -259,7 +475,7 @@ mod tests {
 
     #[test]
     fn projection_round_trips() {
-        for kind in [ViewportKind::Top, ViewportKind::Front, ViewportKind::Side] {
+        for kind in [ViewportKind::Top, ViewportKind::Front, ViewportKind::Right] {
             let v = pane(kind);
             let world = Vec3::new(123.0, -45.0, 67.0);
             let (x, y) = v.world_to_screen(world);

@@ -10,10 +10,12 @@ Seven programs. None of them is the engine, and none of them depends on it.
 chisel [map.voidmap] [--content <dir>]
 ```
 
-Four viewports: 3D, top (x/y), front (x/z) and side (y/z). Hammer's layout,
+Four panes, each showing whichever view you point it at: 3D, or any of the six
+flat views -- top, bottom, front, back, left and right. Hammer's layout,
 because brush geometry is axis-aligned far more often than not and an
 orthographic view along an axis is the only way to place a vertex exactly
-without typing numbers.
+without typing numbers. Click a pane's label to change what it shows; drag the
+bars between the panes to resize them.
 
 | Key | |
 |---|---|
@@ -24,10 +26,21 @@ without typing numbers.
 | `Delete` | delete selection |
 | `Escape` | clear selection, cancel a drag |
 | `F9` | compile (fast) and run |
-| Middle-drag | pan (2D) / move (3D) |
-| Right-drag | look around (3D) |
-| Scroll | zoom (2D) / move forward (3D) |
+| **In a 3D pane** | |
+| `W` `A` `S` `D` | fly forward, left, back, right |
+| `Q` `E` | fly straight down and up, whichever way you are looking |
+| `Shift` / `Alt` | fly 2.5x faster / 4x slower |
+| `Ctrl`+scroll | set the fly speed |
+| Right-drag | look around |
+| Middle-drag | slide the camera sideways and up |
+| **In a 2D pane** | |
+| Middle-drag | pan |
+| Scroll | zoom about the pointer |
 | Shift-click | add to or remove from the selection |
+
+Keys only reach the pane the pointer is over, and none of them fire while a
+property field has the keyboard -- naming an entity `wasd_door` should not fly
+the camera across the level.
 
 **Building a level.** Draw brushes with the block tool in a 2D view; they snap
 to the grid, outward, so a brush is never smaller than the rubber band. Pick a
@@ -35,6 +48,11 @@ material from the left panel — picking one with something selected applies it.
 Place entities with the entity tool. Select brushes and *tie* them to an entity
 (`func_door`, `trigger_multiple`) in the right panel; that is how a door is
 made. Wire outputs to inputs in the same panel.
+
+Dragging a selection shows a ghost of it at the destination, in every pane at
+once including the 3D one, with the offset written out in void units. The
+rubber band a drag sweeps out is not where anything ends up, so it is not what
+gets drawn.
 
 Clicking a brush that belongs to an entity selects the entity, not the brush:
 that is what a designer means by "the door".
@@ -57,9 +75,24 @@ what is decided per pixel. It shows shape, scale and selection -- not textures
 or lighting, which is what compiling and running the map is for, one keystroke
 away.
 
+**Compiling.** `map → compile` opens a window with the settings and three
+buttons: *compile* runs exactly what the window is showing, while *fast* and
+*full* apply a quality preset and leave every other choice alone. That
+distinction matters -- "build even if the map leaks" is not something a quality
+preset gets to forget.
+
+When a map is not sealed, Cleave writes a `.voidleak` trace beside it and
+Chisel loads it and draws the route out in red, through every pane. Follow the
+line to the wall it goes through. `map → clear the leak trace` puts it away.
+
 Chisel runs the compilers as separate programs, looking for them beside its own
 executable and then on `PATH`. `map → check tools are installed` says which it
 found.
+
+**Units.** Distances are void units (`vu`); one is an inch. A player is 72 vu
+tall and runs at 320 vu/s, which is the scale a room is judged against. The
+status bar carries the unit on every number, with metres and a player-height
+comparison on hover.
 
 ---
 

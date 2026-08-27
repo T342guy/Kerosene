@@ -32,6 +32,18 @@ a build server, replace one, or write your own. VoidEngine keeps that shape.
 
 ---
 
+## Units
+
+Distances are **void units** (`vu`); one is an inch. A player is 72 vu tall and
+runs at 320 vu/s, so a comfortable corridor is about 128 vu and a room worth
+standing in is 256 vu to the ceiling. Speeds are `vu/s`, angles are degrees,
+and Z is up.
+
+The scale is inherited from Quake and Source, and the reason to keep it is that
+powers of two land on architectural sizes: a 16 vu grid gives stair risers and
+door frames that are already right. See
+[`void_math::units`](crates/void-math/src/units.rs).
+
 ## The tools
 
 Seven programs, each with its own name, none of them the engine.
@@ -103,7 +115,7 @@ is still moving.
 These are the properties that actually shape the engine, not surface
 resemblance:
 
-**Units are inches, Z is up.** One unit is one inch; a player is 72 tall and 32
+**Void units, Z up.** One void unit is one inch; a player is 72 vu tall and 32
 wide. Angles are pitch/yaw/roll with pitch positive *downward*, a Quake
 inheritance Source never corrected and neither does this.
 

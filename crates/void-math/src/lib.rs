@@ -21,12 +21,29 @@
 mod aabb;
 mod angles;
 mod plane;
+pub mod units;
 mod winding;
 
 pub use aabb::Aabb;
 pub use angles::{Angles, Basis, angle_diff, wrap180};
 pub use plane::{Plane, PlaneKind, PlaneSet, PlaneSide};
 pub use winding::Winding;
+
+/// Format a number the way level data is written: no trailing zeroes, and no
+/// decimal point on a whole number.
+///
+/// Lives here rather than beside the text formats because everything that
+/// shows a coordinate needs it -- the editor's readouts as much as the file
+/// writers -- and two implementations would drift.
+pub fn format_float(v: f32) -> String {
+    if v == v.trunc() && v.abs() < 1e9 {
+        // `-0.0` is a whole number whose sign nobody wants to read.
+        format!("{}", (v + 0.0) as i64)
+    } else {
+        let s = format!("{v:.6}");
+        s.trim_end_matches('0').trim_end_matches('.').to_string()
+    }
+}
 
 pub use glam::{Mat3, Mat4, Quat, Vec2, Vec3, Vec4, vec2, vec3, vec4};
 

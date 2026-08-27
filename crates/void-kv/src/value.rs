@@ -143,15 +143,10 @@ impl FromKvValue for [f32; 4] {
 ///
 /// `64.0` should read as `64`, not `64.000000`: map files are diffed by hand
 /// and reviewed in pull requests like any other source.
-pub fn format_float(v: f32) -> String {
-    if v == v.trunc() && v.abs() < 1e9 {
-        format!("{}", v as i64)
-    } else {
-        let s = format!("{v:.6}");
-        let s = s.trim_end_matches('0').trim_end_matches('.');
-        s.to_string()
-    }
-}
+/// Re-exported so the text formats and the editor cannot disagree about how a
+/// coordinate is written. The implementation is in `void-math`, next to the
+/// numbers it formats.
+pub use void_math::format_float;
 
 #[cfg(test)]
 mod tests {
