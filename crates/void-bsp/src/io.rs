@@ -5,7 +5,6 @@
 //! see [`crate::types`]. Lumps carry their own version number so a format bump
 //! to one lump does not invalidate the rest of the file.
 
-use crate::types::*;
 use crate::{Bsp, LUMP_COUNT, lumps};
 use bytemuck::{Pod, cast_slice};
 use std::io::Write;
