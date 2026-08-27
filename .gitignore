@@ -1,13 +1,13 @@
 /target
 
 # Build outputs, reproducible with scripts/build-content.sh from the sources
-# committed beside them (.vmap, .png, .obj, .vmat).
-*.vtex
-*.vmdl
+# committed beside them (.voidmap, .png, .obj, .voidmat).
+*.voidtex
+*.voidmdl
 *.vault
-*.prt
-*.lin
-content/maps/*.vbsp
+*.voidprt
+*.voidleak
+content/maps/*.voidbsp
 
 **/*.rs.bk
 .DS_Store

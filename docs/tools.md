@@ -7,7 +7,7 @@ Seven programs. None of them is the engine, and none of them depends on it.
 ## Chisel — the world editor
 
 ```sh
-chisel [map.vmap] [--content <dir>]
+chisel [map.voidmap] [--content <dir>]
 ```
 
 Four viewports: 3D, top (x/y), front (x/z) and side (y/z). Hammer's layout,
@@ -48,17 +48,17 @@ found.
 ## Cleave — the BSP compiler
 
 ```sh
-cleave map.vmap [-o out.vbsp] [--ignore-leaks] [--no-fill] [--dry-run] [-v]
+cleave map.voidmap [-o out.voidbsp] [--ignore-leaks] [--no-fill] [--dry-run] [-v]
 ```
 
-`.vmap` → `.vbsp` plus a `.prt` portal graph for Umbra.
+`.voidmap` → `.voidbsp` plus a `.voidprt` portal graph for Umbra.
 
 Reports every brush and entity problem in one pass rather than stopping at the
 first, because a designer would rather fix five brushes in one cycle than five.
 
 **Leaks.** If the flood fill escapes to the void, the map is not sealed and
 Cleave refuses to build it — visibility would be nearly useless and the compile
-would take far longer. `--ignore-leaks` builds it anyway and writes a `.lin`
+would take far longer. `--ignore-leaks` builds it anyway and writes a `.voidleak`
 trace naming the route out, which is the only practical way to find a one-unit
 gap in a large map.
 
@@ -93,7 +93,7 @@ designer has over compile time.
 ## Umbra — the visibility compiler
 
 ```sh
-umbra map.vbsp [--portals map.prt] [--fast] [--dry-run]
+umbra map.voidbsp [--portals map.voidprt] [--fast] [--dry-run]
 ```
 
 Computes which clusters can see which, and writes the PVS back into the map.
@@ -109,7 +109,7 @@ visible, and exactly what you want while a layout is still moving.
 ## Radiance — the lighting compiler
 
 ```sh
-radiance map.vbsp [--samples 1-8] [--bounces 0-8] [--scale N]
+radiance map.voidbsp [--samples 1-8] [--bounces 0-8] [--scale N]
                   [--ambient-scale N] [--fast] [--dry-run]
 ```
 
@@ -140,13 +140,13 @@ broken renderer — so Radiance says so.
 ## Alchemy — textures and materials
 
 ```sh
-alchemy compile art/grid.png -o materials/dev/grid.vtex [--normal] [--clamp] [--ui]
+alchemy compile art/grid.png -o materials/dev/grid.voidtex [--normal] [--clamp] [--ui]
 alchemy material dev/grid --basetexture dev/grid --shader lit
 alchemy batch art -o materials --make-materials
-alchemy info materials/dev/grid.vtex
+alchemy info materials/dev/grid.voidtex
 ```
 
-Compiles PNG/JPEG/TGA into `.vtex` and authors `.vmat` materials.
+Compiles PNG/JPEG/TGA into `.voidtex` and authors `.voidmat` materials.
 
 Alpha is dropped when an image does not use it, which saves a quarter of the
 memory. In `batch` mode, a file ending `_normal` or `_n` is taken to be a
@@ -158,13 +158,13 @@ unattended.
 ## Forge — the model compiler
 
 ```sh
-forge compile art/crate.obj -o models/props/crate.vmdl
+forge compile art/crate.obj -o models/props/crate.voidmdl
                             [--scale-metres] [--z-up] [--scale N]
                             [--material old=new] [--recompute-normals]
-forge info models/props/crate.vmdl
+forge info models/props/crate.voidmdl
 ```
 
-OBJ → `.vmdl`, splitting by material and welding vertices.
+OBJ → `.voidmdl`, splitting by material and welding vertices.
 
 Two conversions happen on the way in, and getting either wrong produces a model
 that is subtly rotated or a hundred times too small. OBJ is Y-up with -Z
@@ -180,7 +180,7 @@ merging them rounds off every corner of the model.
 ## Vault — content archives
 
 ```sh
-vault pack content -o content.vault [--ext vtex --ext vmat] [--exclude tmp]
+vault pack content -o content.vault [--ext voidtex --ext voidmat] [--exclude tmp]
 vault list content.vault [--long]
 vault verify content.vault
 vault unpack content.vault -o extracted

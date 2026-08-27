@@ -54,7 +54,7 @@ impl Plane {
         Self { normal, dist: normal.dot(point) }
     }
 
-    /// Plane from three points in the `.vmap` / Quake `.map` brush convention.
+    /// Plane from three points in the `.voidmap` / Quake `.map` brush convention.
     ///
     /// The three points are listed **clockwise when viewed from the front of
     /// the face**, so the normal comes out as `(p0 - p1) x (p2 - p1)`. This
@@ -206,7 +206,7 @@ impl PlaneSet {
 
         // Store the canonical orientation first so that the pair ordering is
         // reproducible between runs -- a compile that shuffles plane indices
-        // produces gratuitously different .vbsp files.
+        // produces gratuitously different .voidbsp files.
         let base = self.planes.len() as u32;
         let (a, b) = if is_canonical(plane.normal) { (plane, flipped) } else { (flipped, plane) };
         self.push(a);

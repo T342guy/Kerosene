@@ -1,13 +1,13 @@
 //! Radiance -- the VoidEngine lighting compiler.
 //!
-//! Reads a compiled `.vbsp`, bakes static lighting into every face, and writes
+//! Reads a compiled `.voidbsp`, bakes static lighting into every face, and writes
 //! the result back. This is the third and last compile stage, mirroring
 //! Source's `vrad`:
 //!
 //! ```text
-//! cleave   map.vmap   ->  map.vbsp + map.prt
-//! umbra    map.vbsp   ->  map.vbsp with visibility
-//! radiance map.vbsp   ->  map.vbsp with lighting        <- you are here
+//! cleave   map.voidmap   ->  map.voidbsp + map.voidprt
+//! umbra    map.voidbsp   ->  map.voidbsp with visibility
+//! radiance map.voidbsp   ->  map.voidbsp with lighting        <- you are here
 //! ```
 //!
 //! Lighting is authored as entities in the map -- `light`, `light_spot`,
@@ -26,9 +26,9 @@ use std::time::Instant;
 use void_bsp::Bsp;
 
 #[derive(Parser, Debug)]
-#[command(name = "radiance", version, about = "Bake static lighting into a compiled .vbsp")]
+#[command(name = "radiance", version, about = "Bake static lighting into a compiled .voidbsp")]
 struct Args {
-    /// The .vbsp to light, modified in place.
+    /// The .voidbsp to light, modified in place.
     map: PathBuf,
 
     /// Samples per luxel per axis. Higher softens shadow edges at a

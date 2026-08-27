@@ -1,6 +1,6 @@
 //! Reading Wavefront OBJ, Forge's source mesh format.
 //!
-//! OBJ is chosen for the same reason `.vmap` is text: it is what every
+//! OBJ is chosen for the same reason `.voidmap` is text: it is what every
 //! modelling package can export, it is readable, and it diffs. It carries
 //! positions, normals, texture coordinates and material groups, which is
 //! everything a static model needs.

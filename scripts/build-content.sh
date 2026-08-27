@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Build every piece of shipped content from its sources.
 #
-# Compiled content is not committed -- it is reproducible from the .vmap,
+# Compiled content is not committed -- it is reproducible from the .voidmap,
 # .png and .obj files that are. Run this after cloning, or after changing
 # anything under content/art or content/maps.
 set -euo pipefail
@@ -19,24 +19,24 @@ echo "==> alchemy: textures and materials"
 "$BIN/alchemy" batch content/art -o content/materials --make-materials
 # The sky needs the sky shader rather than the lit default.
 "$BIN/alchemy" material dev/sky_void --shader sky --basetexture dev/sky_void \
-    -o content/materials/dev/sky_void.vmat
+    -o content/materials/dev/sky_void.voidmat
 
 echo "==> forge: models"
-"$BIN/forge" compile content/art/props/crate.obj -o content/models/props/crate.vmdl --scale-metres
+"$BIN/forge" compile content/art/props/crate.obj -o content/models/props/crate.voidmdl --scale-metres
 
 echo "==> map compile"
 cargo run --quiet $CARGO_FLAGS -p void-map --example sample_map
-for map in content/maps/*.vmap; do
-    name="${map%.vmap}"
+for map in content/maps/*.voidmap; do
+    name="${map%.voidmap}"
     echo "--- $(basename "$map")"
     "$BIN/cleave"   "$map"
-    "$BIN/umbra"    "$name.vbsp"
-    "$BIN/radiance" "$name.vbsp"
+    "$BIN/umbra"    "$name.voidbsp"
+    "$BIN/radiance" "$name.voidbsp"
 done
 
 echo "==> vault: packing"
 "$BIN/vault" pack content -o void_content.vault \
-    --ext vtex --ext vmat --ext vmdl --ext vbsp
+    --ext voidtex --ext voidmat --ext voidmdl --ext voidbsp
 "$BIN/vault" verify void_content.vault
 
 echo

@@ -186,8 +186,8 @@ impl ChiselApp {
                         ui.close();
                     }
                     if ui.button("save").clicked() { self.save(None); ui.close(); }
-                    if ui.button("save as maps/untitled.vmap").clicked() {
-                        let path = self.content_root.join("maps/untitled.vmap");
+                    if ui.button("save as maps/untitled.voidmap").clicked() {
+                        let path = self.content_root.join("maps/untitled.voidmap");
                         self.save(Some(path));
                         ui.close();
                     }
@@ -500,7 +500,7 @@ impl ChiselApp {
         // genuinely confusing bug to chase.
         let path = match self.document.path.clone() {
             Some(path) => path,
-            None => self.content_root.join("maps/untitled.vmap"),
+            None => self.content_root.join("maps/untitled.voidmap"),
         };
         if let Err(e) = self.document.save(Some(path.clone())) {
             self.status = format!("could not save before compiling: {e}");
@@ -689,7 +689,7 @@ fn collect_materials(root: &std::path::Path, dir: &std::path::Path, out: &mut Ve
         let path = entry.path();
         if path.is_dir() {
             collect_materials(root, &path, out);
-        } else if path.extension().and_then(|e| e.to_str()) == Some("vmat") {
+        } else if path.extension().and_then(|e| e.to_str()) == Some("voidmat") {
             if let Ok(relative) = path.strip_prefix(root) {
                 let name = relative.with_extension("");
                 out.push(name.to_string_lossy().replace('\\', "/"));
@@ -747,7 +747,7 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("chisel-mats-{}", std::process::id()));
         let materials = dir.join("materials/dev");
         std::fs::create_dir_all(&materials).unwrap();
-        std::fs::write(materials.join("grid.vmat"), "lit { }").unwrap();
+        std::fs::write(materials.join("grid.voidmat"), "lit { }").unwrap();
         std::fs::write(materials.join("notes.txt"), "ignored").unwrap();
 
         let found = scan_materials(&dir);

@@ -1,6 +1,6 @@
 //! The compiler's working representation of a brush.
 //!
-//! A `.vmap` solid is a list of planes. Cleave needs more: interned plane
+//! A `.voidmap` solid is a list of planes. Cleave needs more: interned plane
 //! indices, computed face polygons, resolved contents and surface flags, and
 //! the ability to be cut in half by an arbitrary plane while staying convex.
 

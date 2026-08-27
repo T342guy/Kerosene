@@ -169,7 +169,7 @@ fn interning_does_not_match_a_prefix() {
 fn round_trips_through_bytes() {
     let bsp = tiny_bsp();
     let bytes = bsp.to_bytes();
-    let back = Bsp::from_bytes(&bytes, "test.vbsp").expect("should reload");
+    let back = Bsp::from_bytes(&bytes, "test.voidbsp").expect("should reload");
 
     assert_eq!(back.planes.len(), bsp.planes.len());
     assert_eq!(back.faces.len(), bsp.faces.len());

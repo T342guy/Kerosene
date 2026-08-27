@@ -9,13 +9,13 @@ How the pieces fit, and why they are arranged this way.
    source content   │             build-time tools             │   runtime
                     └──────────────────────────────────────────┘
 
-   art/*.png ──────────────► alchemy ──────► materials/*.vtex
-                                                    *.vmat  ──┐
-   art/*.obj ──────────────► forge ──────► models/*.vmdl ─────┤
+   art/*.png ──────────────► alchemy ──────► materials/*.voidtex
+                                                    *.voidmat  ──┐
+   art/*.obj ──────────────► forge ──────► models/*.voidmdl ─────┤
                                                               │
-   maps/*.vmap ────────────► cleave ──────► maps/*.vbsp       ├──► void
+   maps/*.voidmap ────────────► cleave ──────► maps/*.voidbsp       ├──► void
         ▲                       │                │            │
-        │                       └── *.prt ──► umbra ──► +vis   │
+        │                       └── *.voidprt ──► umbra ──► +vis   │
      chisel                                          │        │
         │                                        radiance     │
         └────────────────────────────────────────► +light ────┘
@@ -57,9 +57,9 @@ but never on the engine.
 
 ## The map pipeline in detail
 
-### Cleave: `.vmap` → `.vbsp`
+### Cleave: `.voidmap` → `.voidbsp`
 
-1. **Brushes.** Each `.vmap` solid becomes a set of interned half-space planes.
+1. **Brushes.** Each `.voidmap` solid becomes a set of interned half-space planes.
    Plane interning matters more than it sounds: two faces meant to be coplanar
    must end up sharing *one* plane index, or the tree splits along a hair's
    width between them and the compile explodes.
@@ -184,7 +184,7 @@ Where a subsystem can be tested without a GPU or a window, it is:
   map bug.
 - **Shaders** are validated through `naga`, the same compiler wgpu uses, so a
   typo fails in CI rather than at pipeline creation on a machine with a display.
-- **The whole pipeline** is exercised by tests that build a `.vmap` in memory,
+- **The whole pipeline** is exercised by tests that build a `.voidmap` in memory,
   compile it through Cleave, load the result and play it. Every crate can pass
   its own tests and still not add up to a level you can walk around; that suite
   is where the seams show.

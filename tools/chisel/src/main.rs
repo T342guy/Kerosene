@@ -2,7 +2,7 @@
 //!
 //! ```text
 //! chisel                          # start with a sample room
-//! chisel content/maps/void_start.vmap
+//! chisel content/maps/void_start.voidmap
 //! chisel --content content        # where to look for materials
 //! ```
 //!
@@ -34,7 +34,7 @@ fn main() -> Result<()> {
                 content = PathBuf::from(args.get(i).cloned().unwrap_or_default());
             }
             "--help" | "-h" => {
-                println!("chisel [map.vmap] [--content <dir>]");
+                println!("chisel [map.voidmap] [--content <dir>]");
                 return Ok(());
             }
             other => map = Some(PathBuf::from(other)),

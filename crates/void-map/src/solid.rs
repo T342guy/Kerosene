@@ -165,7 +165,7 @@ impl Solid {
     /// An axis-aligned box brush -- what the block tool produces.
     ///
     /// Points are written as real corners rather than derived from the planes,
-    /// so a generated `.vmap` reads the way a hand-authored one does.
+    /// so a generated `.voidmap` reads the way a hand-authored one does.
     pub fn cube(bounds: Aabb, material: &str) -> Solid {
         let (lo, hi) = (bounds.min, bounds.max);
         let d = bounds.size();

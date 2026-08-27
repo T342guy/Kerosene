@@ -320,15 +320,15 @@ mod tests {
     fn round_trips_content() {
         let out = tmp("roundtrip.vault");
         let mut b = ArchiveBuilder::new();
-        b.add("materials/dev/grid.vmat", b"shader { }".to_vec()).unwrap();
-        b.add(r"Maps\Void_Start.vbsp", vec![7u8; 5000]).unwrap();
+        b.add("materials/dev/grid.voidmat", b"shader { }".to_vec()).unwrap();
+        b.add(r"Maps\Void_Start.voidbsp", vec![7u8; 5000]).unwrap();
         b.write(&out).unwrap();
 
         let a = Archive::open(&out).unwrap();
         assert_eq!(a.len(), 2);
-        assert_eq!(a.read("materials/dev/grid.vmat").unwrap().unwrap(), b"shader { }");
+        assert_eq!(a.read("materials/dev/grid.voidmat").unwrap().unwrap(), b"shader { }");
         // Path was normalised on the way in, so it reads back lowercase.
-        assert_eq!(a.read("maps/void_start.vbsp").unwrap().unwrap().len(), 5000);
+        assert_eq!(a.read("maps/void_start.voidbsp").unwrap().unwrap().len(), 5000);
         assert!(a.read("nothing/here").unwrap().is_none());
         let _ = std::fs::remove_file(&out);
     }
@@ -395,13 +395,13 @@ mod tests {
     fn listing_filters_by_directory_and_extension() {
         let out = tmp("list.vault");
         let mut b = ArchiveBuilder::new();
-        b.add("materials/a.vmat", b"1".to_vec()).unwrap();
-        b.add("materials/b.vtex", b"2".to_vec()).unwrap();
-        b.add("maps/c.vbsp", b"3".to_vec()).unwrap();
+        b.add("materials/a.voidmat", b"1".to_vec()).unwrap();
+        b.add("materials/b.voidtex", b"2".to_vec()).unwrap();
+        b.add("maps/c.voidbsp", b"3".to_vec()).unwrap();
         b.write(&out).unwrap();
         let a = Archive::open(&out).unwrap();
         assert_eq!(a.list("materials", None).len(), 2);
-        assert_eq!(a.list("materials", Some("vmat")), vec!["materials/a.vmat"]);
+        assert_eq!(a.list("materials", Some("voidmat")), vec!["materials/a.voidmat"]);
         assert_eq!(a.list("", None).len(), 3);
         let _ = std::fs::remove_file(&out);
     }

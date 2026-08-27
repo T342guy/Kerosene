@@ -1,4 +1,4 @@
-//! `.vmat` -- material definitions, the VMT analogue.
+//! `.voidmat` -- material definitions, the VMT analogue.
 //!
 //! A material says which shader draws a surface and what to feed it. The
 //! indirection matters: brush faces and models reference *materials*, never

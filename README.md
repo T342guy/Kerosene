@@ -12,10 +12,10 @@ are *separate programs* sharing file formats. You can script them, run them on
 a build server, replace one, or write your own. VoidEngine keeps that shape.
 
 ```
-   art/*.png ──alchemy──► materials/*.vtex + *.vmat ─┐
-   art/*.obj ──forge────► models/*.vmdl ─────────────┤
+   art/*.png ──alchemy──► materials/*.voidtex + *.voidmat ─┐
+   art/*.obj ──forge────► models/*.voidmdl ─────────────┤
                                                      ├─vault─► content.vault
-   maps/*.vmap ─cleave─► *.vbsp ─umbra─► +vis ─radiance─► +light ─┘
+   maps/*.voidmap ─cleave─► *.voidbsp ─umbra─► +vis ─radiance─► +light ─┘
         ▲                                              │
         └──────────────── chisel ◄─────────────────────┴──► void
 ```
@@ -29,7 +29,7 @@ Seven programs, each with its own name, none of them the engine.
 | Tool | Does | Source analogue |
 |---|---|---|
 | **Chisel** | The world editor. Four viewports, brush editing, entity I/O wiring, compile-and-run. | Hammer |
-| **Cleave** | `.vmap` → `.vbsp`. CSG, BSP tree, portals, leak detection. | `vbsp` |
+| **Cleave** | `.voidmap` → `.voidbsp`. CSG, BSP tree, portals, leak detection. | `vbsp` |
 | **Umbra** | Computes the PVS — which parts of a level can see which. | `vvis` |
 | **Radiance** | Bakes static lighting into lightmaps. | `vrad` |
 | **Alchemy** | Compiles textures and authors materials. | VTFEdit / `vtex` |
@@ -53,7 +53,7 @@ cargo run --release -p void-runtime -- +map void_start
 To open the sample level in the editor:
 
 ```sh
-cargo run --release -p chisel -- content/maps/void_start.vmap
+cargo run --release -p chisel -- content/maps/void_start.voidmap
 ```
 
 `F9` compiles and runs it.
@@ -74,9 +74,9 @@ can stop after any of them, run them from a Makefile, or parallelise them
 across a build farm.
 
 ```sh
-cleave   content/maps/void_start.vmap    # → .vbsp and .prt
-umbra    content/maps/void_start.vbsp    # → adds visibility
-radiance content/maps/void_start.vbsp    # → adds lighting
+cleave   content/maps/void_start.voidmap    # → .voidbsp and .voidprt
+umbra    content/maps/void_start.voidbsp    # → adds visibility
+radiance content/maps/void_start.voidbsp    # → adds lighting
 ```
 
 An unvised, unlit map still loads and plays; it just draws everything and looks
@@ -124,12 +124,12 @@ removing it would change the game.
 ```
 crates/
   void-math       vectors, planes, convex windings with exact clipping
-  void-kv         KeyValues, the text format .vmap and materials use
+  void-kv         KeyValues, the text format .voidmap and materials use
   void-console    convars, concommands, the command buffer
   void-vfs        layered search paths and the .vault archive format
-  void-asset      .vtex textures, .vmat materials, .vmdl models
-  void-map        .vmap — the editable map format
-  void-bsp        .vbsp — the compiled map, plus tracing and PVS
+  void-asset      .voidtex textures, .voidmat materials, .voidmdl models
+  void-map        .voidmap — the editable map format
+  void-bsp        .voidbsp — the compiled map, plus tracing and PVS
   void-physics    player movement and collision response
   void-entity     entities, their fields, and the I/O event queue
   void-render     the wgpu renderer, lightmap atlas, PVS culling
@@ -161,13 +161,13 @@ Known limits, stated plainly:
 - **No networking yet.** The engine is structured for a client/server split —
   the simulation runs without a display, which is the hard part — but the
   wire protocol and prediction are not written.
-- **No skeletal animation.** `.vmdl` carries bones and per-vertex weights, and
+- **No skeletal animation.** `.voidmdl` carries bones and per-vertex weights, and
   Forge preserves them, but nothing animates them yet.
 - **Chisel's 3D view is painter-sorted, not GPU-rendered.** It shows shape and
   scale accurately, but not textures or lighting, and faces that interpenetrate
   can sort wrong — brush geometry rarely does. The compiled map in the engine
   is one keystroke away.
-- **No block compression for textures.** `.vtex` is uncompressed. A bad BC
+- **No block compression for textures.** `.voidtex` is uncompressed. A bad BC
   encoder is worse than none.
 - **Sound is not implemented.**
 

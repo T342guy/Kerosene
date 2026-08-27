@@ -77,7 +77,7 @@ pub struct CompileJob {
 }
 
 impl CompileJob {
-    /// Start compiling a saved `.vmap`.
+    /// Start compiling a saved `.voidmap`.
     ///
     /// The map must already be on disk: the compilers read files, and writing
     /// the editor's buffer somewhere else first would mean compiling something
@@ -136,7 +136,7 @@ fn run_compile(
     settings: &CompileSettings,
     sender: &Sender<CompileMessage>,
 ) -> Result<(), ()> {
-    let compiled = map.with_extension("vbsp");
+    let compiled = map.with_extension("voidbsp");
 
     // Cleave.
     let mut args = vec![map.display().to_string()];
@@ -300,7 +300,7 @@ mod tests {
             log: vec![
                 CompileMessage::Stage("cleave".into()),
                 CompileMessage::Line("68 faces".into()),
-                CompileMessage::Finished(PathBuf::from("maps/x.vbsp")),
+                CompileMessage::Finished(PathBuf::from("maps/x.voidbsp")),
             ],
             finished: true,
             failed: false,
@@ -309,7 +309,7 @@ mod tests {
         let text = job.text();
         assert!(text.contains("--- cleave ---"), "{text}");
         assert!(text.contains("68 faces"));
-        assert_eq!(job.output(), Some(Path::new("maps/x.vbsp")));
+        assert_eq!(job.output(), Some(Path::new("maps/x.voidbsp")));
     }
 
     #[test]

@@ -286,7 +286,7 @@ fn a_document_round_trips_through_a_file() {
     block(&mut d, 0.0, 64.0);
     d.create_entity("info_player_start", Vec3::new(32.0, 32.0, 16.0));
 
-    let path = std::env::temp_dir().join(format!("chisel-test-{}.vmap", std::process::id()));
+    let path = std::env::temp_dir().join(format!("chisel-test-{}.voidmap", std::process::id()));
     d.save(Some(path.clone())).unwrap();
     assert!(!d.is_modified(), "saving should clear the modified flag");
 
@@ -300,7 +300,7 @@ fn a_document_round_trips_through_a_file() {
 #[test]
 fn the_title_shows_unsaved_changes() {
     let mut d = doc();
-    assert_eq!(d.title(), "untitled.vmap");
+    assert_eq!(d.title(), "untitled.voidmap");
     block(&mut d, 0.0, 64.0);
     assert!(d.title().ends_with('*'), "{}", d.title());
 }

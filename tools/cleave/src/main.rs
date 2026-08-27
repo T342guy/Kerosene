@@ -1,16 +1,16 @@
 //! Cleave -- the VoidEngine BSP compiler.
 //!
-//! Takes a `.vmap` and produces a `.vbsp` the engine can load, plus a `.prt`
-//! portal graph for Umbra and, when the world is not sealed, a `.lin` leak
+//! Takes a `.voidmap` and produces a `.voidbsp` the engine can load, plus a `.voidprt`
+//! portal graph for Umbra and, when the world is not sealed, a `.voidleak` leak
 //! trace Chisel can draw.
 //!
 //! This is the first of the three compile stages, mirroring Source's
 //! vbsp/vvis/vrad split:
 //!
 //! ```text
-//! cleave map.vmap     ->  map.vbsp + map.prt
-//! umbra  map.vbsp     ->  map.vbsp with visibility
-//! radiance map.vbsp   ->  map.vbsp with lighting
+//! cleave map.voidmap     ->  map.voidbsp + map.voidprt
+//! umbra  map.voidbsp     ->  map.voidbsp with visibility
+//! radiance map.voidbsp   ->  map.voidbsp with lighting
 //! ```
 
 use anyhow::{Context, Result};
@@ -20,12 +20,12 @@ use std::path::PathBuf;
 use std::time::Instant;
 
 #[derive(Parser, Debug)]
-#[command(name = "cleave", version, about = "Compile a .vmap into a .vbsp")]
+#[command(name = "cleave", version, about = "Compile a .voidmap into a .voidbsp")]
 struct Args {
-    /// The .vmap file to compile.
+    /// The .voidmap file to compile.
     map: PathBuf,
 
-    /// Where to write the .vbsp. Defaults to the input path with the extension changed.
+    /// Where to write the .voidbsp. Defaults to the input path with the extension changed.
     #[arg(short, long)]
     output: Option<PathBuf>,
 
@@ -114,16 +114,16 @@ fn main() -> Result<()> {
         return Ok(());
     }
 
-    let out_path = args.output.unwrap_or_else(|| args.map.with_extension("vbsp"));
+    let out_path = args.output.unwrap_or_else(|| args.map.with_extension("voidbsp"));
     let size = void_bsp::write_bsp(&output.bsp, &out_path)
         .with_context(|| format!("writing {}", out_path.display()))?;
 
-    let prt_path = out_path.with_extension("prt");
+    let prt_path = out_path.with_extension("voidprt");
     std::fs::write(&prt_path, &output.prt)
         .with_context(|| format!("writing {}", prt_path.display()))?;
 
     if let Some(leak) = &output.leak {
-        let lin_path = out_path.with_extension("lin");
+        let lin_path = out_path.with_extension("voidleak");
         std::fs::write(&lin_path, leak.to_lin())?;
         println!("  wrote {} (load it in Chisel to see the leak)", lin_path.display());
     }

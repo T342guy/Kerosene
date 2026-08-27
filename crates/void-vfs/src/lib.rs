@@ -1,7 +1,7 @@
 //! The virtual filesystem: search paths and mounted archives.
 //!
 //! Source's filesystem lets a mod, the base game and a set of VPKs stack into
-//! one namespace, so `materials/dev/grid.vmat` resolves against whichever
+//! one namespace, so `materials/dev/grid.voidmat` resolves against whichever
 //! layer provides it first. That is what makes a mod a mod -- you drop in
 //! files that shadow the base game's without touching it. VoidEngine works the
 //! same way, with [`Vault`](archive) archives standing in for VPKs.
@@ -15,7 +15,7 @@
 //! let mut vfs = Vfs::new();
 //! vfs.add_directory(Path::new("mods/mymod"), "MOD");   // searched first
 //! vfs.add_directory(Path::new("content"), "GAME");     // fallback
-//! let bytes = vfs.read("materials/dev/grid.vmat").unwrap();
+//! let bytes = vfs.read("materials/dev/grid.voidmat").unwrap();
 //! ```
 
 pub mod archive;
@@ -289,47 +289,47 @@ mod tests {
     fn first_matching_layer_wins() {
         let base = TempDir::new("base");
         let modd = TempDir::new("mod");
-        base.file("materials/grid.vmat", b"base version");
-        modd.file("materials/grid.vmat", b"mod version");
+        base.file("materials/grid.voidmat", b"base version");
+        modd.file("materials/grid.voidmat", b"mod version");
 
         let mut vfs = Vfs::new();
         vfs.add_directory(&modd.0, "MOD");
         vfs.add_directory(&base.0, "GAME");
-        assert_eq!(vfs.read("materials/grid.vmat").unwrap(), b"mod version");
+        assert_eq!(vfs.read("materials/grid.voidmat").unwrap(), b"mod version");
 
         // Adding at the front overrides even the mod.
         let over = TempDir::new("over");
-        over.file("materials/grid.vmat", b"override");
+        over.file("materials/grid.voidmat", b"override");
         vfs.add_directory_front(&over.0, "OVERRIDE");
-        assert_eq!(vfs.read("materials/grid.vmat").unwrap(), b"override");
+        assert_eq!(vfs.read("materials/grid.voidmat").unwrap(), b"override");
     }
 
     #[test]
     fn falls_through_to_a_lower_layer_when_absent() {
         let base = TempDir::new("ft-base");
         let modd = TempDir::new("ft-mod");
-        base.file("maps/a.vbsp", b"only in base");
+        base.file("maps/a.voidbsp", b"only in base");
         let mut vfs = Vfs::new();
         vfs.add_directory(&modd.0, "MOD");
         vfs.add_directory(&base.0, "GAME");
-        assert_eq!(vfs.read("maps/a.vbsp").unwrap(), b"only in base");
+        assert_eq!(vfs.read("maps/a.voidbsp").unwrap(), b"only in base");
     }
 
     #[test]
     fn archives_and_directories_share_one_namespace() {
         let dir = TempDir::new("mix");
-        dir.file("materials/loose.vmat", b"loose");
+        dir.file("materials/loose.voidmat", b"loose");
         let vault = dir.0.join("content.vault");
         let mut b = ArchiveBuilder::new();
-        b.add("materials/packed.vmat", b"packed".to_vec()).unwrap();
+        b.add("materials/packed.voidmat", b"packed".to_vec()).unwrap();
         b.write(&vault).unwrap();
 
         let mut vfs = Vfs::new();
         vfs.add_directory(&dir.0, "GAME");
         vfs.mount_archive(&vault, "GAME").unwrap();
-        assert_eq!(vfs.read("materials/loose.vmat").unwrap(), b"loose");
-        assert_eq!(vfs.read("materials/packed.vmat").unwrap(), b"packed");
-        assert_eq!(vfs.list("materials", Some("vmat")).len(), 2);
+        assert_eq!(vfs.read("materials/loose.voidmat").unwrap(), b"loose");
+        assert_eq!(vfs.read("materials/packed.voidmat").unwrap(), b"packed");
+        assert_eq!(vfs.list("materials", Some("voidmat")).len(), 2);
     }
 
     #[test]
@@ -339,24 +339,24 @@ mod tests {
         let dir = TempDir::new("shadow");
         let vault = dir.0.join("c.vault");
         let mut b = ArchiveBuilder::new();
-        b.add("materials/x.vmat", b"packed".to_vec()).unwrap();
+        b.add("materials/x.voidmat", b"packed".to_vec()).unwrap();
         b.write(&vault).unwrap();
-        dir.file("materials/x.vmat", b"loose wins");
+        dir.file("materials/x.voidmat", b"loose wins");
 
         let mut vfs = Vfs::new();
         vfs.add_directory(&dir.0, "GAME");
         vfs.mount_archive(&vault, "GAME").unwrap();
-        assert_eq!(vfs.read("materials/x.vmat").unwrap(), b"loose wins");
+        assert_eq!(vfs.read("materials/x.voidmat").unwrap(), b"loose wins");
     }
 
     #[test]
     fn case_and_separator_insensitive() {
         let dir = TempDir::new("case");
-        dir.file("materials/dev/grid.vmat", b"x");
+        dir.file("materials/dev/grid.voidmat", b"x");
         let mut vfs = Vfs::new();
         vfs.add_directory(&dir.0, "GAME");
-        assert!(vfs.exists(r"Materials\Dev\Grid.vmat"));
-        assert!(vfs.read(r"MATERIALS/DEV/GRID.VMAT").is_ok());
+        assert!(vfs.exists(r"Materials\Dev\Grid.voidmat"));
+        assert!(vfs.read(r"MATERIALS/DEV/GRID.VOIDMAT").is_ok());
     }
 
     #[test]
@@ -383,8 +383,8 @@ mod tests {
         let dir = TempDir::new("write");
         let mut vfs = Vfs::new();
         vfs.add_directory(&dir.0, "GAME");
-        vfs.write("maps/generated.vbsp", b"data").unwrap();
-        assert_eq!(vfs.read("maps/generated.vbsp").unwrap(), b"data");
+        vfs.write("maps/generated.voidbsp", b"data").unwrap();
+        assert_eq!(vfs.read("maps/generated.voidbsp").unwrap(), b"data");
     }
 
     #[test]
@@ -414,16 +414,16 @@ mod tests {
     fn listing_recurses_and_deduplicates() {
         let a = TempDir::new("list-a");
         let b = TempDir::new("list-b");
-        a.file("materials/x.vmat", b"1");
-        a.file("materials/sub/y.vmat", b"2");
-        b.file("materials/x.vmat", b"dup");
-        b.file("materials/z.vtex", b"3");
+        a.file("materials/x.voidmat", b"1");
+        a.file("materials/sub/y.voidmat", b"2");
+        b.file("materials/x.voidmat", b"dup");
+        b.file("materials/z.voidtex", b"3");
         let mut vfs = Vfs::new();
         vfs.add_directory(&a.0, "MOD");
         vfs.add_directory(&b.0, "GAME");
         assert_eq!(
-            vfs.list("materials", Some("vmat")),
-            vec!["materials/sub/y.vmat", "materials/x.vmat"]
+            vfs.list("materials", Some("voidmat")),
+            vec!["materials/sub/y.voidmat", "materials/x.voidmat"]
         );
     }
 

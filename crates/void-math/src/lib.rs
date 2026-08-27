@@ -7,7 +7,7 @@
 //!   tall and 32 wide. The world is bounded to +/- [`MAX_MAP_COORD`].
 //! * **Z is up.** `+X` is forward, `+Y` is left, `+Z` is up. This is a
 //!   right-handed system and it is *not* what most modern engines use, but it
-//!   is what brush geometry, `.vmap` files and the entity angle conventions
+//!   is what brush geometry, `.voidmap` files and the entity angle conventions
 //!   all assume.
 //! * **Angles are pitch/yaw/roll**, in degrees, in that order -- see
 //!   [`Angles`]. Pitch is positive *downward*, which is a Quake inheritance

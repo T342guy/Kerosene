@@ -1,4 +1,4 @@
-//! `.vtex` -- VoidEngine's texture format, the VTF analogue.
+//! `.voidtex` -- VoidEngine's texture format, the VTF analogue.
 //!
 //! A texture is not just an image: it is an image plus everything the renderer
 //! needs to decide *how* to sample it. That is why source art (`.png`) is
@@ -18,7 +18,7 @@ use bytemuck::{Pod, Zeroable};
 use thiserror::Error;
 use void_math::Vec3;
 
-const MAGIC: [u8; 4] = *b"VTEX";
+const MAGIC: [u8; 4] = *b"VOTX";
 const VERSION: u32 = 1;
 const HEADER_SIZE: usize = 48;
 
@@ -30,7 +30,7 @@ pub const MAX_DIMENSION: u32 = 8192;
 
 #[derive(Debug, Error)]
 pub enum TextureError {
-    #[error("not a .vtex file (bad magic)")]
+    #[error("not a .voidtex file (bad magic)")]
     BadMagic,
     #[error("version {found}; this build reads version {expected}")]
     BadVersion { found: u32, expected: u32 },

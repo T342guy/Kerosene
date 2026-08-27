@@ -1,4 +1,4 @@
-//! Turning the compiled tree into `.vbsp` lumps.
+//! Turning the compiled tree into `.voidbsp` lumps.
 //!
 //! Three jobs happen here, in order:
 //!
@@ -199,7 +199,7 @@ pub struct BrushModel {
     pub origin: Vec3,
 }
 
-/// Assemble the final `.vbsp`.
+/// Assemble the final `.voidbsp`.
 pub fn emit(
     tree: &Tree,
     planes: &PlaneSet,

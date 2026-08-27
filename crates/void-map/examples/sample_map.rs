@@ -1,7 +1,7 @@
-//! Generates `content/maps/void_start.vmap`, the sample level.
+//! Generates `content/maps/void_start.voidmap`, the sample level.
 //!
 //! Run with `cargo run -p void-map --example sample_map`. Writing it in code
-//! rather than by hand keeps the brush geometry exact -- a `.vmap` stores
+//! rather than by hand keeps the brush geometry exact -- a `.voidmap` stores
 //! planes as three points, and getting those right by hand for a two-room
 //! level is a miserable way to spend an afternoon.
 
@@ -123,7 +123,7 @@ fn main() -> std::io::Result<()> {
         std::process::exit(1);
     }
 
-    let path = std::path::Path::new("content/maps/void_start.vmap");
+    let path = std::path::Path::new("content/maps/void_start.voidmap");
     std::fs::create_dir_all(path.parent().unwrap())?;
     std::fs::write(path, map.to_text())?;
     println!(

@@ -1,13 +1,13 @@
 //! Forge -- the VoidEngine model compiler.
 //!
-//! Turns a source mesh into a `.vmdl` the engine can load, the studiomdl
+//! Turns a source mesh into a `.voidmdl` the engine can load, the studiomdl
 //! analogue. It does the work that should happen once at build time rather
 //! than on every load: welding vertices, splitting by material, computing
 //! normals where the source has none, and converting axes and units.
 //!
 //! ```text
-//! forge compile art/crate.obj -o models/props/crate.vmdl --scale-metres
-//! forge info models/props/crate.vmdl
+//! forge compile art/crate.obj -o models/props/crate.voidmdl --scale-metres
+//! forge info models/props/crate.voidmdl
 //! ```
 
 mod obj;
@@ -21,7 +21,7 @@ use void_asset::{Mesh, Model, Vertex};
 use void_math::Vec3;
 
 #[derive(Parser, Debug)]
-#[command(name = "forge", version, about = "Compile source meshes into .vmdl models")]
+#[command(name = "forge", version, about = "Compile source meshes into .voidmdl models")]
 struct Args {
     #[command(subcommand)]
     command: Command,
@@ -29,7 +29,7 @@ struct Args {
 
 #[derive(Subcommand, Debug)]
 enum Command {
-    /// Compile an OBJ into a .vmdl.
+    /// Compile an OBJ into a .voidmdl.
     Compile {
         source: PathBuf,
         #[arg(short, long)]
@@ -73,7 +73,7 @@ fn main() -> Result<()> {
             source, output, default_material, materials, scale, scale_metres, z_up,
             recompute_normals,
         } => {
-            let out = output.unwrap_or_else(|| source.with_extension("vmdl"));
+            let out = output.unwrap_or_else(|| source.with_extension("voidmdl"));
             let scale = scale * if scale_metres { INCHES_PER_METRE } else { 1.0 };
             let up = if z_up { UpAxis::Z } else { UpAxis::Y };
             compile(&source, &out, &default_material, &materials, scale, up, recompute_normals)

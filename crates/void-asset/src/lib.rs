@@ -9,9 +9,9 @@
 //!
 //! | Format  | Extension | Analogue in Source | Built by |
 //! |---------|-----------|--------------------|----------|
-//! | Texture | `.vtex`   | VTF                | Alchemy  |
-//! | Material| `.vmat`   | VMT                | Alchemy  |
-//! | Model   | `.vmdl`   | MDL                | Forge    |
+//! | Texture | `.voidtex`   | VTF                | Alchemy  |
+//! | Material| `.voidmat`   | VMT                | Alchemy  |
+//! | Model   | `.voidmdl`   | MDL                | Forge    |
 //!
 //! [`alchemy`]: https://github.com/t342guy/voidengine
 //! [`forge`]: https://github.com/t342guy/voidengine
@@ -26,17 +26,17 @@ pub use texture::{Mip, PixelFormat, Texture, TextureError, TextureFlags};
 
 /// Canonical extensions, so tools and the VFS agree on them in one place.
 pub mod ext {
-    pub const TEXTURE: &str = "vtex";
-    pub const MATERIAL: &str = "vmat";
-    pub const MODEL: &str = "vmdl";
-    pub const MAP_SOURCE: &str = "vmap";
-    pub const MAP_COMPILED: &str = "vbsp";
+    pub const TEXTURE: &str = "voidtex";
+    pub const MATERIAL: &str = "voidmat";
+    pub const MODEL: &str = "voidmdl";
+    pub const MAP_SOURCE: &str = "voidmap";
+    pub const MAP_COMPILED: &str = "voidbsp";
     pub const ARCHIVE: &str = "vault";
 }
 
 /// Where a material lives, given the name geometry refers to it by.
 ///
-/// Brush faces store `dev/grid`; the file is `materials/dev/grid.vmat`. The
+/// Brush faces store `dev/grid`; the file is `materials/dev/grid.voidmat`. The
 /// prefix and extension are added here rather than being written into every
 /// map, so content can be reorganised without rewriting geometry.
 pub fn material_path(name: &str) -> String {
@@ -60,18 +60,18 @@ mod tests {
 
     #[test]
     fn asset_names_resolve_to_paths() {
-        assert_eq!(material_path("dev/grid"), "materials/dev/grid.vmat");
-        assert_eq!(texture_path("dev/grid"), "materials/dev/grid.vtex");
-        assert_eq!(model_path("props/crate"), "models/props/crate.vmdl");
+        assert_eq!(material_path("dev/grid"), "materials/dev/grid.voidmat");
+        assert_eq!(texture_path("dev/grid"), "materials/dev/grid.voidtex");
+        assert_eq!(model_path("props/crate"), "models/props/crate.voidmdl");
     }
 
     #[test]
     fn a_leading_slash_does_not_produce_a_doubled_path() {
-        assert_eq!(material_path("/dev/grid"), "materials/dev/grid.vmat");
+        assert_eq!(material_path("/dev/grid"), "materials/dev/grid.voidmat");
     }
 
     #[test]
     fn an_explicit_model_path_is_left_alone() {
-        assert_eq!(model_path("models/props/crate.vmdl"), "models/props/crate.vmdl");
+        assert_eq!(model_path("models/props/crate.voidmdl"), "models/props/crate.voidmdl");
     }
 }

@@ -16,7 +16,8 @@ impl BitSet {
     }
 
     pub fn len(&self) -> usize { self.bits }
-    #[cfg_attr(not(test), allow(dead_code))]
+    // Present because `len` without `is_empty` is a lint; vis code never asks.
+    #[allow(dead_code)]
     pub fn is_empty(&self) -> bool { self.bits == 0 }
 
     #[inline]

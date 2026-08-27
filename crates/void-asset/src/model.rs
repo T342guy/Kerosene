@@ -1,4 +1,4 @@
-//! `.vmdl` -- compiled models, the MDL analogue.
+//! `.voidmdl` -- compiled models, the MDL analogue.
 //!
 //! Brush geometry handles walls and floors; models handle everything a brush
 //! cannot describe -- crates, machinery, characters. Forge compiles source
@@ -17,7 +17,7 @@ use bytemuck::{Pod, Zeroable};
 use thiserror::Error;
 use void_math::{Aabb, Vec3};
 
-const MAGIC: [u8; 4] = *b"VMDL";
+const MAGIC: [u8; 4] = *b"VOMD";
 const VERSION: u32 = 1;
 const HEADER_SIZE: usize = 64;
 
@@ -27,7 +27,7 @@ pub const MAX_BONE_INFLUENCES: usize = 4;
 
 #[derive(Debug, Error)]
 pub enum ModelError {
-    #[error("not a .vmdl file (bad magic)")]
+    #[error("not a .voidmdl file (bad magic)")]
     BadMagic,
     #[error("version {found}; this build reads version {expected}")]
     BadVersion { found: u32, expected: u32 },

@@ -2,20 +2,20 @@
 
 | Extension | What | Text or binary | Written by | Source analogue |
 |---|---|---|---|---|
-| `.vmap` | Editable map source | text (KeyValues) | Chisel | `.vmf` |
-| `.vbsp` | Compiled map | binary, lump directory | Cleave / Umbra / Radiance | `.bsp` |
-| `.prt` | Portal graph | text | Cleave | `.prt` |
-| `.lin` | Leak trace | text | Cleave | `.lin` |
-| `.vtex` | Texture | binary | Alchemy | `.vtf` |
-| `.vmat` | Material | text (KeyValues) | Alchemy, by hand | `.vmt` |
-| `.vmdl` | Model | binary | Forge | `.mdl` |
+| `.voidmap` | Editable map source | text (KeyValues) | Chisel | `.vmf` |
+| `.voidbsp` | Compiled map | binary, lump directory | Cleave / Umbra / Radiance | `.bsp` |
+| `.voidprt` | Portal graph | text | Cleave | `.prt` |
+| `.voidleak` | Leak trace | text | Cleave | `.lin` |
+| `.voidtex` | Texture | binary | Alchemy | `.vtf` |
+| `.voidmat` | Material | text (KeyValues) | Alchemy, by hand | `.vmt` |
+| `.voidmdl` | Model | binary | Forge | `.mdl` |
 | `.vault` | Content archive | binary | Vault | `.vpk` |
 
 Text where a person edits or reviews it; binary where the engine loads it.
 
 ## KeyValues
 
-The text format `.vmap`, `.vmat`, and the compiled entity lump all use.
+The text format `.voidmap`, `.voidmat`, and the compiled entity lump all use.
 
 ```
 world
@@ -38,7 +38,7 @@ through the editor does not reshuffle it and produce a noisy diff.
 Backslashes are literal, so `materials\dev\grid` survives intact. Only the
 escapes the writer emits (`\"`, `\\`, `\n`, `\t`) are resolved on read.
 
-## `.vmap` — editable maps
+## `.voidmap` — editable maps
 
 ```
 versioninfo { "formatversion" "1" }
@@ -76,7 +76,7 @@ Faces carry no UVs. They carry two *texture axes* — world vectors a point is
 projected onto — which is what makes texturing feel the way it does in a brush
 editor: drag a brush and the texture stays locked to world space.
 
-## `.vbsp` — compiled maps
+## `.voidbsp` — compiled maps
 
 A header (`VOID`, a version, a 20-slot lump directory) followed by flat arrays
 of `#[repr(C)]` records. Every record is padding-free, so loading a lump is a
@@ -114,7 +114,7 @@ lighting can be tone-mapped at runtime rather than clipped at bake time.
 Every index in the file is validated at load. A dangling one becomes an
 out-of-bounds read deep inside the renderer, where the cause is invisible.
 
-## `.prt` — the portal graph
+## `.voidprt` — the portal graph
 
 Written by Cleave, read by Umbra.
 
@@ -129,7 +129,7 @@ The winding's own plane normal points toward the first cluster listed. Only
 portals between two non-solid leaves appear: sight does not travel through
 rock, so a portal with a solid side is not a portal.
 
-## `.vtex` — textures
+## `.voidtex` — textures
 
 A 48-byte header (dimensions, format, flags, average colour) then the mip
 chain, largest first. Uncompressed RGBA8, RGB8 or R8.
@@ -138,7 +138,7 @@ Mipmaps, the average colour Radiance needs for bounce lighting, and sampling
 intent are all resolved at build time. Doing them at load costs startup on
 every run, and doing them *well* is not something to redo per launch.
 
-## `.vmat` — materials
+## `.voidmat` — materials
 
 ```
 lit
@@ -158,7 +158,7 @@ making every metal surface reflective is one file change. Unknown parameters
 round-trip rather than being dropped: a game will invent keys the engine has
 never heard of.
 
-## `.vmdl` — models
+## `.voidmdl` — models
 
 A 64-byte header, then vertices, indices, meshes, bones and a string table.
 

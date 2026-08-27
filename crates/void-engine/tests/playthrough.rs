@@ -1,7 +1,7 @@
 //! End-to-end tests: build a map, compile it, load it, and play it.
 //!
-//! These go through the whole stack -- `.vmap` source, Cleave's compile, the
-//! `.vbsp` loader, entity spawning, movement and collision -- because that is
+//! These go through the whole stack -- `.voidmap` source, Cleave's compile, the
+//! `.voidbsp` loader, entity spawning, movement and collision -- because that is
 //! the only place the seams between them show. Every crate can pass its own
 //! tests and still not add up to a level you can walk around.
 
@@ -95,7 +95,7 @@ fn build(map: &Map) -> Bsp {
     assert!(out.leak.is_none(), "the test map leaks");
     // Round-tripping through bytes is what the engine actually does.
     let bytes = out.bsp.to_bytes();
-    Bsp::from_bytes(&bytes, "test.vbsp").expect("the compiled map should reload")
+    Bsp::from_bytes(&bytes, "test.voidbsp").expect("the compiled map should reload")
 }
 
 fn spawned_world(bsp: &Bsp) -> EntityWorld {
@@ -259,7 +259,7 @@ fn the_engine_loads_and_ticks_a_compiled_map() {
     let dir = std::env::temp_dir().join(format!("voidengine-test-{}", std::process::id()));
     std::fs::create_dir_all(dir.join("maps")).unwrap();
     let bsp = build(&corridor_map(true, true));
-    std::fs::write(dir.join("maps/testmap.vbsp"), bsp.to_bytes()).unwrap();
+    std::fs::write(dir.join("maps/testmap.voidbsp"), bsp.to_bytes()).unwrap();
 
     let mut engine = Engine::new(&EngineConfig {
         content_paths: vec![dir.clone()],

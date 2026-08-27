@@ -1,4 +1,4 @@
-//! Reading the `.prt` portal graph Cleave writes.
+//! Reading the `.voidprt` portal graph Cleave writes.
 //!
 //! ```text
 //! VPRT1

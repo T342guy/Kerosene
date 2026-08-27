@@ -9,7 +9,7 @@ use std::fmt;
 /// * `roll` rotates about the X (forward) axis, positive rolling right.
 ///
 /// The inverted pitch is a Quake inheritance. It is preserved deliberately:
-/// every `.vmap` angle key, every entity `angles` value and every recorded
+/// every `.voidmap` angle key, every entity `angles` value and every recorded
 /// view angle in the wild assumes it.
 #[derive(Clone, Copy, PartialEq, Default)]
 pub struct Angles {

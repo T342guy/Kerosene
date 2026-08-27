@@ -6,7 +6,7 @@
 //!
 //! Undo is implemented by snapshotting the map. That is the unglamorous
 //! choice -- a command pattern with inverse operations is more elegant and
-//! uses far less memory -- but a `.vmap` for a large level is a few megabytes,
+//! uses far less memory -- but a `.voidmap` for a large level is a few megabytes,
 //! and correctness here is worth more than the memory. An inverse operation
 //! that is subtly wrong corrupts the level silently.
 
@@ -373,7 +373,7 @@ impl Document {
             .as_ref()
             .and_then(|p| p.file_name())
             .map(|n| n.to_string_lossy().into_owned())
-            .unwrap_or_else(|| "untitled.vmap".to_string());
+            .unwrap_or_else(|| "untitled.voidmap".to_string());
         if self.modified { format!("{name} *") } else { name }
     }
 }

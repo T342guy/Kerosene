@@ -1,7 +1,7 @@
-//! `.vmap` -- VoidEngine's editable map source format.
+//! `.voidmap` -- VoidEngine's editable map source format.
 //!
 //! This is the analogue of Source's `.vmf`: what Chisel saves, what version
-//! control tracks, and what Cleave compiles into a `.vbsp`. It is KeyValues
+//! control tracks, and what Cleave compiles into a `.voidbsp`. It is KeyValues
 //! text, deliberately, so that a map is reviewable in a diff and repairable in
 //! a text editor when a tool corrupts it.
 //!

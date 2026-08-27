@@ -1,6 +1,6 @@
 //! Turning a compiled map into geometry a GPU can draw.
 //!
-//! A `.vbsp` stores faces as rings of shared edges, which is right for
+//! A `.voidbsp` stores faces as rings of shared edges, which is right for
 //! collision and visibility and wrong for drawing. This turns them into
 //! triangles with everything a shader needs, and groups them so the world can
 //! be drawn in a handful of draw calls rather than one per face.

@@ -1,4 +1,4 @@
-//! Reading and writing `.vbsp` files.
+//! Reading and writing `.voidbsp` files.
 //!
 //! The file is a header, a lump directory, and then the lumps. Every lump is a
 //! flat array of one record type, so loading is a bounds check and a cast --
@@ -26,7 +26,7 @@ pub enum BspError {
         #[source]
         source: std::io::Error,
     },
-    #[error("{path} is not a .vbsp file (bad magic)")]
+    #[error("{path} is not a .voidbsp file (bad magic)")]
     BadMagic { path: String },
     #[error("{path} is format version {found}; this build reads version {expected}. Recompile the map with Cleave.")]
     BadVersion { path: String, found: u32, expected: u32 },
@@ -203,7 +203,7 @@ fn read_lump<T: Pod>(bytes: &[u8], path: &str, name: &'static str) -> Result<Vec
     Ok(out)
 }
 
-/// Write a `.vbsp` and report its size, creating parent directories.
+/// Write a `.voidbsp` and report its size, creating parent directories.
 pub fn write_bsp(bsp: &Bsp, path: &Path) -> Result<u64> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).map_err(|source| BspError::Io {

@@ -1,16 +1,16 @@
 //! Alchemy -- the VoidEngine texture and material tool.
 //!
 //! Turns source art into the formats the engine loads: `.png` and friends into
-//! `.vtex`, and material definitions into `.vmat`. This is the VTFEdit/vtex
+//! `.voidtex`, and material definitions into `.voidmat`. This is the VTFEdit/vtex
 //! analogue, and it exists for the same reason: the engine should load
 //! textures, not decode and mipmap them.
 //!
 //! ```text
-//! alchemy compile art/grid.png -o materials/dev/grid.vtex
-//! alchemy compile art/grid_n.png --normal -o materials/dev/grid_normal.vtex
-//! alchemy material dev/grid --basetexture dev/grid -o materials/dev/grid.vmat
+//! alchemy compile art/grid.png -o materials/dev/grid.voidtex
+//! alchemy compile art/grid_n.png --normal -o materials/dev/grid_normal.voidtex
+//! alchemy material dev/grid --basetexture dev/grid -o materials/dev/grid.voidmat
 //! alchemy batch art -o materials --make-materials
-//! alchemy info materials/dev/grid.vtex
+//! alchemy info materials/dev/grid.voidtex
 //! ```
 
 use anyhow::{Context, Result, bail};
@@ -28,7 +28,7 @@ struct Args {
 
 #[derive(Subcommand, Debug)]
 enum Command {
-    /// Compile an image into a .vtex.
+    /// Compile an image into a .voidtex.
     Compile {
         image: PathBuf,
         #[arg(short, long)]
@@ -49,7 +49,7 @@ enum Command {
         #[arg(long)]
         opaque: bool,
     },
-    /// Write a .vmat material definition.
+    /// Write a .voidmat material definition.
     Material {
         /// Material name, as geometry refers to it (e.g. `dev/grid`).
         name: String,
@@ -74,11 +74,11 @@ enum Command {
         directory: PathBuf,
         #[arg(short, long)]
         output: PathBuf,
-        /// Also write a matching .vmat next to each texture.
+        /// Also write a matching .voidmat next to each texture.
         #[arg(long)]
         make_materials: bool,
     },
-    /// Describe a compiled .vtex or .vmat.
+    /// Describe a compiled .voidtex or .voidmat.
     Info { file: PathBuf },
 }
 
@@ -89,7 +89,7 @@ fn main() -> Result<()> {
 
     match Args::parse().command {
         Command::Compile { image, output, normal, clamp, point, ui, opaque } => {
-            let out = output.unwrap_or_else(|| image.with_extension("vtex"));
+            let out = output.unwrap_or_else(|| image.with_extension("voidtex"));
             let flags = build_flags(normal, clamp, point, ui);
             let size = compile_image(&image, &out, flags, opaque)?;
             println!("  wrote {} ({:.1} KiB)", out.display(), size as f64 / 1024.0);
@@ -201,12 +201,12 @@ fn batch(dir: &Path, out_root: &Path, make_materials: bool) -> Result<()> {
         let is_normal = name.ends_with("_normal") || name.ends_with("_n");
         let flags = build_flags(is_normal, false, false, false);
 
-        let out = out_root.join(format!("{name}.vtex"));
+        let out = out_root.join(format!("{name}.voidtex"));
         compile_image(path, &out, flags, false)?;
         compiled += 1;
 
         if make_materials && !is_normal {
-            let mat_path = out_root.join(format!("{name}.vmat"));
+            let mat_path = out_root.join(format!("{name}.voidmat"));
             // Never overwrite a material that already exists. Materials are
             // authored -- a designer sets the surface property, the shader,
             // the blend mode -- and this only generates a starting point.
@@ -256,7 +256,7 @@ fn info(path: &Path) -> Result<()> {
     let bytes = std::fs::read(path).with_context(|| format!("reading {}", path.display()))?;
 
     match path.extension().and_then(|e| e.to_str()) {
-        Some("vtex") => {
+        Some("voidtex") => {
             let tex = Texture::from_bytes(&bytes)?;
             println!("{}", path.display());
             println!("  {}x{}, {:?}", tex.width(), tex.height(), tex.format);
@@ -275,7 +275,7 @@ fn info(path: &Path) -> Result<()> {
             }
             println!("  flags: {}", if flags.is_empty() { "none".into() } else { flags.join(", ") });
         }
-        Some("vmat") => {
+        Some("voidmat") => {
             let text = String::from_utf8(bytes).context("material is not UTF-8")?;
             let material = Material::parse(&text).map_err(|e: MaterialError| anyhow::anyhow!(e))?;
             println!("{}", path.display());
@@ -286,7 +286,7 @@ fn info(path: &Path) -> Result<()> {
                 println!("    {k} = {v}");
             }
         }
-        _ => bail!("{} is not a .vtex or .vmat", path.display()),
+        _ => bail!("{} is not a .voidtex or .voidmat", path.display()),
     }
     Ok(())
 }

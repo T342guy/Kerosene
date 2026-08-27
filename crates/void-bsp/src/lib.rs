@@ -1,6 +1,6 @@
-//! `.vbsp` -- VoidEngine's compiled map format.
+//! `.voidbsp` -- VoidEngine's compiled map format.
 //!
-//! A `.vmap` is what a designer edits; a `.vbsp` is what the engine runs. The
+//! A `.voidmap` is what a designer edits; a `.voidbsp` is what the engine runs. The
 //! compile turns overlapping convex brushes into a binary space partition:
 //! a tree of planes whose leaves are convex, non-overlapping regions of space.
 //! That single structure answers most of the questions a level needs answered:

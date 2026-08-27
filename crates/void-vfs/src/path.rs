@@ -58,12 +58,12 @@ mod tests {
 
     #[test]
     fn spellings_collapse_to_one_key() {
-        let want = Some("materials/dev/grid.vmat".to_string());
+        let want = Some("materials/dev/grid.voidmat".to_string());
         for src in [
-            r"Materials\Dev\Grid.vmat",
-            "materials/dev/grid.vmat",
-            "./materials//dev/grid.vmat",
-            "/materials/dev/grid.vmat",
+            r"Materials\Dev\Grid.voidmat",
+            "materials/dev/grid.voidmat",
+            "./materials//dev/grid.voidmat",
+            "/materials/dev/grid.voidmat",
         ] {
             assert_eq!(normalize(src), want, "{src}");
         }
@@ -71,7 +71,7 @@ mod tests {
 
     #[test]
     fn interior_dotdot_resolves() {
-        assert_eq!(normalize("materials/dev/../props/x.vmat").as_deref(), Some("materials/props/x.vmat"));
+        assert_eq!(normalize("materials/dev/../props/x.voidmat").as_deref(), Some("materials/props/x.voidmat"));
     }
 
     #[test]
@@ -90,11 +90,11 @@ mod tests {
 
     #[test]
     fn extension_and_parent() {
-        assert_eq!(extension("a/b/c.VMAT").as_deref(), Some("vmat"));
+        assert_eq!(extension("a/b/c.VOIDMAT").as_deref(), Some("voidmat"));
         assert_eq!(extension("a/b/noext"), None);
-        assert_eq!(parent("a/b/c.vmat"), "a/b");
-        assert_eq!(parent("c.vmat"), "");
-        assert_eq!(with_extension("maps/void_start.vmap", "vbsp"), "maps/void_start.vbsp");
-        assert_eq!(with_extension("maps/noext", "vbsp"), "maps/noext.vbsp");
+        assert_eq!(parent("a/b/c.voidmat"), "a/b");
+        assert_eq!(parent("c.voidmat"), "");
+        assert_eq!(with_extension("maps/void_start.voidmap", "voidbsp"), "maps/void_start.voidbsp");
+        assert_eq!(with_extension("maps/noext", "voidbsp"), "maps/noext.voidbsp");
     }
 }

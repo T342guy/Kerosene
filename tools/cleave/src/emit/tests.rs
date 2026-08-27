@@ -58,7 +58,7 @@ fn a_sealed_room_compiles_to_a_valid_map() {
 fn the_compiled_map_survives_a_file_round_trip() {
     let out = compile_ok(&room_map(false));
     let bytes = out.bsp.to_bytes();
-    let back = void_bsp::Bsp::from_bytes(&bytes, "room.vbsp").expect("should reload");
+    let back = void_bsp::Bsp::from_bytes(&bytes, "room.voidbsp").expect("should reload");
     assert_eq!(back.faces.len(), out.bsp.faces.len());
     assert_eq!(back.leaves.len(), out.bsp.leaves.len());
     assert_eq!(back.to_bytes(), bytes, "writing must be stable");

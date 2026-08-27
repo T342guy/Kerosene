@@ -275,7 +275,7 @@ fn a_lit_map_still_round_trips_through_a_file() {
     );
     bake(&mut bsp, &lights, &quick());
     let bytes = bsp.to_bytes();
-    let back = Bsp::from_bytes(&bytes, "lit.vbsp").expect("should reload");
+    let back = Bsp::from_bytes(&bytes, "lit.voidbsp").expect("should reload");
     assert_eq!(back.lighting.len(), bsp.lighting.len());
     assert_eq!(back.faces[0].lightmap_offset, bsp.faces[0].lightmap_offset);
     assert!(back.face_lightmap(0).is_some());

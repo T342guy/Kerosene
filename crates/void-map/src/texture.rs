@@ -7,7 +7,7 @@
 //!
 //! `u = (point . uaxis) / uscale + uoffset`
 //!
-//! The `.vmap` spelling matches Source's: `"[x y z offset] scale"`.
+//! The `.voidmap` spelling matches Source's: `"[x y z offset] scale"`.
 
 use void_math::{Plane, Vec3};
 

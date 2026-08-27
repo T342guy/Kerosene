@@ -1,7 +1,7 @@
 //! KeyValues -- the text format VoidEngine uses for anything human-editable.
 //!
-//! This is Source's KeyValues, and it shows up in the same places: `.vmap`
-//! source maps, `.vmat` materials, the entity lump inside a compiled `.vbsp`,
+//! This is Source's KeyValues, and it shows up in the same places: `.voidmap`
+//! source maps, `.voidmat` materials, the entity lump inside a compiled `.voidbsp`,
 //! game configuration, and the FGD-adjacent entity metadata Chisel reads.
 //!
 //! ```text

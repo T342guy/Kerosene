@@ -1,11 +1,11 @@
 //! The compile, start to finish.
 //!
 //! ```text
-//!   .vmap  ->  brushes  ->  CSG  ->  BSP tree  ->  portals
+//!   .voidmap  ->  brushes  ->  CSG  ->  BSP tree  ->  portals
 //!                                                     |
-//!                     .prt  <----  clusters  <---  flood fill
+//!                     .voidprt  <----  clusters  <---  flood fill
 //!                                                     |
-//!                                        fill outside  ->  emit  ->  .vbsp
+//!                                        fill outside  ->  emit  ->  .voidbsp
 //! ```
 //!
 //! Each stage is separately testable and reports its own numbers, because

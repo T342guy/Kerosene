@@ -1,4 +1,4 @@
-//! On-disk lump structures for `.vbsp`.
+//! On-disk lump structures for `.voidbsp`.
 //!
 //! Every struct here is `#[repr(C)]` and padding-free so it can be
 //! reinterpreted straight from a mapped byte slice by `bytemuck` -- loading a

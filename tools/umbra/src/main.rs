@@ -1,15 +1,15 @@
 //! Umbra -- the VoidEngine visibility compiler.
 //!
-//! Reads a compiled `.vbsp` and the `.prt` portal graph Cleave wrote beside
+//! Reads a compiled `.voidbsp` and the `.voidprt` portal graph Cleave wrote beside
 //! it, works out which clusters can see which, and writes the result back into
 //! the map's visibility lump.
 //!
 //! This is the second of the three compile stages, mirroring Source's `vvis`:
 //!
 //! ```text
-//! cleave   map.vmap   ->  map.vbsp + map.prt
-//! umbra    map.vbsp   ->  map.vbsp with visibility     <- you are here
-//! radiance map.vbsp   ->  map.vbsp with lighting
+//! cleave   map.voidmap   ->  map.voidbsp + map.voidprt
+//! umbra    map.voidbsp   ->  map.voidbsp with visibility     <- you are here
+//! radiance map.voidbsp   ->  map.voidbsp with lighting
 //! ```
 //!
 //! Vis is the slowest stage of any BSP compile and the one that matters most
@@ -28,12 +28,12 @@ use std::time::Instant;
 use void_bsp::{Bsp, VisBuilder};
 
 #[derive(Parser, Debug)]
-#[command(name = "umbra", version, about = "Compute the PVS for a compiled .vbsp")]
+#[command(name = "umbra", version, about = "Compute the PVS for a compiled .voidbsp")]
 struct Args {
-    /// The .vbsp to add visibility to, modified in place.
+    /// The .voidbsp to add visibility to, modified in place.
     map: PathBuf,
 
-    /// The portal file. Defaults to the map path with a .prt extension.
+    /// The portal file. Defaults to the map path with a .voidprt extension.
     #[arg(long)]
     portals: Option<PathBuf>,
 
@@ -58,7 +58,7 @@ fn main() -> Result<()> {
     let mut bsp = Bsp::load(&args.map)
         .with_context(|| format!("loading {}", args.map.display()))?;
 
-    let prt_path = args.portals.unwrap_or_else(|| args.map.with_extension("prt"));
+    let prt_path = args.portals.unwrap_or_else(|| args.map.with_extension("voidprt"));
     let prt_text = std::fs::read_to_string(&prt_path).with_context(|| {
         format!(
             "reading {}. Umbra needs the portal file Cleave writes next to the map.",

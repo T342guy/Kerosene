@@ -151,7 +151,7 @@ impl Engine {
 
     /// Load a map by name, e.g. `void_start`.
     pub fn load_map(&mut self, name: &str) -> anyhow::Result<()> {
-        let path = format!("maps/{name}.vbsp");
+        let path = format!("maps/{name}.voidbsp");
         let bytes = self
             .vfs
             .read(&path)
@@ -464,8 +464,8 @@ pub fn take_console_requests(engine: &mut Engine) {
     }
 }
 
-/// Where a map's `.vbsp` should be, given its name.
-pub fn map_path(name: &str) -> String { format!("maps/{name}.vbsp") }
+/// Where a map's `.voidbsp` should be, given its name.
+pub fn map_path(name: &str) -> String { format!("maps/{name}.voidbsp") }
 
 /// Whether a path looks like a map name rather than a file.
 pub fn is_bare_map_name(name: &str) -> bool {

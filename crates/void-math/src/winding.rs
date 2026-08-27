@@ -8,7 +8,7 @@ use glam::Vec3;
 /// faces, and is then split repeatedly as it is filed into the BSP tree.
 ///
 /// **Point order is clockwise when viewed from the front** (the side the
-/// normal points at), matching the `.map`/`.vmap` brush convention. Renderers
+/// normal points at), matching the `.map`/`.voidmap` brush convention. Renderers
 /// that want counter-clockwise triangles must reverse, and
 /// [`Winding::triangulate_ccw`] does exactly that.
 #[derive(Clone, Debug, PartialEq)]
