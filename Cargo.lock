@@ -2579,6 +2579,7 @@ dependencies = [
  "glam",
  "log",
  "rayon",
+ "thiserror 2.0.20",
  "void-bsp",
  "void-math",
 ]

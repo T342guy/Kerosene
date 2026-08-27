@@ -227,7 +227,7 @@ impl VisBuilder {
         let mut interned: std::collections::HashMap<Vec<u8>, u32> = std::collections::HashMap::new();
 
         let table_size = 4 + self.num_clusters * 8;
-        let mut emit = |row: &[u8],
+        let emit = |row: &[u8],
                         data: &mut Vec<u8>,
                         interned: &mut std::collections::HashMap<Vec<u8>, u32>| -> u32 {
             let mut packed = Vec::new();

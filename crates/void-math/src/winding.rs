@@ -266,6 +266,7 @@ impl Winding {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ON_EPSILON;
 
     fn unit_square() -> Winding {
         // Clockwise seen from +Z, i.e. facing up.

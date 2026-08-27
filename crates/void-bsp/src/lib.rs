@@ -25,11 +25,13 @@
 //! over compile times.
 
 pub mod io;
+pub mod trace;
 pub mod types;
 pub mod vis;
 
 pub use io::{BspError, LumpDir, MAGIC, VERSION, write_bsp};
 pub use types::*;
+pub use trace::Trace;
 pub use vis::{VisBuilder, VisData, VisKind};
 
 use void_kv::KeyValues;
