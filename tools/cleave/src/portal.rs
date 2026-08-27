@@ -398,8 +398,10 @@ pub fn assign_clusters(tree: &mut Tree) -> usize {
 
 /// Write the portal graph for Umbra.
 ///
-/// The format is Quake's `PRT1`, kept because it is readable, diffable, and
-/// exactly what a separate visibility tool needs:
+/// The shape follows Quake's portal file -- readable, diffable, and exactly
+/// what a separate visibility tool needs -- but the header is `VPRT1`, not
+/// `PRT1`: this is not that format and must not be handed to a tool expecting
+/// one.
 ///
 /// ```text
 /// VPRT1

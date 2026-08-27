@@ -140,12 +140,14 @@ tools/
 apps/
   void            the runtime
 content/          sample art, models, materials and the sample level
-docs/             architecture, formats, and the tool reference
+docs/             architecture, formats, tool reference, licensing
 ```
 
 Read [`docs/architecture.md`](docs/architecture.md) for how the pieces fit,
 [`docs/formats.md`](docs/formats.md) for the file formats, and
 [`docs/tools.md`](docs/tools.md) for the full tool reference.
+[`docs/licensing.md`](docs/licensing.md) covers the dependency audit and the
+provenance of the algorithms.
 
 ---
 
@@ -173,4 +175,19 @@ Known limits, stated plainly:
 
 ## Licence
 
-MIT or Apache-2.0, at your option.
+MIT or Apache-2.0, at your option — see `LICENSE-MIT` and `LICENSE-APACHE`.
+
+Every dependency is permissive; there is no copyleft anywhere in the tree, so
+relicensing under GPL-3.0-or-later is available if you would rather. GPL-2.0
+is not: `winit` and six other crates are Apache-2.0-only, which GPL-2.0 cannot
+absorb. [`docs/licensing.md`](docs/licensing.md) has the full audit and the
+reasoning.
+
+## Not a Valve product
+
+VoidEngine is an independent reimplementation, not affiliated with or endorsed
+by Valve or id Software, and it contains none of their code or content. It
+cannot open Source or Quake files and does not try to — every format it
+defines is its own, named so it cannot be mistaken for anyone else's. Valve
+and id names appear in these docs only to say what a piece here is analogous
+to. See `NOTICE`.

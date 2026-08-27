@@ -1,0 +1,60 @@
+VoidEngine
+Copyright (c) 2026 The VoidEngine contributors
+
+VoidEngine is an independent reimplementation. It is not affiliated with,
+endorsed by, or sponsored by Valve Corporation or id Software LLC, and it
+contains no source code, assets, or data files from the Source engine, the
+Source SDK, Hammer, Quake, or any other product of either company.
+
+It is not a *clean-room* reimplementation, and does not claim to be: it
+was written with knowledge of how id's published compilers work, so the
+provenance section below states plainly which modules follow that
+structure. Everything here was written from scratch in Rust.
+
+"Valve", "Source", "Source 2", "Hammer", "Half-Life", "Portal", "Steam"
+and "Quake" are trademarks of their respective owners. Where those names
+appear in VoidEngine's documentation and source comments, they are used
+nominatively -- to say what a piece of this project is analogous to, or
+which published technique it follows -- and no claim of affiliation is
+made or implied.
+
+VoidEngine defines its own file formats. They are deliberately named and
+byte-tagged so they cannot be confused with anyone else's:
+
+    .voidmap  .voidbsp  .voidprt  .voidleak
+    .voidtex  .voidmat  .voidmdl  .vault
+
+None of them is compatible with, readable by, or produced from any Valve
+or id format. VoidEngine cannot open Source or Quake content and does not
+attempt to.
+
+--------------------------------------------------------------------------
+Prior art
+
+The techniques this engine implements are decades-old published computer
+graphics work, described in academic papers, textbooks and articles long
+before this project existed:
+
+  * Binary space partitioning, and its use for solid geometry and
+    rendering order -- Fuchs, Kedem & Naylor (1980); Naylor, Amanatides
+    & Thibault (1990).
+  * Portal-based potentially-visible-set precomputation -- Seth Teller's
+    1992 Berkeley dissertation, "Visibility Computations in Densely
+    Occluded Polyhedral Environments".
+  * Radiosity and lightmap baking -- Goral et al. (1984) and the large
+    literature that followed.
+  * Constructive solid geometry on convex brushes; Sutherland-Hodgman
+    polygon clipping (1974); Gribb-Hartmann frustum plane extraction.
+
+id Software's Quake tools and Valve's Source engine are well-known
+implementations of several of these, and their published source has
+informed the *structure* of some modules here -- most visibly the BSP
+split heuristic, the portal-flow separating-plane test, the winding
+clipper, and the player movement solver. Those modules were written from
+scratch in Rust against the descriptions of the algorithms; no code was
+copied. Where behaviour is deliberately matched (Quake's inverted pitch
+convention, the texture base-axis table, Source's 30-unit air speed cap),
+the source comments say so explicitly, because a reader deserves to know
+which choices are engineering and which are compatibility.
+
+See docs/licensing.md for the full third-party dependency audit.
