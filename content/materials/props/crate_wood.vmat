@@ -1,4 +1,4 @@
 lit
 {
-	"$basetexture" "crate_wood"
+	"$basetexture" "props/crate_wood"
 }

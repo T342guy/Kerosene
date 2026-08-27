@@ -1,8 +1,4 @@
 /target
-**/*.rs.bk
-*.vbsp
-content/maps/*.vbsp
-.DS_Store
 
 # Compiled content. Reproducible with scripts/build-content.sh from the
 # sources that are committed (.vmap, .png, .obj).
@@ -11,3 +7,8 @@ content/maps/*.vbsp
 *.prt
 *.lin
 content/maps/*.vbsp
+content/materials/
+content/models/
+
+**/*.rs.bk
+.DS_Store
