@@ -16,6 +16,7 @@ impl BitSet {
     }
 
     pub fn len(&self) -> usize { self.bits }
+    #[cfg_attr(not(test), allow(dead_code))]
     pub fn is_empty(&self) -> bool { self.bits == 0 }
 
     #[inline]
@@ -41,22 +42,23 @@ impl BitSet {
         more != 0
     }
 
-    pub fn or_with(&mut self, other: &BitSet) {
-        for (a, b) in self.words.iter_mut().zip(&other.words) { *a |= b; }
-    }
-
     pub fn count(&self) -> usize {
         self.words.iter().map(|w| w.count_ones() as usize).sum()
     }
 
     /// Whether every bit set here is also set in `other`.
+    #[cfg_attr(not(test), allow(dead_code))]
     pub fn is_subset_of(&self, other: &BitSet) -> bool {
         self.words.iter().zip(&other.words).all(|(a, b)| a & !b == 0)
     }
 
+    /// Set every bit up to the declared width.
+    ///
+    /// The padding past `bits` is cleared afterwards, so `count` stays honest
+    /// rather than reporting the whole last word.
+    #[cfg_attr(not(test), allow(dead_code))]
     pub fn fill(&mut self) {
         self.words.fill(u64::MAX);
-        // Clear the padding bits past the declared width so `count` is honest.
         let extra = self.words.len() * 64 - self.bits;
         if extra > 0 && !self.words.is_empty() {
             let last = self.words.len() - 1;

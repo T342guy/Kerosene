@@ -318,7 +318,7 @@ impl Renderer {
         // Accumulate adjacent surfaces into one draw.
         let mut run: Option<(u32, u32)> = None;
 
-        let mut flush = |pass: &mut wgpu::RenderPass<'a>, run: &mut Option<(u32, u32)>, stats: &mut FrameStats| {
+        let flush = |pass: &mut wgpu::RenderPass<'a>, run: &mut Option<(u32, u32)>, stats: &mut FrameStats| {
             if let Some((first, count)) = run.take() {
                 pass.draw_indexed(first..first + count, 0, 0..1);
                 stats.draw_calls += 1;

@@ -281,7 +281,13 @@ mod tests {
         // yaw in a +Y-is-left world.
         assert!(input.view_angles.yaw < 0.0, "yaw {}", input.view_angles.yaw);
 
+        // 1000 counts at 0.022 deg/count and sensitivity 3 is 66 degrees, so
+        // it takes rather more than that to reach the limit.
         input.mouse_moved(0.0, 1000.0);
+        input.update_view(&console);
+        assert!((input.view_angles.pitch - 66.0).abs() < 0.01, "{}", input.view_angles.pitch);
+
+        input.mouse_moved(0.0, 2000.0);
         input.update_view(&console);
         assert_eq!(input.view_angles.pitch, 89.0, "pitch must clamp at the neck's limit");
     }

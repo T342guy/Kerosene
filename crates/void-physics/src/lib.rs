@@ -37,6 +37,8 @@ pub use movement::{
     try_move,
 };
 pub use world::{BspWorld, CollisionWorld};
+#[cfg(any(test, feature = "test-world"))]
+pub use world::BoxWorld;
 
 use void_math::Vec3;
 

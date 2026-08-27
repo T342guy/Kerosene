@@ -78,7 +78,10 @@ fn main() -> Result<()> {
         println!("  warning: this map has no light entities, so it will render black.");
         println!("  Add a 'light' entity, or a 'light_environment' for sun and sky.");
     }
-    if !lights.has_sun {
+    if lights.has_sun {
+        let c = lights.sky_color;
+        println!("  sky emits {:.0} {:.0} {:.0}", c.x, c.y, c.z);
+    } else {
         println!("  note: no light_environment, so sky surfaces emit nothing");
     }
 

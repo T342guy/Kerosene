@@ -30,7 +30,7 @@ pub mod logic;
 pub mod triggers;
 
 use std::sync::Arc;
-use void_entity::{ClassDef, ClassRegistry, EntityId, EntityWorld, InputHandler, Value};
+use void_entity::{ClassDef, ClassRegistry, EntityId, EntityWorld, Value};
 
 /// Register every class this game provides.
 pub fn register(registry: &mut ClassRegistry) {
@@ -113,17 +113,4 @@ pub(crate) fn field_f32(world: &EntityWorld, id: EntityId, key: &str, default: f
 
 pub(crate) fn set_field(world: &mut EntityWorld, id: EntityId, key: &str, value: Value) {
     if let Some(e) = world.get_mut(id) { e.fields.set(key, value); }
-}
-
-/// Register a class built from a name and a list of inputs.
-pub(crate) fn simple_class(
-    registry: &mut ClassRegistry,
-    name: &'static str,
-    inputs: &[(&'static str, InputHandler)],
-) {
-    let mut def = ClassDef::new(name);
-    for (input, handler) in inputs {
-        def = def.input(input, *handler);
-    }
-    registry.register(def);
 }

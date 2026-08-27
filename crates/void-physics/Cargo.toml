@@ -11,3 +11,9 @@ void-math.workspace = true
 void-bsp.workspace = true
 glam.workspace = true
 log.workspace = true
+
+[features]
+# Exposes BoxWorld, the hand-built collision world the movement tests use.
+# Other crates can enable it to test their own movement code the same way.
+test-world = []
+

@@ -1,6 +1,6 @@
 //! What movement code needs from the world.
 
-use void_bsp::{Bsp, Trace, contents};
+use void_bsp::{Bsp, Trace};
 use void_math::Vec3;
 
 /// Everything player movement needs to know about its surroundings.
@@ -37,18 +37,24 @@ impl CollisionWorld for BspWorld<'_> {
 }
 
 /// A world made of axis-aligned boxes, for testing movement in isolation.
+///
+/// Testing movement against a compiled map means debugging the map when a test
+/// fails. A floor, a step and a wall are enough to pin down every rule in the
+/// solver, and the expected answer is obvious by inspection.
+#[cfg(any(test, feature = "test-world"))]
 #[derive(Default)]
 pub struct BoxWorld {
     /// `(mins, maxs, contents)`.
     pub boxes: Vec<(Vec3, Vec3, u32)>,
 }
 
+#[cfg(any(test, feature = "test-world"))]
 impl BoxWorld {
     pub fn new() -> Self { Self::default() }
 
     /// Add a solid box.
     pub fn solid(mut self, mins: Vec3, maxs: Vec3) -> Self {
-        self.boxes.push((mins, maxs, contents::SOLID));
+        self.boxes.push((mins, maxs, void_bsp::contents::SOLID));
         self
     }
 
@@ -64,6 +70,7 @@ impl BoxWorld {
     }
 }
 
+#[cfg(any(test, feature = "test-world"))]
 impl CollisionWorld for BoxWorld {
     fn trace_hull(&self, start: Vec3, end: Vec3, mins: Vec3, maxs: Vec3, mask: u32) -> Trace {
         let mut best = Trace::miss(end);
@@ -102,6 +109,7 @@ impl CollisionWorld for BoxWorld {
     }
 }
 
+#[cfg(any(test, feature = "test-world"))]
 /// Slab method: the entry and exit times of a ray against a box.
 ///
 /// A start point lying exactly *on* a face while moving inward counts as an
