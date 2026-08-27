@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-3.0-or-later
 //! Running a compile from the editor.
 //!
 //! Chisel shells out to Cleave, Umbra and Radiance rather than linking them.

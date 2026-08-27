@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-3.0-or-later
 //! Logic entities: the glue a designer wires everything else together with.
 
 use crate::set_field;

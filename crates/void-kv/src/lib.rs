@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-3.0-or-later
 //! KeyValues -- the text format VoidEngine uses for anything human-editable.
 //!
 //! This is Source's KeyValues, and it shows up in the same places: `.voidmap`

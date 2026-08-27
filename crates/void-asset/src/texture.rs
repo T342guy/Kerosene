@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-3.0-or-later
 //! `.voidtex` -- VoidEngine's texture format, the VTF analogue.
 //!
 //! A texture is not just an image: it is an image plus everything the renderer

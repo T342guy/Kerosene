@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-3.0-or-later
 //! Baking lightmaps.
 //!
 //! Every lit face carries a small grid of *luxels*, each holding the light

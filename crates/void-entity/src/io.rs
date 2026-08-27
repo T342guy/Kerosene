@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-3.0-or-later
 //! Outputs, inputs, and the event queue that connects them.
 
 use crate::world::EntityId;

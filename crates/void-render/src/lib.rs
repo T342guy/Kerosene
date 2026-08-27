@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-3.0-or-later
 //! The renderer.
 //!
 //! Draws a compiled map with its baked lighting. The design follows Source's

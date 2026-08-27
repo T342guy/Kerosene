@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-3.0-or-later
 //! CSG: removing the faces you cannot see.
 //!
 //! Level designers build with overlapping boxes. A room is six slabs that

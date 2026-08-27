@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-3.0-or-later
 //! The Potentially Visible Set.
 //!
 //! For every cluster, the PVS records which other clusters can possibly be

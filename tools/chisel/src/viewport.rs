@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-3.0-or-later
 //! Viewports: the four panes a level is built in.
 //!
 //! Three are orthographic and axis-aligned -- top, front and side -- and one

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-3.0-or-later
 //! The compiler's working representation of a brush.
 //!
 //! A `.voidmap` solid is a list of planes. Cleave needs more: interned plane

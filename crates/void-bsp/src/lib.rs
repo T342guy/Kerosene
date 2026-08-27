@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-3.0-or-later
 //! `.voidbsp` -- VoidEngine's compiled map format.
 //!
 //! A `.voidmap` is what a designer edits; a `.voidbsp` is what the engine runs. The

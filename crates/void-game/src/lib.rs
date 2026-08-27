@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-3.0-or-later
 //! The sample game: entity classes and the rules that use them.
 //!
 //! This is the analogue of Source's game DLL. `void-entity` knows how to route

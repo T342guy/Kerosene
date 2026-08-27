@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-3.0-or-later
 //! Cleave -- the VoidEngine BSP compiler, as a library.
 //!
 //! The command-line tool is a thin wrapper over [`pipeline::compile`]. Exposing

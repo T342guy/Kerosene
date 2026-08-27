@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-3.0-or-later
 //! What movement code needs from the world.
 
 use void_bsp::{Bsp, Trace};

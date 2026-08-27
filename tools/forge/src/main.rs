@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-3.0-or-later
 //! Forge -- the VoidEngine model compiler.
 //!
 //! Turns a source mesh into a `.voidmdl` the engine can load, the studiomdl

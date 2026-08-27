@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-3.0-or-later
 //! Turning the compiled tree into `.voidbsp` lumps.
 //!
 //! Three jobs happen here, in order:

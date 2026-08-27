@@ -27,7 +27,7 @@ members = [
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.94"
-license = "MIT OR Apache-2.0"
+license = "LGPL-3.0-or-later"
 authors = ["VoidEngine contributors"]
 repository = "https://github.com/t342guy/voidengine"
 

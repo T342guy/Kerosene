@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-3.0-or-later
 //! On-disk lump structures for `.voidbsp`.
 //!
 //! Every struct here is `#[repr(C)]` and padding-free so it can be

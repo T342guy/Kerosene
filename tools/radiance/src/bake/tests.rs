@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-3.0-or-later
 use super::*;
 use crate::lights::LightSet;
 use void_bsp::{Brush, BrushSide, BspPlane, Edge, Face, Leaf, Model, TexData, TexInfo, encode_leaf};

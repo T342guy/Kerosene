@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-3.0-or-later
 //! End-to-end compiler tests.
 //!
 //! These build a map in memory, run the whole pipeline, and check the compiled

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-3.0-or-later
 //! Trigger volumes.
 //!
 //! A trigger is a brush that is not solid but that traces can find. When

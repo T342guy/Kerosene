@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-3.0-or-later
 //! End-to-end tests: build a map, compile it, load it, and play it.
 //!
 //! These go through the whole stack -- `.voidmap` source, Cleave's compile, the

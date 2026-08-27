@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-3.0-or-later
 //! The document being edited: a map, a selection, and an undo history.
 //!
 //! Every change goes through [`Document::apply`], which is what makes undo

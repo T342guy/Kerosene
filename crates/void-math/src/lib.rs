@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-3.0-or-later
 //! Core math for VoidEngine.
 //!
 //! VoidEngine inherits Source's conventions, because the tools and the map

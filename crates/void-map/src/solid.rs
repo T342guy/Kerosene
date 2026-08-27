@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-3.0-or-later
 //! Brush solids and their faces.
 
 use crate::texture::{TextureAxis, default_axes_for_plane};

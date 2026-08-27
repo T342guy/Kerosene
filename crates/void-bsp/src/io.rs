@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-3.0-or-later
 //! Reading and writing `.voidbsp` files.
 //!
 //! The file is a header, a lump directory, and then the lumps. Every lump is a

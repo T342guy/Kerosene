@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-3.0-or-later
 //! View and projection, and the frustum that falls out of them.
 //!
 //! The awkward part is that VoidEngine's world is Z-up with +X forward, while

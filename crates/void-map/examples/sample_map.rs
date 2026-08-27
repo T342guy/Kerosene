@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-3.0-or-later
 //! Generates `content/maps/void_start.voidmap`, the sample level.
 //!
 //! Run with `cargo run -p void-map --example sample_map`. Writing it in code

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-3.0-or-later
 //! Radiance -- the VoidEngine lighting compiler.
 //!
 //! Reads a compiled `.voidbsp`, bakes static lighting into every face, and writes

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-3.0-or-later
 //! `.voidmdl` -- compiled models, the MDL analogue.
 //!
 //! Brush geometry handles walls and floors; models handle everything a brush

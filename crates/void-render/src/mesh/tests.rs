@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-3.0-or-later
 use super::*;
 use crate::camera::Camera;
 use crate::lightmap::LightmapAtlas;

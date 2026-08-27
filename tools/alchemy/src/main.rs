@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-3.0-or-later
 //! Alchemy -- the VoidEngine texture and material tool.
 //!
 //! Turns source art into the formats the engine loads: `.png` and friends into

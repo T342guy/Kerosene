@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-3.0-or-later
 use super::*;
 
 /// A minimal but structurally complete map: one plane splitting space into an

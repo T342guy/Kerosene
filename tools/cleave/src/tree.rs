@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-3.0-or-later
 //! Building the BSP tree.
 //!
 //! The tree is built top-down out of the brushes' own planes. At each step we

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-3.0-or-later
 //! Entity classes and their handlers.
 //!
 //! Source splits its engine from its game DLL: the engine routes inputs and

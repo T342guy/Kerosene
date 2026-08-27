@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-3.0-or-later
 //! Cleave -- the VoidEngine BSP compiler.
 //!
 //! Takes a `.voidmap` and produces a `.voidbsp` the engine can load, plus a `.voidprt`

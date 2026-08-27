@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-3.0-or-later
 //! Tracing rays and boxes through the world.
 //!
 //! Every "did it hit anything" question in the engine funnels through here:

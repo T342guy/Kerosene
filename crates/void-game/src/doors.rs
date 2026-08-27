@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-3.0-or-later
 //! Moving brushes: doors and toggleable brush entities.
 
 use crate::{field_f32, set_field};

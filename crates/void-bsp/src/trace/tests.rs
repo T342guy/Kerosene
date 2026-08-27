@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-3.0-or-later
 use super::*;
 use crate::types::{Brush, BrushSide, BspPlane, Leaf, Model, Node, TexData, TexInfo, encode_leaf};
 

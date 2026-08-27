@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-3.0-or-later
 //! Collision against the world *and* the things moving through it.
 //!
 //! The world model is static, so tracing against it is a tree walk. Brush

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-3.0-or-later
 //! Computing the Potentially Visible Set.
 //!
 //! The question is: standing anywhere in cluster A, can you see any part of

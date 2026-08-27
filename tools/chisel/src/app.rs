@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-3.0-or-later
 //! The editor's user interface.
 //!
 //! Hammer's layout, because it is the right one for the job: a toolbar down

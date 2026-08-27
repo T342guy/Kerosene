@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-3.0-or-later
 //! The engine core: everything except the window.
 //!
 //! Deliberately separated from [`crate::host`] so the whole simulation can run

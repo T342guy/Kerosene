@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-3.0-or-later
 //! Turning a compiled map into geometry a GPU can draw.
 //!
 //! A `.voidbsp` stores faces as rings of shared edges, which is right for

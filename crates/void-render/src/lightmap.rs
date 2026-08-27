@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-3.0-or-later
 //! Packing per-face lightmaps into one atlas.
 //!
 //! Every lit face carries its own small grid of luxels. Uploading them as

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-3.0-or-later
 //! `.voidmap` -- VoidEngine's editable map source format.
 //!
 //! This is the analogue of Source's `.vmf`: what Chisel saves, what version

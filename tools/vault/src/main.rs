@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-3.0-or-later
 //! Vault -- the VoidEngine content archive tool.
 //!
 //! Packs a content tree into a single `.vault` file, the VPK analogue. A mod

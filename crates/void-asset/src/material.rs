@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-3.0-or-later
 //! `.voidmat` -- material definitions, the VMT analogue.
 //!
 //! A material says which shader draws a surface and what to feed it. The

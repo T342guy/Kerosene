@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-3.0-or-later
 //! The `.vault` archive format -- VoidEngine's answer to Source's VPK.
 //!
 //! One file holding a whole content tree, so a mod ships as a handful of

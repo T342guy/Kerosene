@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-3.0-or-later
 //! Entity storage, spawning, and the tick that drives them.
 
 use crate::io::{Connection, InputEvent, PendingEvent, Target};

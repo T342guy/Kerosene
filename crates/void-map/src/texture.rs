@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-3.0-or-later
 //! Brush face texture projection.
 //!
 //! A brush face carries no UVs. Instead it carries two *texture axes* -- world

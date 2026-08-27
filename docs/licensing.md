@@ -1,24 +1,61 @@
 # Licensing
 
-Short answer to "can this be published under GPL-3.0?": **yes** — nothing in
-the dependency tree stops you, and every line of VoidEngine was written for
-this project. There are three things worth understanding before you pick,
-though, and one licence that is *not* available.
+VoidEngine is **LGPL-3.0-or-later**. `COPYING` holds the GPL-3.0 text that the
+LGPL builds on, `COPYING.LESSER` holds the LGPL-3.0 text, `Cargo.toml` declares
+`license = "LGPL-3.0-or-later"`, and every source file carries an
+`SPDX-License-Identifier` line.
 
-I am not a lawyer and none of this is legal advice. It is an accurate
-inventory plus the reasoning behind the current choice, so that you or an
-actual lawyer can decide quickly.
+Nothing in the dependency tree obstructs that, and every line of VoidEngine was
+written for this project. Three things are worth understanding anyway: one
+licence is *not* available to this project, one clause of the LGPL needs real
+care in a Rust project, and one part of the provenance story deserves to be
+stated plainly rather than buried.
 
-## What the project is licensed as today
+I am not a lawyer and none of this is legal advice. It is an accurate inventory
+plus the reasoning behind the choice, so that you or an actual lawyer can move
+quickly.
 
-`MIT OR Apache-2.0`, declared in the workspace `Cargo.toml` and shipped as
-`LICENSE-MIT` and `LICENSE-APACHE`. That is the Rust ecosystem default, and
-it was picked as a placeholder — not because it is the right answer for you.
+## What LGPL-3.0 means here
 
-Switching is a small, mechanical change: replace the two licence files with
-`COPYING` (the GPL-3.0 text), set `license = "GPL-3.0-or-later"` in
-`Cargo.toml`, and update the README's Licence section. Nothing in the code
-depends on it.
+The Lesser GPL is the GPL plus a linking permission. Concretely:
+
+* **Changing VoidEngine** — fixing the BSP compiler, adding a shader path,
+  altering a format — means publishing those changes under the LGPL too, if you
+  distribute the result.
+* **Building a game on VoidEngine** does not. Your game code, your assets and
+  your levels stay yours under whatever terms you like. That is exactly why the
+  Lesser GPL exists, and it is the reason to pick it over the plain GPL for an
+  engine: the GPL would have reached into every game anyone shipped.
+* **The tools** (Chisel, Cleave, Umbra, Radiance, Alchemy, Forge, Vault) are
+  covered too. For a standalone program the LGPL's extra permission simply has
+  nothing to bite on, so in practice they behave as GPL-3.0 binaries: ship the
+  source if you ship the tool.
+
+### The static-linking clause — read this before shipping a binary
+
+The LGPL's whole mechanism assumes a user who receives your program can replace
+the library inside it with their own build. That assumption was written for
+dynamic linking. **Rust links statically by default**, so a game shipping as one
+executable has the engine baked in, and nobody can swap it.
+
+LGPL-3.0 §4 anticipates this and lets you do it anyway, provided you take one of
+its routes — in Rust terms:
+
+1. **Ship the engine as a shared library** (`crate-type = ["cdylib"]` behind a C
+   ABI) and link your game against it dynamically. This is the clause's native
+   case, and the least paperwork. It is also real work: VoidEngine currently
+   builds as rlibs and has no stable C ABI.
+2. **Ship what is needed to relink.** Provide your game's object files or
+   compiled-but-unlinked artefacts, plus the engine source, so a user can build
+   a modified engine and relink your game against it. `cargo build` leaves
+   suitable artefacts in `target/`, but you have to actually distribute them and
+   document the step.
+3. **Open-source your game**, at which point the question stops mattering.
+
+None of this affects development, internal builds, or a game you ship with
+source. It matters the moment a *closed-source* binary goes out the door. If
+that is the plan, decide between routes 1 and 2 early — retrofitting a C ABI
+onto a finished engine is unpleasant.
 
 ## Third-party dependencies
 
@@ -59,13 +96,14 @@ winit  ab_glyph  ab_glyph_rasterizer  owned_ttf_parser
 spirv  codespan-reporting  gethostname
 ```
 
-Apache-2.0 is one-way compatible with GPL-3.0: you may combine Apache-2.0
-code into a GPL-3.0 work, and the result is GPL-3.0. It is **not** compatible
-with GPL-2.0 — the FSF and the ASF agree on this, over Apache's patent
-termination and indemnification clauses. So the choice is between permissive
-licences and **GPL-3.0 (or later)**. GPL-2.0-only is not available to this
-project while `winit` is the windowing layer, and `winit` is not replaceable
-without rewriting the whole platform layer.
+Apache-2.0 is one-way compatible with the version 3 licences: you may combine
+Apache-2.0 code into a GPL-3.0 or LGPL-3.0 work, and the result carries that
+licence. It is **not** compatible with GPL-2.0 or LGPL-2.1 — the FSF and the
+ASF agree on this, over Apache's patent termination and indemnification
+clauses. So the v3 licences are available and the v2 ones are not, for as long
+as `winit` is the windowing layer, and `winit` is not replaceable without
+rewriting the whole platform layer. This is the single fact that decided
+LGPL-**3.0** rather than LGPL-2.1.
 
 **Bundled fonts — `epaint_default_fonts`.** egui ships default typefaces
 under the SIL Open Font Licence 1.1 and the Ubuntu Font Licence 1.0. Those
@@ -140,10 +178,12 @@ following the structure of GPL-2.0 source is lower risk than copying it and
 higher risk than never having read it. Every place it happens is named in a
 source comment and in the table above, so nothing is hidden.
 
-**Relicensing does not change this.** If a derivation claim existed, GPL-3.0
-would not cure it — GPL-2.0 code cannot be moved to GPL-3.0-only anyway. What
+**The choice of copyleft does not change this**, and it is worth being explicit
+about why, since picking the LGPL might look like an answer to it. It isn't. A
+licence governs what *this* project grants downstream; it cannot clear anything
+upstream, and GPL-2.0 code could not be moved under LGPL-3.0 in any case. What
 actually lowers the risk is what the project already does: ship no Valve or id
-content, define incompatible formats, and state provenance plainly.
+content, define formats theirs cannot read, and state provenance plainly.
 
 ## Names and trademarks
 
@@ -161,16 +201,30 @@ They are now `.voidmap`, `.voidmat`, `.voidmdl`, `.voidtex` and `.voidleak`,
 and the two binary magics that named Valve formats (`VTEX`, `VMDL`) are now
 `VOTX` and `VOMD`.
 
-## Recommendation
+## Consequences of the choice, in one place
 
-If the goal is "anyone can build on this", keep `MIT OR Apache-2.0`. If the
-goal is "improvements must stay open" — the reason most engine projects
-choose it — **GPL-3.0-or-later is available and clean**, and is the closest
-thing to id's own tradition of releasing engines under the GPL. Note that it
-would also require anyone shipping a game on VoidEngine to release their game
-code, which is a large ask; LGPL-3.0 or MPL-2.0 are the usual middle grounds
-if you want the engine to stay open without that reaching into games built on
-it.
+**For contributors.** Patches are LGPL-3.0-or-later. Nothing else is needed —
+there is no CLA, and the SPDX line in every file records it.
 
-Whichever you pick, keep `NOTICE`: it is what a reader checks first, and it is
-the part that answers "is this a Valve thing?" before anyone opens a file.
+**For someone forking the engine.** Publish your changes to the engine under the
+same licence. You are not obliged to open anything you build *on top of* it.
+
+**For someone shipping a game.** Your game is yours. Two obligations travel with
+the binary: say that it uses VoidEngine and where to get the source, and satisfy
+the §4 relinking clause above if the game itself is closed-source.
+
+**For someone shipping the tools.** Chisel and the compilers are ordinary
+copyleft binaries — distribute the corresponding source.
+
+**Fonts, again, because it catches people.** Any binary linking egui — Chisel,
+and the engine's debug overlay — carries OFL-1.1 and Ubuntu-Font-1.0 typefaces
+inside it. Both licences are satisfied by shipping their notices alongside the
+binary. Neither conflicts with the LGPL, because the fonts are data travelling
+with the program rather than part of it.
+
+**What the licence does not do.** It does not make the provenance question above
+go away, in either direction. Copyleft is a statement about what *you* grant
+downstream; it is not a clearance of anything upstream. What actually keeps this
+project clean is what it already does: ship no Valve or id content, define
+formats theirs cannot read, and name every module that follows the structure of
+published work.

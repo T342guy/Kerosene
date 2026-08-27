@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-3.0-or-later
 //! Reading Wavefront OBJ, Forge's source mesh format.
 //!
 //! OBJ is chosen for the same reason `.voidmap` is text: it is what every

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-3.0-or-later
 //! Behaviour tests for the game's entity classes.
 //!
 //! These drive the classes through the same entity world the engine uses, so

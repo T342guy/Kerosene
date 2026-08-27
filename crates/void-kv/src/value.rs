@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-3.0-or-later
 //! Typed conversions for KeyValues strings.
 //!
 //! Map and material files write numbers, flags and vectors as text, in a

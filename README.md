@@ -12,13 +12,23 @@ are *separate programs* sharing file formats. You can script them, run them on
 a build server, replace one, or write your own. VoidEngine keeps that shape.
 
 ```
-   art/*.png ──alchemy──► materials/*.voidtex + *.voidmat ─┐
-   art/*.obj ──forge────► models/*.voidmdl ─────────────┤
-                                                     ├─vault─► content.vault
-   maps/*.voidmap ─cleave─► *.voidbsp ─umbra─► +vis ─radiance─► +light ─┘
-        ▲                                              │
-        └──────────────── chisel ◄─────────────────────┴──► void
+   art/*.png ──alchemy──► materials/*.voidtex + *.voidmat ──────────────┐
+   art/*.obj ──forge────► models/*.voidmdl ─────────────────────────────┤
+   maps/*.voidmap ─cleave─► *.voidbsp ─umbra─► +vis ─radiance─► +light ─┤
+                                                                        └─vault─► content.vault ─► void
+
+   chisel drives all of it: edits the map, runs the compilers, launches void.
 ```
+
+> **Not a Valve product.** VoidEngine is an independent reimplementation. It is
+> not affiliated with, endorsed by, or sponsored by Valve Corporation or id
+> Software, and it contains none of their source code, assets or data files. It
+> cannot open Source or Quake content and does not try to — every format it
+> defines is its own, deliberately named and byte-tagged so it cannot be
+> mistaken for anyone else's. Valve and id names appear throughout these docs
+> for one reason only: to say what a piece of this project is analogous to.
+> "Valve", "Source", "Hammer" and "Quake" are their owners' trademarks. See
+> [`NOTICE`](NOTICE).
 
 ---
 
@@ -175,19 +185,17 @@ Known limits, stated plainly:
 
 ## Licence
 
-MIT or Apache-2.0, at your option — see `LICENSE-MIT` and `LICENSE-APACHE`.
+**LGPL-3.0-or-later.** The full texts are `COPYING` (GPL-3.0, which the LGPL
+builds on) and `COPYING.LESSER` (LGPL-3.0); every source file carries an
+`SPDX-License-Identifier` line.
 
-Every dependency is permissive; there is no copyleft anywhere in the tree, so
-relicensing under GPL-3.0-or-later is available if you would rather. GPL-2.0
-is not: `winit` and six other crates are Apache-2.0-only, which GPL-2.0 cannot
-absorb. [`docs/licensing.md`](docs/licensing.md) has the full audit and the
-reasoning.
+In practice: changes *to VoidEngine itself* must be published under the same
+licence, but a game built on it can be whatever you like. That is the whole
+point of choosing the Lesser GPL over the GPL.
 
-## Not a Valve product
-
-VoidEngine is an independent reimplementation, not affiliated with or endorsed
-by Valve or id Software, and it contains none of their code or content. It
-cannot open Source or Quake files and does not try to — every format it
-defines is its own, named so it cannot be mistaken for anyone else's. Valve
-and id names appear in these docs only to say what a piece here is analogous
-to. See `NOTICE`.
+One thing to know before you ship a binary: the LGPL's mechanism assumes a
+user can swap in their own build of the library, and Rust links statically. If
+you distribute a closed-source game linked against VoidEngine, LGPL §4 asks you
+to make relinking possible — ship object files, or link the engine as a shared
+library. [`docs/licensing.md`](docs/licensing.md) explains this properly, along
+with the full dependency audit and the provenance of the algorithms.

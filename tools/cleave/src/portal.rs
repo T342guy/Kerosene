@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-3.0-or-later
 //! Portals, flood filling, and leak detection.
 //!
 //! A *portal* is the polygon where two leaves touch -- the doorway between two
