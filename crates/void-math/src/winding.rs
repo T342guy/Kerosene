@@ -1,4 +1,4 @@
-use crate::{Aabb, MAX_MAP_COORD, ON_EPSILON, Plane, PlaneSide, major_axis};
+use crate::{Aabb, MAX_MAP_COORD, Plane, PlaneSide, major_axis};
 use glam::Vec3;
 
 /// A convex polygon in 3D, stored as an ordered ring of points.

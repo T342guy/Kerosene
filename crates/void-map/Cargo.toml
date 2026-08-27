@@ -12,3 +12,4 @@ void-kv.workspace = true
 anyhow.workspace = true
 thiserror.workspace = true
 glam.workspace = true
+log.workspace = true

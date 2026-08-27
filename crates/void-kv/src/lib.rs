@@ -33,7 +33,7 @@ mod parse;
 mod value;
 
 pub use parse::ParseError;
-pub use value::{ParseValueError, Vec3Value};
+pub use value::{FromKvValue, ParseValueError, ToKvValue, Vec3Value, format_float};
 
 /// One entry inside a block: either a `"key" "value"` pair or a nested block.
 #[derive(Clone, Debug, PartialEq)]

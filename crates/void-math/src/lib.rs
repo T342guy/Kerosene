@@ -23,8 +23,8 @@ mod plane;
 mod winding;
 
 pub use aabb::Aabb;
-pub use angles::Angles;
-pub use plane::{Plane, PlaneSet, PlaneSide};
+pub use angles::{Angles, Basis, angle_diff, wrap180};
+pub use plane::{Plane, PlaneKind, PlaneSet, PlaneSide};
 pub use winding::Winding;
 
 pub use glam::{Mat3, Mat4, Quat, Vec2, Vec3, Vec4, vec2, vec3, vec4};
