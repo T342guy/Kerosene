@@ -25,6 +25,9 @@ env_logger.workspace = true
 void-game.workspace = true
 void-kv.workspace = true
 void-map.workspace = true
+egui.workspace = true
+egui-wgpu.workspace = true
+egui-winit.workspace = true
 
 [dev-dependencies]
 cleave = { path = "../../tools/cleave" }

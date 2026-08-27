@@ -14,6 +14,7 @@
 
 use crate::engine::{Engine, EngineConfig, take_console_requests};
 use crate::input::InputSystem;
+use void_console::ConsoleUi;
 use std::sync::Arc;
 use std::time::Instant;
 use void_render::gpu::{CameraUniform, MapResources, Renderer};
@@ -32,6 +33,11 @@ struct Gfx {
     queue: wgpu::Queue,
     config: wgpu::SurfaceConfiguration,
     renderer: Renderer,
+    /// egui, for the developer console. Nothing else in the game uses it, and
+    /// it costs nothing while the console is closed.
+    egui: egui::Context,
+    egui_state: egui_winit::State,
+    egui_renderer: egui_wgpu::Renderer,
 }
 
 /// Geometry for the currently loaded map.
@@ -53,6 +59,7 @@ struct App {
     stats: FrameStats,
     /// Seconds since the last `r_speeds` report.
     since_report: f32,
+    console_ui: ConsoleUi,
 }
 
 /// Start the engine with a window.
@@ -70,6 +77,7 @@ pub fn run(config: EngineConfig) -> anyhow::Result<()> {
         mouse_captured: false,
         stats: FrameStats::default(),
         since_report: 0.0,
+        console_ui: ConsoleUi::new(),
     };
 
     event_loop.run_app(&mut app)?;
@@ -92,6 +100,18 @@ impl ApplicationHandler for App {
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
+        // egui gets first refusal while the console is open, and the game
+        // sees nothing: a console you cannot type an `n` into without walking
+        // forward is not a console.
+        if self.console_ui.open {
+            if let Some(gfx) = &mut self.gfx {
+                let response = gfx.egui_state.on_window_event(&gfx.window, &event);
+                let swallow = response.consumed
+                    && !matches!(event, WindowEvent::RedrawRequested | WindowEvent::CloseRequested);
+                if swallow { return }
+            }
+        }
+
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
 
@@ -118,10 +138,25 @@ impl ApplicationHandler for App {
                 if event.repeat { return; }
 
                 if let PhysicalKey::Code(code) = event.physical_key {
+                    // The console key is handled here rather than through a
+                    // binding so that it always works, including out of a
+                    // console whose bindings someone has just broken.
+                    if matches!(code, KeyCode::Backquote) && pressed {
+                        self.toggle_console();
+                        return;
+                    }
                     if code == KeyCode::Escape && pressed {
+                        if self.console_ui.open {
+                            self.toggle_console();
+                            return;
+                        }
                         self.set_mouse_capture(false);
                         return;
                     }
+                    // Held movement keys must not stay held while the console
+                    // has the keyboard, or the player walks the whole time it
+                    // is open.
+                    if self.console_ui.open { return }
                     if let Some(name) = key_name(code) {
                         if let Some(command) = self.input.key_event(name, pressed) {
                             self.engine.console.execute_user(&command);
@@ -131,6 +166,7 @@ impl ApplicationHandler for App {
             }
 
             WindowEvent::MouseInput { state, button, .. } => {
+                if self.console_ui.open { return }
                 if button == MouseButton::Left && state == ElementState::Pressed && !self.mouse_captured {
                     // Clicking the window takes the mouse, the way every game
                     // does; escape gives it back.
@@ -170,6 +206,16 @@ impl ApplicationHandler for App {
 }
 
 impl App {
+    /// Open or close the console, and hand the mouse and keyboard over.
+    fn toggle_console(&mut self) {
+        self.console_ui.toggle();
+        if self.console_ui.open {
+            // Whatever was held stays held forever otherwise.
+            self.input.release_all();
+            self.set_mouse_capture(false);
+        }
+    }
+
     fn set_mouse_capture(&mut self, capture: bool) {
         let Some(gfx) = &self.gfx else { return };
         self.mouse_captured = capture;
@@ -329,6 +375,16 @@ impl App {
             }
         }
 
+        if self.console_ui.open {
+            draw_console(
+                gfx,
+                &mut encoder,
+                &view,
+                &mut self.console_ui,
+                &mut self.engine.console,
+            );
+        }
+
         gfx.queue.submit(std::iter::once(encoder.finish()));
         frame.present();
 
@@ -354,6 +410,56 @@ impl App {
             s.cluster
         );
         self.engine.console.print(message);
+    }
+}
+
+/// Run one egui frame for the console and record it into the encoder.
+///
+/// A free function rather than a method so it can borrow the graphics state
+/// and the console at once without the whole `App` going along with it.
+fn draw_console(
+    gfx: &mut Gfx,
+    encoder: &mut wgpu::CommandEncoder,
+    view: &wgpu::TextureView,
+    console_ui: &mut ConsoleUi,
+    console: &mut void_console::Console,
+) {
+    let input = gfx.egui_state.take_egui_input(&gfx.window);
+    let output = gfx.egui.run(input, |ctx| {
+        crate::console_ui::draw(ctx, console_ui, console);
+    });
+    gfx.egui_state.handle_platform_output(&gfx.window, output.platform_output);
+
+    let triangles = gfx.egui.tessellate(output.shapes, output.pixels_per_point);
+    for (id, delta) in &output.textures_delta.set {
+        gfx.egui_renderer.update_texture(&gfx.device, &gfx.queue, *id, delta);
+    }
+    let descriptor = egui_wgpu::ScreenDescriptor {
+        size_in_pixels: [gfx.config.width, gfx.config.height],
+        pixels_per_point: output.pixels_per_point,
+    };
+    gfx.egui_renderer.update_buffers(&gfx.device, &gfx.queue, encoder, &triangles, &descriptor);
+
+    {
+        let mut pass = encoder
+            .begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("console"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view,
+                    resolve_target: None,
+                    // Load, not clear: the game is behind it.
+                    ops: wgpu::Operations { load: wgpu::LoadOp::Load, store: wgpu::StoreOp::Store },
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            })
+            .forget_lifetime();
+        gfx.egui_renderer.render(&mut pass, &triangles, &descriptor);
+    }
+
+    for id in &output.textures_delta.free {
+        gfx.egui_renderer.free_texture(id);
     }
 }
 
@@ -412,7 +518,20 @@ async fn create_gfx(event_loop: &ActiveEventLoop) -> anyhow::Result<Gfx> {
     let mut renderer = Renderer::new(&device, format);
     renderer.ensure_depth(&device, config.width, config.height);
 
-    Ok(Gfx { window, surface, device, queue, config, renderer })
+    let egui = egui::Context::default();
+    let egui_state = egui_winit::State::new(
+        egui.clone(),
+        egui.viewport_id(),
+        &window,
+        Some(window.scale_factor() as f32),
+        None,
+        None,
+    );
+    // No depth attachment for the UI pass: the console is an overlay and is
+    // meant to be in front of everything.
+    let egui_renderer = egui_wgpu::Renderer::new(&device, format, None, 1, false);
+
+    Ok(Gfx { window, surface, device, queue, config, renderer, egui, egui_state, egui_renderer })
 }
 
 /// Map a physical key to the name bindings use.

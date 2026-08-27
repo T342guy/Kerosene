@@ -287,3 +287,63 @@ fn the_engine_loads_and_ticks_a_compiled_map() {
 
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn what_the_engine_logs_reaches_the_console() {
+    // The gap this closes: everything logged through the `log` crate went to
+    // stderr and nowhere else, so a door reporting a missing target was
+    // invisible from inside the game -- and the console, the one place anyone
+    // would look, showed nothing.
+    use log::Log;
+    use void_console::{LogLevel, LogRelay};
+    use void_engine::engine::{Engine, EngineConfig};
+
+    let relay = std::sync::Arc::new(LogRelay::detached(log::LevelFilter::Debug));
+    let mut engine = Engine::new(&EngineConfig {
+        log: Some(std::sync::Arc::clone(&relay)),
+        content_paths: vec![],
+        ..Default::default()
+    });
+
+    let before = engine.console.log_len();
+    relay.log(
+        &log::Record::builder()
+            .level(log::Level::Warn)
+            .target("void_game")
+            .args(format_args!("func_door could not find `gate`"))
+            .build(),
+    );
+    // Nothing arrives until a frame runs: logging happens on whatever thread
+    // is running, and the console is single-owner on the main one.
+    assert_eq!(engine.console.log_len(), before);
+
+    engine.frame(0.016, &InputState::default());
+
+    let found = engine
+        .console
+        .log()
+        .any(|l| l.level == LogLevel::Warning && l.text.contains("could not find `gate`"));
+    assert!(found, "the warning never reached the console");
+}
+
+#[test]
+fn the_console_does_not_repeat_its_own_output() {
+    // `Console::print` forwards to the `log` crate so the file and stderr get
+    // it too. Without the target check that line would come straight back and
+    // appear twice.
+    use void_console::LogRelay;
+    use void_engine::engine::{Engine, EngineConfig};
+
+    let relay = std::sync::Arc::new(LogRelay::detached(log::LevelFilter::Debug));
+    let mut engine = Engine::new(&EngineConfig {
+        log: Some(std::sync::Arc::clone(&relay)),
+        content_paths: vec![],
+        ..Default::default()
+    });
+
+    engine.console.print("hello from the console");
+    engine.frame(0.016, &InputState::default());
+
+    let count = engine.console.log().filter(|l| l.text == "hello from the console").count();
+    assert_eq!(count, 1, "the console echoed itself");
+}

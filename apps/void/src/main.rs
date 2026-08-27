@@ -22,9 +22,12 @@ use void_engine::input::InputState;
 use void_math::Angles;
 
 fn main() -> Result<()> {
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
-        .format_timestamp(None)
-        .init();
+    // The engine's own relay rather than env_logger: everything logged
+    // anywhere in the engine has to be readable from the in-game console, and
+    // a logger that only writes to stderr cannot do that.
+    let log = void_console::install_logger(void_console::logging::level_from_env(
+        log::LevelFilter::Info,
+    ));
 
     let args: Vec<String> = std::env::args().skip(1).collect();
     if args.iter().any(|a| a == "--help" || a == "-h") {
@@ -34,6 +37,7 @@ fn main() -> Result<()> {
 
     let parsed = parse_args(&args)?;
     let mut config = EngineConfig {
+        log: Some(log),
         content_paths: parsed.content_paths,
         archives: parsed.archives,
         map: parsed.map,

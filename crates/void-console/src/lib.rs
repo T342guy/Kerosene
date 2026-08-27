@@ -23,7 +23,11 @@
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 
+pub mod logging;
+pub mod overlay;
 mod tokenize;
+pub use logging::{LogRelay, install as install_logger};
+pub use overlay::ConsoleUi;
 pub use tokenize::{split_commands, tokenize};
 
 /// Behavioural flags on a convar. Combine with `|`.
@@ -378,6 +382,27 @@ impl Console {
         }
         self.log.push_back(LogLine { level, text });
         while self.log.len() > MAX_LOG_LINES { self.log.pop_front(); }
+    }
+
+    /// Take everything the global logger has queued and put it in the
+    /// scrollback. Called once a frame by the engine.
+    ///
+    /// This is what makes the rest of the engine visible from inside the
+    /// game: without it, anything logged through the `log` crate went only to
+    /// a terminal, and the console -- the one place anyone would look --
+    /// showed nothing.
+    pub fn drain_log_relay(&mut self, relay: &LogRelay) {
+        let (lines, dropped) = relay.take();
+        for line in lines {
+            self.log.push_back(line);
+            while self.log.len() > MAX_LOG_LINES { self.log.pop_front(); }
+        }
+        if dropped > 0 {
+            self.log_line(
+                LogLevel::Warning,
+                format!("{dropped} log lines dropped: something is logging faster than a frame"),
+            );
+        }
     }
 
     pub fn log(&self) -> impl Iterator<Item = &LogLine> { self.log.iter() }

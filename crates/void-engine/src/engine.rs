@@ -37,11 +37,19 @@ pub struct EngineConfig {
     pub map: Option<String>,
     /// Console commands to run once everything is up.
     pub startup_commands: Vec<String>,
+    /// The global log relay, if one was installed.
+    ///
+    /// Handed in rather than installed here because installing a logger is a
+    /// process-wide act and an `Engine` is constructed in a hundred tests.
+    /// Without it the console still works; it just cannot show anything the
+    /// rest of the engine logged.
+    pub log: Option<std::sync::Arc<void_console::LogRelay>>,
 }
 
 impl Default for EngineConfig {
     fn default() -> Self {
         EngineConfig {
+            log: None,
             content_paths: vec![PathBuf::from("content")],
             archives: Vec::new(),
             map: None,
@@ -59,6 +67,8 @@ pub struct Level {
 /// The engine.
 pub struct Engine {
     pub console: Console,
+    /// The global log relay, drained into the console once a frame.
+    pub log: Option<std::sync::Arc<void_console::LogRelay>>,
     pub vfs: Arc<Vfs>,
     pub level: Option<Level>,
     pub entities: EntityWorld,
@@ -123,10 +133,29 @@ impl Engine {
             exec_vfs.read_string(&path).ok()
         });
 
+        // Logging convars, wired to the relay if there is one. Both are
+        // no-ops without it, which is the headless and test case.
+        console.register_cvar("con_logfile", "", ConVarFlags::NONE, "Write every log line to this file. Empty closes it.");
+        if let Some(relay) = config.log.clone() {
+            console.on_change("con_logfile", move |con, _, value| {
+                let value = value.trim();
+                if value.is_empty() {
+                    relay.close_file();
+                    con.print("log file closed");
+                    return;
+                }
+                match relay.open_file(std::path::Path::new(value)) {
+                    Ok(()) => con.print(format!("logging to {value}")),
+                    Err(e) => con.error(format!("could not open {value}: {e}")),
+                }
+            });
+        }
+
         let entities = EntityWorld::new(void_game::registry());
 
         let mut engine = Engine {
             console,
+            log: config.log.clone(),
             vfs,
             level: None,
             entities,
@@ -225,6 +254,13 @@ impl Engine {
     /// hundreds of catch-up ticks, which would look like the world
     /// fast-forwarding and could take longer to simulate than it did to stall.
     pub fn frame(&mut self, real_dt: f32, input: &InputState) -> usize {
+        // Anything the rest of the engine logged since the last frame becomes
+        // console scrollback, so the console is a view of the whole engine
+        // rather than only of what was printed through it.
+        if let Some(relay) = &self.log {
+            let relay = std::sync::Arc::clone(relay);
+            self.console.drain_log_relay(&relay);
+        }
         self.console.run_buffered();
 
         if let Some(map) = self.pending_map.take() {
@@ -432,6 +468,23 @@ fn register_commands(console: &mut Console) {
         }
     });
     console.register_cvar("__pending_map", "", ConVarFlags::HIDDEN, "Map the host should load next.");
+
+    console.register_command(
+        "condump",
+        ConVarFlags::NONE,
+        "Write the console scrollback to a file: condump <path>",
+        |con, args| {
+            let path = args.get(1).unwrap_or("condump.txt").to_string();
+            let text: String = con
+                .log()
+                .map(|line| format!("{}\n", line.text))
+                .collect();
+            match std::fs::write(&path, text) {
+                Ok(()) => con.print(format!("wrote {} lines to {path}", con.log_len())),
+                Err(e) => con.error(format!("could not write {path}: {e}")),
+            }
+        },
+    );
 
     console.register_command("quit", ConVarFlags::NONE, "Exit.", |con, _| {
         con.set("__quit", "1");

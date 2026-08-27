@@ -2685,6 +2685,9 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "cleave",
+ "egui",
+ "egui-wgpu",
+ "egui-winit",
  "env_logger",
  "glam",
  "log",
