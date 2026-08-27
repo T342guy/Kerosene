@@ -71,6 +71,13 @@ pub struct Document {
     redo: Vec<Snapshot>,
     /// Set on every edit, cleared on save.
     modified: bool,
+    /// Bumped whenever the map changes, by an edit or by undo.
+    ///
+    /// The UI holds edit buffers -- a half-typed property value is not in the
+    /// document yet -- and needs to know when what it is buffering has gone
+    /// stale underneath it. Comparing the whole map would work and would cost
+    /// a clone per frame.
+    revision: u64,
 }
 
 impl Default for Document {
@@ -88,6 +95,7 @@ impl Document {
             undo: Vec::new(),
             redo: Vec::new(),
             modified: false,
+            revision: 0,
         }
     }
 
@@ -111,6 +119,9 @@ impl Document {
     }
 
     pub fn is_modified(&self) -> bool { self.modified }
+
+    /// A counter that changes whenever the map does. See [`Document::revision`].
+    pub fn revision(&self) -> u64 { self.revision }
     pub fn undo_depth(&self) -> usize { self.undo.len() }
     pub fn redo_depth(&self) -> usize { self.redo.len() }
 
@@ -133,6 +144,7 @@ impl Document {
         // A new edit invalidates anything that was redoable.
         self.redo.clear();
         self.modified = true;
+        self.revision += 1;
         edit(self)
     }
 
@@ -144,6 +156,7 @@ impl Document {
             label: snapshot.label.clone(),
         });
         self.modified = true;
+        self.revision += 1;
         Some(snapshot.label.0)
     }
 
@@ -155,6 +168,7 @@ impl Document {
             label: snapshot.label.clone(),
         });
         self.modified = true;
+        self.revision += 1;
         Some(snapshot.label.0)
     }
 

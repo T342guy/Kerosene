@@ -10,34 +10,21 @@
 
 use crate::compile::{CompileJob, CompileMessage, CompileSettings, available_tools};
 use crate::document::Document;
-use crate::draw;
+use crate::inspector::{self, PropertyRow};
 use crate::tools::{Tool, ToolKind};
 use crate::viewport::Viewport;
+use crate::{classes, draw, raster};
 use egui::{Context, Key, Modifiers, RichText};
 use std::path::PathBuf;
+use void_entity::{ClassKind, KeyKind, Schema};
 use void_map::Connection;
 use void_math::Vec3;
 
-/// Entity classes offered in the entity tool.
+/// Entity classes offered when the content tree has no definitions in it.
 ///
-/// A real editor reads these from the game's entity definitions; this is the
-/// set the sample game implements.
-const ENTITY_CLASSES: &[&str] = &[
-    "info_player_start",
-    "light",
-    "light_spot",
-    "light_environment",
-    "func_door",
-    "func_brush",
-    "func_detail",
-    "trigger_multiple",
-    "trigger_once",
-    "logic_relay",
-    "logic_auto",
-    "logic_timer",
-    "math_counter",
-    "point_message",
-];
+/// A bare minimum so the entity tool is not simply broken without content;
+/// the real list comes from the game's `.voiddef`.
+const FALLBACK_CLASSES: &[&str] = &["info_player_start", "light", "logic_relay"];
 
 /// Materials offered in the material picker when the content tree cannot be
 /// scanned.
@@ -67,12 +54,42 @@ pub struct ChiselApp {
     pub show_tools_check: bool,
     pub status: String,
     pub materials: Vec<String>,
+    pub models: Vec<String>,
     pub content_root: PathBuf,
+    /// The game's entity class definitions, read from the content tree.
+    pub schema: Schema,
+    /// The rasterised 3D panes, kept until something they depend on moves.
+    previews: [Option<Preview>; 4],
+    /// In-progress property edits, held until the field is done with.
+    ///
+    /// Committing on every keystroke would push a whole undo snapshot per
+    /// character typed, so a field is edited in a buffer and written back when
+    /// it loses focus or the selection moves on.
+    properties: Option<PropertyEdit>,
+}
+
+/// A rendered 3D pane and the state it was rendered from.
+struct Preview {
+    texture: egui::TextureHandle,
+    key: u64,
+}
+
+struct PropertyEdit {
+    entity: u32,
+    rows: Vec<PropertyRow>,
+    dirty: bool,
+    /// The document revision these rows were read from, so an undo or an edit
+    /// made elsewhere refreshes them instead of being overwritten by a stale
+    /// buffer.
+    revision: u64,
 }
 
 impl ChiselApp {
     pub fn new(content_root: PathBuf) -> ChiselApp {
         let materials = scan_materials(&content_root);
+        let models = scan_models(&content_root);
+        let loaded = classes::load(&content_root);
+        let status = loaded.summary();
         ChiselApp {
             document: Document::new(),
             tool: Tool::new(),
@@ -83,10 +100,32 @@ impl ChiselApp {
             compile_settings: CompileSettings::default(),
             show_compile: false,
             show_tools_check: false,
-            status: "ready".to_string(),
+            status,
             materials,
+            models,
             content_root,
+            schema: loaded.schema,
+            previews: [const { None }; 4],
+            properties: None,
         }
+    }
+
+    /// Class names for the entity tool, from the game's definitions.
+    pub fn point_classes(&self) -> Vec<String> {
+        let names = self.schema.names_of_kind(ClassKind::Point);
+        if names.is_empty() {
+            return FALLBACK_CLASSES.iter().map(|s| s.to_string()).collect();
+        }
+        names.into_iter().map(str::to_string).collect()
+    }
+
+    /// Classes that brushes can be tied to.
+    pub fn brush_classes(&self) -> Vec<String> {
+        let names = self.schema.names_of_kind(ClassKind::Brush);
+        if names.is_empty() {
+            return vec!["func_detail".into(), "func_brush".into(), "trigger_multiple".into()];
+        }
+        names.into_iter().filter(|n| *n != "worldspawn").map(str::to_string).collect()
     }
 
     pub fn open(&mut self, path: PathBuf) {
@@ -101,6 +140,7 @@ impl ChiselApp {
     }
 
     fn save(&mut self, path: Option<PathBuf>) {
+        self.commit_properties();
         match self.document.save(path) {
             Ok(path) => self.status = format!("saved {}", path.display()),
             Err(e) => self.status = format!("could not save: {e}"),
@@ -136,28 +176,46 @@ impl ChiselApp {
     }
 
     fn shortcuts(&mut self, ctx: &Context) {
+        // A property field has to be able to contain the characters these
+        // shortcuts use. Without this guard, typing `1` into a keyvalue
+        // switches tools and typing `[` changes the grid size -- which is
+        // exactly the kind of thing that makes an editor feel haunted.
+        let typing = ctx.wants_keyboard_input();
+
+        enum Action {
+            Undo,
+            Redo,
+            Save,
+            Delete,
+            Cancel,
+            Tool(ToolKind),
+            Finer,
+            Coarser,
+            Compile,
+        }
+
+        let mut actions = Vec::new();
         ctx.input_mut(|i| {
             let ctrl = Modifiers::COMMAND;
 
-            if i.consume_key(ctrl, Key::Z) {
-                if let Some(label) = self.document.undo() {
-                    self.status = format!("undid {label}");
-                }
+            // Chorded shortcuts stay live while typing: ctrl-S must save
+            // whatever the focus is.
+            if i.consume_key(ctrl, Key::Z) && !typing { actions.push(Action::Undo) }
+            if (i.consume_key(ctrl | Modifiers::SHIFT, Key::Z) || i.consume_key(ctrl, Key::Y))
+                && !typing
+            {
+                actions.push(Action::Redo)
             }
-            if i.consume_key(ctrl | Modifiers::SHIFT, Key::Z) || i.consume_key(ctrl, Key::Y) {
-                if let Some(label) = self.document.redo() {
-                    self.status = format!("redid {label}");
-                }
+            if i.consume_key(ctrl, Key::S) { actions.push(Action::Save) }
+
+            if typing { return }
+
+            if i.consume_key(Modifiers::NONE, Key::Delete)
+                || i.consume_key(Modifiers::NONE, Key::Backspace)
+            {
+                actions.push(Action::Delete)
             }
-            if i.consume_key(ctrl, Key::S) { self.save(None); }
-            if i.consume_key(Modifiers::NONE, Key::Delete) || i.consume_key(Modifiers::NONE, Key::Backspace) {
-                let n = self.document.delete_selection();
-                if n > 0 { self.status = format!("deleted {n}"); }
-            }
-            if i.consume_key(Modifiers::NONE, Key::Escape) {
-                self.tool.cancel();
-                self.document.selection.clear();
-            }
+            if i.consume_key(Modifiers::NONE, Key::Escape) { actions.push(Action::Cancel) }
 
             // Tool shortcuts, as Hammer numbers them.
             for (index, kind) in ToolKind::all().into_iter().enumerate() {
@@ -167,14 +225,46 @@ impl ChiselApp {
                     2 => Key::Num3,
                     _ => Key::Num4,
                 };
-                if i.consume_key(Modifiers::NONE, key) { self.tool.set_kind(kind); }
+                if i.consume_key(Modifiers::NONE, key) { actions.push(Action::Tool(kind)) }
             }
 
             // The grid keys every brush editor has used for thirty years.
-            if i.consume_key(Modifiers::NONE, Key::OpenBracket) { self.document.grid.finer(); }
-            if i.consume_key(Modifiers::NONE, Key::CloseBracket) { self.document.grid.coarser(); }
-            if i.consume_key(Modifiers::NONE, Key::F9) { self.start_compile(CompileSettings::fast()); }
+            if i.consume_key(Modifiers::NONE, Key::OpenBracket) { actions.push(Action::Finer) }
+            if i.consume_key(Modifiers::NONE, Key::CloseBracket) { actions.push(Action::Coarser) }
+            if i.consume_key(Modifiers::NONE, Key::F9) { actions.push(Action::Compile) }
         });
+
+        for action in actions {
+            match action {
+                // Anything half-typed becomes its own undo step first, so
+                // ctrl-Z takes back the edit rather than the one before it.
+                Action::Undo => {
+                    self.commit_properties();
+                    if let Some(label) = self.document.undo() {
+                        self.status = format!("undid {label}");
+                    }
+                }
+                Action::Redo => {
+                    self.commit_properties();
+                    if let Some(label) = self.document.redo() {
+                        self.status = format!("redid {label}");
+                    }
+                }
+                Action::Save => self.save(None),
+                Action::Delete => {
+                    let n = self.document.delete_selection();
+                    if n > 0 { self.status = format!("deleted {n}") }
+                }
+                Action::Cancel => {
+                    self.tool.cancel();
+                    self.document.selection.clear();
+                }
+                Action::Tool(kind) => self.tool.set_kind(kind),
+                Action::Finer => self.document.grid.finer(),
+                Action::Coarser => self.document.grid.coarser(),
+                Action::Compile => self.start_compile(CompileSettings::fast()),
+            }
+        }
     }
 
     fn menu_bar(&mut self, ctx: &Context) {
@@ -289,10 +379,14 @@ impl ChiselApp {
                 ui.separator();
                 ui.label(RichText::new("entity").strong());
                 egui::ScrollArea::vertical().max_height(200.0).show(ui, |ui| {
-                    for class in ENTITY_CLASSES {
-                        let selected = self.tool.entity_class == *class;
-                        if ui.selectable_label(selected, *class).clicked() {
-                            self.tool.entity_class = (*class).to_string();
+                    for class in self.point_classes() {
+                        let selected = self.tool.entity_class == class;
+                        let help =
+                            self.schema.get(&class).map(|s| s.help.clone()).unwrap_or_default();
+                        let item = ui.selectable_label(selected, &class);
+                        let item = if help.is_empty() { item } else { item.on_hover_text(help) };
+                        if item.clicked() {
+                            self.tool.entity_class = class;
                         }
                     }
                 });
@@ -300,108 +394,255 @@ impl ChiselApp {
         });
     }
 
+    // ---- the property inspector -----------------------------------------
+
+    /// Write pending property edits into the document, as one undo step.
+    fn commit_properties(&mut self) {
+        let Some(edit) = self.properties.as_mut() else { return };
+        if !edit.dirty { return }
+        edit.dirty = false;
+        let (id, rows) = (edit.entity, edit.rows.clone());
+        self.document.apply("edit properties", |doc| {
+            if let Some(entity) = doc.find_entity_mut(id) {
+                inspector::apply(entity, &rows);
+            }
+        });
+        let revision = self.document.revision();
+        if let Some(edit) = self.properties.as_mut() { edit.revision = revision; }
+    }
+
+    /// Point the edit buffer at whatever is selected now.
+    fn sync_properties(&mut self, id: Option<u32>) {
+        let revision = self.document.revision();
+        match self.properties.as_ref() {
+            // Same entity, and nothing has changed underneath a buffer that is
+            // not mid-edit: leave it alone. Rebuilding every frame would throw
+            // away what is being typed.
+            Some(edit) if Some(edit.entity) == id && (edit.dirty || edit.revision == revision) => {
+                return;
+            }
+            None if id.is_none() => return,
+            _ => {}
+        }
+        // Moving on commits what was in flight; an edit is not lost by
+        // clicking somewhere else, which is what a person expects.
+        self.commit_properties();
+        let revision = self.document.revision();
+        self.properties = id.and_then(|id| {
+            let entity = self.document.find_entity(id)?;
+            let spec = self.schema.get(entity.classname());
+            Some(PropertyEdit {
+                entity: id,
+                rows: inspector::rows(spec, entity),
+                dirty: false,
+                revision,
+            })
+        });
+    }
+
     fn inspector(&mut self, ctx: &Context) {
-        egui::SidePanel::right("inspector").exact_width(280.0).show(ctx, |ui| {
+        let selected: Vec<u32> = self.document.selection.entities.iter().copied().collect();
+        self.sync_properties(selected.first().copied());
+
+        egui::SidePanel::right("inspector").exact_width(320.0).show(ctx, |ui| {
             ui.add_space(4.0);
-            ui.label(RichText::new("properties").strong());
 
-            let selected: Vec<u32> = self.document.selection.entities.iter().copied().collect();
             let Some(&id) = selected.first() else {
-                ui.label(match self.document.selection.solids.len() {
-                    0 => "nothing selected".to_string(),
-                    1 => "1 brush selected".to_string(),
-                    n => format!("{n} brushes selected"),
-                });
-
-                if !self.document.selection.solids.is_empty() {
-                    ui.separator();
-                    ui.label("tie to entity");
-                    for class in ["func_door", "func_brush", "func_detail", "trigger_multiple"] {
-                        if ui.button(class).clicked() {
-                            self.document.tie_to_entity(class);
-                            self.status = format!("tied to {class}");
-                        }
-                    }
-                }
+                self.no_entity_selected(ui);
                 return;
             };
 
-            if selected.len() > 1 {
-                ui.label(format!("{} entities selected", selected.len()));
-                ui.separator();
-            }
-
             let Some(entity) = self.document.find_entity(id) else { return };
             let classname = entity.classname().to_string();
-            let mut properties: Vec<(String, String)> = entity.properties.clone();
-            let connections = entity.connections.clone();
             let is_brush_entity = entity.is_brush_entity();
+            let spec = self.schema.get(&classname).cloned();
 
-            ui.label(RichText::new(&classname).monospace().strong());
-            ui.separator();
-
-            let mut changed = false;
-            egui::ScrollArea::vertical().max_height(260.0).show(ui, |ui| {
-                for (key, value) in properties.iter_mut() {
-                    if key == "classname" { continue; }
-                    ui.horizontal(|ui| {
-                        ui.label(RichText::new(key.as_str()).monospace());
-                        if ui.text_edit_singleline(value).changed() { changed = true; }
-                    });
+            ui.horizontal(|ui| {
+                ui.label(RichText::new(&classname).monospace().strong());
+                if spec.is_none() {
+                    ui.label(RichText::new("(no definition)").color(egui::Color32::from_rgb(220, 160, 90)))
+                        .on_hover_text(
+                            "No .voiddef describes this class, so only the keys it \
+                             already carries can be shown.",
+                        );
                 }
             });
-
-            if ui.button("+ add property").clicked() {
-                properties.push(("key".into(), "value".into()));
-                changed = true;
+            if let Some(help) = spec.as_ref().map(|s| s.help.as_str()).filter(|h| !h.is_empty()) {
+                ui.label(RichText::new(help).size(11.0).weak());
             }
-
-            if changed {
-                self.document.apply("edit properties", |doc| {
-                    if let Some(entity) = doc.find_entity_mut(id) {
-                        entity.properties = properties;
-                    }
-                });
-            }
-
-            ui.separator();
-            ui.label(RichText::new("outputs").strong());
-            if connections.is_empty() {
-                ui.label("none");
-            }
-            for connection in &connections {
+            if selected.len() > 1 {
                 ui.label(
-                    RichText::new(format!(
-                        "{} -> {}:{}{}",
-                        connection.output,
-                        connection.target,
-                        connection.input,
-                        if connection.delay > 0.0 {
-                            format!(" +{:.2}s", connection.delay)
-                        } else {
-                            String::new()
-                        }
-                    ))
-                    .monospace()
-                    .size(11.0),
+                    RichText::new(format!("{} entities selected -- editing the first", selected.len()))
+                        .size(11.0)
+                        .weak(),
                 );
             }
-            if ui.button("+ add output").clicked() {
-                self.document.apply("add output", |doc| {
-                    if let Some(entity) = doc.find_entity_mut(id) {
-                        entity.connect(Connection::new("OnTrigger", "target", "Trigger"));
+            ui.separator();
+
+            egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
+                self.property_rows(ui);
+                ui.add_space(6.0);
+                self.outputs_section(ui, id, spec.as_ref());
+
+                if is_brush_entity {
+                    ui.add_space(6.0);
+                    ui.separator();
+                    if ui.button("move brushes back to world").clicked() {
+                        let n = self.document.untie_to_world();
+                        self.status = format!("moved {n} brushes to the world");
+                    }
+                }
+            });
+        });
+    }
+
+    fn no_entity_selected(&mut self, ui: &mut egui::Ui) {
+        ui.label(RichText::new("properties").strong());
+        ui.label(match self.document.selection.solids.len() {
+            0 => "nothing selected".to_string(),
+            1 => "1 brush selected".to_string(),
+            n => format!("{n} brushes selected"),
+        });
+
+        if self.document.selection.solids.is_empty() { return }
+        ui.separator();
+        ui.label("tie to entity");
+        for class in self.brush_classes() {
+            let help = self.schema.get(&class).map(|s| s.help.clone()).unwrap_or_default();
+            let button = ui.button(&class);
+            let button = if help.is_empty() { button } else { button.on_hover_text(help) };
+            if button.clicked() {
+                self.document.tie_to_entity(&class);
+                self.status = format!("tied to {class}");
+            }
+        }
+    }
+
+    /// One widget per key the class defines, typed by the schema.
+    fn property_rows(&mut self, ui: &mut egui::Ui) {
+        let Some(edit) = self.properties.as_mut() else { return };
+        if edit.rows.is_empty() {
+            ui.label(RichText::new("this class has no settings").weak());
+            return;
+        }
+
+        let materials = &self.materials;
+        let models = &self.models;
+        let mut commit = false;
+
+        for (index, row) in edit.rows.iter_mut().enumerate() {
+            let response = property_widget(ui, index, row, materials, models);
+            if response.changed {
+                edit.dirty = true;
+            }
+            // Discrete widgets are done the moment they change; text and
+            // number fields are done when they are left.
+            if response.finished {
+                commit = true;
+            }
+        }
+
+        ui.add_space(4.0);
+        if ui.small_button("+ add a key the game does not define").clicked() {
+            edit.rows.push(PropertyRow {
+                key: format!("key{}", edit.rows.len()),
+                label: format!("key{}", edit.rows.len()),
+                kind: KeyKind::String,
+                help: String::new(),
+                choices: Vec::new(),
+                default: String::new(),
+                value: Some(String::new()),
+                described: false,
+            });
+            edit.dirty = true;
+            commit = true;
+        }
+
+        if commit { self.commit_properties(); }
+    }
+
+    /// The output wiring: which of this entity's outputs fires what, where.
+    fn outputs_section(&mut self, ui: &mut egui::Ui, id: u32, spec: Option<&void_entity::ClassSpec>) {
+        ui.separator();
+        ui.label(RichText::new("outputs").strong());
+
+        let connections = match self.document.find_entity(id) {
+            Some(e) => e.connections.clone(),
+            None => return,
+        };
+        let outputs: Vec<String> = spec
+            .map(|s| s.outputs.iter().map(|o| o.name.clone()).collect())
+            .unwrap_or_default();
+        let targets = inspector::target_names(&self.document);
+
+        if connections.is_empty() {
+            ui.label(RichText::new("nothing wired up").weak().size(11.0));
+        }
+
+        let mut edited: Option<(usize, Option<Connection>)> = None;
+        for (index, connection) in connections.iter().enumerate() {
+            let mut c = connection.clone();
+            let mut changed = false;
+            egui::Frame::group(ui.style()).show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    changed |= combo_or_text(ui, ("out", id, index), &mut c.output, &outputs, 110.0);
+                    if ui.small_button("x").on_hover_text("remove this output").clicked() {
+                        edited = Some((index, None));
                     }
                 });
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new("to").size(11.0).weak());
+                    changed |= combo_or_text(ui, ("tgt", id, index), &mut c.target, &targets, 150.0);
+                });
+                let inputs = inspector::inputs_for_target(&self.schema, &self.document, &c.target);
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new("fire").size(11.0).weak());
+                    changed |= combo_or_text(ui, ("in", id, index), &mut c.input, &inputs, 150.0);
+                });
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new("after").size(11.0).weak());
+                    changed |= ui
+                        .add(egui::DragValue::new(&mut c.delay).speed(0.05).range(0.0..=600.0).suffix(" s"))
+                        .changed();
+                    ui.label(RichText::new("param").size(11.0).weak());
+                    changed |= ui.add(egui::TextEdit::singleline(&mut c.parameter).desired_width(80.0)).changed();
+                });
+                ui.horizontal(|ui| {
+                    let mut once = !c.is_unlimited();
+                    if ui.checkbox(&mut once, RichText::new("only once").size(11.0)).changed() {
+                        c.times_to_fire = if once { 1 } else { -1 };
+                        changed = true;
+                    }
+                });
+            });
+            if changed && edited.is_none() {
+                edited = Some((index, Some(c)));
             }
+        }
 
-            if is_brush_entity {
-                ui.separator();
-                if ui.button("move brushes back to world").clicked() {
-                    let n = self.document.untie_to_world();
-                    self.status = format!("moved {n} brushes to the world");
+        if let Some((index, replacement)) = edited {
+            self.document.apply(
+                if replacement.is_some() { "edit output" } else { "remove output" },
+                |doc| {
+                    if let Some(entity) = doc.find_entity_mut(id) {
+                        match replacement {
+                            Some(c) => entity.connections[index] = c,
+                            None => { entity.connections.remove(index); }
+                        }
+                    }
+                },
+            );
+        }
+
+        if ui.button("+ add output").clicked() {
+            let output = outputs.first().cloned().unwrap_or_else(|| "OnTrigger".to_string());
+            let target = targets.first().cloned().unwrap_or_default();
+            self.document.apply("add output", |doc| {
+                if let Some(entity) = doc.find_entity_mut(id) {
+                    entity.connect(Connection::new(&output, &target, "Trigger"));
                 }
-            }
-        });
+            });
+        }
     }
 
     fn status_bar(&mut self, ctx: &Context) {
@@ -496,6 +737,7 @@ impl ChiselApp {
     }
 
     fn start_compile(&mut self, settings: CompileSettings) {
+        self.commit_properties();
         // The compilers read files, so the map has to be on disk first --
         // and compiling something other than what was saved would be a
         // genuinely confusing bug to chase.
@@ -553,7 +795,7 @@ impl ChiselApp {
         if kind.is_2d() {
             draw::draw_2d(&painter, rect, &self.viewports[index], &self.document, &self.tool);
         } else {
-            draw::draw_3d(&painter, rect, &self.viewports[index], &self.document);
+            self.draw_preview(ui, &painter, index, rect);
         }
 
         painter.text(
@@ -576,6 +818,86 @@ impl ChiselApp {
 
         if response.hovered() { self.active = index; }
         self.viewport_input(index, rect, &response, ui);
+    }
+
+    /// Draw a 3D pane, rasterising it again only if it would look different.
+    ///
+    /// A software rasteriser is cheap but not free, and an editor spends most
+    /// of its frames showing exactly what it showed last frame. Hashing what
+    /// the image depends on turns a still view into a texture blit.
+    fn draw_preview(&mut self, ui: &egui::Ui, painter: &egui::Painter, index: usize, rect: egui::Rect) {
+        use std::hash::{Hash, Hasher};
+
+        // Render at device resolution so the pane is not soft on a high-DPI
+        // screen, but cap it: past a point this is work nobody can see.
+        const MAX_EDGE: f32 = 1920.0;
+        let scale = ui.ctx().pixels_per_point();
+        let width = (rect.width() * scale).round().clamp(1.0, MAX_EDGE) as usize;
+        let height = (rect.height() * scale).round().clamp(1.0, MAX_EDGE) as usize;
+
+        let viewport = &self.viewports[index];
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        self.document.revision().hash(&mut hasher);
+        // The selection changes the colours but not the map, so it is not
+        // covered by the revision.
+        let mut selected: Vec<u32> = self.document.selection.solids.iter().copied().collect();
+        selected.extend(self.document.selection.entities.iter().copied());
+        selected.sort_unstable();
+        selected.hash(&mut hasher);
+        for f in [
+            viewport.eye.x, viewport.eye.y, viewport.eye.z,
+            viewport.angles.pitch, viewport.angles.yaw, viewport.angles.roll,
+            viewport.fov,
+        ] {
+            f.to_bits().hash(&mut hasher);
+        }
+        (width, height).hash(&mut hasher);
+        let key = hasher.finish();
+
+        let stale = self.previews[index].as_ref().is_none_or(|p| p.key != key);
+        if stale {
+            let image = raster::render(
+                &self.document,
+                viewport.eye,
+                viewport.angles.vectors(),
+                viewport.fov,
+                width,
+                height,
+            );
+            let pixels: Vec<egui::Color32> = image
+                .pixels
+                .iter()
+                .map(|p| egui::Color32::from_rgba_premultiplied(p[0], p[1], p[2], p[3]))
+                .collect();
+            let color_image = egui::ColorImage {
+                size: [image.width, image.height],
+                pixels,
+                source_size: egui::vec2(image.width as f32, image.height as f32),
+            };
+            match self.previews[index].as_mut() {
+                Some(preview) => {
+                    preview.texture.set(color_image, egui::TextureOptions::LINEAR);
+                    preview.key = key;
+                }
+                None => {
+                    let texture = ui.ctx().load_texture(
+                        format!("chisel-3d-{index}"),
+                        color_image,
+                        egui::TextureOptions::LINEAR,
+                    );
+                    self.previews[index] = Some(Preview { texture, key });
+                }
+            }
+        }
+
+        if let Some(preview) = &self.previews[index] {
+            painter.image(
+                preview.texture.id(),
+                rect,
+                egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
+                egui::Color32::WHITE,
+            );
+        }
     }
 
     fn viewport_input(
@@ -672,10 +994,254 @@ impl ChiselApp {
 ///
 /// Falls back to a built-in list when there is nothing to scan, so the editor
 /// is usable before any content exists.
+/// What a property widget did this frame.
+struct WidgetResult {
+    /// The value in the buffer moved.
+    changed: bool,
+    /// The edit is complete and worth an undo step -- a discrete choice was
+    /// made, or a text field was left.
+    finished: bool,
+}
+
+/// Draw one property, with a widget suited to what the schema says it holds.
+///
+/// Typing a vector into a text box works, but it is not editing: the reason to
+/// know a key is a colour or an angle is to hand a person the control they
+/// would have reached for.
+fn property_widget(
+    ui: &mut egui::Ui,
+    index: usize,
+    row: &mut PropertyRow,
+    materials: &[String],
+    models: &[String],
+) -> WidgetResult {
+    let mut out = WidgetResult { changed: false, finished: false };
+
+    ui.horizontal(|ui| {
+        let label = ui.add(
+            egui::Label::new(
+                RichText::new(&row.label)
+                    .monospace()
+                    .size(11.0)
+                    // An unset key is drawn faintly: it is showing the game's
+                    // default, not a value anyone chose.
+                    .color(if row.is_set() {
+                        ui.visuals().text_color()
+                    } else {
+                        ui.visuals().weak_text_color()
+                    }),
+            )
+            .truncate(),
+        );
+        let mut hover = String::new();
+        if !row.described {
+            hover.push_str("Not defined by this class.\n");
+        }
+        if !row.help.is_empty() {
+            hover.push_str(&row.help);
+            hover.push('\n');
+        }
+        hover.push_str(&format!("key: {}  ({})", row.key, row.kind.name()));
+        if !row.default.is_empty() {
+            hover.push_str(&format!("\ndefault: {}", row.default));
+        }
+        label.on_hover_text(hover);
+    });
+
+    ui.horizontal(|ui| {
+        let id = ("prop", index, row.key.as_str());
+        match row.kind {
+            KeyKind::Boolean => {
+                let mut on = matches!(row.text().trim(), "1" | "true" | "yes");
+                if ui.checkbox(&mut on, "").changed() {
+                    row.value = Some(if on { "1".into() } else { "0".into() });
+                    out.changed = true;
+                    out.finished = true;
+                }
+            }
+            KeyKind::Integer => {
+                let mut v: i64 = row.text().trim().parse().unwrap_or(0);
+                let r = ui.add(egui::DragValue::new(&mut v).speed(1.0));
+                if r.changed() {
+                    row.value = Some(v.to_string());
+                    out.changed = true;
+                }
+                out.finished |= r.drag_stopped() || r.lost_focus();
+            }
+            KeyKind::Float => {
+                let mut v: f64 = row.text().trim().parse().unwrap_or(0.0);
+                let r = ui.add(egui::DragValue::new(&mut v).speed(0.5));
+                if r.changed() {
+                    row.value = Some(void_kv::format_float(v as f32));
+                    out.changed = true;
+                }
+                out.finished |= r.drag_stopped() || r.lost_focus();
+            }
+            KeyKind::Vector | KeyKind::Angles => {
+                let mut v = inspector::parse_vec3(row.text());
+                let names = if row.kind == KeyKind::Angles {
+                    ["pitch", "yaw", "roll"]
+                } else {
+                    ["x", "y", "z"]
+                };
+                let mut any = false;
+                for (i, name) in names.iter().enumerate() {
+                    let r = ui.add(
+                        egui::DragValue::new(&mut v[i]).speed(1.0).prefix(format!("{name} ")),
+                    );
+                    any |= r.changed();
+                    out.finished |= r.drag_stopped() || r.lost_focus();
+                }
+                if any {
+                    row.value = Some(inspector::format_vec3(v));
+                    out.changed = true;
+                }
+            }
+            KeyKind::Color => {
+                let (mut rgb, mut brightness) = inspector::parse_color(row.text());
+                let mut any = ui.color_edit_button_srgb(&mut rgb).changed();
+                let r = ui.add(
+                    egui::DragValue::new(&mut brightness).speed(5.0).range(0.0..=100000.0),
+                );
+                any |= r.changed();
+                out.finished |= r.drag_stopped() || r.lost_focus();
+                if any {
+                    row.value = Some(inspector::format_color(rgb, brightness));
+                    out.changed = true;
+                    out.finished = true;
+                }
+            }
+            KeyKind::Choices => {
+                let mut current = row.text().to_string();
+                let label = row
+                    .choices
+                    .iter()
+                    .find(|(v, _)| *v == current)
+                    .map(|(_, l)| l.clone())
+                    .unwrap_or_else(|| current.clone());
+                let mut picked = None;
+                egui::ComboBox::from_id_salt(id).selected_text(label).width(180.0).show_ui(
+                    ui,
+                    |ui| {
+                        for (value, label) in &row.choices {
+                            if ui.selectable_label(*value == current, label).clicked() {
+                                picked = Some(value.clone());
+                            }
+                        }
+                    },
+                );
+                if let Some(value) = picked {
+                    current = value;
+                    row.value = Some(current);
+                    out.changed = true;
+                    out.finished = true;
+                }
+            }
+            KeyKind::Flags => {
+                // A bit field is a row of checkboxes, because that is what it
+                // is. Bits the schema does not name are preserved untouched.
+                let mut bits: u32 = row.text().trim().parse().unwrap_or(0);
+                let mut any = false;
+                ui.vertical(|ui| {
+                    for (value, label) in &row.choices {
+                        let Ok(bit) = value.parse::<u32>() else { continue };
+                        let mut on = bits & bit != 0;
+                        if ui.checkbox(&mut on, RichText::new(label).size(11.0)).changed() {
+                            if on { bits |= bit } else { bits &= !bit }
+                            any = true;
+                        }
+                    }
+                });
+                if any {
+                    row.value = Some(bits.to_string());
+                    out.changed = true;
+                    out.finished = true;
+                }
+            }
+            KeyKind::Material | KeyKind::Model => {
+                let options: &[String] = if row.kind == KeyKind::Material { materials } else { models };
+                let mut text = row.text().to_string();
+                if combo_or_text(ui, id, &mut text, options, 190.0) {
+                    row.value = Some(text);
+                    out.changed = true;
+                    out.finished = true;
+                }
+            }
+            KeyKind::String | KeyKind::TargetSource | KeyKind::TargetDestination => {
+                let mut text = row.text().to_string();
+                let r = ui.add(
+                    egui::TextEdit::singleline(&mut text)
+                        .desired_width(190.0)
+                        .hint_text(row.default.as_str()),
+                );
+                if r.changed() {
+                    row.value = Some(text);
+                    out.changed = true;
+                }
+                out.finished |= r.lost_focus();
+            }
+        }
+
+        // Clearing a key is how you go back to the game's default, so it needs
+        // to be reachable. Only offered when there is something to clear.
+        if row.is_set() && ui.small_button("clear").on_hover_text("Remove this key").clicked() {
+            row.value = None;
+            out.changed = true;
+            out.finished = true;
+        }
+    });
+
+    out
+}
+
+/// A combo box of known values that still accepts anything typed.
+///
+/// Both halves matter: the list is how a name is found, and the text box is
+/// how a name that does not exist yet gets used -- wiring an output to an
+/// entity you have not placed is a normal way to work.
+fn combo_or_text(
+    ui: &mut egui::Ui,
+    id: impl std::hash::Hash,
+    value: &mut String,
+    options: &[String],
+    width: f32,
+) -> bool {
+    let mut changed = false;
+    let text_width = (width - 30.0).max(60.0);
+    changed |= ui
+        .add(egui::TextEdit::singleline(value).desired_width(text_width))
+        .lost_focus();
+    if !options.is_empty() {
+        let mut picked = None;
+        egui::ComboBox::from_id_salt(id).selected_text("").width(24.0).show_ui(ui, |ui| {
+            for option in options {
+                if ui.selectable_label(option == value, option).clicked() {
+                    picked = Some(option.clone());
+                }
+            }
+        });
+        if let Some(p) = picked {
+            *value = p;
+            changed = true;
+        }
+    }
+    changed
+}
+
+/// Models offered where a key holds one.
+fn scan_models(root: &std::path::Path) -> Vec<String> {
+    let mut out = Vec::new();
+    let models = root.join("models");
+    collect_by_extension(&models, &models, "voidmdl", &mut out);
+    out.sort();
+    out.dedup();
+    out
+}
+
 fn scan_materials(root: &std::path::Path) -> Vec<String> {
     let mut out = Vec::new();
     let materials = root.join("materials");
-    collect_materials(&materials, &materials, &mut out);
+    collect_by_extension(&materials, &materials, "voidmat", &mut out);
     out.sort();
     out.dedup();
     if out.is_empty() {
@@ -684,13 +1250,18 @@ fn scan_materials(root: &std::path::Path) -> Vec<String> {
     out
 }
 
-fn collect_materials(root: &std::path::Path, dir: &std::path::Path, out: &mut Vec<String>) {
+fn collect_by_extension(
+    root: &std::path::Path,
+    dir: &std::path::Path,
+    extension: &str,
+    out: &mut Vec<String>,
+) {
     let Ok(entries) = std::fs::read_dir(dir) else { return };
     for entry in entries.flatten() {
         let path = entry.path();
         if path.is_dir() {
-            collect_materials(root, &path, out);
-        } else if path.extension().and_then(|e| e.to_str()) == Some("voidmat") {
+            collect_by_extension(root, &path, extension, out);
+        } else if path.extension().and_then(|e| e.to_str()) == Some(extension) {
             if let Ok(relative) = path.strip_prefix(root) {
                 let name = relative.with_extension("");
                 out.push(name.to_string_lossy().replace('\\', "/"));
@@ -753,6 +1324,48 @@ mod tests {
 
         let found = scan_materials(&dir);
         assert_eq!(found, vec!["dev/grid"]);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    fn app_with_shipped_content() -> ChiselApp {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content");
+        ChiselApp::new(root)
+    }
+
+    #[test]
+    fn the_entity_menus_come_from_the_games_definitions() {
+        let app = app_with_shipped_content();
+        assert!(!app.schema.is_empty(), "the shipped definitions load: {}", app.status);
+
+        let points = app.point_classes();
+        assert!(points.iter().any(|c| c == "light_spot"));
+        assert!(points.iter().any(|c| c == "math_counter"));
+        assert!(!points.iter().any(|c| c == "func_door"), "a door is not placed as a point");
+
+        let brushes = app.brush_classes();
+        assert!(brushes.iter().any(|c| c == "func_door"));
+        assert!(brushes.iter().any(|c| c == "trigger_multiple"));
+        assert!(!brushes.iter().any(|c| c == "light"), "a light is not made of brushes");
+        assert!(!brushes.iter().any(|c| c == "worldspawn"), "the world is not something to tie to");
+    }
+
+    #[test]
+    fn the_menus_still_offer_something_without_a_content_tree() {
+        let app = ChiselApp::new(std::path::PathBuf::from("/definitely/not/here"));
+        assert!(app.schema.is_empty());
+        assert!(!app.point_classes().is_empty(), "the entity tool must not be dead");
+        assert!(!app.brush_classes().is_empty());
+        assert!(app.status.contains("no .voiddef"), "and it says so: {}", app.status);
+    }
+
+    #[test]
+    fn model_scanning_finds_compiled_models() {
+        let dir = std::env::temp_dir().join(format!("chisel-models-{}", std::process::id()));
+        let models = dir.join("models/props");
+        std::fs::create_dir_all(&models).unwrap();
+        std::fs::write(models.join("crate.voidmdl"), "").unwrap();
+        std::fs::write(models.join("crate.obj"), "").unwrap();
+        assert_eq!(scan_models(&dir), vec!["props/crate"]);
         let _ = std::fs::remove_dir_all(&dir);
     }
 

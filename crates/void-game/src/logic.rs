@@ -16,12 +16,15 @@ pub fn register(registry: &mut ClassRegistry) {
                 let off = w.get(id).map(|e| e.fields.bool("disabled", false)).unwrap_or(false);
                 set_field(w, id, "disabled", Value::Bool(!off));
                 true
-            }),
+            })
+            .output("OnTrigger"),
     );
 
     // Fires once when the map starts. How a level does anything at all before
     // the player touches something.
-    registry.register(ClassDef::new("logic_auto").on_spawn(spawn_auto).on_think(think_auto));
+    registry.register(
+        ClassDef::new("logic_auto").on_spawn(spawn_auto).on_think(think_auto).output("OnMapSpawn"),
+    );
 
     registry.register(
         ClassDef::new("math_counter")
@@ -29,13 +32,17 @@ pub fn register(registry: &mut ClassRegistry) {
             .input("Add", |w, id, e| adjust(w, id, e.parameter_f32().unwrap_or(1.0)))
             .input("Subtract", |w, id, e| adjust(w, id, -e.parameter_f32().unwrap_or(1.0)))
             .input("SetValue", input_set_value)
-            .input("GetValue", input_get_value),
+            .input("GetValue", input_get_value)
+            .output("OutValue")
+            .output("OnHitMax")
+            .output("OnHitMin"),
     );
 
     registry.register(
         ClassDef::new("point_message")
             .input("Show", input_show_message)
-            .input("Display", input_show_message),
+            .input("Display", input_show_message)
+            .output("OnShowMessage"),
     );
 
     registry.register(
@@ -43,7 +50,14 @@ pub fn register(registry: &mut ClassRegistry) {
             .on_spawn(spawn_timer)
             .on_think(think_timer)
             .input("Enable", |w, id, _| { set_field(w, id, "disabled", Value::Bool(false)); w.set_think_delay(id, 0.0); true })
-            .input("Disable", |w, id, _| { set_field(w, id, "disabled", Value::Bool(true)); w.clear_think(id); true }),
+            .input("Disable", |w, id, _| { set_field(w, id, "disabled", Value::Bool(true)); w.clear_think(id); true })
+            .input("Toggle", |w, id, _| {
+                let was_off = w.get(id).map(|e| e.fields.bool("disabled", false)).unwrap_or(false);
+                set_field(w, id, "disabled", Value::Bool(!was_off));
+                if was_off { w.set_think_delay(id, 0.0) } else { w.clear_think(id) }
+                true
+            })
+            .output("OnTimer"),
     );
 }
 

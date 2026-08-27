@@ -21,7 +21,10 @@ pub fn register(registry: &mut ClassRegistry) {
                     let off = w.get(id).map(|e| e.fields.bool("disabled", false)).unwrap_or(false);
                     set_field(w, id, "disabled", Value::Bool(!off));
                     true
-                }),
+                })
+                .output("OnStartTouch")
+                .output("OnEndTouch")
+                .output("OnTrigger"),
         );
     }
 }

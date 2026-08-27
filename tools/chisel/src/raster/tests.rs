@@ -1,0 +1,254 @@
+// SPDX-License-Identifier: LGPL-3.0-or-later
+//! Regression tests for the 3D pane, at the pixel level.
+//!
+//! The bugs these cover were all reported the same way -- "at certain angles"
+//! -- because that is how painter's algorithm fails: correct until the camera
+//! moves far enough for the sort to invert, then wrong, then correct again.
+//! Testing the sort could never catch them, because no sort is right. Testing
+//! pixels can.
+
+use super::*;
+use crate::app::starter_document;
+use void_map::Solid;
+use void_math::{Aabb, Angles};
+
+const W: usize = 160;
+const H: usize = 120;
+const FOV: f32 = 90.0;
+
+fn basis_for(yaw: f32, pitch: f32) -> Basis {
+    Angles::new(pitch, yaw, 0.0).vectors()
+}
+
+fn brush(document: &mut Document, min: Vec3, max: Vec3) -> u32 {
+    let id = document.map.next_id();
+    let mut solid = Solid::cube(Aabb::new(min, max), "dev/grid");
+    solid.id = id;
+    document.map.world.solids.push(solid);
+    id
+}
+
+fn render_at(document: &Document, eye: Vec3, yaw: f32, pitch: f32) -> Image {
+    render(document, eye, basis_for(yaw, pitch), FOV, W, H)
+}
+
+fn any_pixel(image: &Image, want: [u8; 4]) -> bool {
+    image.pixels.iter().any(|p| *p == want)
+}
+
+/// The colour a face gets: shading depends only on its normal, so a wall
+/// facing the camera down -X always lands on the same value.
+fn shade(normal: Vec3, selected: bool) -> [u8; 4] {
+    let s = (normal.dot(LIGHT.normalize()) * 0.5 + 0.5).clamp(0.25, 1.0);
+    let base = if selected { colors::SELECTED } else { colors::BRUSH };
+    [(base.r() as f32 * s) as u8, (base.g() as f32 * s) as u8, (base.b() as f32 * s) as u8, 255]
+}
+
+// ---- the reported symptom: seeing walls through walls ---------------------
+
+#[test]
+fn a_wall_behind_another_wall_never_shows_through_it() {
+    // The arrangement painter's algorithm cannot sort. The near wall is wide
+    // and deep -- it runs away from the camera, so its farthest vertex is
+    // further than anything in the wall behind it -- while the far wall is
+    // small and flat. Sorting by farthest vertex puts the near wall first and
+    // paints the far one straight over it; sorting by average depth inverts a
+    // different pair. Only a depth buffer gets both right.
+    let mut document = Document::new();
+    document.map.world.solids.clear();
+
+    // Near: a long slab beside the camera, stretching from just ahead to far
+    // away, so it spans almost the whole depth range of the scene.
+    brush(&mut document, Vec3::new(-200.0, 40.0, -100.0), Vec3::new(2000.0, 60.0, 100.0));
+    // Far: a small panel, directly behind the near slab from this viewpoint.
+    let hidden = brush(&mut document, Vec3::new(400.0, 80.0, -20.0), Vec3::new(440.0, 100.0, 20.0));
+    document.selection.solids.insert(hidden);
+
+    // Look along +X with the slab filling the left of the view.
+    let image = render_at(&document, Vec3::new(0.0, 0.0, 0.0), 0.0, 0.0);
+
+    // The hidden panel is selected, so every colour it could draw in is a
+    // shade of the selection colour and nothing else in the scene is.
+    let selected_shades: Vec<[u8; 4]> = [Vec3::X, -Vec3::X, Vec3::Y, -Vec3::Y, Vec3::Z, -Vec3::Z]
+        .into_iter()
+        .map(|n| shade(n, true))
+        .collect();
+    for want in selected_shades {
+        assert!(
+            !any_pixel(&image, want),
+            "the wall behind showed through the wall in front ({want:?})"
+        );
+    }
+}
+
+#[test]
+fn something_poking_through_a_wall_is_not_painted_over_by_it() {
+    // A rod running away from the camera and through a wall. The near half of
+    // the rod is in front of the wall and the far half is behind it, so no
+    // ordering of the two is right for the whole screen.
+    //
+    // Painter's algorithm has to pick one. Sorting by farthest vertex draws
+    // the rod first -- it reaches further -- and then the wall over the top of
+    // it, so the half that should be in plain view vanishes.
+    let mut document = Document::new();
+    document.map.world.solids.clear();
+    let rod = brush(&mut document, Vec3::new(100.0, -20.0, -20.0), Vec3::new(600.0, 20.0, 20.0));
+    brush(&mut document, Vec3::new(380.0, -200.0, -200.0), Vec3::new(400.0, 200.0, 200.0));
+    document.selection.solids.insert(rod);
+
+    // Look down the rod from slightly above, so its top face is in view.
+    let image = render(&document, Vec3::new(0.0, 0.0, 90.0), basis_for(0.0, 30.0), FOV, W, H);
+
+    // Specifically the rod's *top* face, which is the one that reaches past
+    // the wall and so sorts as the farthest thing in the scene. Its end cap is
+    // nearer than everything and would be drawn last either way, so looking
+    // for any rod pixel at all would prove nothing.
+    assert!(
+        any_pixel(&image, shade(Vec3::Z, true)),
+        "the wall was painted over the length of rod in front of it"
+    );
+    assert!(any_pixel(&image, shade(-Vec3::X, false)), "the wall itself is missing");
+}
+
+// ---- the reported symptom: stray lines at certain angles ------------------
+
+#[test]
+fn standing_inside_a_sealed_room_leaves_no_gaps_at_any_angle() {
+    // Inside a closed room every pixel is a wall. A hole in the image means
+    // geometry was dropped or a polygon was mangled by the near-plane clip --
+    // which is what the stray lines and vanishing walls both came from.
+    let document = starter_document();
+    let eye = Vec3::new(256.0, 256.0, 64.0);
+
+    for yaw in (0..360).step_by(11) {
+        for pitch in [-60.0f32, -20.0, 0.0, 20.0, 60.0] {
+            let image = render_at(&document, eye, yaw as f32, pitch);
+            let background = image.pixels.len() - image.covered();
+            assert_eq!(
+                background, 0,
+                "{background} pixels of empty space inside a sealed room at yaw {yaw}, pitch {pitch}"
+            );
+        }
+    }
+}
+
+#[test]
+fn standing_against_a_wall_is_still_a_solid_view() {
+    // Most of the wall is behind the near plane here, so the clipper is doing
+    // real work on almost every face.
+    let document = starter_document();
+    for eye in [
+        Vec3::new(2.0, 256.0, 64.0),
+        Vec3::new(510.0, 256.0, 64.0),
+        Vec3::new(256.0, 256.0, 2.0),
+        Vec3::new(256.0, 256.0, 253.0),
+    ] {
+        for yaw in (0..360).step_by(30) {
+            let image = render_at(&document, eye, yaw as f32, 0.0);
+            assert_eq!(
+                image.covered(),
+                image.pixels.len(),
+                "a gap opened up at {eye:?} yaw {yaw}"
+            );
+        }
+    }
+}
+
+#[test]
+fn a_face_clipped_at_the_near_plane_stays_inside_the_pane() {
+    // The spikes came from projecting a vertex that sits exactly on the near
+    // plane far off to one side: the divide is finite but enormous, and the
+    // stroke tessellation drew a line across the screen. Nothing can now be
+    // written outside the buffer, so the test is simply that the render
+    // completes and every pixel is one of the colours it should be.
+    let mut document = Document::new();
+    document.map.world.solids.clear();
+    brush(&mut document, Vec3::new(-4000.0, -20.0, -4000.0), Vec3::new(4000.0, 20.0, 4000.0));
+
+    for yaw in (0..360).step_by(7) {
+        let image = render_at(&document, Vec3::new(0.0, 0.0, 0.0), yaw as f32, 0.0);
+        assert_eq!(image.pixels.len(), W * H, "the buffer changed size");
+        assert!(image.pixels.iter().all(|p| p[3] == 255), "a pixel lost its alpha");
+    }
+}
+
+// ---- the basics still hold ------------------------------------------------
+
+#[test]
+fn an_empty_document_is_all_background() {
+    let mut document = Document::new();
+    document.map.world.solids.clear();
+    let image = render_at(&document, Vec3::ZERO, 0.0, 0.0);
+    assert_eq!(image.covered(), 0);
+}
+
+#[test]
+fn geometry_behind_the_camera_is_not_drawn() {
+    let mut document = Document::new();
+    document.map.world.solids.clear();
+    brush(&mut document, Vec3::new(-600.0, -100.0, -100.0), Vec3::new(-400.0, 100.0, 100.0));
+    let image = render_at(&document, Vec3::ZERO, 0.0, 0.0);
+    assert_eq!(image.covered(), 0, "something behind the camera was drawn in front of it");
+}
+
+#[test]
+fn a_nearer_face_wins_the_pixel_whatever_order_it_arrives_in() {
+    // Straight down the middle: two panels, one squarely behind the other.
+    let mut document = Document::new();
+    document.map.world.solids.clear();
+    let near = brush(&mut document, Vec3::new(200.0, -50.0, -50.0), Vec3::new(220.0, 50.0, 50.0));
+    brush(&mut document, Vec3::new(400.0, -50.0, -50.0), Vec3::new(420.0, 50.0, 50.0));
+    document.selection.solids.insert(near);
+
+    let image = render_at(&document, Vec3::ZERO, 0.0, 0.0);
+    let centre = image.pixel(W / 2, H / 2);
+    assert_eq!(centre, shade(-Vec3::X, true), "the near panel should own the centre pixel");
+}
+
+#[test]
+fn point_entities_are_marked_but_do_not_show_through_walls() {
+    let mut document = Document::new();
+    document.map.world.solids.clear();
+    // A wall at x = 300, and a light hidden behind it at x = 500.
+    brush(&mut document, Vec3::new(300.0, -200.0, -200.0), Vec3::new(320.0, 200.0, 200.0));
+    let id = document.map.next_id();
+    let mut light = void_map::Entity::new(id, "light");
+    light.set_origin(Vec3::new(500.0, 0.0, 0.0));
+    document.map.entities.push(light);
+
+    let image = render_at(&document, Vec3::ZERO, 0.0, 0.0);
+    let marker = [colors::ENTITY.r(), colors::ENTITY.g(), colors::ENTITY.b(), 255];
+    assert!(!any_pixel(&image, marker), "a light behind a wall was drawn through it");
+
+    // Move it in front and it appears.
+    document.map.entities[0].set_origin(Vec3::new(150.0, 0.0, 0.0));
+    let image = render_at(&document, Vec3::ZERO, 0.0, 0.0);
+    assert!(any_pixel(&image, marker), "a light in plain view was not drawn");
+}
+
+#[test]
+fn faces_are_outlined_where_they_meet() {
+    // The outline is read back out of the face buffer rather than stroked, so
+    // it exists exactly where two different faces are adjacent on screen.
+    let document = starter_document();
+    let image = render_at(&document, Vec3::new(256.0, 256.0, 64.0), 45.0, 0.0);
+    let plain: Vec<[u8; 4]> = [Vec3::X, -Vec3::X, Vec3::Y, -Vec3::Y, Vec3::Z, -Vec3::Z]
+        .into_iter()
+        .map(|n| shade(n, false))
+        .collect();
+    let darkened = image
+        .pixels
+        .iter()
+        .filter(|p| **p != background_rgba() && !plain.contains(p))
+        .count();
+    assert!(darkened > 0, "no outlines were drawn between the walls of the room");
+}
+
+#[test]
+fn a_zero_sized_pane_does_not_panic() {
+    let document = starter_document();
+    let image = render(&document, Vec3::new(256.0, 256.0, 64.0), basis_for(0.0, 0.0), FOV, 0, 0);
+    assert_eq!(image.pixels.len(), 1, "clamped to something drawable");
+}
+
+

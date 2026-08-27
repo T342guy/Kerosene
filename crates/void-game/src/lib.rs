@@ -59,6 +59,8 @@ pub fn register(registry: &mut ClassRegistry) {
     registry.register_common_input("AddOutput", input_add_output);
     registry.register_common_input("FireUser1", |w, id, _| fire_user(w, id, 1));
     registry.register_common_input("FireUser2", |w, id, _| fire_user(w, id, 2));
+    registry.register_common_output("OnUser1");
+    registry.register_common_output("OnUser2");
 }
 
 /// A registry with this game's classes already in it.

@@ -14,6 +14,7 @@ void-bsp.workspace = true
 void-asset.workspace = true
 void-vfs.workspace = true
 void-render.workspace = true
+void-entity.workspace = true
 anyhow.workspace = true
 log.workspace = true
 env_logger.workspace = true

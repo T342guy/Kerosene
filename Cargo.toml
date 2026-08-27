@@ -71,3 +71,9 @@ codegen-units = 4
 # Tool compiles (Cleave/Umbra/Radiance) are brutally slow in a debug build.
 [profile.dev.package."*"]
 opt-level = 2
+
+# Chisel rasterises its 3D pane in software, a pixel at a time. Unoptimised
+# that is a tenth of a second per frame, which is the difference between an
+# editor that can be dragged around and one that cannot.
+[profile.dev.package.chisel]
+opt-level = 2

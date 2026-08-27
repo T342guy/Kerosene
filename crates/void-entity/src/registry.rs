@@ -27,11 +27,20 @@ pub struct ClassDef {
     /// Input name to handler. Names are matched case-insensitively, because
     /// map files spell them inconsistently.
     pub inputs: Vec<(&'static str, InputHandler)>,
+    /// The outputs this class fires.
+    ///
+    /// Declared rather than inferred, because an output is just a string
+    /// passed to [`EntityWorld::fire_output`](crate::EntityWorld::fire_output)
+    /// and nothing else would know the set. Listing them keeps the editor's
+    /// schema honest: a test checks the two against each other, so adding an
+    /// output to the game and forgetting to offer it in Chisel is a build
+    /// failure rather than a wiring session that silently does nothing.
+    pub outputs: Vec<&'static str>,
 }
 
 impl ClassDef {
     pub fn new(classname: &'static str) -> Self {
-        ClassDef { classname, spawn: None, think: None, inputs: Vec::new() }
+        ClassDef { classname, spawn: None, think: None, inputs: Vec::new(), outputs: Vec::new() }
     }
 
     pub fn on_spawn(mut self, f: SpawnHandler) -> Self {
@@ -49,6 +58,12 @@ impl ClassDef {
         self
     }
 
+    /// Declare an output this class fires.
+    pub fn output(mut self, name: &'static str) -> Self {
+        self.outputs.push(name);
+        self
+    }
+
     pub fn find_input(&self, name: &str) -> Option<InputHandler> {
         self.inputs
             .iter()
@@ -63,6 +78,8 @@ pub struct ClassRegistry {
     classes: HashMap<String, ClassDef>,
     /// Inputs every entity understands, whatever its class.
     common: Vec<(&'static str, InputHandler)>,
+    /// Outputs every entity may fire.
+    common_outputs: Vec<&'static str>,
 }
 
 impl ClassRegistry {
@@ -79,6 +96,20 @@ impl ClassRegistry {
         self.common.push((name, f));
         self
     }
+
+    /// Declare an output every entity may fire, whatever its class.
+    pub fn register_common_output(&mut self, name: &'static str) -> &mut Self {
+        self.common_outputs.push(name);
+        self
+    }
+
+    /// Inputs handled by every entity, in registration order.
+    pub fn common_inputs(&self) -> Vec<&'static str> {
+        self.common.iter().map(|(n, _)| *n).collect()
+    }
+
+    /// Outputs every entity may fire, in registration order.
+    pub fn common_outputs(&self) -> Vec<&'static str> { self.common_outputs.clone() }
 
     pub fn get(&self, classname: &str) -> Option<&ClassDef> {
         self.classes.get(&classname.to_lowercase())

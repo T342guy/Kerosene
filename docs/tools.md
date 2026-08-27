@@ -39,6 +39,24 @@ made. Wire outputs to inputs in the same panel.
 Clicking a brush that belongs to an entity selects the entity, not the brush:
 that is what a designer means by "the door".
 
+**Entity properties.** The inspector is driven by the game's class definitions
+-- the `.voiddef` files Chisel finds under the content root. For a selected
+entity it lists *every* key its class reads, whether or not the entity has been
+given a value for one, with the type, the game's default and a line of help.
+Keys are edited with a widget suited to what they hold: a colour picker for a
+light's colour, checkboxes for a spawnflag field, a menu of the map's entity
+names when wiring an output. A key the definitions do not describe is still
+shown -- that is how a typo becomes visible rather than silent.
+
+Without a `.voiddef` the inspector can only show the keys an entity already
+carries, which for a freshly placed entity is none. Chisel says so in the
+status bar rather than looking like a game with no settings.
+
+**The 3D pane** is rasterised in software with a depth buffer, so what hides
+what is decided per pixel. It shows shape, scale and selection -- not textures
+or lighting, which is what compiling and running the map is for, one keystroke
+away.
+
 Chisel runs the compilers as separate programs, looking for them beside its own
 executable and then on `PATH`. `map → check tools are installed` says which it
 found.

@@ -17,10 +17,13 @@
 //! found by its users.
 
 pub mod app;
+pub mod classes;
 pub mod compile;
 pub mod draw;
 pub mod document;
 pub mod grid;
+pub mod inspector;
+pub mod raster;
 pub mod tools;
 pub mod viewport;
 

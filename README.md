@@ -175,10 +175,10 @@ Known limits, stated plainly:
   wire protocol and prediction are not written.
 - **No skeletal animation.** `.voidmdl` carries bones and per-vertex weights, and
   Forge preserves them, but nothing animates them yet.
-- **Chisel's 3D view is painter-sorted, not GPU-rendered.** It shows shape and
-  scale accurately, but not textures or lighting, and faces that interpenetrate
-  can sort wrong — brush geometry rarely does. The compiled map in the engine
-  is one keystroke away.
+- **Chisel's 3D view is software-rasterised, not GPU-rendered.** Occlusion is
+  correct — it has a real depth buffer — but there are no textures, no
+  lighting, and no shadows. It shows shape, scale and what is in front of what.
+  The compiled map in the engine is one keystroke away.
 - **No block compression for textures.** `.voidtex` is uncompressed. A bad BC
   encoder is worse than none.
 - **Sound is not implemented.**

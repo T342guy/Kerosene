@@ -6,11 +6,13 @@
 //! 2D view needs, and doing it in immediate mode means there is no scene graph
 //! to keep in step with the document.
 //!
-//! The 3D pane is drawn the same way, as shaded polygons sorted back to front.
-//! It is a painter's-algorithm view rather than a GPU one, so it will not show
-//! textures or lighting -- that is what the compiled map in the engine is for,
-//! one keystroke away. What it does show, accurately, is shape and scale,
-//! which is what you are judging while building.
+//! The 3D pane needs an answer to "what is in front of what", which no
+//! ordering of whole polygons can give, so the drawing of it lives in
+//! [`crate::raster`] behind a depth buffer. What stays here is the geometry
+//! side of it: camera space, near-plane clipping, and which faces are worth
+//! considering at all. Those are questions with testable answers, and keeping
+//! them out of the drawing is what let the two bugs in this file be written
+//! down as tests rather than as screenshots.
 
 use crate::document::Document;
 use crate::tools::{Tool, ToolAction, ToolKind};
@@ -263,9 +265,20 @@ pub fn clip_near(polygon: &[Vec3], near: f32) -> Vec<Vec3> {
                 // Land exactly on the plane rather than a hair off it, so the
                 // perspective divide below cannot see a depth of zero.
                 crossing.z = near;
-                out.push(crossing);
+                // A vertex sitting exactly on the plane is both inside and a
+                // crossing, and would otherwise be emitted twice. A repeated
+                // point makes a zero-length edge, which is where stroke
+                // tessellation used to produce a spike across the screen.
+                if out.last().is_none_or(|last| last.distance_squared(crossing) > 1e-12) {
+                    out.push(crossing);
+                }
             }
         }
+    }
+    // The same again across the wrap: the crossing on the last edge can land
+    // exactly on the first vertex.
+    if out.len() >= 2 && out[0].distance_squared(*out.last().expect("checked")) <= 1e-12 {
+        out.pop();
     }
     if out.len() < 3 { Vec::new() } else { out }
 }
@@ -315,60 +328,6 @@ pub fn visible_faces(document: &Document, eye: Vec3, basis: void_math::Basis) ->
 
     faces.sort_by(|a, b| b.depth.partial_cmp(&a.depth).unwrap_or(std::cmp::Ordering::Equal));
     faces
-}
-
-/// Draw the 3D pane as shaded polygons.
-pub fn draw_3d(painter: &Painter, rect: Rect, viewport: &Viewport, document: &Document) {
-    painter.rect_filled(rect, 0.0, colors::BACKGROUND);
-
-    let basis = viewport.angles.vectors();
-    let aspect = rect.width() / rect.height().max(1.0);
-    let half_y = (void_render::vertical_fov(viewport.fov, aspect) * 0.5).tan().max(1e-4);
-    let half_x = half_y * aspect;
-
-    // Project a camera-space point that has already been clipped, so `z` is
-    // known to be at least NEAR and the divide is safe.
-    let project = |camera: Vec3| -> Pos2 {
-        let x = camera.x / (camera.z * half_x);
-        let y = camera.y / (camera.z * half_y);
-        Pos2::new(
-            rect.center().x + x * rect.width() * 0.5,
-            rect.center().y - y * rect.height() * 0.5,
-        )
-    };
-
-    for face in visible_faces(document, viewport.eye, basis) {
-        // Flat shading from the face normal: enough to read shape without any
-        // lighting data, which the editor does not have.
-        let light = (face.normal.dot(Vec3::new(0.4, 0.3, 0.87).normalize()) * 0.5 + 0.5)
-            .clamp(0.25, 1.0);
-        let base = if face.selected { colors::SELECTED } else { colors::BRUSH };
-        let color = Color32::from_rgb(
-            (base.r() as f32 * light) as u8,
-            (base.g() as f32 * light) as u8,
-            (base.b() as f32 * light) as u8,
-        );
-
-        let points: Vec<Pos2> = face.polygon.iter().map(|p| project(*p)).collect();
-        painter.add(egui::Shape::convex_polygon(
-            points,
-            color,
-            Stroke::new(1.0, Color32::from_rgba_unmultiplied(0, 0, 0, 90)),
-        ));
-    }
-
-    // Point entities as small markers. A single point either is or is not in
-    // front of the camera; there is nothing to clip.
-    for entity in document.map.entities.iter().filter(|e| e.solids.is_empty()) {
-        let camera = to_camera_space(&[entity.origin()], viewport.eye, basis);
-        if camera[0].z < NEAR { continue; }
-        let selected = document.selection.entities.contains(&entity.id);
-        painter.circle_stroke(
-            project(camera[0]),
-            4.0,
-            Stroke::new(1.5, if selected { colors::SELECTED } else { colors::ENTITY }),
-        );
-    }
 }
 
 /// Apply a finished tool action to the document.
@@ -614,6 +573,44 @@ mod view_tests {
             Vec3::new(-10.0, 10.0, 100.0),
         ];
         assert_eq!(clip_near(&quad, NEAR).len(), 5);
+    }
+
+    #[test]
+    fn a_vertex_exactly_on_the_near_plane_is_not_emitted_twice() {
+        // The stray-line bug: a vertex landing exactly on the plane counts as
+        // inside *and* as a crossing, so it went in twice. A repeated point is
+        // a zero-length edge, and a zero-length edge has no direction to take
+        // a normal from.
+        // One corner sits on the plane and one is behind it, so the crossing
+        // computed for the closing edge lands exactly on the first vertex.
+        let quad = vec![
+            Vec3::new(-10.0, -10.0, NEAR),
+            Vec3::new(10.0, -10.0, 50.0),
+            Vec3::new(10.0, 10.0, 50.0),
+            Vec3::new(-10.0, 10.0, 0.5),
+        ];
+        let clipped = clip_near(&quad, NEAR);
+        assert_eq!(clipped.len(), 4, "{clipped:?}");
+        for pair in clipped.windows(2) {
+            assert!(pair[0].distance_squared(pair[1]) > 1e-12, "a point was repeated: {clipped:?}");
+        }
+        assert!(
+            clipped[0].distance_squared(*clipped.last().expect("not empty")) > 1e-12,
+            "the polygon closes on itself: {clipped:?}"
+        );
+    }
+
+    #[test]
+    fn a_polygon_edge_on_at_the_near_plane_has_no_area_and_is_dropped() {
+        // Two corners exactly on the plane and two behind it: what survives is
+        // a line, not a shape, and a line is not something to draw.
+        let quad = vec![
+            Vec3::new(-10.0, -10.0, NEAR),
+            Vec3::new(10.0, -10.0, NEAR),
+            Vec3::new(10.0, 10.0, 0.5),
+            Vec3::new(-10.0, 10.0, 0.5),
+        ];
+        assert!(clip_near(&quad, NEAR).is_empty());
     }
 
     #[test]

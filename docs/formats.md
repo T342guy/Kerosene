@@ -9,13 +9,15 @@
 | `.voidtex` | Texture | binary | Alchemy | `.vtf` |
 | `.voidmat` | Material | text (KeyValues) | Alchemy, by hand | `.vmt` |
 | `.voidmdl` | Model | binary | Forge | `.mdl` |
+| `.voiddef` | Entity class definitions | text (KeyValues) | the game, by hand | `.fgd` |
 | `.vault` | Content archive | binary | Vault | `.vpk` |
 
 Text where a person edits or reviews it; binary where the engine loads it.
 
 ## KeyValues
 
-The text format `.voidmap`, `.voidmat`, and the compiled entity lump all use.
+The text format `.voidmap`, `.voidmat`, `.voiddef` and the compiled entity lump
+all use.
 
 ```
 world
@@ -172,6 +174,62 @@ path and no branch in the hot loop.
 
 Bones are listed parents-first, so a single forward pass can build world
 transforms with no recursion and no sorting.
+
+## `.voiddef` — entity class definitions
+
+What an editor needs to know about the game's entities: for each class, the
+keys it reads, the inputs it answers to and the outputs it fires. The engine
+never reads this — an entity there is a bag of whatever keys the map carries,
+and that is deliberate. The file exists so that a person placing a `func_door`
+is shown that `speed` and `lip` are things, instead of an empty panel.
+
+It is the FGD relationship, and it is what keeps Chisel a separate program from
+the game: the editor reads the game's file rather than linking its code.
+
+```
+base
+{
+    "name" "Entity"
+    key   { "name" "targetname" "label" "Name" "type" "target_source"
+            "help" "What other entities call this one." }
+    input { "name" "Kill" "help" "Remove this entity from the map." }
+}
+
+class
+{
+    "name" "func_door"
+    "kind" "brush"
+    "base" "Entity"
+    "help" "A brush that slides open and shut."
+    key {
+        "name" "spawnflags" "label" "Flags" "type" "flags" "default" "0"
+        choice { "value" "1" "label" "Starts open" }
+    }
+    key    { "name" "speed" "type" "float" "default" "100" "help" "Units per second." }
+    input  { "name" "SetSpeed" "parameter" "units per second" }
+    output { "name" "OnFullyOpen" }
+}
+```
+
+`kind` is `point`, `brush` or `any`, and decides which menu a class appears in.
+A class may name several `base` blocks; their keys, inputs and outputs come
+first, and a key the class redefines wins. Key types are `string`, `int`,
+`float`, `bool`, `vec3`, `angles`, `color`, `target_source`,
+`target_destination`, `material`, `model`, `choices` and `flags` — the set is
+closed, so an unrecognised type is an error at load rather than a text box at
+edit time.
+
+Files are merged in sorted path order and a later definition of a class
+replaces an earlier one, so a mod can drop its own file beside the game's.
+
+A `default` is what the *game* assumes when a key is absent. Chisel shows it
+greyed rather than writing it into the map, so a `.voidmap` only carries the
+keys someone chose — which is what makes a diff between two saves readable.
+
+`content/voidengine.voiddef` describes the sample game, and a test in
+`void-game` checks it against the class registry in both directions: an input
+the game handles and the file does not offer is a build failure, and so is an
+input the file offers that nothing handles.
 
 ## `.vault` — content archives
 

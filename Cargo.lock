@@ -338,6 +338,7 @@ dependencies = [
  "pollster",
  "void-asset",
  "void-bsp",
+ "void-entity",
  "void-kv",
  "void-map",
  "void-math",

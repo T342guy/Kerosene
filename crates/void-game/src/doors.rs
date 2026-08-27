@@ -19,6 +19,9 @@ use void_math::Vec3;
 /// the time that actually elapsed instead.
 const MOVE_INTERVAL: f32 = 0.05;
 
+/// Spawnflag bits, matching the names Source gives them.
+pub const SF_START_OPEN: u32 = 1;
+
 /// Which way a door is going.
 mod state {
     pub const CLOSED: i32 = 0;
@@ -40,7 +43,12 @@ pub fn register(registry: &mut ClassRegistry) {
             .input("SetSpeed", |w, id, e| {
                 if let Some(v) = e.parameter_f32() { set_field(w, id, "speed", Value::Float(v)); }
                 true
-            }),
+            })
+            .output("OnOpen")
+            .output("OnClose")
+            .output("OnFullyOpen")
+            .output("OnFullyClosed")
+            .output("OnLockedUse"),
     );
 
     registry.register(
@@ -81,7 +89,9 @@ fn spawn_door(world: &mut EntityWorld, id: EntityId) {
     let travel = (extent - lip).max(1.0);
 
     let speed = entity.fields.f32("speed", 100.0).max(1.0);
-    let start_open = entity.fields.bool("spawnflags_startopen", false);
+    // Spawnflag 1 is "starts open", as Source numbers it. A named bit rather
+    // than a key of its own, so it agrees with every other class here.
+    let start_open = entity.has_spawnflag(SF_START_OPEN);
 
     set_field(world, id, "movedir", Value::Vector(dir));
     set_field(world, id, "travel", Value::Float(travel));
