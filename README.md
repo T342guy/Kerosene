@@ -152,7 +152,7 @@ Read [`docs/architecture.md`](docs/architecture.md) for how the pieces fit,
 ## Status
 
 Everything above works end to end: you can draw a level in Chisel, compile it
-through all three stages, and walk around it. 590 tests cover the pieces and
+through all three stages, and walk around it. 605 tests cover the pieces and
 the seams between them, including a suite that builds a map in memory,
 compiles it, loads it and plays it.
 
@@ -164,8 +164,9 @@ Known limits, stated plainly:
 - **No skeletal animation.** `.vmdl` carries bones and per-vertex weights, and
   Forge preserves them, but nothing animates them yet.
 - **Chisel's 3D view is painter-sorted, not GPU-rendered.** It shows shape and
-  scale accurately, but not textures or lighting. The compiled map in the
-  engine is one keystroke away.
+  scale accurately, but not textures or lighting, and faces that interpenetrate
+  can sort wrong — brush geometry rarely does. The compiled map in the engine
+  is one keystroke away.
 - **No block compression for textures.** `.vtex` is uncompressed. A bad BC
   encoder is worse than none.
 - **Sound is not implemented.**
