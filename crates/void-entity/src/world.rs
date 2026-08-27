@@ -182,12 +182,38 @@ impl EntityWorld {
     // ---- loading ---------------------------------------------------------
 
     /// Create every entity in a compiled map and run its spawn handler.
+    ///
+    /// Brush entities are given their model's bounds as fields *before* spawn
+    /// handlers run, because a class like `func_door` needs to know how far it
+    /// travels, and that comes from the geometry rather than from a keyvalue.
     pub fn load_from_bsp(&mut self, bsp: &Bsp) -> Result<usize, SpawnError> {
         let kv = bsp.entities_kv()?;
-        self.load_from_kv(&kv)
+        let created = self.create_entities(&kv);
+
+        for &id in &created {
+            let Some(index) = self.get(id).and_then(|e| e.brush_model) else { continue };
+            let Some(model) = bsp.models.get(index) else { continue };
+            let bounds = model.bounds();
+            if let Some(e) = self.get_mut(id) {
+                e.fields.set("model_mins", Value::Vector(bounds.min));
+                e.fields.set("model_maxs", Value::Vector(bounds.max));
+            }
+        }
+
+        self.run_spawn_handlers(&created);
+        Ok(created.len())
     }
 
+    /// Create entities from KeyValues and run their spawn handlers.
     pub fn load_from_kv(&mut self, kv: &KeyValues) -> Result<usize, SpawnError> {
+        let created = self.create_entities(kv);
+        self.run_spawn_handlers(&created);
+        Ok(created.len())
+    }
+
+    /// Create entities without spawning them, so callers can fill in anything
+    /// a spawn handler will need first.
+    fn create_entities(&mut self, kv: &KeyValues) -> Vec<EntityId> {
         let mut created = Vec::new();
 
         for block in kv.blocks("entity") {
@@ -248,10 +274,16 @@ impl EntityWorld {
             created.push(id);
         }
 
-        // Spawn handlers run only once every entity exists, so that one can
-        // look another up by name during its own spawn.
+        created
+    }
+
+    /// Run spawn handlers, once every entity exists.
+    ///
+    /// Deferred so that one entity can look another up by name during its own
+    /// spawn -- a door finding the button that opens it, for instance.
+    fn run_spawn_handlers(&mut self, created: &[EntityId]) {
         let registry = self.registry.clone();
-        for id in &created {
+        for id in created {
             let Some(classname) = self.get(*id).map(|e| e.classname.clone()) else { continue };
             if let Some(spawn) = registry.spawn_handler(&classname) {
                 spawn(self, *id);
@@ -259,8 +291,6 @@ impl EntityWorld {
                 log::debug!("no class registered for '{classname}'; it will be inert");
             }
         }
-
-        Ok(created.len())
     }
 
     // ---- entity I/O ------------------------------------------------------

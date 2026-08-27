@@ -24,12 +24,12 @@
 //!   a queue anyway, and routing everything through it means an entity firing
 //!   an output at itself cannot recurse into the stack.
 
-mod io;
+pub mod io;
 mod registry;
 mod value;
 mod world;
 
-pub use io::{PendingEvent, Target};
+pub use io::{Connection, InputEvent, PendingEvent, Target};
 pub use registry::{ClassDef, ClassRegistry, InputHandler, SpawnHandler, ThinkHandler};
 pub use value::{Fields, Value};
 pub use world::{Entity, EntityId, EntityWorld, SpawnError};

@@ -14,3 +14,7 @@ void-physics.workspace = true
 void-bsp.workspace = true
 glam.workspace = true
 log.workspace = true
+void-map.workspace = true
+
+[dev-dependencies]
+void-kv.workspace = true
