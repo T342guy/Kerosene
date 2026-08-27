@@ -3,7 +3,7 @@
 use crate::io::{Connection, InputEvent, PendingEvent, Target};
 use crate::registry::ClassRegistry;
 use crate::value::{Fields, Value};
-use crate::{MAX_EVENTS_PER_TICK, targets};
+use crate::MAX_EVENTS_PER_TICK;
 use std::collections::{BinaryHeap, HashMap};
 use std::sync::Arc;
 use thiserror::Error;

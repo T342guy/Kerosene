@@ -2683,6 +2683,7 @@ name = "void-engine"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "cleave",
  "env_logger",
  "glam",
  "log",
@@ -2691,6 +2692,9 @@ dependencies = [
  "void-bsp",
  "void-console",
  "void-entity",
+ "void-game",
+ "void-kv",
+ "void-map",
  "void-math",
  "void-physics",
  "void-render",
@@ -2796,6 +2800,7 @@ dependencies = [
  "void-console",
  "void-engine",
  "void-game",
+ "void-math",
 ]
 
 [[package]]

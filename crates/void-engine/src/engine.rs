@@ -1,0 +1,473 @@
+//! The engine core: everything except the window.
+//!
+//! Deliberately separated from [`crate::host`] so the whole simulation can run
+//! without a display. That is not only for testing: a dedicated server runs
+//! exactly this, and being unable to start one without a GPU would be a
+//! serious design mistake in an engine meant to host multiplayer games.
+//!
+//! The tick is fixed-rate, as Source's is. Physics and entity I/O advance in
+//! equal steps whatever the frame rate, so a fast machine and a slow one
+//! simulate identically -- and rendering interpolates between the last two
+//! states rather than dragging simulation along with it.
+
+use crate::input::InputState;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use void_bsp::{Bsp, contents};
+use void_console::{ConVarFlags, Console};
+use void_entity::{EntityId, EntityWorld};
+use void_math::{Aabb, Angles, Vec3};
+use crate::collision::LevelCollision;
+use void_physics::{MoveInput, MoveParams, MoveState};
+use void_vfs::Vfs;
+
+/// Server tick rate. 64 is Source's modern default: fine enough that
+/// movement feels continuous, coarse enough to be affordable.
+pub const DEFAULT_TICKRATE: f32 = 64.0;
+
+/// How the engine was asked to start.
+#[derive(Clone, Debug)]
+pub struct EngineConfig {
+    /// Directories to mount, searched in order.
+    pub content_paths: Vec<PathBuf>,
+    /// Archives to mount after them.
+    pub archives: Vec<PathBuf>,
+    /// Map to load on start.
+    pub map: Option<String>,
+    /// Console commands to run once everything is up.
+    pub startup_commands: Vec<String>,
+}
+
+impl Default for EngineConfig {
+    fn default() -> Self {
+        EngineConfig {
+            content_paths: vec![PathBuf::from("content")],
+            archives: Vec::new(),
+            map: None,
+            startup_commands: Vec::new(),
+        }
+    }
+}
+
+/// A loaded level.
+pub struct Level {
+    pub name: String,
+    pub bsp: Bsp,
+}
+
+/// The engine.
+pub struct Engine {
+    pub console: Console,
+    pub vfs: Arc<Vfs>,
+    pub level: Option<Level>,
+    pub entities: EntityWorld,
+    pub player: PlayerState,
+    /// Accumulated real time not yet simulated.
+    accumulator: f32,
+    /// Total simulated time.
+    pub time: f32,
+    pub tick_count: u64,
+    /// Set when the console asks for a different map.
+    pending_map: Option<String>,
+    /// Set by the `quit` command.
+    pub should_quit: bool,
+}
+
+/// The local player.
+pub struct PlayerState {
+    pub entity: Option<EntityId>,
+    pub movement: MoveState,
+    pub view_angles: Angles,
+    /// Simulation state at the start and end of the current tick, so rendering
+    /// can interpolate between them instead of stuttering at the tick rate.
+    pub previous_origin: Vec3,
+    pub health: f32,
+}
+
+impl Default for PlayerState {
+    fn default() -> Self {
+        PlayerState {
+            entity: None,
+            movement: MoveState::default(),
+            view_angles: Angles::ZERO,
+            previous_origin: Vec3::ZERO,
+            health: 100.0,
+        }
+    }
+}
+
+impl Engine {
+    pub fn new(config: &EngineConfig) -> Engine {
+        let mut vfs = Vfs::new();
+        for dir in &config.content_paths {
+            vfs.add_directory(dir, "GAME");
+        }
+        for archive in &config.archives {
+            if let Err(e) = vfs.mount_archive(archive, "GAME") {
+                log::warn!("could not mount {}: {e}", archive.display());
+            }
+        }
+        // Loose files win over packed ones, so a developer can drop a file
+        // beside a shipped archive and see it immediately.
+        let vfs = Arc::new(vfs);
+
+        let mut console = Console::new();
+        register_cvars(&mut console);
+        register_commands(&mut console);
+
+        // Wire `exec` to the filesystem.
+        let exec_vfs = vfs.clone();
+        console.set_exec_handler(move |name| {
+            let path = if name.contains('/') { name.to_string() } else { format!("cfg/{name}") };
+            exec_vfs.read_string(&path).ok()
+        });
+
+        let entities = EntityWorld::new(void_game::registry());
+
+        let mut engine = Engine {
+            console,
+            vfs,
+            level: None,
+            entities,
+            player: PlayerState::default(),
+            accumulator: 0.0,
+            time: 0.0,
+            tick_count: 0,
+            pending_map: config.map.clone(),
+            should_quit: false,
+        };
+
+        for command in &config.startup_commands {
+            engine.console.enqueue(command.clone());
+        }
+        engine
+    }
+
+    pub fn tick_rate(&self) -> f32 {
+        self.console.float("sv_tickrate").max(1.0)
+    }
+
+    pub fn tick_interval(&self) -> f32 { 1.0 / self.tick_rate() }
+
+    /// Load a map by name, e.g. `void_start`.
+    pub fn load_map(&mut self, name: &str) -> anyhow::Result<()> {
+        let path = format!("maps/{name}.vbsp");
+        let bytes = self
+            .vfs
+            .read(&path)
+            .map_err(|e| anyhow::anyhow!("could not read {path}: {e}"))?;
+        let bsp = Bsp::from_bytes(&bytes, &path)?;
+
+        self.console.print(format!("loading {path}"));
+        for (name, count) in bsp.stats() {
+            self.console.developer(format!("  {name}: {count}"));
+        }
+        if bsp.visibility.is_empty() {
+            self.console.warn("this map has no visibility data; run Umbra on it");
+        }
+        if bsp.lighting.is_empty() {
+            self.console.warn("this map has no lighting; run Radiance on it");
+        }
+
+        // A fresh entity world per map: nothing from the last one should
+        // survive, and a stale handle must not resolve.
+        self.entities = EntityWorld::new(void_game::registry());
+        self.entities.set_trace(self.console.int("developer") >= 2);
+        let count = self.entities.load_from_bsp(&bsp)?;
+        self.console.print(format!("{count} entities"));
+
+        self.level = Some(Level { name: name.to_string(), bsp });
+        self.spawn_player();
+        self.time = 0.0;
+        self.tick_count = 0;
+        self.accumulator = 0.0;
+        Ok(())
+    }
+
+    /// Put the player at an `info_player_start`, or somewhere sane if there is
+    /// none.
+    fn spawn_player(&mut self) {
+        let spawn = self
+            .entities
+            .find_by_class("info_player_start")
+            .first()
+            .copied()
+            .and_then(|id| self.entities.get(id).map(|e| (e.origin, e.angles)));
+
+        let (origin, angles) = match spawn {
+            Some(found) => found,
+            None => {
+                self.console.warn("no info_player_start; spawning at the world origin");
+                (Vec3::ZERO, Angles::ZERO)
+            }
+        };
+
+        let player = self.entities.spawn("player");
+        self.entities.player = Some(player);
+        if let Some(e) = self.entities.get_mut(player) { e.origin = origin; }
+
+        self.player = PlayerState {
+            entity: Some(player),
+            // Lifted slightly so the first ground trace has somewhere to land
+            // rather than starting flush with the floor.
+            movement: MoveState { origin: origin + Vec3::Z, ..Default::default() },
+            view_angles: angles.clamped_view(),
+            previous_origin: origin,
+            health: 100.0,
+        };
+    }
+
+    /// Advance by real elapsed time, running as many fixed ticks as it covers.
+    ///
+    /// Returns how many ticks ran. The accumulator is capped so that a long
+    /// stall -- a breakpoint, a window drag -- does not produce a burst of
+    /// hundreds of catch-up ticks, which would look like the world
+    /// fast-forwarding and could take longer to simulate than it did to stall.
+    pub fn frame(&mut self, real_dt: f32, input: &InputState) -> usize {
+        self.console.run_buffered();
+
+        if let Some(map) = self.pending_map.take() {
+            if let Err(e) = self.load_map(&map) {
+                self.console.error(format!("{e}"));
+            }
+        }
+
+        let interval = self.tick_interval();
+        self.accumulator = (self.accumulator + real_dt).min(interval * 8.0);
+
+        let mut ticks = 0;
+        while self.accumulator >= interval {
+            self.accumulator -= interval;
+            self.tick(interval, input);
+            ticks += 1;
+        }
+        ticks
+    }
+
+    /// One fixed simulation step.
+    pub fn tick(&mut self, dt: f32, input: &InputState) {
+        self.time += dt;
+        self.tick_count += 1;
+        self.player.previous_origin = self.player.movement.origin;
+
+        self.player.view_angles = input.view_angles.clamped_view();
+
+        if let Some(level) = &self.level {
+            // Rebuilt each tick: a door that moved since the last one has to
+            // block where it is now, not where it was.
+            let world = LevelCollision::new(&level.bsp, &self.entities);
+            let params = self.movement_params();
+            let move_input = MoveInput {
+                forward: input.forward,
+                side: input.side,
+                up: input.up,
+                jump: input.jump,
+                duck: input.duck,
+                view_angles: self.player.view_angles,
+            };
+
+            self.player.movement.noclip = self.console.bool("sv_noclip");
+            let result =
+                void_physics::player_move(&mut self.player.movement, &move_input, &params, &world, dt);
+
+            if let Some(speed) = result.landed_at_speed {
+                self.apply_fall_damage(speed);
+            }
+        }
+
+        // Keep the player's entity in step, so `!player` targets and trigger
+        // tests both see where they actually are.
+        if let Some(id) = self.player.entity {
+            let origin = self.player.movement.origin;
+            if let Some(e) = self.entities.get_mut(id) { e.origin = origin; }
+        }
+
+        self.update_triggers();
+        self.entities.run(dt);
+    }
+
+    fn movement_params(&self) -> MoveParams {
+        let gravity = self.console.float("sv_gravity");
+        let mut params = MoveParams {
+            gravity,
+            max_speed: self.console.float("sv_maxspeed"),
+            accelerate: self.console.float("sv_accelerate"),
+            air_accelerate: self.console.float("sv_airaccelerate"),
+            friction: self.console.float("sv_friction"),
+            stop_speed: self.console.float("sv_stopspeed"),
+            step_size: self.console.float("sv_stepsize"),
+            air_speed_cap: self.console.float("sv_air_max_wishspeed"),
+            ..Default::default()
+        };
+        // Derived rather than a convar of its own, so changing gravity keeps
+        // jump height where the designer put it.
+        params.jump_impulse = params.jump_for_height(self.console.float("sv_jump_height"));
+        params
+    }
+
+    /// Tell every trigger whether the player is inside it.
+    fn update_triggers(&mut self) {
+        let Some(level) = &self.level else { return };
+        let hull = self.player.movement.hull();
+        let player_box = Aabb::new(
+            self.player.movement.origin + hull.mins,
+            self.player.movement.origin + hull.maxs,
+        );
+
+        let triggers: Vec<(EntityId, usize, Vec3)> = self
+            .entities
+            .iter()
+            .filter(|e| e.classname.to_lowercase().starts_with("trigger_"))
+            .filter_map(|e| e.brush_model.map(|m| (e.id, m, e.origin)))
+            .collect();
+
+        let player_entity = self.player.entity;
+        for (id, model_index, offset) in triggers {
+            let Some(model) = level.bsp.models.get(model_index) else { continue };
+            let bounds = model.bounds();
+            let moved = Aabb::new(bounds.min + offset, bounds.max + offset);
+            // A box overlap is enough: trigger brushes are convex volumes and
+            // the exact brush test costs more than it is worth here.
+            let inside = moved.intersects(&player_box);
+            void_game::triggers::update_touch(&mut self.entities, id, inside, player_entity);
+        }
+    }
+
+    fn apply_fall_damage(&mut self, speed: f32) {
+        // Below the safe speed, landing costs nothing. Above it, damage rises
+        // with the excess -- Source's curve, near enough.
+        let safe = self.console.float("sv_falldamage_safe");
+        if speed <= safe { return; }
+        let scale = self.console.float("sv_falldamage_scale");
+        let damage = (speed - safe) * scale;
+        self.player.health -= damage;
+        self.console.developer(format!("fall damage {damage:.0} at {speed:.0} units/s"));
+        if self.player.health <= 0.0 {
+            self.console.print("you died");
+            self.player.health = 100.0;
+            self.spawn_player();
+        }
+    }
+
+    /// Where the eye is, interpolated between the last two ticks.
+    ///
+    /// Without this the view snaps at the tick rate, which is visible as a
+    /// judder on any display refreshing faster than 64 Hz -- which is all of
+    /// them now.
+    pub fn interpolated_eye(&self, alpha: f32) -> Vec3 {
+        let hull = self.player.movement.hull();
+        let position = self
+            .player
+            .previous_origin
+            .lerp(self.player.movement.origin, alpha.clamp(0.0, 1.0));
+        position + Vec3::Z * hull.view_height
+    }
+
+    /// Queue a map change for the start of the next frame.
+    ///
+    /// Deferred rather than immediate because a map change unloads everything
+    /// the current tick is standing on.
+    pub fn request_map(&mut self, name: &str) {
+        self.pending_map = Some(name.to_string());
+    }
+
+    pub fn has_pending_map(&self) -> bool { self.pending_map.is_some() }
+
+    /// Contents the player is standing in, for water and trigger checks.
+    pub fn player_contents(&self) -> u32 {
+        match &self.level {
+            Some(level) => level.bsp.point_contents_brushes(self.player.movement.origin + Vec3::Z * 4.0),
+            None => contents::EMPTY,
+        }
+    }
+}
+
+/// Register the engine's convars.
+fn register_cvars(console: &mut Console) {
+    console.register_cvar_ranged("sv_tickrate", "64", Some(10.0), Some(256.0), ConVarFlags::NONE, "Server simulation steps per second.");
+    console.register_cvar("sv_cheats", "0", ConVarFlags::NOTIFY | ConVarFlags::REPLICATED, "Allow cheat commands and convars.");
+    console.register_cvar("sv_gravity", "800", ConVarFlags::REPLICATED, "World gravity in units/s^2.");
+    console.register_cvar("sv_maxspeed", "320", ConVarFlags::REPLICATED, "Maximum ground speed in units/s.");
+    console.register_cvar("sv_accelerate", "10", ConVarFlags::REPLICATED, "Ground acceleration.");
+    console.register_cvar("sv_airaccelerate", "10", ConVarFlags::REPLICATED, "Air acceleration.");
+    console.register_cvar("sv_friction", "4", ConVarFlags::REPLICATED, "Ground friction.");
+    console.register_cvar("sv_stopspeed", "100", ConVarFlags::REPLICATED, "Speed below which friction is applied as though at this speed.");
+    console.register_cvar("sv_stepsize", "18", ConVarFlags::REPLICATED, "Tallest step walked up without jumping.");
+    console.register_cvar("sv_jump_height", "57", ConVarFlags::REPLICATED, "Height a jump reaches, in units.");
+    console.register_cvar("sv_air_max_wishspeed", "30", ConVarFlags::REPLICATED, "Air acceleration speed cap. This is what makes air strafing work.");
+    console.register_cvar("sv_falldamage_safe", "580", ConVarFlags::REPLICATED, "Landing speed below which falling is harmless.");
+    console.register_cvar("sv_falldamage_scale", "0.25", ConVarFlags::REPLICATED, "Damage per unit/s of landing speed above the safe threshold.");
+    console.register_cvar("sv_noclip", "0", ConVarFlags::CHEAT, "Fly through walls.");
+
+    console.register_cvar("cl_fov", "90", ConVarFlags::ARCHIVE, "Horizontal field of view at 4:3.");
+    console.register_cvar_ranged("sensitivity", "3", Some(0.01), Some(100.0), ConVarFlags::ARCHIVE, "Mouse sensitivity.");
+    console.register_cvar("m_yaw", "0.022", ConVarFlags::ARCHIVE, "Yaw degrees per mouse count.");
+    console.register_cvar("m_pitch", "0.022", ConVarFlags::ARCHIVE, "Pitch degrees per mouse count.");
+    console.register_cvar("m_invert", "0", ConVarFlags::ARCHIVE, "Invert mouse pitch.");
+
+    console.register_cvar("r_drawworld", "1", ConVarFlags::CHEAT, "Draw world geometry.");
+    console.register_cvar("r_fullbright", "0", ConVarFlags::CHEAT, "Ignore lightmaps.");
+    console.register_cvar("r_lightmap", "1", ConVarFlags::CHEAT, "Apply lightmaps.");
+    console.register_cvar("r_novis", "0", ConVarFlags::CHEAT, "Ignore the PVS and draw everything.");
+    console.register_cvar("r_speeds", "0", ConVarFlags::NONE, "Show per-frame render statistics.");
+    console.register_cvar_ranged("mat_exposure", "1.0", Some(0.01), Some(16.0), ConVarFlags::ARCHIVE, "Overall brightness.");
+    console.register_cvar("fps_max", "0", ConVarFlags::ARCHIVE, "Frame rate cap; 0 for unlimited.");
+}
+
+/// Register the engine's commands.
+///
+/// Commands that need engine state set a request on the console for the host
+/// to act on, rather than reaching into the engine: a `ConCommand` handler
+/// only gets the console, and threading the whole engine through it would make
+/// every command able to do anything.
+fn register_commands(console: &mut Console) {
+    console.register_command("map", ConVarFlags::NONE, "Load a map: map <name>", |con, args| {
+        match args.get(1) {
+            Some(name) => {
+                let name = name.to_string();
+                con.set("__pending_map", &name);
+            }
+            None => con.warn("usage: map <name>"),
+        }
+    });
+    console.register_cvar("__pending_map", "", ConVarFlags::HIDDEN, "Map the host should load next.");
+
+    console.register_command("quit", ConVarFlags::NONE, "Exit.", |con, _| {
+        con.set("__quit", "1");
+    });
+    console.register_command("exit", ConVarFlags::NONE, "Exit.", |con, _| {
+        con.set("__quit", "1");
+    });
+    console.register_cvar("__quit", "0", ConVarFlags::HIDDEN, "Set when the host should exit.");
+
+    console.register_command("noclip", ConVarFlags::CHEAT, "Toggle flying through walls.", |con, _| {
+        let on = con.bool("sv_noclip");
+        con.set_bool("sv_noclip", !on);
+        let state = if on { "off" } else { "on" };
+        con.print(format!("noclip {state}"));
+    });
+
+    console.register_command("version", ConVarFlags::NONE, "Show the engine version.", |con, _| {
+        con.print(format!("VoidEngine {}", env!("CARGO_PKG_VERSION")));
+    });
+}
+
+/// Poll the console for requests engine commands left behind.
+pub fn take_console_requests(engine: &mut Engine) {
+    let pending = engine.console.string("__pending_map").to_string();
+    if !pending.is_empty() {
+        engine.console.set("__pending_map", "");
+        engine.request_map(&pending);
+    }
+    if engine.console.bool("__quit") {
+        engine.should_quit = true;
+    }
+}
+
+/// Where a map's `.vbsp` should be, given its name.
+pub fn map_path(name: &str) -> String { format!("maps/{name}.vbsp") }
+
+/// Whether a path looks like a map name rather than a file.
+pub fn is_bare_map_name(name: &str) -> bool {
+    !name.contains('/') && !name.contains('.') && Path::new(name).extension().is_none()
+}

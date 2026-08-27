@@ -13,15 +13,8 @@
 //! radiance map.vbsp   ->  map.vbsp with lighting
 //! ```
 
-mod brush;
-mod csg;
-mod emit;
-mod material;
-mod pipeline;
-mod portal;
-mod tree;
-
 use anyhow::{Context, Result};
+use cleave::pipeline;
 use clap::Parser;
 use std::path::PathBuf;
 use std::time::Instant;

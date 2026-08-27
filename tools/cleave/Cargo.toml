@@ -18,3 +18,11 @@ env_logger.workspace = true
 rayon.workspace = true
 glam.workspace = true
 thiserror.workspace = true
+
+[lib]
+name = "cleave"
+path = "src/lib.rs"
+
+[[bin]]
+name = "cleave"
+path = "src/main.rs"

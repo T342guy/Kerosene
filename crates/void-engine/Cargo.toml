@@ -22,3 +22,11 @@ winit.workspace = true
 wgpu.workspace = true
 pollster.workspace = true
 env_logger.workspace = true
+void-game.workspace = true
+void-kv.workspace = true
+void-map.workspace = true
+
+[dev-dependencies]
+cleave = { path = "../../tools/cleave" }
+void-map.workspace = true
+void-bsp.workspace = true
