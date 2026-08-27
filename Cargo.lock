@@ -2773,6 +2773,7 @@ dependencies = [
  "bytemuck",
  "glam",
  "log",
+ "naga",
  "pollster",
  "void-asset",
  "void-bsp",
