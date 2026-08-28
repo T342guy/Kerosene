@@ -460,6 +460,129 @@ impl Document {
         })
     }
 
+    /// Every solid the current selection is about.
+    ///
+    /// Either the brushes picked directly, or the brushes of a picked brush
+    /// entity -- clicking a door selects the door, and "what am I editing" has
+    /// to mean the same thing either way.
+    pub fn selected_solid_ids(&self) -> Vec<u32> {
+        let mut ids: Vec<u32> = self.selection.solids.iter().copied().collect();
+        for entity in &self.map.entities {
+            if self.selection.entities.contains(&entity.id) {
+                ids.extend(entity.solids.iter().map(|s| s.id));
+            }
+        }
+        ids.sort();
+        ids.dedup();
+        ids
+    }
+
+    /// The brush entity the selection belongs to, if it belongs to exactly one.
+    pub fn selected_brush_class(&self) -> Option<(u32, String)> {
+        let ids = self.selected_solid_ids();
+        if ids.is_empty() { return None }
+        let mut found: Option<(u32, String)> = None;
+        for entity in &self.map.entities {
+            if entity.solids.is_empty() { continue }
+            if !entity.solids.iter().any(|s| ids.contains(&s.id)) { continue }
+            match &found {
+                // Two different entities: no single answer.
+                Some((id, _)) if *id != entity.id => return None,
+                Some(_) => {}
+                None => found = Some((entity.id, entity.classname().to_string())),
+            }
+        }
+        found
+    }
+
+    /// Set what the selected brushes *are*.
+    ///
+    /// `None` puts them back in the world. This is one operation rather than
+    /// an untie followed by a tie, because a designer changing a trigger into
+    /// a door is doing one thing and expects one press of ctrl-Z to undo it.
+    ///
+    /// Keys the new class does not have are kept rather than dropped. A
+    /// `targetname` should survive changing a door into a platform, and the
+    /// compiler ignores keys nothing reads -- whereas throwing away a name
+    /// silently breaks every output wired to it.
+    pub fn set_brush_class(&mut self, class: Option<&str>) -> bool {
+        let ids = self.selected_solid_ids();
+        if ids.is_empty() { return false }
+        let current = self.selected_brush_class();
+
+        match (class, &current) {
+            // Already what it is.
+            (Some(want), Some((_, have))) if want == have => return false,
+            (None, None) => return false,
+            _ => {}
+        }
+
+        let label = match class {
+            Some(class) => format!("make it a {class}"),
+            None => "make it world geometry".to_string(),
+        };
+        let class = class.map(str::to_string);
+
+        self.apply(label, move |doc| {
+            // Collect the brushes wherever they are, world or entity, and
+            // leave nothing behind: an entity emptied of brushes is a ghost
+            // that still shows up in the compiler's entity lump.
+            let mut moved: Vec<Solid> = Vec::new();
+            let mut keys: Vec<(String, String)> = Vec::new();
+            let mut connections = Vec::new();
+
+            doc.map.world.solids.retain(|s| {
+                if ids.contains(&s.id) { moved.push(s.clone()); false } else { true }
+            });
+            doc.map.entities.retain_mut(|e| {
+                if e.solids.is_empty() { return true }
+                let mine = e.solids.iter().any(|s| ids.contains(&s.id));
+                if !mine { return true }
+                e.solids.retain(|s| {
+                    if ids.contains(&s.id) { moved.push(s.clone()); false } else { true }
+                });
+                if e.solids.is_empty() {
+                    // Its keys and wiring come with the brushes.
+                    keys = e.properties.clone();
+                    connections = std::mem::take(&mut e.connections);
+                    return false;
+                }
+                true
+            });
+            if moved.is_empty() { return false }
+
+            doc.selection.clear();
+            match class {
+                None => {
+                    for solid in moved {
+                        let id = doc.map.add_world_solid(solid);
+                        doc.selection.solids.insert(id);
+                    }
+                }
+                Some(class) => {
+                    // A class that knows what its brushes should look like
+                    // says so now, rather than leaving a trigger visible and
+                    // solid until someone remembers to texture it.
+                    if let Some(material) = crate::brush::material_for_class(&class) {
+                        for solid in &mut moved { solid.set_material(material) }
+                    }
+
+                    let id = doc.map.next_id();
+                    let mut entity = Entity::new(id, &class);
+                    for (key, value) in keys {
+                        if key == "classname" { continue }
+                        entity.set(&key, value);
+                    }
+                    entity.connections = connections;
+                    entity.solids = moved;
+                    doc.map.entities.push(entity);
+                    doc.selection.entities.insert(id);
+                }
+            }
+            true
+        })
+    }
+
     /// Move a brush entity's brushes back into the world.
     pub fn untie_to_world(&mut self) -> usize {
         if self.selection.entities.is_empty() { return 0; }

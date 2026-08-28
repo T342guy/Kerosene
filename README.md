@@ -123,8 +123,13 @@ builds the textures again first, so one you added since opening the editor is
 compiled before the map that uses it, and `view → reload textures` picks up a
 build done outside without restarting.
 
-Selecting brushes shows what they are and, more usefully, what they will
-compile as: `tools/clip` says "blocks players only", `tools/trigger` says "not
+A brush's type — world, `func_detail`, `func_door`, `trigger_multiple` — is a
+setting at the top of its panel, with that type's settings underneath and
+nothing to press first; picking a trigger textures it invisible for you.
+Wiring is grouped by event, so a sequence reads as "do this, then that", and
+`logic_branch` is there for the times the answer is "otherwise".
+
+Selecting brushes also shows what they will compile as: `tools/clip` says "blocks players only", `tools/trigger` says "not
 solid; touching it fires its entity's outputs". That answer comes from Cleave's
 own material table, so the editor cannot disagree with the compiler. Selecting
 a door draws where it opens to.
@@ -246,7 +251,7 @@ provenance of the algorithms.
 ## Status
 
 Everything above works end to end: you can draw a level in Chisel, compile it
-through all three stages, and walk around it. 1139 tests cover the pieces and
+through all three stages, and walk around it. 1178 tests cover the pieces and
 the seams between them, including a suite that builds a map in memory,
 compiles it, loads it and plays it.
 

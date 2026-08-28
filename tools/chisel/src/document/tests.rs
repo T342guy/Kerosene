@@ -431,3 +431,166 @@ fn a_face_spec_carries_the_plane_and_winding_that_face_sits_on() {
         }
     }
 }
+
+// ---- what a brush is -------------------------------------------------------
+
+/// A document with one world brush selected.
+fn one_selected_brush() -> (Document, u32) {
+    let mut d = Document::new();
+    d.map.world.solids.clear();
+    let id = d.create_block(Vec3::ZERO, Vec3::new(64.0, 64.0, 64.0));
+    d.selection.clear();
+    d.selection.solids.insert(id);
+    (d, id)
+}
+
+#[test]
+fn a_world_brush_belongs_to_no_class() {
+    let (d, _) = one_selected_brush();
+    assert_eq!(d.selected_brush_class(), None);
+}
+
+#[test]
+fn setting_a_class_makes_the_brushes_into_one_entity() {
+    let (mut d, _) = one_selected_brush();
+    assert!(d.set_brush_class(Some("func_door")));
+
+    assert!(d.map.world.solids.is_empty(), "it left the world");
+    assert_eq!(d.map.entities.len(), 1);
+    assert_eq!(d.selected_brush_class().map(|(_, c)| c), Some("func_door".into()));
+    assert_eq!(d.selection.entities.len(), 1, "and the entity is what is selected");
+}
+
+#[test]
+fn setting_the_class_it_already_is_does_nothing() {
+    // Including nothing to undo: a no-op that costs a ctrl-Z is worse than
+    // no operation at all.
+    let (mut d, _) = one_selected_brush();
+    d.set_brush_class(Some("func_door"));
+    let depth = d.undo_depth();
+
+    assert!(!d.set_brush_class(Some("func_door")));
+    assert_eq!(d.undo_depth(), depth);
+}
+
+#[test]
+fn changing_the_class_is_one_step_not_two() {
+    // A designer turning a trigger into a door is doing one thing.
+    let (mut d, _) = one_selected_brush();
+    d.set_brush_class(Some("trigger_multiple"));
+    let depth = d.undo_depth();
+
+    assert!(d.set_brush_class(Some("func_door")));
+    assert_eq!(d.undo_depth(), depth + 1);
+    assert_eq!(d.selected_brush_class().map(|(_, c)| c), Some("func_door".into()));
+
+    d.undo();
+    assert_eq!(d.selected_brush_class().map(|(_, c)| c), Some("trigger_multiple".into()));
+}
+
+#[test]
+fn changing_the_class_keeps_the_name_and_the_wiring() {
+    // Dropping a targetname silently breaks every output wired to it.
+    let (mut d, _) = one_selected_brush();
+    d.set_brush_class(Some("trigger_multiple"));
+    let id = d.selected_brush_class().unwrap().0;
+    if let Some(e) = d.find_entity_mut(id) {
+        e.set("targetname", "gate_trigger");
+        e.connections.push(void_map::Connection::new("OnStartTouch", "gate", "Open"));
+    }
+
+    d.set_brush_class(Some("func_door"));
+    let id = d.selected_brush_class().unwrap().0;
+    let entity = d.find_entity(id).unwrap();
+    assert_eq!(entity.get("targetname"), Some("gate_trigger"));
+    assert_eq!(entity.connections.len(), 1);
+}
+
+#[test]
+fn putting_it_back_in_the_world_leaves_no_empty_entity_behind() {
+    // An entity with no brushes still reaches the compiler's entity lump and
+    // still gets spawned, which is a ghost that is very hard to find.
+    let (mut d, _) = one_selected_brush();
+    d.set_brush_class(Some("func_door"));
+    assert!(d.set_brush_class(None));
+
+    assert_eq!(d.map.world.solids.len(), 1);
+    assert!(d.map.entities.is_empty(), "{:?}", d.map.entities.len());
+    assert_eq!(d.selection.solids.len(), 1);
+}
+
+#[test]
+fn a_trigger_textures_itself_so_it_is_not_a_visible_block_in_a_doorway() {
+    // Forgetting to do this by hand compiles a solid wall where a region was
+    // meant to be, and the map looks broken in a way that has nothing to do
+    // with triggers.
+    let (mut d, _) = one_selected_brush();
+    d.set_brush_class(Some("trigger_multiple"));
+
+    let id = d.selected_brush_class().unwrap().0;
+    let entity = d.find_entity(id).unwrap();
+    assert!(
+        entity.solids[0].sides.iter().all(|s| s.material == "tools/trigger"),
+        "a trigger has to be invisible"
+    );
+}
+
+#[test]
+fn a_door_keeps_whatever_it_was_textured_with() {
+    // Only a designer knows which door.
+    let (mut d, _) = one_selected_brush();
+    d.current_material = "dev/door".into();
+    let id = d.create_block(Vec3::new(128.0, 0.0, 0.0), Vec3::new(192.0, 64.0, 64.0));
+    d.selection.clear();
+    d.selection.solids.insert(id);
+
+    d.set_brush_class(Some("func_door"));
+    let entity_id = d.selected_brush_class().unwrap().0;
+    let entity = d.find_entity(entity_id).unwrap();
+    assert!(entity.solids[0].sides.iter().all(|s| s.material == "dev/door"));
+}
+
+#[test]
+fn selecting_a_brush_entity_is_the_same_as_selecting_its_brushes() {
+    // Clicking a door selects the door, and "what am I editing" has to mean
+    // the same thing either way.
+    let (mut d, _) = one_selected_brush();
+    d.set_brush_class(Some("func_door"));
+    let by_entity = d.selected_solid_ids();
+
+    let entity_id = d.selected_brush_class().unwrap().0;
+    let solids: Vec<u32> = d.find_entity(entity_id).unwrap().solids.iter().map(|s| s.id).collect();
+    d.selection.clear();
+    for id in &solids { d.selection.solids.insert(*id); }
+
+    assert_eq!(d.selected_solid_ids(), by_entity);
+    assert_eq!(d.selected_brush_class().map(|(_, c)| c), Some("func_door".into()));
+}
+
+#[test]
+fn a_selection_spanning_two_entities_has_no_single_class() {
+    let (mut d, _) = one_selected_brush();
+    d.set_brush_class(Some("func_door"));
+    let first: Vec<u32> = d.map.entities[0].solids.iter().map(|s| s.id).collect();
+
+    let other = d.create_block(Vec3::new(256.0, 0.0, 0.0), Vec3::new(320.0, 64.0, 64.0));
+    d.selection.clear();
+    d.selection.solids.insert(other);
+    d.set_brush_class(Some("trigger_once"));
+
+    d.selection.clear();
+    for id in first { d.selection.solids.insert(id); }
+    for e in &d.map.entities {
+        if e.classname() == "trigger_once" {
+            for s in &e.solids { d.selection.solids.insert(s.id); }
+        }
+    }
+    assert_eq!(d.selected_brush_class(), None);
+}
+
+#[test]
+fn nothing_selected_cannot_be_given_a_class() {
+    let mut d = Document::new();
+    d.selection.clear();
+    assert!(!d.set_brush_class(Some("func_door")));
+}

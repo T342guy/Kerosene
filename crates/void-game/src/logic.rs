@@ -45,6 +45,22 @@ pub fn register(registry: &mut ClassRegistry) {
             .output("OnShowMessage"),
     );
 
+    // The alternative. Everything else here fires one list of outputs; this
+    // is the only class that answers "and if not?" -- without it a map can
+    // say "when X, do Y" and has no way at all to say "otherwise do Z", which
+    // is a hole you feel the moment you try to build a locked door.
+    registry.register(
+        ClassDef::new("logic_branch")
+            .on_spawn(spawn_branch)
+            .input("SetValue", |w, id, e| { set_branch(w, id, truth(e), false); true })
+            .input("SetValueTest", |w, id, e| { set_branch(w, id, truth(e), true); true })
+            .input("Toggle", |w, id, _| { toggle_branch(w, id, false); true })
+            .input("ToggleTest", |w, id, _| { toggle_branch(w, id, true); true })
+            .input("Test", |w, id, _| { test_branch(w, id); true })
+            .output("OnTrue")
+            .output("OnFalse"),
+    );
+
     registry.register(
         ClassDef::new("logic_timer")
             .on_spawn(spawn_timer)
@@ -59,6 +75,42 @@ pub fn register(registry: &mut ClassRegistry) {
             })
             .output("OnTimer"),
     );
+}
+
+fn spawn_branch(world: &mut EntityWorld, id: EntityId) {
+    let initial = world
+        .get(id)
+        .map(|e| e.fields.bool("initialvalue", false))
+        .unwrap_or(false);
+    set_field(world, id, "value", Value::Bool(initial));
+}
+
+/// What an input carries as a truth value.
+///
+/// A parameter if it has one, so `SetValue` can be wired from something that
+/// computes a number; otherwise true, because firing `SetValue` with nothing
+/// attached reads as "make it so".
+fn truth(event: &InputEvent) -> bool {
+    if let Some(v) = event.parameter_f32() { return v != 0.0 }
+    let p = event.parameter.trim();
+    !(p.eq_ignore_ascii_case("false") || p == "0")
+}
+
+fn set_branch(world: &mut EntityWorld, id: EntityId, value: bool, then_test: bool) {
+    set_field(world, id, "value", Value::Bool(value));
+    if then_test { test_branch(world, id) }
+}
+
+fn toggle_branch(world: &mut EntityWorld, id: EntityId, then_test: bool) {
+    let now = world.get(id).map(|e| e.fields.bool("value", false)).unwrap_or(false);
+    set_branch(world, id, !now, then_test);
+}
+
+/// Fire one side or the other. Never both, which is the whole point.
+fn test_branch(world: &mut EntityWorld, id: EntityId) {
+    let value = world.get(id).map(|e| e.fields.bool("value", false)).unwrap_or(false);
+    let output = if value { "OnTrue" } else { "OnFalse" };
+    world.fire_output(id, output, None, None);
 }
 
 fn spawn_relay(world: &mut EntityWorld, id: EntityId) {

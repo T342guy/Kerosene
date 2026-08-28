@@ -140,16 +140,29 @@ one undo step.
 in both orientations. Geometry has a way of being valid and still wrong; a
 test can say the brushes are solid, only a picture can say they are an arch.
 
-**Brush properties.** Selecting brushes shows what they are: how many, how
-big, which materials, and — the part that used to require compiling the map to
-find out — **what they will compile as**. That answer is read from Cleave's own
-material table rather than from a copy of it, so the editor and the compiler
-cannot disagree.
+**Brush properties.** A brush's **type** is a setting on it, at the top of its
+panel: world geometry, `func_detail`, `func_door`, `trigger_multiple`, and so
+on. Choose one and its settings appear underneath, in the same panel, with
+nothing to press first. There is no "tie to entity" step — that was a mode
+change to reach settings that were never anywhere else, and it left
+`func_detail`, which is a wall and has nothing to configure, looking exactly as
+configurable as a door.
 
-It is where tool textures stop being paint. `tools/clip` says "blocks players
-only; bullets and sight pass through"; `tools/trigger` says "not solid;
-touching it fires its entity's outputs". Two rules that surprise everybody are
-called out on the spot:
+Changing the type is one operation and one undo step, and it keeps the name and
+the wiring: dropping a `targetname` would silently break every output pointing
+at it.
+
+**A trigger textures itself.** Pick a `trigger_*` type and its brushes become
+`tools/trigger`, so it is invisible and compiles as a region. Forgetting to do
+that by hand compiles a solid block where a doorway was meant to be, and the
+map looks broken in a way that has nothing to do with triggers. A door keeps
+whatever it was textured with, because only a designer knows which door.
+
+The panel also says what the brushes will **compile as**, read from Cleave's own
+material table rather than a copy of it, so the editor and the compiler cannot
+disagree. It is where tool textures stop being paint: `tools/clip` says "blocks
+players only; bullets and sight pass through". Two rules that surprise everybody
+are called out on the spot:
 
 - **One tool face changes the whole brush.** Solid is the absence of anything
   more specific, so a single `tools/clip` face on an otherwise ordinary box
@@ -157,9 +170,6 @@ called out on the spot:
 - **A misspelt tool material is not an error.** `tools/clipp` compiles as
   ordinary world geometry, which is how a doorway gets walled off by a typo
   nobody sees. The panel says so in red.
-
-`tie to entity` is still there — it is how a door is made — but as one action
-at the bottom of the panel rather than as the whole of it.
 
 **Where a door goes.** Select a brush entity that moves and the 2D panes draw
 its travel: an arrow along `movedir`, an outline where it ends up, and a label
@@ -170,9 +180,26 @@ luck. Anything with `angles` gets a facing arrow the same way.
 **Building a level.** Draw brushes with the block tool in a 2D view; they snap
 to the grid, outward, so a brush is never smaller than the rubber band. Pick a
 material from the left panel — picking one with something selected applies it.
-Place entities with the entity tool. Select brushes and *tie* them to an entity
-(`func_door`, `trigger_multiple`) in the right panel; that is how a door is
-made. Wire outputs to inputs in the same panel.
+Place entities with the entity tool. Give brushes a type in the right panel to
+make them a door or a trigger. Wire outputs to inputs in the same panel.
+
+**Wiring, as a sequence.** A `.voidmap` stores wiring as a flat list of
+connections, which is the right thing to store and the wrong thing to show:
+what a designer is building is *when this happens, do these things, in this
+order*, and a column of rows with delays in them makes the order something you
+reconstruct in your head. The panel groups them by event instead. Under
+`OnStartTouch` you get `do Open on gate`, then `then Trigger on siren`, in the
+order they will actually fire, and `+ then` adds another step after the last
+one — with a delay, because two actions at the same instant fire in whatever
+order the file happens to hold.
+
+**Alternatives need an entity that can choose.** Every other class fires a
+list; firing one of two lists depending on something is a decision, and a
+decision cannot be faked in the editor. That is what `logic_branch` is for: it
+remembers a yes or no and fires `OnTrue` or `OnFalse`, never both. When one
+side of a pair is wired and the other is not, the panel says so — an `OnTrue`
+with nothing on `OnFalse` does nothing half the time, which is a bug you find
+by playing rather than by reading.
 
 Dragging a selection shows a ghost of it at the destination, in every pane at
 once including the 3D one, with the offset written out in void units. The

@@ -244,6 +244,24 @@ class
 
 class
 {
+    "name" "logic_branch"
+    "base" "Entity" "base" "Point"
+    "help" "Remembers a yes or no, and fires one of two outputs depending on which it is. The way a map says \"otherwise\": everything else here fires a list, this one chooses."
+    key { "name" "initialvalue" "label" "Starts true" "type" "bool" "default" "0"
+          "help" "What it remembers before anything sets it." }
+    input  { "name" "SetValue" "parameter" "0 or 1"
+             "help" "Remember this, without testing it yet." }
+    input  { "name" "SetValueTest" "parameter" "0 or 1"
+             "help" "Remember this and immediately fire the matching output." }
+    input  { "name" "Toggle" "help" "Flip it, without testing." }
+    input  { "name" "ToggleTest" "help" "Flip it and fire the matching output." }
+    input  { "name" "Test" "help" "Fire OnTrue or OnFalse for what it currently holds." }
+    output { "name" "OnTrue"  "help" "Fired by a test while it holds true." }
+    output { "name" "OnFalse" "help" "Fired by a test while it holds false." }
+}
+
+class
+{
     "name" "logic_auto"
     "base" "Entity" "base" "Point"
     "help" "Fires once when the map starts, then removes itself. How a level does anything before the player touches something."

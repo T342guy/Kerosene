@@ -458,3 +458,122 @@ fn a_door_takes_the_time_its_speed_implies() {
     run(&mut w, 0.15);
     assert_eq!(w.get(gate).unwrap().origin.z, 120.0, "should arrive by about 1.2s");
 }
+
+// ---- logic_branch: the alternative ---------------------------------------
+
+/// A branch wired to two counters, so which side fired is a number to read.
+const BRANCH_MAP: &str = r#"
+entity
+{
+    "classname" "logic_branch"
+    "targetname" "gate_locked"
+    "initialvalue" "0"
+    connections
+    {
+        "OnTrue"  "yes,Add,1,0,-1"
+        "OnFalse" "no,Add,1,0,-1"
+    }
+}
+entity { "classname" "math_counter" "targetname" "yes" "startvalue" "0" }
+entity { "classname" "math_counter" "targetname" "no"  "startvalue" "0" }
+"#;
+
+fn branch_world() -> EntityWorld {
+    let mut w = world_from(BRANCH_MAP);
+    run(&mut w, 0.1);
+    w
+}
+
+/// Fire an input at the branch.
+fn send(w: &mut EntityWorld, input: &str, parameter: &str) {
+    w.queue_input(
+        void_entity::Target::Named("gate_locked".into()),
+        input,
+        parameter,
+        0.0,
+        None,
+        None,
+    );
+    run(w, 0.1);
+}
+
+fn test(w: &mut EntityWorld) { send(w, "Test", "") }
+
+fn counts(w: &EntityWorld) -> (f32, f32) {
+    (field(w, named(w, "yes"), "value"), field(w, named(w, "no"), "value"))
+}
+
+#[test]
+fn a_branch_fires_one_side_and_never_both() {
+    // The whole point of it: everything else in the game fires a list, this
+    // one chooses.
+    let mut w = branch_world();
+    test(&mut w);
+    run(&mut w, 0.1);
+
+    assert_eq!(counts(&w), (0.0, 1.0), "it started false, so the false side fired");
+}
+
+#[test]
+fn setting_a_value_and_testing_it_fires_the_other_side() {
+    let mut w = branch_world();
+    send(&mut w, "SetValueTest", "1");
+    run(&mut w, 0.1);
+
+    assert_eq!(counts(&w), (1.0, 0.0));
+}
+
+#[test]
+fn setting_without_testing_fires_nothing_until_asked() {
+    // Which is what makes it a memory rather than a relay: a door can record
+    // that it is locked long before anything asks.
+    let mut w = branch_world();
+    send(&mut w, "SetValue", "1");
+    run(&mut w, 0.1);
+    assert_eq!(counts(&w), (0.0, 0.0), "nothing fired yet");
+
+    test(&mut w);
+    run(&mut w, 0.1);
+    assert_eq!(counts(&w), (1.0, 0.0), "and it remembered");
+}
+
+#[test]
+fn toggling_flips_which_side_will_fire() {
+    let mut w = branch_world();
+    for _ in 0..2 {
+        send(&mut w, "ToggleTest", "");
+        run(&mut w, 0.1);
+    }
+    // False -> true fires OnTrue, then true -> false fires OnFalse.
+    assert_eq!(counts(&w), (1.0, 1.0));
+}
+
+#[test]
+fn a_branch_that_starts_true_says_so() {
+    let mut w = world_from(&BRANCH_MAP.replace("\"initialvalue\" \"0\"", "\"initialvalue\" \"1\""));
+    run(&mut w, 0.1);
+    test(&mut w);
+    run(&mut w, 0.1);
+
+    assert_eq!(counts(&w), (1.0, 0.0));
+}
+
+#[test]
+fn a_parameter_of_zero_is_false_rather_than_merely_present() {
+    // `SetValue 0` has to mean false. Treating any parameter as "yes" would
+    // make the input impossible to use from anything that computes a number.
+    let mut w = branch_world();
+    send(&mut w, "SetValueTest", "0");
+    run(&mut w, 0.1);
+    assert_eq!(counts(&w), (0.0, 1.0));
+}
+
+#[test]
+fn setting_it_with_nothing_attached_means_yes() {
+    // Firing `SetValue` from a button with no parameter reads as "make it
+    // so", and the alternative -- silently meaning no -- would be a trap.
+    let mut w = branch_world();
+    send(&mut w, "SetValueTest", "");
+    run(&mut w, 0.1);
+    assert_eq!(counts(&w), (1.0, 0.0));
+}

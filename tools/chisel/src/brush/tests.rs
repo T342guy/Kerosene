@@ -148,3 +148,27 @@ fn every_material_is_listed_once_however_many_faces_wear_it() {
     let info = BrushInfo::of_selection(&one_brush("dev/grid")).unwrap();
     assert_eq!(info.materials.len(), 1, "six faces, one material");
 }
+
+#[test]
+fn selecting_a_brush_entity_describes_its_brushes() {
+    // Clicking a door selects the door. A panel that then said "nothing
+    // selected" would be the same split this panel exists to remove.
+    let mut document = one_brush("dev/door");
+    document.set_brush_class(Some("func_door"));
+    assert!(document.selection.solids.is_empty(), "the entity is what is selected");
+
+    let info = BrushInfo::of_selection(&document).expect("the door is what we are looking at");
+    assert_eq!(info.brushes, 1);
+    assert_eq!(info.classname.as_deref(), Some("func_door"));
+}
+
+#[test]
+fn a_trigger_reports_itself_as_a_region_rather_than_a_wall() {
+    // Which is the whole reason the class textures its brushes for you.
+    let mut document = one_brush("dev/grid");
+    document.set_brush_class(Some("trigger_multiple"));
+
+    let info = BrushInfo::of_selection(&document).unwrap();
+    assert_eq!(info.materials, vec!["tools/trigger"]);
+    assert!(info.compiles_as.starts_with("a trigger volume"), "{}", info.compiles_as);
+}

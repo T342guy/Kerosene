@@ -1118,8 +1118,20 @@ impl ChiselApp {
                 return;
             }
 
+            // Brushes and brush entities are the same panel. What a brush
+            // *is* is a setting on it, not a separate ceremony called "tie to
+            // entity" that you have to go through before its settings exist.
+            let brush_entity = selected
+                .first()
+                .and_then(|id| self.document.find_entity(*id))
+                .is_some_and(|e| e.is_brush_entity());
+            if brush_entity || !self.document.selection.solids.is_empty() {
+                self.brush_panel(ui);
+                return;
+            }
+
             let Some(&id) = selected.first() else {
-                self.no_entity_selected(ui);
+                self.brush_panel(ui);
                 return;
             };
 
@@ -1180,15 +1192,16 @@ impl ChiselApp {
         });
     }
 
-    /// The inspector when brushes, rather than an entity, are selected.
+    /// The inspector for brushes, whatever they are.
     ///
-    /// It used to be a page headed "properties" containing nothing but a list
-    /// of entity classes to tie the brushes to. A brush has no keyvalues, so
-    /// there was a case for that -- but it left the question a designer
-    /// actually has unanswerable without compiling the map: *what will this
-    /// brush be?* Tool materials in particular did their work silently at
-    /// compile time and looked, from in here, like paint.
-    fn no_entity_selected(&mut self, ui: &mut egui::Ui) {
+    /// One panel, because a brush's type *is* one of its settings. It used to
+    /// be two: a page headed "properties" that offered only a list of classes
+    /// to "tie to", and then, once you had tied, a different page with the
+    /// settings on it. That is a step and a mode change to reach something
+    /// that was never anywhere else, and it left `func_detail` -- which has no
+    /// settings at all, being a wall -- looking exactly as configurable as a
+    /// door.
+    fn brush_panel(&mut self, ui: &mut egui::Ui) {
         use crate::brush::BrushInfo;
 
         ui.label(RichText::new("properties").strong());
@@ -1196,48 +1209,91 @@ impl ChiselApp {
             ui.label(RichText::new("nothing selected").weak());
             return;
         };
+        let current = self.document.selected_brush_class();
+        let spec = current.as_ref().and_then(|(_, c)| self.schema.get(c).cloned());
 
+        // The entity being edited, so the shared property and output widgets
+        // point at the right thing whether a brush or its entity was clicked.
+        let entity_id = current.as_ref().map(|(id, _)| *id);
+        self.sync_properties(entity_id);
+
+        let mut change: Option<Option<String>> = None;
         egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
             let size = info.bounds.size();
             ui.label(format!(
-                "{} {}, {} faces",
+                "{} {}, {} faces  {} x {} x {}",
                 info.brushes,
                 if info.brushes == 1 { "brush" } else { "brushes" },
                 info.faces,
-            ));
-            ui.label(
-                RichText::new(format!(
-                    "{} x {} x {}",
-                    void_math::units::length_short(size.x),
-                    void_math::units::length_short(size.y),
-                    void_math::units::length_short(size.z),
-                ))
-                .monospace()
-                .size(11.0),
-            )
-            .on_hover_text(format!(
-                "from {} {} {}\nto   {} {} {}",
-                void_math::format_float(info.bounds.min.x),
-                void_math::format_float(info.bounds.min.y),
-                void_math::format_float(info.bounds.min.z),
-                void_math::format_float(info.bounds.max.x),
-                void_math::format_float(info.bounds.max.y),
-                void_math::format_float(info.bounds.max.z),
+                void_math::units::length_short(size.x),
+                void_math::units::length_short(size.y),
+                void_math::units::length_short(size.z),
             ));
 
-            // The answer to "what is this?", which is what tool materials
-            // exist to change and what nothing in the editor used to say.
+            // The type, first, because it decides everything below it.
             ui.add_space(4.0);
-            ui.label(RichText::new("compiles as").size(11.0).weak());
-            ui.label(RichText::new(&info.compiles_as).strong());
-            if let Some(class) = &info.classname {
-                ui.label(
-                    RichText::new(format!("part of a {class}"))
-                        .size(11.0)
-                        .color(egui::Color32::from_rgb(150, 190, 240)),
-                );
+            ui.label(RichText::new("type").size(11.0).weak());
+            let label = current.as_ref().map_or("world geometry", |(_, c)| c.as_str());
+            egui::ComboBox::from_id_salt("brush-type")
+                .selected_text(label)
+                .width(280.0)
+                .show_ui(ui, |ui| {
+                    if ui.selectable_label(current.is_none(), "world geometry").clicked() {
+                        change = Some(None);
+                    }
+                    for class in self.brush_classes() {
+                        let selected = current.as_ref().is_some_and(|(_, c)| *c == class);
+                        let help = self.schema.get(&class).map(|s| s.help.clone()).unwrap_or_default();
+                        let item = ui.selectable_label(selected, &class);
+                        let item = if help.is_empty() { item } else { item.on_hover_text(help) };
+                        if item.clicked() { change = Some(Some(class.clone())) }
+                    }
+                });
+            if let Some(help) = spec.as_ref().map(|s| s.help.as_str()).filter(|h| !h.is_empty()) {
+                ui.label(RichText::new(help).size(11.0).weak());
             }
 
+            ui.label(RichText::new(&info.compiles_as).size(11.0).color(draw::colors::BRUSH_ENTITY));
+            if let Some(motion) = crate::motion::of_selection(&self.document) {
+                ui.label(RichText::new(motion.label).size(11.0).color(draw::colors::MOTION))
+                    .on_hover_text("Drawn in the 2D panes: the arrow is the travel.");
+            }
+
+            // Its settings, right here, with nothing to press first.
+            ui.add_space(6.0);
+            ui.separator();
+            match (&current, &spec) {
+                (None, _) => {
+                    ui.label(
+                        RichText::new(
+                            "World geometry has no settings: it is a wall, and the compiler \
+                             builds it into the level itself. Give it a type above to make \
+                             it a door, a trigger or a platform.",
+                        )
+                        .size(11.0)
+                        .weak(),
+                    );
+                }
+                (Some(_), None) => {
+                    ui.label(RichText::new("no definition for this class").weak().size(11.0));
+                }
+                (Some(_), Some(spec)) if spec.keys.is_empty() && spec.outputs.is_empty() => {
+                    ui.label(
+                        RichText::new(
+                            "Nothing to configure. This class is a way of marking brushes \
+                             rather than something with settings.",
+                        )
+                        .size(11.0)
+                        .weak(),
+                    );
+                }
+                (Some((id, _)), Some(spec)) => {
+                    self.property_rows(ui);
+                    self.outputs_section(ui, *id, Some(spec));
+                }
+            }
+
+            // Materials last: they matter, but they are not what a brush is.
             ui.add_space(6.0);
             ui.separator();
             ui.label(RichText::new("materials").size(11.0).weak());
@@ -1265,43 +1321,18 @@ impl ChiselApp {
                     .color(draw::colors::LEAK),
                 );
             }
-
-            ui.add_space(6.0);
-            ui.separator();
-            if info.classname.is_some() {
-                if ui.button("move brushes back to world").clicked() {
-                    // Select the owning entity, which is what unties.
-                    let owners: Vec<u32> = self
-                        .document
-                        .map
-                        .entities
-                        .iter()
-                        .filter(|e| e.solids.iter().any(|s| self.document.selection.solids.contains(&s.id)))
-                        .map(|e| e.id)
-                        .collect();
-                    self.document.selection.entities.extend(owners);
-                    let n = self.document.untie_to_world();
-                    self.status = format!("moved {n} brushes to the world");
-                }
-                return;
-            }
-
-            ui.label(RichText::new("tie to entity").size(11.0).weak());
-            ui.label(
-                RichText::new("makes these brushes into a door, a trigger, a platform")
-                    .size(10.0)
-                    .weak(),
-            );
-            for class in self.brush_classes() {
-                let help = self.schema.get(&class).map(|s| s.help.clone()).unwrap_or_default();
-                let button = ui.button(&class);
-                let button = if help.is_empty() { button } else { button.on_hover_text(help) };
-                if button.clicked() {
-                    self.document.tie_to_entity(&class);
-                    self.status = format!("tied to {class}");
-                }
-            }
         });
+
+        if let Some(class) = change {
+            let said = class.clone().unwrap_or_else(|| "world geometry".into());
+            if self.document.set_brush_class(class.as_deref()) {
+                self.status = format!("now {said}");
+                // The buffer is pointed at whatever the change produced.
+                let now = self.document.selected_brush_class().map(|(id, _)| id);
+                self.properties = None;
+                self.sync_properties(now);
+            }
+        }
     }
 
     /// One widget per key the class defines, typed by the schema.
@@ -1347,17 +1378,29 @@ impl ChiselApp {
         if commit { self.commit_properties(); }
     }
 
-    /// The output wiring: which of this entity's outputs fires what, where.
+    /// The wiring: what this entity does, and when.
+    ///
+    /// Grouped by event rather than shown as a flat list of connections,
+    /// because the flat list is the storage format and not the thing anyone is
+    /// building. What a designer means is "when this happens, do these things,
+    /// in this order" -- and a column of rows with delays in them makes the
+    /// order something you work out in your head.
     fn outputs_section(&mut self, ui: &mut egui::Ui, _id: u32, spec: Option<&void_entity::ClassSpec>) {
+        use crate::wiring;
+
         ui.separator();
-        ui.label(RichText::new("outputs").strong());
+        ui.label(RichText::new("when this happens").strong());
 
         let outputs: Vec<String> = spec
             .map(|s| s.outputs.iter().map(|o| o.name.clone()).collect())
             .unwrap_or_default();
+        let help_for: std::collections::HashMap<String, String> = spec
+            .map(|s| s.outputs.iter().map(|o| (o.name.clone(), o.help.clone())).collect())
+            .unwrap_or_default();
         let targets = inspector::target_names(&self.document);
-        // Worked out before the buffer is borrowed, because the answer depends
-        // on the whole map rather than on this entity.
+
+        // Worked out before the buffer is borrowed: the answer depends on the
+        // whole map rather than on this entity.
         let inputs_for: Vec<Vec<String>> = self
             .properties
             .as_ref()
@@ -1370,73 +1413,143 @@ impl ChiselApp {
             .unwrap_or_default();
 
         let Some(edit) = self.properties.as_mut() else { return };
-        if edit.connections.is_empty() {
-            ui.label(RichText::new("nothing wired up").weak().size(11.0));
+        let events = wiring::events(&edit.connections);
+        if events.is_empty() {
+            ui.label(RichText::new("nothing wired up yet").weak().size(11.0));
         }
 
-        let mut remove = None;
+        let mut remove: Option<usize> = None;
+        let mut add: Option<Connection> = None;
         let mut commit = false;
-        for (index, connection) in edit.connections.iter_mut().enumerate() {
-            let empty = Vec::new();
-            let inputs = inputs_for.get(index).unwrap_or(&empty);
+
+        for event in &events {
             egui::Frame::group(ui.style()).show(ui, |ui| {
                 ui.horizontal(|ui| {
-                    let r = combo_or_text(ui, ("out", index), &mut connection.output, &outputs, 150.0);
-                    edit.dirty |= r.changed;
-                    commit |= r.finished;
-                    if ui.small_button("x").on_hover_text("remove this output").clicked() {
-                        remove = Some(index);
+                    ui.label(RichText::new(&event.name).monospace().strong());
+                    if let Some(help) = help_for.get(&event.name).filter(|h| !h.is_empty()) {
+                        ui.label(RichText::new("?").weak().size(11.0)).on_hover_text(help);
                     }
                 });
-                ui.horizontal(|ui| {
-                    ui.label(RichText::new("to").size(11.0).weak());
-                    let r = combo_or_text(ui, ("tgt", index), &mut connection.target, &targets, 190.0);
-                    edit.dirty |= r.changed;
-                    commit |= r.finished;
-                });
-                ui.horizontal(|ui| {
-                    ui.label(RichText::new("fire").size(11.0).weak());
-                    let r = combo_or_text(ui, ("in", index), &mut connection.input, inputs, 180.0);
-                    edit.dirty |= r.changed;
-                    commit |= r.finished;
-                });
-                ui.horizontal(|ui| {
-                    ui.label(RichText::new("after").size(11.0).weak());
-                    let r = ui.add(
-                        egui::DragValue::new(&mut connection.delay)
-                            .speed(0.05)
-                            .range(0.0..=600.0)
-                            .suffix(" s"),
-                    );
-                    edit.dirty |= r.changed();
-                    commit |= r.drag_stopped() || r.lost_focus();
 
-                    ui.label(RichText::new("param").size(11.0).weak());
-                    let r = ui.add(
-                        egui::TextEdit::singleline(&mut connection.parameter).desired_width(90.0),
-                    );
-                    edit.dirty |= r.changed();
-                    commit |= r.lost_focus();
-                });
-                let mut once = !connection.is_unlimited();
-                if ui.checkbox(&mut once, RichText::new("only once").size(11.0)).changed() {
-                    connection.times_to_fire = if once { 1 } else { -1 };
-                    edit.dirty = true;
-                    commit = true;
+                // The other half of a choice, when this is one. An `OnTrue`
+                // with no `OnFalse` beside it does nothing half the time.
+                if let Some(other) = wiring::opposite_of(&event.name)
+                    && outputs.iter().any(|o| o == other)
+                    && !events.iter().any(|e| e.name == other)
+                {
+                    ui.horizontal(|ui| {
+                        ui.label(
+                            RichText::new(format!("nothing happens on {other}"))
+                                .size(10.0)
+                                .color(egui::Color32::from_rgb(240, 200, 90)),
+                        );
+                        if ui.small_button(format!("+ {other}")).clicked() {
+                            add = Some(Connection::new(other, "", ""));
+                        }
+                    });
+                }
+
+                for (step, &index) in event.steps.iter().enumerate() {
+                    let empty = Vec::new();
+                    let inputs = inputs_for.get(index).unwrap_or(&empty);
+                    let Some(connection) = edit.connections.get_mut(index) else { continue };
+
+                    ui.horizontal(|ui| {
+                        // "then" rather than a number, because that is the
+                        // word for what the second step of a sequence is.
+                        ui.label(
+                            RichText::new(if step == 0 { "do" } else { "then" })
+                                .size(11.0)
+                                .weak(),
+                        );
+                        let r = combo_or_text(ui, ("in", index), &mut connection.input, inputs, 120.0);
+                        edit.dirty |= r.changed;
+                        commit |= r.finished;
+
+                        ui.label(RichText::new("on").size(11.0).weak());
+                        let r = combo_or_text(ui, ("tgt", index), &mut connection.target, &targets, 110.0);
+                        edit.dirty |= r.changed;
+                        commit |= r.finished;
+
+                        if ui.small_button("x").on_hover_text("remove this step").clicked() {
+                            remove = Some(index);
+                        }
+                    });
+
+                    ui.horizontal(|ui| {
+                        ui.add_space(24.0);
+                        ui.label(RichText::new("after").size(10.0).weak());
+                        let r = ui.add(
+                            egui::DragValue::new(&mut connection.delay)
+                                .speed(0.05)
+                                .range(0.0..=600.0)
+                                .suffix(" s"),
+                        );
+                        edit.dirty |= r.changed();
+                        commit |= r.drag_stopped() || r.lost_focus();
+
+                        ui.label(RichText::new("with").size(10.0).weak());
+                        let r = ui.add(
+                            egui::TextEdit::singleline(&mut connection.parameter)
+                                .desired_width(70.0)
+                                .hint_text("no value"),
+                        );
+                        edit.dirty |= r.changed();
+                        commit |= r.lost_focus();
+
+                        let mut once = !connection.is_unlimited();
+                        if ui.checkbox(&mut once, RichText::new("once").size(10.0)).changed() {
+                            connection.times_to_fire = if once { 1 } else { -1 };
+                            edit.dirty = true;
+                            commit = true;
+                        }
+                    });
+                }
+
+                if ui
+                    .small_button("+ then")
+                    .on_hover_text("another action on this same event, after the ones above")
+                    .clicked()
+                {
+                    add = Some(wiring::then(&edit.connections, event));
                 }
             });
         }
+
+        ui.horizontal(|ui| {
+            egui::ComboBox::from_id_salt("add-event")
+                .selected_text("+ when...")
+                .width(150.0)
+                .show_ui(ui, |ui| {
+                    for output in &outputs {
+                        let already = events.iter().any(|e| e.name == *output);
+                        let label = if already {
+                            format!("{output} (another)")
+                        } else {
+                            output.clone()
+                        };
+                        let item = ui.selectable_label(false, label);
+                        let item = match help_for.get(output).filter(|h| !h.is_empty()) {
+                            Some(help) => item.on_hover_text(help),
+                            None => item,
+                        };
+                        if item.clicked() {
+                            add = Some(Connection::new(output, "", ""));
+                        }
+                    }
+                    if outputs.is_empty() {
+                        ui.label(RichText::new("this class fires nothing").weak().size(11.0));
+                    }
+                });
+        });
 
         if let Some(index) = remove {
             edit.connections.remove(index);
             edit.dirty = true;
             commit = true;
         }
-
-        if ui.button("+ add output").clicked() {
-            let output = outputs.first().cloned().unwrap_or_else(|| "OnTrigger".to_string());
-            let target = targets.first().cloned().unwrap_or_default();
-            edit.connections.push(Connection::new(&output, &target, "Trigger"));
+        if let Some(connection) = add {
+            edit.connections.push(connection);
             edit.dirty = true;
             commit = true;
         }
@@ -3118,5 +3231,95 @@ mod tests {
         assert_eq!(app.status, "nothing has happened yet", "the shortcut behind the modal fired");
 
         let _ = std::fs::remove_dir_all(&root);
+    }
+
+    // ---- the brush panel -------------------------------------------------
+
+    /// The editor with one world brush selected.
+    fn app_with_a_brush(name: &str) -> (ChiselApp, PathBuf) {
+        let (mut app, root) = app_in(name);
+        app.document.map.world.solids.clear();
+        let id = app.document.create_block(Vec3::ZERO, Vec3::splat(128.0));
+        app.document.selection.clear();
+        app.document.selection.solids.insert(id);
+        (app, root)
+    }
+
+    #[test]
+    fn a_world_brush_draws_its_panel() {
+        let (mut app, root) = app_with_a_brush("panel-world");
+        let output = draw_a_frame(&mut app);
+        assert!(!output.shapes.is_empty());
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn giving_a_brush_a_type_draws_its_settings_in_the_same_panel() {
+        // No mode change, no second page: the type is a setting on the brush
+        // and everything else follows from it.
+        let (mut app, root) = app_with_a_brush("panel-typed");
+        assert!(app.document.set_brush_class(Some("trigger_multiple")));
+        draw_a_frame(&mut app);
+
+        // The buffer the panel edits is pointed at the entity that now owns
+        // the brushes, without anyone having selected it by hand.
+        let (id, class) = app.document.selected_brush_class().unwrap();
+        assert_eq!(class, "trigger_multiple");
+        assert_eq!(app.document.selection.entities.iter().copied().next(), Some(id));
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn every_brush_class_draws_without_falling_over() {
+        // Including the ones with no settings at all, which is the case that
+        // used to look identical to a door.
+        let (mut app, root) = app_with_a_brush("panel-all");
+        for class in app.brush_classes() {
+            app.document.set_brush_class(Some(&class));
+            let output = draw_a_frame(&mut app);
+            assert!(!output.shapes.is_empty(), "{class}");
+        }
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn putting_a_brush_back_in_the_world_draws_too() {
+        let (mut app, root) = app_with_a_brush("panel-untied");
+        app.document.set_brush_class(Some("func_door"));
+        draw_a_frame(&mut app);
+        assert!(app.document.set_brush_class(None));
+        draw_a_frame(&mut app);
+
+        assert!(app.document.selected_brush_class().is_none());
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn an_entity_that_chooses_draws_both_sides_of_the_choice() {
+        let (mut app, root) = app_in("panel-branch");
+        let id = app.document.create_entity("logic_branch", Vec3::ZERO);
+        if let Some(e) = app.document.find_entity_mut(id) {
+            e.connections.push(void_map::Connection::new("OnTrue", "gate", "Lock"));
+        }
+        app.document.selection.clear();
+        app.document.selection.entities.insert(id);
+
+        let output = draw_a_frame(&mut app);
+        assert!(!output.shapes.is_empty());
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn the_game_offers_an_alternative_to_wire_at_all() {
+        // Everything else in the game fires a list. Without a class that
+        // chooses, a map can say "when X, do Y" and has no way to say
+        // "otherwise do Z" -- and no editor can offer what does not exist.
+        let app = app_with_shipped_content();
+        let spec = app.schema.get("logic_branch").expect("the game defines it");
+        let outputs: Vec<&str> = spec.outputs.iter().map(|o| o.name.as_str()).collect();
+        assert!(outputs.contains(&"OnTrue") && outputs.contains(&"OnFalse"), "{outputs:?}");
+        assert_eq!(crate::wiring::opposite_of("OnTrue"), Some("OnFalse"));
     }
 }

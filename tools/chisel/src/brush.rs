@@ -37,7 +37,11 @@ pub struct BrushInfo {
 impl BrushInfo {
     /// Describe whatever brushes are selected, or `None` if none are.
     pub fn of_selection(document: &Document) -> Option<BrushInfo> {
-        let selected = &document.selection.solids;
+        // Whatever the selection is *about*: the brushes picked directly, or
+        // the brushes of a picked brush entity. Clicking a door selects the
+        // door, and a panel that then said "nothing selected" would be the
+        // same split this panel exists to remove.
+        let selected = document.selected_solid_ids();
         if selected.is_empty() { return None }
 
         let mut bounds = Aabb::EMPTY;
@@ -111,6 +115,25 @@ impl BrushInfo {
             .filter(|m| !cleave::material::is_known_tool(m))
             .map(String::as_str)
             .collect()
+    }
+}
+
+/// The material a class wants its brushes to wear, if it wants one.
+///
+/// A trigger has to be invisible: it is a region, not a wall, and one you can
+/// see is one drawn across the middle of a room for no reason. In Hammer you
+/// texture it yourself and the map compiles wrong -- as a solid block in a
+/// doorway -- if you forget. There is no reason for that to be a thing anyone
+/// has to remember, because the class already says what the brush is for.
+///
+/// `None` means the class has no opinion and whatever is on the faces stays.
+/// A door is textured like a door, and only a designer knows which door.
+pub fn material_for_class(classname: &str) -> Option<&'static str> {
+    let lower = classname.to_lowercase();
+    if lower.starts_with("trigger_") { return Some("tools/trigger") }
+    match lower.as_str() {
+        "func_areaportal" | "func_occluder" => Some("tools/nodraw"),
+        _ => None,
     }
 }
 

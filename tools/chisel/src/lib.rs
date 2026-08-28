@@ -33,6 +33,7 @@ pub mod shapes;
 pub mod textures;
 pub mod tools;
 pub mod viewport;
+pub mod wiring;
 
 pub use app::ChiselApp;
 pub use document::{Document, Selection};
