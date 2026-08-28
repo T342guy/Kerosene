@@ -58,12 +58,38 @@ enum Pass {
     Unlit,
 }
 
+/// Where one brush model has moved to since it was compiled.
+///
+/// A whole uniform for three floats, because a dynamic offset is the portable
+/// way to change a value between draws inside one render pass -- push
+/// constants are an optional feature and rewriting a buffer mid-pass does not
+/// do what it looks like it does.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, Pod, Zeroable)]
+pub struct ModelUniform {
+    pub offset: [f32; 4],
+}
+
+/// How many brush models one map may have on screen.
+///
+/// Generous: a map with more moving brush entities than this has other
+/// problems. Anything past it is drawn unmoved rather than not at all, which
+/// is the failure that leaves a door in the wrong place rather than the one
+/// that makes it vanish.
+pub const MAX_MODELS: usize = 512;
+
 /// GPU resources that outlive any one map.
 pub struct Renderer {
     pipelines: HashMap<PipelineKey, wgpu::RenderPipeline>,
     pub frame_layout: wgpu::BindGroupLayout,
     pub material_layout: wgpu::BindGroupLayout,
     camera_buffer: wgpu::Buffer,
+    /// One [`ModelUniform`] per brush model, indexed by a dynamic offset.
+    model_buffer: wgpu::Buffer,
+    model_bind_group: wgpu::BindGroup,
+    /// Distance between two entries in `model_buffer`, honouring the device's
+    /// uniform alignment.
+    model_stride: u32,
     sampler: wgpu::Sampler,
     lightmap_sampler: wgpu::Sampler,
     depth: Option<(wgpu::Texture, wgpu::TextureView, u32, u32)>,
@@ -138,9 +164,51 @@ impl Renderer {
             ],
         });
 
+        let model_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("model"),
+            entries: &[wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::VERTEX,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: true,
+                    min_binding_size: wgpu::BufferSize::new(
+                        std::mem::size_of::<ModelUniform>() as u64,
+                    ),
+                },
+                count: None,
+            }],
+        });
+
+        // Entries have to start on the device's uniform alignment, which is
+        // 256 bytes on most hardware for a structure that needs 16.
+        let alignment = device.limits().min_uniform_buffer_offset_alignment.max(1);
+        let size = std::mem::size_of::<ModelUniform>() as u32;
+        let model_stride = size.div_ceil(alignment) * alignment;
+
+        let model_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("models"),
+            size: (model_stride as u64) * MAX_MODELS as u64,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        let model_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("model"),
+            layout: &model_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                    buffer: &model_buffer,
+                    offset: 0,
+                    size: wgpu::BufferSize::new(std::mem::size_of::<ModelUniform>() as u64),
+                }),
+            }],
+        });
+
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("world"),
-            bind_group_layouts: &[&frame_layout, &material_layout],
+            bind_group_layouts: &[&frame_layout, &material_layout, &model_layout],
             push_constant_ranges: &[],
         });
 
@@ -238,6 +306,9 @@ impl Renderer {
             frame_layout,
             material_layout,
             camera_buffer,
+            model_buffer,
+            model_bind_group,
+            model_stride,
             sampler,
             lightmap_sampler,
             depth: None,
@@ -275,6 +346,36 @@ impl Renderer {
         queue.write_buffer(&self.camera_buffer, 0, bytemuck::bytes_of(uniform));
     }
 
+    /// Tell the GPU where each brush model has moved to.
+    ///
+    /// Written once per frame, before the pass, because a buffer written
+    /// during a pass is not read by the draws in it -- every draw would see
+    /// whichever value was written last, and the doors would all move
+    /// together.
+    ///
+    /// Index 0 is the world and is always zero; a caller may pass it or not.
+    pub fn update_models(&self, queue: &wgpu::Queue, offsets: &[Vec3]) {
+        let mut data = vec![ModelUniform::default(); MAX_MODELS];
+        for (i, offset) in offsets.iter().enumerate().take(MAX_MODELS) {
+            data[i].offset = [offset.x, offset.y, offset.z, 0.0];
+        }
+        // Written as one span with the device's stride between entries, so
+        // the same buffer can be addressed by dynamic offset.
+        let stride = self.model_stride as usize;
+        let mut bytes = vec![0u8; stride * MAX_MODELS];
+        for (i, entry) in data.iter().enumerate() {
+            let at = i * stride;
+            bytes[at..at + std::mem::size_of::<ModelUniform>()]
+                .copy_from_slice(bytemuck::bytes_of(entry));
+        }
+        queue.write_buffer(&self.model_buffer, 0, &bytes);
+    }
+
+    /// The dynamic offset that addresses one model's entry.
+    fn model_offset(&self, model: usize) -> u32 {
+        self.model_stride * model.min(MAX_MODELS - 1) as u32
+    }
+
     pub fn create_frame_bind_group(
         &self,
         device: &wgpu::Device,
@@ -304,6 +405,37 @@ impl Renderer {
         mesh: &WorldMesh,
         visible: &[u32],
     ) -> FrameStats {
+        // The world is model 0, which never moves.
+        self.draw_surfaces(pass, frame_bind_group, resources, mesh, visible, 0)
+    }
+
+    /// Draw one brush model's surfaces, wherever it has moved to.
+    ///
+    /// Doors, lifts, anything tied to a class. Their leaves are not in the
+    /// world's PVS, so they cannot be found by the leaf walk that finds
+    /// everything else -- they are drawn by asking each model whether it is in
+    /// front of the camera.
+    pub fn draw_model<'a>(
+        &'a self,
+        pass: &mut wgpu::RenderPass<'a>,
+        frame_bind_group: &'a wgpu::BindGroup,
+        resources: &'a MapResources,
+        mesh: &WorldMesh,
+        model: usize,
+    ) -> FrameStats {
+        let Some(surfaces) = mesh.model_surfaces.get(model) else { return FrameStats::default() };
+        self.draw_surfaces(pass, frame_bind_group, resources, mesh, surfaces, model)
+    }
+
+    fn draw_surfaces<'a>(
+        &'a self,
+        pass: &mut wgpu::RenderPass<'a>,
+        frame_bind_group: &'a wgpu::BindGroup,
+        resources: &'a MapResources,
+        mesh: &WorldMesh,
+        visible: &[u32],
+        model: usize,
+    ) -> FrameStats {
         let mut stats = FrameStats {
             surfaces_total: mesh.surfaces.len(),
             ..Default::default()
@@ -311,6 +443,7 @@ impl Renderer {
         if visible.is_empty() { return stats; }
 
         pass.set_bind_group(0, frame_bind_group, &[]);
+        pass.set_bind_group(2, &self.model_bind_group, &[self.model_offset(model)]);
         pass.set_vertex_buffer(0, resources.vertices.slice(..));
         pass.set_index_buffer(resources.indices.slice(..), wgpu::IndexFormat::Uint32);
 

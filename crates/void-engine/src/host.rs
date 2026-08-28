@@ -17,6 +17,7 @@ use crate::input::InputSystem;
 use void_console::ConsoleUi;
 use std::sync::Arc;
 use std::time::Instant;
+use void_math::Vec3;
 use void_render::gpu::{CameraUniform, MapResources, Renderer};
 use void_render::{Camera, FrameStats, LightmapAtlas, WorldMesh};
 use winit::application::ApplicationHandler;
@@ -376,6 +377,16 @@ impl App {
         uniform.set_fullbright(self.engine.console.bool("r_fullbright"));
         gfx.renderer.update_camera(&gfx.queue, &uniform);
 
+        // Where each brush entity has moved to, from the same fields the
+        // collision code traces against -- so what you see and what you walk
+        // into are the same thing by construction rather than by agreement.
+        let brush_models = self.engine.brush_model_offsets();
+        let mut offsets = vec![Vec3::ZERO; brush_models.iter().map(|(m, _)| m + 1).max().unwrap_or(1)];
+        for (model, offset) in &brush_models {
+            offsets[*model] = *offset;
+        }
+        gfx.renderer.update_models(&gfx.queue, &offsets);
+
         let mut encoder = gfx
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("frame") });
@@ -406,8 +417,11 @@ impl App {
 
             if let (Some(map), Some(level)) = (&self.map, &self.engine.level) {
                 if self.engine.console.bool("r_drawworld") {
-                    let visible = if self.engine.console.bool("r_novis") {
-                        map.mesh.all_surfaces()
+                    let novis = self.engine.console.bool("r_novis");
+                    let visible = if novis {
+                        // Every surface, models included: `r_novis` means
+                        // "cull nothing", and the models are drawn below.
+                        map.mesh.world_surfaces()
                     } else {
                         map.mesh.visible_surfaces(&level.bsp, camera.position, &camera.frustum())
                     };
@@ -418,6 +432,27 @@ impl App {
                         &map.mesh,
                         &visible,
                     );
+
+                    // Then the brush entities, each where it has moved to.
+                    // They are not in the world's PVS -- their leaves are
+                    // their own -- so a leaf walk cannot find them, which is
+                    // why every door in every map used to be invisible.
+                    let frustum = camera.frustum();
+                    for (model, offset) in &brush_models {
+                        if !novis && !map.mesh.model_is_visible(*model, *offset, &frustum) {
+                            continue;
+                        }
+                        let drawn = gfx.renderer.draw_model(
+                            &mut pass,
+                            &map.frame_bind_group,
+                            &map.resources,
+                            &map.mesh,
+                            *model,
+                        );
+                        self.stats.draw_calls += drawn.draw_calls;
+                        self.stats.triangles += drawn.triangles;
+                        self.stats.surfaces_drawn += drawn.surfaces_drawn;
+                    }
                     self.stats.cluster = level.bsp.point_cluster(camera.position);
                 }
             }

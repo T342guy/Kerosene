@@ -33,6 +33,10 @@ pub mod colors {
     pub const SELECTED: Color32 = Color32::from_rgb(255, 190, 70);
     pub const ENTITY: Color32 = Color32::from_rgb(120, 170, 255);
     pub const TOOL_PREVIEW: Color32 = Color32::from_rgb(255, 120, 200);
+    /// Where a door opens to, or which way an entity faces. Distinct from
+    /// the tool preview: one shows what a gesture will do, the other what
+    /// the map will do once it is running.
+    pub const MOTION: Color32 = Color32::from_rgb(110, 220, 210);
     pub const TEXT: Color32 = Color32::from_rgb(160, 168, 180);
     /// The leak trace. Deliberately the loudest thing on screen: it is only
     /// ever drawn when the map is broken.
@@ -49,6 +53,23 @@ const MAJOR_EVERY: i64 = 4;
 /// scale about an anchor -- because a preview that computed the shape
 /// differently from the edit would be a preview that lies, and the whole
 /// point of drawing one is to be believed.
+/// The outline of a specific set of solids under a transform.
+///
+/// The same drawing as the selection ghost, for the cases where "what is
+/// selected" is not the answer -- a door's brushes, drawn where the door will
+/// be when it has opened.
+pub fn transformed_outline_of(
+    _document: &Document,
+    solids: &[void_map::Solid],
+    transform: impl Fn(Vec3) -> Vec3,
+) -> Vec<Vec<Vec3>> {
+    solids
+        .iter()
+        .flat_map(|s| s.face_windings().into_iter().map(|(_, w)| w))
+        .map(|w| w.points.iter().map(|p| transform(*p)).collect())
+        .collect()
+}
+
 pub fn transformed_outline(
     document: &Document,
     transform: impl Fn(Vec3) -> Vec3,
@@ -186,6 +207,7 @@ pub fn draw_2d(
     }
 
     draw_leak(painter, rect, viewport, leak);
+    draw_motion(painter, rect, viewport, document);
     draw_resize_grips(painter, rect, viewport, document, tool);
     draw_tool_preview(painter, rect, viewport, document, tool);
 }
@@ -264,6 +286,45 @@ fn draw_solid_outline(
         for i in 0..points.len() {
             painter.line_segment([points[i], points[(i + 1) % points.len()]], stroke);
         }
+    }
+}
+
+/// Where the selected entity is going, or which way it faces.
+///
+/// A door is a box until you compile the map and walk into it. How far it
+/// opens is decided by its own size, so it is knowable while you are still
+/// drawing it -- and an editor that knows and does not say is one you have to
+/// compile twice to trust.
+fn draw_motion(painter: &Painter, rect: Rect, viewport: &Viewport, document: &Document) {
+    let Some(motion) = crate::motion::of_selection(document) else { return };
+
+    let colour = colors::MOTION;
+    stroke_polygons(painter, rect, viewport, &motion.ghost, Stroke::new(1.0, colour));
+
+    let to_screen = |world: Vec3| {
+        let (x, y) = viewport.world_to_screen(world);
+        Pos2::new(rect.min.x + x, rect.min.y + y)
+    };
+    let (from, to) = (to_screen(motion.arrow.0), to_screen(motion.arrow.1));
+    painter.line_segment([from, to], Stroke::new(1.5, colour));
+
+    // A head, so the line reads as a direction rather than as an edge. Drawn
+    // from the screen-space vector, since the world one may point straight at
+    // the viewer in this pane and have no length here at all.
+    let along = to - from;
+    if along.length() > 6.0 {
+        let unit = along / along.length();
+        let side = Vec2::new(-unit.y, unit.x) * 4.0;
+        let base = to - unit * 9.0;
+        painter.line_segment([to, base + side], Stroke::new(1.5, colour));
+        painter.line_segment([to, base - side], Stroke::new(1.5, colour));
+        painter.text(
+            to + Vec2::new(6.0, 2.0),
+            egui::Align2::LEFT_TOP,
+            &motion.label,
+            egui::FontId::monospace(10.0),
+            colour,
+        );
     }
 }
 

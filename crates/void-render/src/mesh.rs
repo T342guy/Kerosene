@@ -71,6 +71,16 @@ pub struct WorldMesh {
     pub materials: Vec<String>,
     /// Surface indices per BSP leaf, for PVS culling.
     pub leaf_surfaces: Vec<Vec<u32>>,
+    /// Surface indices per brush model, index 0 being the world.
+    ///
+    /// Brush entities -- doors, moving platforms, anything tied to a class --
+    /// are compiled as their own models, and their leaves are not in the
+    /// world's PVS. They are therefore invisible to a leaf walk, which is how
+    /// every brush entity in every map came to be built into the mesh and
+    /// never drawn: the door in the sample map was simply not there.
+    pub model_surfaces: Vec<Vec<u32>>,
+    /// Each model's extent, in the space it was compiled in.
+    pub model_bounds: Vec<Aabb>,
     pub batches: Vec<Batch>,
 }
 
@@ -125,6 +135,24 @@ impl WorldMesh {
                 surfaces: batch_surfaces,
                 contiguous_range: (batch_end > batch_start).then_some((batch_start, batch_end - batch_start)),
             });
+        }
+
+        // Map models onto surfaces, so the ones the PVS cannot reach can be
+        // drawn by their bounds instead.
+        mesh.model_surfaces = vec![Vec::new(); bsp.models.len()];
+        mesh.model_bounds = vec![Aabb::EMPTY; bsp.models.len()];
+        for (model_index, model) in bsp.models.iter().enumerate() {
+            let first = model.first_face as usize;
+            let mut bounds = Aabb::EMPTY;
+            for face in first..first + model.num_faces as usize {
+                let surface = face_to_surface.get(face).copied().unwrap_or(u32::MAX);
+                if surface == u32::MAX { continue }
+                mesh.model_surfaces[model_index].push(surface);
+                let b = mesh.surfaces[surface as usize].bounds;
+                bounds.add_point(b.min);
+                bounds.add_point(b.max);
+            }
+            mesh.model_bounds[model_index] = bounds;
         }
 
         // Map leaves onto surfaces so the PVS can cull them.
@@ -262,6 +290,36 @@ impl WorldMesh {
     /// Every surface, for when there is no visibility data to cull with.
     pub fn all_surfaces(&self) -> Vec<u32> {
         (0..self.surfaces.len() as u32).collect()
+    }
+
+    /// Every surface of the world model, sorted by material.
+    ///
+    /// What `r_novis` draws: the whole static world with nothing culled. The
+    /// brush models are deliberately *not* in it -- they are drawn separately
+    /// so they can each carry their own displacement, and including them here
+    /// would draw every door twice, once in the wrong place.
+    pub fn world_surfaces(&self) -> Vec<u32> {
+        let mut out = self.model_surfaces.first().cloned().unwrap_or_default();
+        out.sort_by_key(|&s| (self.surfaces[s as usize].material, s));
+        out
+    }
+
+    /// Whether a brush model, moved to `offset`, could be on screen.
+    ///
+    /// Frustum only, deliberately. A brush entity could be PVS-tested against
+    /// the leaf it currently sits in, but there are a handful of them in a
+    /// map and they are the things the player is walking up to and pressing
+    /// buttons on: culling one wrongly is far more expensive than drawing it.
+    pub fn model_is_visible(
+        &self,
+        model: usize,
+        offset: Vec3,
+        frustum: &crate::camera::Frustum,
+    ) -> bool {
+        let Some(bounds) = self.model_bounds.get(model) else { return false };
+        if bounds.is_empty() { return false }
+        if self.model_surfaces.get(model).is_none_or(Vec::is_empty) { return false }
+        frustum.intersects_box(bounds.min + offset, bounds.max + offset)
     }
 }
 

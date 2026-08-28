@@ -1148,6 +1148,19 @@ impl ChiselApp {
                         .weak(),
                 );
             }
+            // What it will do once the map is running, next to the keys that
+            // decide it -- and drawn in the 2D panes in the same colour.
+            if let Some(motion) = crate::motion::of_selection(&self.document) {
+                ui.label(
+                    RichText::new(motion.label)
+                        .size(11.0)
+                        .color(draw::colors::MOTION),
+                )
+                .on_hover_text(
+                    "Drawn in the 2D panes: the arrow is the travel, the outline is \
+                     where it ends up.",
+                );
+            }
             ui.separator();
 
             egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
@@ -1167,26 +1180,128 @@ impl ChiselApp {
         });
     }
 
+    /// The inspector when brushes, rather than an entity, are selected.
+    ///
+    /// It used to be a page headed "properties" containing nothing but a list
+    /// of entity classes to tie the brushes to. A brush has no keyvalues, so
+    /// there was a case for that -- but it left the question a designer
+    /// actually has unanswerable without compiling the map: *what will this
+    /// brush be?* Tool materials in particular did their work silently at
+    /// compile time and looked, from in here, like paint.
     fn no_entity_selected(&mut self, ui: &mut egui::Ui) {
-        ui.label(RichText::new("properties").strong());
-        ui.label(match self.document.selection.solids.len() {
-            0 => "nothing selected".to_string(),
-            1 => "1 brush selected".to_string(),
-            n => format!("{n} brushes selected"),
-        });
+        use crate::brush::BrushInfo;
 
-        if self.document.selection.solids.is_empty() { return }
-        ui.separator();
-        ui.label("tie to entity");
-        for class in self.brush_classes() {
-            let help = self.schema.get(&class).map(|s| s.help.clone()).unwrap_or_default();
-            let button = ui.button(&class);
-            let button = if help.is_empty() { button } else { button.on_hover_text(help) };
-            if button.clicked() {
-                self.document.tie_to_entity(&class);
-                self.status = format!("tied to {class}");
+        ui.label(RichText::new("properties").strong());
+        let Some(info) = BrushInfo::of_selection(&self.document) else {
+            ui.label(RichText::new("nothing selected").weak());
+            return;
+        };
+
+        egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
+            let size = info.bounds.size();
+            ui.label(format!(
+                "{} {}, {} faces",
+                info.brushes,
+                if info.brushes == 1 { "brush" } else { "brushes" },
+                info.faces,
+            ));
+            ui.label(
+                RichText::new(format!(
+                    "{} x {} x {}",
+                    void_math::units::length_short(size.x),
+                    void_math::units::length_short(size.y),
+                    void_math::units::length_short(size.z),
+                ))
+                .monospace()
+                .size(11.0),
+            )
+            .on_hover_text(format!(
+                "from {} {} {}\nto   {} {} {}",
+                void_math::format_float(info.bounds.min.x),
+                void_math::format_float(info.bounds.min.y),
+                void_math::format_float(info.bounds.min.z),
+                void_math::format_float(info.bounds.max.x),
+                void_math::format_float(info.bounds.max.y),
+                void_math::format_float(info.bounds.max.z),
+            ));
+
+            // The answer to "what is this?", which is what tool materials
+            // exist to change and what nothing in the editor used to say.
+            ui.add_space(4.0);
+            ui.label(RichText::new("compiles as").size(11.0).weak());
+            ui.label(RichText::new(&info.compiles_as).strong());
+            if let Some(class) = &info.classname {
+                ui.label(
+                    RichText::new(format!("part of a {class}"))
+                        .size(11.0)
+                        .color(egui::Color32::from_rgb(150, 190, 240)),
+                );
             }
-        }
+
+            ui.add_space(6.0);
+            ui.separator();
+            ui.label(RichText::new("materials").size(11.0).weak());
+            for (material, meaning) in info.material_meanings() {
+                ui.label(RichText::new(material).monospace().size(11.0)).on_hover_text(meaning);
+                ui.label(RichText::new(meaning).size(10.0).weak());
+            }
+            if info.mixed_materials {
+                ui.label(
+                    RichText::new(
+                        "faces do not all wear the same material; the most specific one \
+                         decides what the brush is",
+                    )
+                    .size(10.0)
+                    .color(egui::Color32::from_rgb(240, 200, 90)),
+                );
+            }
+            for unknown in info.unknown_tools() {
+                ui.label(
+                    RichText::new(format!(
+                        "{unknown} is not a tool the compiler knows -- it will be an \
+                         ordinary wall"
+                    ))
+                    .size(11.0)
+                    .color(draw::colors::LEAK),
+                );
+            }
+
+            ui.add_space(6.0);
+            ui.separator();
+            if info.classname.is_some() {
+                if ui.button("move brushes back to world").clicked() {
+                    // Select the owning entity, which is what unties.
+                    let owners: Vec<u32> = self
+                        .document
+                        .map
+                        .entities
+                        .iter()
+                        .filter(|e| e.solids.iter().any(|s| self.document.selection.solids.contains(&s.id)))
+                        .map(|e| e.id)
+                        .collect();
+                    self.document.selection.entities.extend(owners);
+                    let n = self.document.untie_to_world();
+                    self.status = format!("moved {n} brushes to the world");
+                }
+                return;
+            }
+
+            ui.label(RichText::new("tie to entity").size(11.0).weak());
+            ui.label(
+                RichText::new("makes these brushes into a door, a trigger, a platform")
+                    .size(10.0)
+                    .weak(),
+            );
+            for class in self.brush_classes() {
+                let help = self.schema.get(&class).map(|s| s.help.clone()).unwrap_or_default();
+                let button = ui.button(&class);
+                let button = if help.is_empty() { button } else { button.on_hover_text(help) };
+                if button.clicked() {
+                    self.document.tie_to_entity(&class);
+                    self.status = format!("tied to {class}");
+                }
+            }
+        });
     }
 
     /// One widget per key the class defines, typed by the schema.

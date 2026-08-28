@@ -173,6 +173,21 @@ The PVS and the frustum do different jobs and neither subsumes the other: the
 PVS removes rooms you cannot see through any opening, the frustum removes what
 is behind you.
 
+**Brush entities are a second pass, and have to be.** A door, a lift, anything
+tied to a class is compiled as its own model with its own leaves, and those
+leaves are not in the world's PVS. A leaf walk therefore finds the world and
+nothing else — which is exactly what happened: every brush entity in every map
+was built into the mesh and never drawn, and the sample map's door was simply
+not there. They are drawn after the world, one model at a time, culled against
+the frustum by their bounds rather than by the PVS. There are a handful of
+them, they are the things the player walks up to, and culling one wrongly
+costs far more than drawing it.
+
+Each carries a displacement — where its entity has moved to — applied in the
+vertex shader through a uniform with a dynamic offset. That displacement comes
+from the same fields the collision code traces against, so what you see and
+what you walk into are the same thing by construction.
+
 Lightmaps pack into one atlas, so the world draws in as many calls as it has
 materials rather than one per face.
 

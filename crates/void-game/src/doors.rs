@@ -69,6 +69,23 @@ fn spawn_brush(world: &mut EntityWorld, id: EntityId) {
     set_field(world, id, "disabled", Value::Bool(start_disabled));
 }
 
+/// How far a door travels, and which way.
+///
+/// The distance comes from the geometry, not from a keyvalue: a door moves by
+/// its own size along its movement axis, less the `lip` that stays visible.
+/// That is what lets a designer resize a door and have it still work.
+///
+/// Public, and used by the editor as well as by the door itself, because the
+/// editor draws where a door will end up. Two copies of this formula would
+/// mean the picture and the behaviour agreeing only by luck.
+pub fn travel(size: Vec3, movedir: Vec3, lip: f32) -> (Vec3, f32) {
+    let dir = movedir.normalize_or_zero();
+    let dir = if dir.length_squared() < 1e-6 { Vec3::Z } else { dir };
+    // Extent along the movement axis, whatever axis that is.
+    let extent = (size.x * dir.x).abs() + (size.y * dir.y).abs() + (size.z * dir.z).abs();
+    (dir, (extent - lip).max(1.0))
+}
+
 /// Work out how far the door travels and which way.
 ///
 /// The distance comes from the geometry, not from a keyvalue: a door moves by
@@ -77,16 +94,13 @@ fn spawn_brush(world: &mut EntityWorld, id: EntityId) {
 fn spawn_door(world: &mut EntityWorld, id: EntityId) {
     let Some(entity) = world.get(id) else { return };
 
-    let dir = entity.fields.vec3("movedir", Vec3::Z).normalize_or_zero();
-    let dir = if dir.length_squared() < 1e-6 { Vec3::Z } else { dir };
-
     let mins = entity.fields.vec3("model_mins", Vec3::ZERO);
     let maxs = entity.fields.vec3("model_maxs", Vec3::ZERO);
-    let size = maxs - mins;
-    // Extent along the movement axis, whatever axis that is.
-    let extent = (size.x * dir.x).abs() + (size.y * dir.y).abs() + (size.z * dir.z).abs();
-    let lip = entity.fields.f32("lip", 8.0);
-    let travel = (extent - lip).max(1.0);
+    let (dir, travel) = travel(
+        maxs - mins,
+        entity.fields.vec3("movedir", Vec3::Z),
+        entity.fields.f32("lip", 8.0),
+    );
 
     let speed = entity.fields.f32("speed", 100.0).max(1.0);
     // Spawnflag 1 is "starts open", as Source numbers it. A named bit rather

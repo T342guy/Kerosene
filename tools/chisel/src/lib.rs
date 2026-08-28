@@ -17,6 +17,7 @@
 //! found by its users.
 
 pub mod app;
+pub mod brush;
 pub mod classes;
 pub mod compile;
 pub mod draw;
@@ -26,6 +27,7 @@ pub mod files;
 pub mod grid;
 pub mod inspector;
 pub mod leak;
+pub mod motion;
 pub mod raster;
 pub mod shapes;
 pub mod textures;

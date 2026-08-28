@@ -303,7 +303,7 @@ impl BrushWork {
 /// of an otherwise solid brush -- the non-default contents wins, because that
 /// is what the designer was reaching for; painting one face of a block with
 /// `tools/clip` is how you say "this whole block is a clip brush".
-fn resolve_contents(face_contents: &[u32]) -> u32 {
+pub fn resolve_contents(face_contents: &[u32]) -> u32 {
     use void_bsp::contents as c;
     let mut combined = 0u32;
     for &f in face_contents {

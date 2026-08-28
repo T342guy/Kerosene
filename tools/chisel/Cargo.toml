@@ -10,6 +10,14 @@ authors.workspace = true
 # The texture build runs inside the editor, not as a shelled-out
 # sibling binary: see `build_content` in main.rs.
 alchemy = { path = "../alchemy" }
+# For one thing only: what a material means to the compiler. The editor
+# explaining tool textures differently from the tool that acts on them would
+# be worse than not explaining them at all.
+cleave = { path = "../cleave" }
+# And for one more: how far a door travels. The editor draws where a door
+# ends up, and a second copy of that formula would agree with the game only
+# by luck.
+void-game.workspace = true
 void-math.workspace = true
 void-map.workspace = true
 void-kv.workspace = true

@@ -249,6 +249,22 @@ impl Engine {
 
     pub fn tick_interval(&self) -> f32 { 1.0 / self.tick_rate() }
 
+    /// Where each brush entity's model has moved to, as `(model, offset)`.
+    ///
+    /// The renderer and the collision system both need this, and they must
+    /// agree: a door drawn where it is not is worse than a door that does not
+    /// move at all, because the second is obvious. Model 0 is the static
+    /// world and never appears here.
+    pub fn brush_model_offsets(&self) -> Vec<(usize, Vec3)> {
+        self.entities
+            .iter()
+            .filter_map(|e| {
+                let model = e.brush_model?;
+                (model != 0).then_some((model, e.origin))
+            })
+            .collect()
+    }
+
     /// Load a map by name, e.g. `void_start`.
     pub fn load_map(&mut self, name: &str) -> anyhow::Result<()> {
         let path = format!("maps/{name}.voidbsp");

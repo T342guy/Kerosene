@@ -23,6 +23,14 @@ struct Camera {
 @group(1) @binding(0) var base_texture: texture_2d<f32>;
 @group(1) @binding(1) var base_sampler: sampler;
 
+// Where this brush model has moved to since it was compiled. Zero for the
+// world; a door's displacement while it opens. Bound with a dynamic offset,
+// so it changes between draws inside one pass.
+struct Model {
+    offset: vec4<f32>,
+};
+@group(2) @binding(0) var<uniform> model: Model;
+
 struct VertexIn {
     @location(0) position: vec3<f32>,
     @location(1) normal: vec3<f32>,
@@ -41,11 +49,16 @@ struct VertexOut {
 @vertex
 fn vs_main(input: VertexIn) -> VertexOut {
     var out: VertexOut;
-    out.clip_position = camera.view_proj * vec4<f32>(input.position, 1.0);
+    // The model's displacement is added in world space, so a moving door is
+    // its compiled geometry translated -- the same transform the collision
+    // code applies when it traces against the model, and the reason the two
+    // stay in the same place.
+    let world = input.position + model.offset.xyz;
+    out.clip_position = camera.view_proj * vec4<f32>(world, 1.0);
     out.uv = input.uv;
     out.lightmap_uv = input.lightmap_uv;
     out.normal = input.normal;
-    out.world_position = input.position;
+    out.world_position = world;
     return out;
 }
 

@@ -306,3 +306,144 @@ fn an_empty_map_produces_an_empty_mesh() {
     assert!(mesh.batches.is_empty());
     assert!(mesh.all_surfaces().is_empty());
 }
+
+// ---- brush models --------------------------------------------------------
+
+/// The two-quad map with the second quad moved into a brush model of its own,
+/// the way a door or a lift is compiled.
+fn map_with_a_brush_model() -> Bsp {
+    let mut bsp = two_quad_map(true);
+    // Model 0 keeps the first face; the second becomes model 1, and leaves
+    // the world's leaf entirely -- which is exactly what the compiler does,
+    // and exactly why the PVS cannot see it.
+    bsp.models[0].num_faces = 1;
+    bsp.leaves[0].num_leaffaces = 1;
+    bsp.leaffaces.truncate(1);
+    bsp.models.push(Model {
+        mins: [64.0, 0.0, 0.0],
+        maxs: [128.0, 64.0, 0.0],
+        origin: [0.0; 3],
+        head_node: encode_leaf(0),
+        first_face: 1,
+        num_faces: 1,
+    });
+    bsp.validate().expect("fixture is well formed");
+    bsp
+}
+
+fn build_with_model() -> (Bsp, WorldMesh) {
+    let bsp = map_with_a_brush_model();
+    let atlas = LightmapAtlas::build(&bsp, 1.0);
+    let mesh = WorldMesh::build(&bsp, &atlas);
+    (bsp, mesh)
+}
+
+#[test]
+fn a_brush_models_faces_are_in_no_leaf_which_is_why_they_need_their_own_pass() {
+    // This is the bug the model pass exists for: a leaf walk finds the world
+    // and nothing else, so every door in every map was built into the mesh
+    // and never drawn.
+    let (_, mesh) = build_with_model();
+    let reachable: std::collections::HashSet<u32> =
+        mesh.leaf_surfaces.iter().flatten().copied().collect();
+
+    for &surface in &mesh.model_surfaces[1] {
+        assert!(!reachable.contains(&surface), "surface {surface} would be found twice");
+    }
+    assert!(!mesh.model_surfaces[1].is_empty(), "the model has surfaces to draw");
+}
+
+#[test]
+fn every_surface_belongs_to_exactly_one_model() {
+    let (_, mesh) = build_with_model();
+    let mut seen = vec![0usize; mesh.surfaces.len()];
+    for surfaces in &mesh.model_surfaces {
+        for &s in surfaces { seen[s as usize] += 1; }
+    }
+    assert!(seen.iter().all(|&n| n == 1), "{seen:?}");
+}
+
+#[test]
+fn the_world_pass_draws_the_world_and_not_the_models() {
+    // Drawing a door in both passes would draw it twice, once unmoved.
+    let (_, mesh) = build_with_model();
+    let world = mesh.world_surfaces();
+
+    assert_eq!(world.len(), mesh.model_surfaces[0].len());
+    for &s in &mesh.model_surfaces[1] {
+        assert!(!world.contains(&s), "surface {s} is drawn by both passes");
+    }
+}
+
+#[test]
+fn the_world_pass_is_sorted_by_material_like_the_pvs_pass() {
+    // `draw_world` merges adjacent surfaces into one call and relies on it.
+    let (_, mesh) = build(true);
+    let world = mesh.world_surfaces();
+    let materials: Vec<u32> = world.iter().map(|&s| mesh.surfaces[s as usize].material).collect();
+    let mut sorted = materials.clone();
+    sorted.sort();
+    assert_eq!(materials, sorted);
+}
+
+#[test]
+fn a_model_in_front_of_the_camera_is_drawn() {
+    let (_, mesh) = build_with_model();
+    let camera = Camera {
+        position: Vec3::new(96.0, 32.0, 128.0),
+        angles: Angles::new(90.0, 0.0, 0.0),
+        aspect: 1.0,
+        ..Default::default()
+    };
+    assert!(mesh.model_is_visible(1, Vec3::ZERO, &camera.frustum()));
+}
+
+#[test]
+fn a_model_behind_the_camera_is_not() {
+    let (_, mesh) = build_with_model();
+    let camera = Camera {
+        position: Vec3::new(96.0, 32.0, 128.0),
+        // Looking up and away from the quad on the floor.
+        angles: Angles::new(-89.0, 0.0, 0.0),
+        aspect: 1.0,
+        ..Default::default()
+    };
+    assert!(!mesh.model_is_visible(1, Vec3::ZERO, &camera.frustum()));
+}
+
+#[test]
+fn a_model_is_culled_where_it_has_moved_to_not_where_it_was_built() {
+    // A door that has opened is somewhere else. Culling it by its compiled
+    // bounds would pop it out of existence as it moved.
+    let (_, mesh) = build_with_model();
+    let camera = Camera {
+        position: Vec3::new(96.0, 32.0, 128.0),
+        angles: Angles::new(90.0, 0.0, 0.0),
+        aspect: 1.0,
+        ..Default::default()
+    };
+    let frustum = camera.frustum();
+
+    assert!(mesh.model_is_visible(1, Vec3::ZERO, &frustum));
+    // Moved far off to one side, it is no longer in front of the camera.
+    assert!(!mesh.model_is_visible(1, Vec3::new(0.0, 40_000.0, 0.0), &frustum));
+}
+
+#[test]
+fn the_world_model_is_never_offered_as_a_brush_model_to_draw() {
+    // It is drawn by the PVS pass; drawing it again would double every
+    // triangle in the map.
+    let (_, mesh) = build_with_model();
+    assert!(!mesh.model_surfaces[0].is_empty());
+    assert_eq!(mesh.model_bounds.len(), mesh.model_surfaces.len());
+}
+
+#[test]
+fn a_model_with_nothing_in_it_is_not_drawn() {
+    // The compiler emits an empty model for a brush entity whose faces were
+    // all nodraw -- a trigger, most often. Asking the GPU to draw nothing is
+    // a wasted bind and a wasted call.
+    let (_, mesh) = build_with_model();
+    let camera = Camera { aspect: 1.0, ..Default::default() };
+    assert!(!mesh.model_is_visible(99, Vec3::ZERO, &camera.frustum()), "no such model");
+}

@@ -140,6 +140,33 @@ one undo step.
 in both orientations. Geometry has a way of being valid and still wrong; a
 test can say the brushes are solid, only a picture can say they are an arch.
 
+**Brush properties.** Selecting brushes shows what they are: how many, how
+big, which materials, and — the part that used to require compiling the map to
+find out — **what they will compile as**. That answer is read from Cleave's own
+material table rather than from a copy of it, so the editor and the compiler
+cannot disagree.
+
+It is where tool textures stop being paint. `tools/clip` says "blocks players
+only; bullets and sight pass through"; `tools/trigger` says "not solid;
+touching it fires its entity's outputs". Two rules that surprise everybody are
+called out on the spot:
+
+- **One tool face changes the whole brush.** Solid is the absence of anything
+  more specific, so a single `tools/clip` face on an otherwise ordinary box
+  stops the box being a wall.
+- **A misspelt tool material is not an error.** `tools/clipp` compiles as
+  ordinary world geometry, which is how a doorway gets walled off by a typo
+  nobody sees. The panel says so in red.
+
+`tie to entity` is still there — it is how a door is made — but as one action
+at the bottom of the panel rather than as the whole of it.
+
+**Where a door goes.** Select a brush entity that moves and the 2D panes draw
+its travel: an arrow along `movedir`, an outline where it ends up, and a label
+saying how far and which way. The distance comes from `void_game`'s own
+formula, so the picture and the door agree by construction rather than by
+luck. Anything with `angles` gets a facing arrow the same way.
+
 **Building a level.** Draw brushes with the block tool in a 2D view; they snap
 to the grid, outward, so a brush is never smaller than the rubber band. Pick a
 material from the left panel — picking one with something selected applies it.
