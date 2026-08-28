@@ -72,13 +72,23 @@ cargo build --release              # engine and all seven tools
 cargo run --release -p void-runtime -- +map void_start
 ```
 
+**The build step is not optional.** Art and maps are committed as sources —
+`.png`, `.obj`, `.wav`, `.voidmap` — and the engine loads only compiled
+`.voidtex`, `.voidmdl` and `.voidbsp`. Skip it and every surface is the
+missing-material checkerboard, because the materials genuinely are not there
+yet. On Linux the audio backend also needs ALSA headers (`libasound2-dev`, or
+`alsa-lib-devel`); without them, build with `--no-default-features` and
+everything but the sound works.
+
 To open the sample level in the editor:
 
 ```sh
 cargo run --release -p chisel -- content/maps/void_start.voidmap
 ```
 
-`F9` compiles and runs it.
+`F9` compiles and runs it. Chisel's 3D pane reads the same compiled textures
+the engine does, so it needs the build step too — `view → reload textures`
+picks up a rebuild without restarting.
 
 No display? The engine runs headless — which is what a dedicated server is,
 not a testing mode bolted on the side:
