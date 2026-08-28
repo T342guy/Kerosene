@@ -23,7 +23,6 @@ members = [
     "tools/alchemy",
     "tools/forge",
     "tools/vault",
-    "alsa"
 ]
 
 [workspace.package]
@@ -73,8 +72,6 @@ rhai        = "1"
 # Audio output. Needs ALSA headers on Linux (libasound2-dev); the mixer
 # itself is pure Rust and builds without it.
 cpal        = "0.18"
-alsa = "0.12.1"
-alsa-sys = "0.6.1"
 
 [profile.release]
 opt-level = 3
