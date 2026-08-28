@@ -88,13 +88,17 @@ Regenerate with:
 cargo tree --workspace --edges normal --prefix none --format '{p}|{l}'
 ```
 
+At the time of writing that is 235 distinct crates, of which the only
+third-party copyleft is the `smartstring` noted above -- the other copyleft
+entries the command prints are VoidEngine's own crates.
+
 ### The four that actually matter
 
 **Apache-2.0-only crates — this rules out GPL-2.0.**
 
 ```
-winit  ab_glyph  ab_glyph_rasterizer  owned_ttf_parser
-spirv  codespan-reporting  gethostname
+winit  cpal  ab_glyph  ab_glyph_rasterizer
+owned_ttf_parser  spirv  codespan-reporting  gethostname
 ```
 
 Apache-2.0 is one-way compatible with the version 3 licences: you may combine
@@ -104,7 +108,8 @@ ASF agree on this, over Apache's patent termination and indemnification
 clauses. So the v3 licences are available and the v2 ones are not, for as long
 as `winit` is the windowing layer, and `winit` is not replaceable without
 rewriting the whole platform layer. This is the single fact that decided
-LGPL-**3.0** rather than LGPL-2.1.
+LGPL-**3.0** rather than LGPL-2.1. (`cpal`, the audio backend, is the same
+story and would decide it the same way on its own.)
 
 **Bundled fonts — `epaint_default_fonts`.** egui ships default typefaces
 under the SIL Open Font Licence 1.1 and the Ubuntu Font Licence 1.0. Those
