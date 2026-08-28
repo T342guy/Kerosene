@@ -1,0 +1,38 @@
+// What a sound name means.
+//
+// A level fires `door/move`, and which file that is -- how loud, how far it
+// carries, at what pitch -- lives here rather than on the entity. Making every
+// door in a game quieter should be one edit, not a hunt through a map.
+//
+// A name nothing here defines is taken as a path under sound/, so a quick
+// `play ui/click.wav` works without writing an entry first.
+
+sound
+{
+    "name"        "ambient/room_tone"
+    "file"        "sound/ambient/room_tone.wav"
+    "volume"      "0.35"
+    "loop"        "1"
+    "attenuation" "0.6"
+    "distance"    "192"
+    "max"         "1536"
+}
+
+sound
+{
+    "name"        "door/move"
+    "file"        "sound/door/move.wav"
+    "volume"      "0.9"
+    "attenuation" "1.0"
+    "distance"    "128"
+    "max"         "2048"
+}
+
+sound
+{
+    "name"        "ui/click"
+    "file"        "sound/ui/click.wav"
+    "volume"      "0.6"
+    // No attenuation and no position: interface sound is heard flat.
+    "attenuation" "0"
+}

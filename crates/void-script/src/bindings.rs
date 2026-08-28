@@ -42,6 +42,7 @@ pub fn register(engine: &mut Engine, shared: &Rc<RefCell<Shared>>) {
     register_output(engine, shared);
     register_console(engine, shared);
     register_entities(engine, shared);
+    register_sound(engine, shared);
     register_world(engine, shared);
 }
 
@@ -309,6 +310,45 @@ pub const ID_TARGET_PREFIX: &str = "!id:";
 /// Read back an `!id:N` target.
 pub fn parse_id_target(target: &str) -> Option<u64> {
     target.strip_prefix(ID_TARGET_PREFIX)?.parse().ok()
+}
+
+// ---- sound ----------------------------------------------------------------
+
+fn register_sound(engine: &mut Engine, shared: &Rc<RefCell<Shared>>) {
+    let sink = Rc::clone(shared);
+    engine.register_fn("play_sound", move |name: &str| {
+        push(
+            &sink,
+            ScriptAction::PlaySound { name: name.to_string(), position: None, volume: 1.0 },
+        )
+    });
+
+    let sink = Rc::clone(shared);
+    engine.register_fn("play_sound", move |name: &str, position: Vec3| {
+        push(
+            &sink,
+            ScriptAction::PlaySound {
+                name: name.to_string(),
+                position: Some(position),
+                volume: 1.0,
+            },
+        )
+    });
+
+    let sink = Rc::clone(shared);
+    engine.register_fn("play_sound", move |name: &str, position: Vec3, volume: f64| {
+        push(
+            &sink,
+            ScriptAction::PlaySound {
+                name: name.to_string(),
+                position: Some(position),
+                volume: volume.max(0.0) as f32,
+            },
+        )
+    });
+
+    let sink = Rc::clone(shared);
+    engine.register_fn("stop_sounds", move || push(&sink, ScriptAction::StopAllSounds));
 }
 
 // ---- the world ------------------------------------------------------------

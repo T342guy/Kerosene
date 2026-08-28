@@ -11,6 +11,8 @@
 | `.voidmdl` | Model | binary | Forge | `.mdl` |
 | `.voiddef` | Entity class definitions | text (KeyValues) | the game, by hand | `.fgd` |
 | `.voidscript` | Level script | text (Rhai) | by hand | `.nut` (VScript) |
+| `.voidsnd` | Sound script | text (KeyValues) | by hand | `game_sounds.txt` |
+| `.wav` | Sound | binary (RIFF) | any audio tool | `.wav` |
 | `.vault` | Content archive | binary | Vault | `.vpk` |
 
 Text where a person edits or reviews it; binary where the engine loads it.
@@ -253,6 +255,11 @@ fn on_map_start() {
 Nothing about the format is special — it is source text the engine hands to a
 VM. It is listed here because it is content the engine loads by name and packs
 into a `.vault` with everything else.
+
+## `.voidsnd` — sound scripts
+
+What a sound name means: which file, how loud, how far it carries. The format
+and the model behind it are in [`audio.md`](audio.md).
 
 ## `.vault` — content archives
 

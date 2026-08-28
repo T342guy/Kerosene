@@ -37,6 +37,11 @@ pub struct EngineConfig {
     pub map: Option<String>,
     /// Console commands to run once everything is up.
     pub startup_commands: Vec<String>,
+    /// Whether to open an audio device.
+    ///
+    /// Off in tests and headless runs: opening a sound card is slow, and a
+    /// hundred `Engine`s in one test binary would each try.
+    pub audio: bool,
     /// The global log relay, if one was installed.
     ///
     /// Handed in rather than installed here because installing a logger is a
@@ -49,6 +54,7 @@ pub struct EngineConfig {
 impl Default for EngineConfig {
     fn default() -> Self {
         EngineConfig {
+            audio: false,
             log: None,
             content_paths: vec![PathBuf::from("content")],
             archives: Vec::new(),
@@ -71,6 +77,8 @@ pub struct Engine {
     pub log: Option<std::sync::Arc<void_console::LogRelay>>,
     /// The script VM. Empty until a map with a script loads.
     pub script: void_script::ScriptHost,
+    /// Sound. The mixer runs whether or not a device opened.
+    pub audio: crate::audio::AudioSystem,
     pub vfs: Arc<Vfs>,
     pub level: Option<Level>,
     pub entities: EntityWorld,
@@ -159,6 +167,11 @@ impl Engine {
             console,
             log: config.log.clone(),
             script: void_script::ScriptHost::new(),
+            audio: if config.audio {
+                crate::audio::AudioSystem::open()
+            } else {
+                crate::audio::AudioSystem::silent()
+            },
             vfs,
             level: None,
             entities,
@@ -169,6 +182,9 @@ impl Engine {
             pending_map: config.map.clone(),
             should_quit: false,
         };
+
+        let vfs = engine.vfs.clone();
+        engine.audio.load_scripts(&vfs);
 
         for command in &config.startup_commands {
             engine.console.enqueue(command.clone());
@@ -214,6 +230,9 @@ impl Engine {
         self.time = 0.0;
         self.tick_count = 0;
         self.accumulator = 0.0;
+
+        // Whatever the last level was playing is not playing any more.
+        self.audio.stop_all();
 
         // A map's script loads after every entity exists, so `on_map_start`
         // can find them. A map without one is the normal case and is silent.
@@ -329,6 +348,11 @@ impl Engine {
             let origin = self.player.movement.origin;
             if let Some(e) = self.entities.get_mut(id) { e.origin = origin; }
         }
+
+        // The ears follow the player. Done here rather than in the renderer
+        // so that a headless run mixes the same audio a windowed one does.
+        self.audio.set_listener(self.player.movement.eye_position(), self.player.view_angles.vectors());
+        self.audio.set_volume(self.console.float("volume"));
 
         self.update_triggers();
         self.entities.run(dt);
@@ -467,6 +491,8 @@ fn register_cvars(console: &mut Console) {
     console.register_cvar("r_speeds", "0", ConVarFlags::NONE, "Show per-frame render statistics.");
     console.register_cvar_ranged("mat_exposure", "1.0", Some(0.01), Some(16.0), ConVarFlags::ARCHIVE, "Overall brightness.");
     console.register_cvar("fps_max", "0", ConVarFlags::ARCHIVE, "Frame rate cap; 0 for unlimited.");
+
+    console.register_cvar_ranged("volume", "0.7", Some(0.0), Some(1.0), ConVarFlags::ARCHIVE, "Master sound volume.");
 }
 
 /// Register the engine's commands.
@@ -539,6 +565,33 @@ fn register_commands(console: &mut Console) {
         },
     );
 
+    console.register_command(
+        "play",
+        ConVarFlags::NONE,
+        "Play a sound, heard flat: play <name>",
+        |con, args| match args.get(1) {
+            Some(name) => {
+                let name = name.to_string();
+                con.request(requests::PLAY_SOUND, name);
+            }
+            None => con.warn("usage: play <name>"),
+        },
+    );
+
+    console.register_command(
+        "stopsound",
+        ConVarFlags::NONE,
+        "Stop every sound.",
+        |con, _| con.request(requests::STOP_SOUND, ""),
+    );
+
+    console.register_command(
+        "snd_restart",
+        ConVarFlags::NONE,
+        "Forget every loaded sound and reopen the audio device.",
+        |con, _| con.request(requests::SOUND_RESTART, ""),
+    );
+
     console.register_command("quit", ConVarFlags::NONE, "Exit.", |con, _| {
         con.request(requests::QUIT, "");
     });
@@ -575,6 +628,20 @@ pub fn take_console_requests(engine: &mut Engine) {
                 }
             }
             requests::SCRIPT_RELOAD => engine.reload_scripts(),
+            requests::PLAY_SOUND => {
+                let vfs = engine.vfs.clone();
+                if engine.audio.play(&vfs, &payload, None, 1.0).is_none() {
+                    engine.console.warn(format!("could not play `{payload}`"));
+                }
+            }
+            requests::STOP_SOUND => engine.audio.stop_all(),
+            requests::SOUND_RESTART => {
+                engine.audio = crate::audio::AudioSystem::open();
+                let vfs = engine.vfs.clone();
+                engine.audio.load_scripts(&vfs);
+                let status = engine.audio.status.clone();
+                engine.console.print(format!("audio: {status}"));
+            }
             other => engine.console.warn(format!("unknown host request `{other}`")),
         }
     }

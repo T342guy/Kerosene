@@ -107,6 +107,10 @@ pub mod host_requests {
     pub const SCRIPT_CALL: &str = "script_call";
     /// Load a script file. The payload is its name.
     pub const SCRIPT_FILE: &str = "script_file";
+    /// Play a sound. The payload is its name; the caller says where it is.
+    pub const PLAY_SOUND: &str = "play_sound";
+    /// Stop whatever the caller started.
+    pub const STOP_SOUND: &str = "stop_sound";
 }
 
 impl EntityWorld {

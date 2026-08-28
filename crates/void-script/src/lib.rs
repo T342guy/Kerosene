@@ -100,6 +100,10 @@ pub enum ScriptAction {
     SetOrigin { entity: u64, origin: Vec3 },
     /// Remove an entity.
     Kill { entity: u64 },
+    /// Play a sound, at a position or heard flat.
+    PlaySound { name: String, position: Option<Vec3>, volume: f32 },
+    /// Stop every sound.
+    StopAllSounds,
 }
 
 /// The shared state script functions read and write.

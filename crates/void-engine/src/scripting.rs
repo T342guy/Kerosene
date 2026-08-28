@@ -181,6 +181,13 @@ impl Engine {
                     }
                 }
                 ScriptAction::Kill { entity } => self.entities.remove(unpack(entity)),
+                ScriptAction::PlaySound { name, position, volume } => {
+                    let vfs = self.vfs.clone();
+                    if self.audio.play(&vfs, &name, position, volume).is_none() {
+                        self.console.warn(format!("script: could not play `{name}`"));
+                    }
+                }
+                ScriptAction::StopAllSounds => self.audio.stop_all(),
             }
         }
     }
@@ -226,8 +233,60 @@ impl Engine {
                         self.console.error(format!("logic_script: {e}"));
                     }
                 }
+                void_entity::host_requests::PLAY_SOUND => {
+                    self.play_entity_sound(request.caller, &request.payload);
+                }
+                void_entity::host_requests::STOP_SOUND => {
+                    self.stop_entity_sound(request.caller);
+                }
                 other => self.console.warn(format!("unknown entity request `{other}`")),
             }
+        }
+    }
+}
+
+impl Engine {
+    /// Start a sound belonging to an entity, at wherever that entity is.
+    ///
+    /// The handle is remembered on the entity so `StopSound` can find it
+    /// again. Without that, a looping ambience could be started but never
+    /// silenced, which is the worst of the two failure modes.
+    pub fn play_entity_sound(&mut self, id: void_entity::EntityId, name: &str) {
+        let Some(entity) = self.entities.get(id) else { return };
+        let everywhere = entity.has_spawnflag(void_game::sound::SF_EVERYWHERE);
+        let origin = entity.origin;
+        // `health` carries the per-entity volume, as Source spells it.
+        let volume = entity.fields.f32("health", 1.0).clamp(0.0, 1.0);
+        let radius = entity.fields.f32("radius", 0.0);
+        let pitch = entity.fields.f32("pitch", 1.0).max(0.01);
+        let looping = entity.fields.bool("looping", true);
+
+        let vfs = self.vfs.clone();
+        let Some(sound) = self.audio.sound(&vfs, name) else { return };
+        let (_, mut params) = self.audio.bank.resolve(name);
+        params.position = (!everywhere).then_some(origin);
+        params.volume *= volume;
+        params.pitch *= pitch;
+        params.looping = looping;
+        if radius > 0.0 {
+            params.max_distance = radius;
+            params.reference_distance = (radius * 0.1).max(16.0);
+        }
+
+        let handle = self.audio.with_mixer(|mixer| mixer.play(sound, params));
+        if let Some(e) = self.entities.get_mut(id) {
+            e.fields.set("__voice", void_entity::Value::Int(handle.0 as i32));
+        }
+    }
+
+    /// Stop whatever an entity started.
+    pub fn stop_entity_sound(&mut self, id: void_entity::EntityId) {
+        let handle = self.entities.get(id).map(|e| e.fields.i32("__voice", 0)).unwrap_or(0);
+        if handle > 0 {
+            self.audio.stop(void_audio::SoundHandle(handle as u64));
+        }
+        if let Some(e) = self.entities.get_mut(id) {
+            e.fields.set("__voice", void_entity::Value::Int(0));
         }
     }
 }

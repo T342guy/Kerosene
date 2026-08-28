@@ -36,7 +36,8 @@ done
 
 echo "==> vault: packing"
 "$BIN/vault" pack content -o void_content.vault \
-    --ext voidtex --ext voidmat --ext voidmdl --ext voidbsp --ext voidscript
+    --ext voidtex --ext voidmat --ext voidmdl --ext voidbsp \
+    --ext voidscript --ext voidsnd --ext wav
 "$BIN/vault" verify void_content.vault
 
 echo

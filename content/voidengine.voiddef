@@ -279,6 +279,32 @@ class
 
 class
 {
+    "name" "ambient_generic"
+    "base" "Entity" "base" "Point"
+    "help" "A sound placed in the world. A hum in a generator room, a drip in a cave. Positioned by default, so it gets quieter and pans as you move around it."
+    key { "name" "message" "label" "Sound" "type" "string"
+          "help" "The name of a sound, as a .voidsnd script defines it -- or a path under sound/ if nothing does." }
+    key { "name" "health" "label" "Volume" "type" "float" "default" "1"
+          "help" "0 to 1. Named `health` as Source names it, which is a historical accident worth matching rather than being alone in." }
+    key { "name" "pitch" "label" "Pitch" "type" "float" "default" "1"
+          "help" "Playback rate. 2 is an octave up and half the length." }
+    key { "name" "radius" "label" "Audible radius" "type" "float" "default" "0"
+          "help" "How far it carries, in void units. 0 uses whatever the sound script says." }
+    key { "name" "looping" "label" "Loops" "type" "bool" "default" "1" }
+    key {
+        "name" "spawnflags" "label" "Flags" "type" "flags" "default" "0"
+        choice { "value" "1" "label" "Starts silent" }
+        choice { "value" "2" "label" "Heard everywhere (not positioned)" }
+    }
+    input  { "name" "PlaySound" }
+    input  { "name" "StopSound" }
+    input  { "name" "Toggle" }
+    input  { "name" "Volume" "parameter" "0 to 1" }
+    output { "name" "OnPlay" }
+}
+
+class
+{
     "name" "logic_script"
     "base" "Entity" "base" "Point"
     "help" "Runs a script. The seam between entity wiring, which is a graph, and the things that are not graphs -- arithmetic, conditions, anything that has to remember more than a counter."

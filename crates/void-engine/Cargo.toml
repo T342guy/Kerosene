@@ -6,6 +6,12 @@ rust-version.workspace = true
 license.workspace = true
 authors.workspace = true
 
+[features]
+# Audio output needs ALSA headers on Linux. The mixer and everything that
+# decides how a sound sounds is on regardless; this is only the last hop.
+default = ["audio"]
+audio = ["void-audio/device"]
+
 [dependencies]
 void-math.workspace = true
 void-bsp.workspace = true
@@ -24,6 +30,7 @@ pollster.workspace = true
 env_logger.workspace = true
 void-game.workspace = true
 void-script.workspace = true
+void-audio.workspace = true
 rhai.workspace = true
 void-kv.workspace = true
 void-map.workspace = true

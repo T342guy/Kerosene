@@ -22,6 +22,7 @@
 //! | `math_counter` | Counts, and fires when it hits a limit |
 //! | `point_message` | Prints to the console |
 //! | `logic_script` | Runs a script function |
+//! | `ambient_generic` | A sound placed in the world |
 //!
 //! Lighting entities (`light`, `light_spot`, `light_environment`) are read by
 //! Radiance at compile time and are inert here, which is why a lit map needs
@@ -30,6 +31,7 @@
 pub mod doors;
 pub mod logic;
 pub mod scripted;
+pub mod sound;
 pub mod triggers;
 
 use std::sync::Arc;
@@ -56,6 +58,7 @@ pub fn register(registry: &mut ClassRegistry) {
     triggers::register(registry);
     logic::register(registry);
     scripted::register(registry);
+    sound::register(registry);
 
     // Inputs every entity understands, as Source makes them.
     registry.register_common_input("Kill", input_kill);

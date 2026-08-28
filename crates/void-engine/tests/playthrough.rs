@@ -598,3 +598,220 @@ fn scripting_is_cheat_protected() {
     assert!(!engine.console.log().any(|l| l.text == "should not run"));
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+// ---- sound ----------------------------------------------------------------
+
+#[test]
+fn the_mixer_runs_whether_or_not_there_is_a_sound_card() {
+    // If audio only existed when a device opened, then how many voices a
+    // trigger starts would differ between a machine with sound and one
+    // without -- and only one of those would ever be tested.
+    use void_engine::audio::AudioSystem;
+    let audio = AudioSystem::silent();
+    assert!(!audio.is_audible());
+    audio.with_mixer(|mixer| {
+        let sound = std::sync::Arc::new(void_audio::Sound {
+            channels: 1,
+            sample_rate: 48_000,
+            samples: vec![1.0; 4800],
+        });
+        mixer.play(sound, void_audio::SoundParams::default());
+        assert_eq!(mixer.voice_count(), 1);
+        let mut out = vec![0.0; 256 * 2];
+        mixer.mix(&mut out);
+        assert!(out.iter().any(|s| *s != 0.0), "silent mode still has to mix");
+    });
+}
+
+/// An engine whose content tree has a sound in it.
+fn engine_with_sound() -> (void_engine::engine::Engine, std::path::PathBuf) {
+    use void_engine::engine::{Engine, EngineConfig};
+
+    let dir = std::env::temp_dir().join(format!(
+        "voidengine-audio-{}-{:?}",
+        std::process::id(),
+        std::thread::current().id()
+    ));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(dir.join("maps")).unwrap();
+    std::fs::create_dir_all(dir.join("sound/test")).unwrap();
+    std::fs::create_dir_all(dir.join("scripts")).unwrap();
+
+    let bsp = build(&corridor_map(true, true));
+    std::fs::write(dir.join("maps/testmap.voidbsp"), bsp.to_bytes()).unwrap();
+    std::fs::write(dir.join("sound/test/beep.wav"), &wav_bytes(4800)).unwrap();
+    std::fs::write(
+        dir.join("scripts/test.voidsnd"),
+        r#" sound { "name" "test/beep" "file" "sound/test/beep.wav" "volume" "0.5" } "#,
+    )
+    .unwrap();
+
+    let engine = Engine::new(&EngineConfig {
+        content_paths: vec![dir.clone()],
+        ..Default::default()
+    });
+    (engine, dir)
+}
+
+/// A minimal 16-bit mono WAV, since the engine reads real files.
+fn wav_bytes(frames: usize) -> Vec<u8> {
+    let data: Vec<u8> = (0..frames).flat_map(|_| 16384i16.to_le_bytes()).collect();
+    let mut out = Vec::new();
+    out.extend_from_slice(b"RIFF");
+    out.extend_from_slice(&(36 + data.len() as u32).to_le_bytes());
+    out.extend_from_slice(b"WAVE");
+    out.extend_from_slice(b"fmt ");
+    out.extend_from_slice(&16u32.to_le_bytes());
+    out.extend_from_slice(&1u16.to_le_bytes());
+    out.extend_from_slice(&1u16.to_le_bytes());
+    out.extend_from_slice(&22050u32.to_le_bytes());
+    out.extend_from_slice(&44100u32.to_le_bytes());
+    out.extend_from_slice(&2u16.to_le_bytes());
+    out.extend_from_slice(&16u16.to_le_bytes());
+    out.extend_from_slice(b"data");
+    out.extend_from_slice(&(data.len() as u32).to_le_bytes());
+    out.extend_from_slice(&data);
+    out
+}
+
+#[test]
+fn sound_scripts_load_with_the_engine() {
+    let (engine, dir) = engine_with_sound();
+    assert!(engine.audio.bank.script().get("test/beep").is_some(), "the script did not load");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_sound_is_decoded_the_first_time_it_is_asked_for() {
+    // On demand rather than up front: a level references a handful of the
+    // sounds a game ships.
+    let (mut engine, dir) = engine_with_sound();
+    assert!(!engine.audio.bank.is_loaded("test/beep"));
+
+    let vfs = engine.vfs.clone();
+    assert!(engine.audio.sound(&vfs, "test/beep").is_some());
+    assert!(engine.audio.bank.is_loaded("test/beep"));
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_sound_that_is_not_there_is_reported_once_and_then_not_again() {
+    // A trigger firing every tick would otherwise fill the console until
+    // nothing else in it is readable.
+    let (mut engine, dir) = engine_with_sound();
+    let vfs = engine.vfs.clone();
+    assert!(engine.audio.sound(&vfs, "nope/missing").is_none());
+    assert!(engine.audio.bank.already_missing("nope/missing"));
+    assert!(engine.audio.sound(&vfs, "nope/missing").is_none());
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn the_play_command_starts_a_voice() {
+    use void_engine::engine::take_console_requests;
+    let (mut engine, dir) = engine_with_sound();
+
+    engine.console.execute("play test/beep");
+    take_console_requests(&mut engine);
+    assert_eq!(engine.audio.with_mixer(|m| m.voice_count()), 1);
+
+    engine.console.execute("stopsound");
+    take_console_requests(&mut engine);
+    assert_eq!(engine.audio.with_mixer(|m| m.voice_count()), 0);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn the_volume_convar_reaches_the_mixer() {
+    let (mut engine, dir) = engine_with_sound();
+    engine.load_map("testmap").unwrap();
+    engine.console.set("volume", "0.25");
+    engine.tick(TICK, &InputState::default());
+    assert!((engine.audio.with_mixer(|m| m.volume) - 0.25).abs() < 1e-6);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn the_listener_follows_the_player() {
+    let (mut engine, dir) = engine_with_sound();
+    engine.load_map("testmap").unwrap();
+
+    let input = InputState { forward: 1.0, view_angles: Angles::ZERO, ..Default::default() };
+    for _ in 0..(2.0 / TICK) as usize { engine.tick(TICK, &input); }
+
+    let ears = engine.audio.with_mixer(|m| m.listener.position);
+    let eye = engine.player.movement.eye_position();
+    assert!((ears - eye).length() < 1.0, "ears at {ears:?}, head at {eye:?}");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn an_ambient_generic_starts_with_the_map_and_can_be_stopped() {
+    use void_entity::InputEvent;
+    let (mut engine, dir) = engine_with_sound();
+    engine.load_map("testmap").unwrap();
+
+    let id = engine.entities.spawn("ambient_generic");
+    engine.entities.get_mut(id).unwrap().fields.set(
+        "message",
+        void_entity::Value::Text("test/beep".into()),
+    );
+    // Spawn runs the class's own start, which is what a map load does.
+    void_game::sound::register(&mut void_entity::ClassRegistry::new());
+    engine.entities.accept_input(id, &InputEvent::new("PlaySound"));
+    engine.take_entity_requests();
+    assert_eq!(engine.audio.with_mixer(|m| m.voice_count()), 1, "it did not start");
+
+    engine.entities.accept_input(id, &InputEvent::new("StopSound"));
+    engine.take_entity_requests();
+    assert_eq!(engine.audio.with_mixer(|m| m.voice_count()), 0, "it did not stop");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn an_ambient_generic_is_heard_from_where_it_is() {
+    use void_entity::InputEvent;
+    let (mut engine, dir) = engine_with_sound();
+    engine.load_map("testmap").unwrap();
+
+    let id = engine.entities.spawn("ambient_generic");
+    {
+        let e = engine.entities.get_mut(id).unwrap();
+        e.fields.set("message", void_entity::Value::Text("test/beep".into()));
+        e.origin = Vec3::new(4000.0, 0.0, 0.0);
+    }
+    engine.entities.accept_input(id, &InputEvent::new("PlaySound"));
+    engine.take_entity_requests();
+
+    // Far away and off to one side: quiet, and not centred.
+    engine.audio.set_listener(Vec3::ZERO, Angles::ZERO.vectors());
+    let mut out = vec![0.0; 512 * 2];
+    engine.audio.with_mixer(|m| m.mix(&mut out));
+    let peak = out.iter().fold(0.0f32, |a, s| a.max(s.abs()));
+    assert!(peak < 0.2, "a sound 4000 units away was loud: {peak}");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_script_can_play_a_sound() {
+    let (mut engine, dir) = engine_with_sound();
+    engine.load_map("testmap").unwrap();
+    engine.run_script(r#" play_sound("test/beep"); "#).unwrap();
+    assert_eq!(engine.audio.with_mixer(|m| m.voice_count()), 1);
+
+    engine.run_script(" stop_sounds(); ").unwrap();
+    assert_eq!(engine.audio.with_mixer(|m| m.voice_count()), 0);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn loading_a_map_silences_the_one_before_it() {
+    let (mut engine, dir) = engine_with_sound();
+    engine.load_map("testmap").unwrap();
+    engine.run_script(r#" play_sound("test/beep"); "#).unwrap();
+    assert_eq!(engine.audio.with_mixer(|m| m.voice_count()), 1);
+
+    engine.load_map("testmap").unwrap();
+    assert_eq!(engine.audio.with_mixer(|m| m.voice_count()), 0, "the last level is still playing");
+    let _ = std::fs::remove_dir_all(&dir);
+}

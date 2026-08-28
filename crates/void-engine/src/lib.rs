@@ -15,6 +15,7 @@
 //! an engine meant to host multiplayer games, so the boundary is enforced by
 //! `Engine` simply not knowing what a surface is.
 
+pub mod audio;
 pub mod console_ui;
 pub mod collision;
 pub mod engine;

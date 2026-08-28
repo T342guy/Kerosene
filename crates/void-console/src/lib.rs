@@ -209,6 +209,12 @@ pub mod requests {
     pub const SCRIPT_FILE: &str = "script_file";
     /// Forget every loaded script and load them again.
     pub const SCRIPT_RELOAD: &str = "script_reload";
+    /// Play a sound by name.
+    pub const PLAY_SOUND: &str = "play_sound";
+    /// Stop every sound.
+    pub const STOP_SOUND: &str = "stop_sound";
+    /// Reopen the audio device and forget every loaded sound.
+    pub const SOUND_RESTART: &str = "sound_restart";
 }
 
 const MAX_EXEC_DEPTH: u32 = 16;

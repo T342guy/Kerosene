@@ -37,6 +37,9 @@ fn main() -> Result<()> {
 
     let parsed = parse_args(&args)?;
     let mut config = EngineConfig {
+        // Headless has no listener, so opening a sound card would be work
+        // nobody can hear.
+        audio: parsed.headless_ticks.is_none(),
         log: Some(log),
         content_paths: parsed.content_paths,
         archives: parsed.archives,

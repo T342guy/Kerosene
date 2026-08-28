@@ -162,13 +162,14 @@ tools/
 apps/
   void            the runtime
 content/          sample art, models, materials and the sample level
-docs/             architecture, formats, tools, scripting, licensing
+docs/             architecture, formats, tools, scripting, audio, licensing
 ```
 
 Read [`docs/architecture.md`](docs/architecture.md) for how the pieces fit,
 [`docs/formats.md`](docs/formats.md) for the file formats, and
 [`docs/tools.md`](docs/tools.md) for the full tool reference.
-[`docs/scripting.md`](docs/scripting.md) covers the script API, and
+[`docs/scripting.md`](docs/scripting.md) covers the script API,
+[`docs/audio.md`](docs/audio.md) sound, and
 [`docs/licensing.md`](docs/licensing.md) the dependency audit and the
 provenance of the algorithms.
 
@@ -194,7 +195,9 @@ Known limits, stated plainly:
   The compiled map in the engine is one keystroke away.
 - **No block compression for textures.** `.voidtex` is uncompressed. A bad BC
   encoder is worse than none.
-- **Sound is not implemented.**
+- **Sound is stereo, and does not know about walls.** Falloff and panning are
+  there; occlusion, reverb and doppler are not, so a sound through a wall is
+  as loud as one in the room.
 
 ## Licence
 
