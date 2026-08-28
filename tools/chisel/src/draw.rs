@@ -43,17 +43,16 @@ pub mod colors {
 /// squares at a glance rather than by dragging along them.
 const MAJOR_EVERY: i64 = 4;
 
-/// The selection's outline, moved by a drag, as world-space polygons.
+/// The selection's outline under an arbitrary transform, as world polygons.
 ///
-/// A move used to show only the rubber band between where the drag started
-/// and where the pointer is, which says nothing about where the thing being
-/// moved will end up. This is the shape it will land in, drawn where it will
-/// land -- the answer to the question a person is actually asking while
-/// dragging.
-///
-/// Point entities come back as a small cross so they are not invisible during
-/// a move, which is the case where guessing is hardest.
-pub fn ghost_outline(document: &Document, delta: Vec3) -> Vec<Vec<Vec3>> {
+/// Both previews come through here -- a move is a translation, a resize is a
+/// scale about an anchor -- because a preview that computed the shape
+/// differently from the edit would be a preview that lies, and the whole
+/// point of drawing one is to be believed.
+pub fn transformed_outline(
+    document: &Document,
+    transform: impl Fn(Vec3) -> Vec3,
+) -> Vec<Vec<Vec3>> {
     let mut polygons = Vec::new();
 
     for (entity, solid) in document.map.all_solids() {
@@ -61,13 +60,13 @@ pub fn ghost_outline(document: &Document, delta: Vec3) -> Vec<Vec<Vec3>> {
             || document.selection.entities.contains(&entity.id);
         if !moving { continue }
         for (_, winding) in solid.face_windings() {
-            polygons.push(winding.points.iter().map(|p| *p + delta).collect());
+            polygons.push(winding.points.iter().map(|p| transform(*p)).collect());
         }
     }
 
     for entity in document.map.entities.iter().filter(|e| e.solids.is_empty()) {
         if !document.selection.entities.contains(&entity.id) { continue }
-        let at = entity.origin() + delta;
+        let at = transform(entity.origin());
         const ARM: f32 = 8.0;
         for axis in 0..3 {
             let mut a = at;
@@ -79,6 +78,25 @@ pub fn ghost_outline(document: &Document, delta: Vec3) -> Vec<Vec<Vec3>> {
     }
 
     polygons
+}
+
+/// The selection's outline, scaled the way a resize drag would scale it.
+pub fn resize_outline(document: &Document, anchor: Vec3, factor: Vec3) -> Vec<Vec<Vec3>> {
+    transformed_outline(document, |p| anchor + (p - anchor) * factor)
+}
+
+/// The selection's outline, moved by a drag, as world-space polygons.
+///
+/// A move used to show only the rubber band between where the drag started
+/// and where the pointer is, which says nothing about where the thing being
+/// moved will end up. This is the shape it will land in, drawn where it will
+/// land -- the answer to the question a person is actually asking while
+/// dragging.
+///
+/// Point entities come back as a small cross so they are not invisible during
+/// a move, which is the case where guessing is hardest.
+pub fn ghost_outline(document: &Document, delta: Vec3) -> Vec<Vec<Vec3>> {
+    transformed_outline(document, |p| p + delta)
 }
 
 /// Stroke world-space polygons into a 2D pane.
@@ -168,6 +186,7 @@ pub fn draw_2d(
     }
 
     draw_leak(painter, rect, viewport, leak);
+    draw_resize_grips(painter, rect, viewport, document, tool);
     draw_tool_preview(painter, rect, viewport, document, tool);
 }
 
@@ -248,6 +267,40 @@ fn draw_solid_outline(
     }
 }
 
+/// The eight grips around the selection, which is how it gets resized.
+///
+/// Only for the select tool, and only when something is selected: a handle
+/// that does nothing when dragged is worse than no handle, and the grips are
+/// also the only thing on screen that says resizing is possible at all.
+fn draw_resize_grips(
+    painter: &Painter,
+    rect: Rect,
+    viewport: &Viewport,
+    document: &Document,
+    tool: &Tool,
+) {
+    if tool.kind != ToolKind::Select { return }
+    let Some(bounds) = document.selection_bounds() else { return };
+    // Hidden mid-drag: the grips describe where the selection is, and during
+    // a drag that is somewhere else.
+    if tool.drag.as_ref().is_some_and(|d| d.is_dragging) { return }
+
+    for grip in crate::tools::Handle::all() {
+        let (x, y) = viewport.world_to_screen(grip.world_position(bounds, viewport));
+        let at = Pos2::new(rect.min.x + x, rect.min.y + y);
+        if !rect.contains(at) { continue }
+
+        let box_ = Rect::from_center_size(at, Vec2::splat(crate::tools::HANDLE_SIZE));
+        painter.rect_filled(box_, 0.0, colors::SELECTED);
+        painter.rect_stroke(
+            box_,
+            0.0,
+            Stroke::new(1.0, Color32::from_rgb(20, 22, 26)),
+            egui::StrokeKind::Middle,
+        );
+    }
+}
+
 /// The rubber band or ghost the current tool is showing.
 fn draw_tool_preview(
     painter: &Painter,
@@ -257,7 +310,38 @@ fn draw_tool_preview(
     tool: &Tool,
 ) {
     let Some(drag) = &tool.drag else { return };
-    if !drag.is_dragging && tool.kind != ToolKind::Block { return; }
+    if !drag.is_dragging && !tool.kind.draws_a_box() { return; }
+
+    // A select drag with a grip in hand is a resize. Show the shape it will
+    // become and the size it will be, because "how big is it now" is the only
+    // question anyone is asking while dragging a handle.
+    if let (Some(grip), Some(from)) = (drag.grip, drag.from) {
+        let minimum = document.grid.size;
+        let Some((anchor, factor)) =
+            crate::tools::resize_factor(from, viewport, grip, drag.current, minimum)
+        else {
+            return;
+        };
+
+        let ghost = resize_outline(document, anchor, factor);
+        stroke_polygons(painter, rect, viewport, &ghost, Stroke::new(1.5, colors::TOOL_PREVIEW));
+
+        let (h, v, _) = viewport.kind.axes();
+        let size = from.size() * factor;
+        let (x, y) = viewport.world_to_screen(drag.current);
+        painter.text(
+            Pos2::new(rect.min.x + x + 10.0, rect.min.y + y + 10.0),
+            egui::Align2::LEFT_TOP,
+            format!(
+                "{} x {}",
+                void_math::units::length_short(size[h].abs()),
+                void_math::units::length_short(size[v].abs()),
+            ),
+            egui::FontId::monospace(11.0),
+            colors::TOOL_PREVIEW,
+        );
+        return;
+    }
 
     // A select drag moves the selection. Show where it is going, not the
     // rectangle the pointer swept out -- the rectangle is not a thing that
@@ -279,6 +363,44 @@ fn draw_tool_preview(
                 void_math::units::length_short(delta[h]),
                 axis_name(v),
                 void_math::units::length_short(delta[v]),
+            ),
+            egui::FontId::monospace(11.0),
+            colors::TOOL_PREVIEW,
+        );
+        return;
+    }
+
+    // The shape tool shows the shape, not the box it is being fitted into.
+    // A rectangle is a poor preview of an arch, and the number of segments is
+    // the thing you most want to see before you commit to it.
+    if tool.kind == ToolKind::Shape {
+        let (min, max) = document.grid.snap_box(drag.bounds().min, drag.bounds().max);
+        let axis = viewport.kind.axes().2;
+        let solids = crate::shapes::build(
+            tool.shape,
+            Aabb::new(min, max),
+            axis,
+            tool.shape_options,
+            "dev/grid",
+        );
+        let outlines: Vec<Vec<Vec3>> = solids
+            .iter()
+            .flat_map(|s| s.face_windings().into_iter().map(|(_, w)| w.points.clone()))
+            .collect();
+        stroke_polygons(painter, rect, viewport, &outlines, Stroke::new(1.0, colors::TOOL_PREVIEW));
+
+        let (h, v, _) = viewport.kind.axes();
+        let size = (max - min).abs();
+        let (x, y) = viewport.world_to_screen(max);
+        painter.text(
+            Pos2::new(rect.min.x + x + 4.0, rect.min.y + y + 4.0),
+            egui::Align2::LEFT_TOP,
+            format!(
+                "{} x {}  {} {}",
+                void_math::units::length_short(size[h]),
+                void_math::units::length_short(size[v]),
+                solids.len(),
+                if solids.len() == 1 { "brush" } else { "brushes" },
             ),
             egui::FontId::monospace(11.0),
             colors::TOOL_PREVIEW,
@@ -551,10 +673,31 @@ pub fn apply_action(document: &mut Document, viewport: &Viewport, action: ToolAc
         ToolAction::CreateBlock(bounds) => {
             document.create_block(bounds.min, bounds.max);
         }
+        ToolAction::CreateShape { bounds, shape, options } => {
+            // Snapped, and along the axis the view cannot see, so a shape
+            // lands on the grid like everything else and stands the way the
+            // pane it was drawn in implies.
+            let (min, max) = document.grid.snap_box(bounds.min, bounds.max);
+            let axis = viewport.kind.axes().2;
+            let material = document.current_material.clone();
+            let solids = crate::shapes::build(shape, Aabb::new(min, max), axis, options, &material);
+            document.create_shape(solids, shape.label());
+        }
         ToolAction::CreateEntity(class, at) => {
             document.create_entity(&class, at);
         }
         ToolAction::Move(delta) => document.move_selection(delta),
+        ToolAction::Resize { from, grip, to } => {
+            // One grid square is the smallest thing worth having: below it a
+            // brush cannot be snapped to anything, and at zero it is a
+            // surface rather than a solid.
+            let minimum = document.grid.size;
+            if let Some((anchor, factor)) =
+                crate::tools::resize_factor(from, viewport, grip, to, minimum)
+            {
+                document.scale_selection(anchor, factor);
+            }
+        }
         ToolAction::ApplyMaterialAt(point) => {
             if let Some(id) = crate::tools::pick_solid_2d(document, point, viewport) {
                 document.selection.clear();
@@ -801,6 +944,213 @@ mod tests {
         let bounds = framing_bounds(&document);
         assert_eq!(bounds.max, Vec3::splat(64.0));
     }
+
+    // ---- the resize ------------------------------------------------------
+
+    #[test]
+    fn a_resize_action_scales_the_selection_and_holds_the_far_side_still() {
+        let (mut document, a, _) = two_brushes();
+        document.selection.solids.insert(a);
+        let viewport = Viewport { size: (800.0, 600.0), zoom: 1.0, ..Viewport::new(ViewportKind::Top) };
+        let from = document.selection_bounds().unwrap();
+
+        apply_action(&mut document, &viewport, ToolAction::Resize {
+            from,
+            grip: crate::tools::Handle { h: 1, v: 1 },
+            to: Vec3::new(128.0, 128.0, 0.0),
+        });
+
+        let after = document.selection_bounds().unwrap();
+        assert_eq!(after.min, Vec3::ZERO, "the anchored corner stayed put");
+        assert_eq!(after.max, Vec3::new(128.0, 128.0, 64.0), "z is not on screen and did not move");
+    }
+
+    #[test]
+    fn a_resize_is_one_undo_step() {
+        let (mut document, a, _) = two_brushes();
+        document.selection.solids.insert(a);
+        let viewport = Viewport { size: (800.0, 600.0), zoom: 1.0, ..Viewport::new(ViewportKind::Top) };
+        let before = document.selection_bounds().unwrap();
+
+        apply_action(&mut document, &viewport, ToolAction::Resize {
+            from: before,
+            grip: crate::tools::Handle { h: 1, v: 1 },
+            to: Vec3::new(128.0, 128.0, 0.0),
+        });
+        assert_eq!(document.undo_label(), Some("resize"));
+
+        document.undo();
+        assert_eq!(document.selection_bounds().unwrap(), before, "undo puts it back exactly");
+    }
+
+    #[test]
+    fn a_resize_leaves_everything_that_is_not_selected_alone() {
+        let (mut document, a, b) = two_brushes();
+        document.selection.solids.insert(a);
+        let viewport = Viewport { size: (800.0, 600.0), zoom: 1.0, ..Viewport::new(ViewportKind::Top) };
+        let untouched = document.find_solid(b).unwrap().bounds();
+        let from = document.selection_bounds().unwrap();
+
+        apply_action(&mut document, &viewport, ToolAction::Resize {
+            from,
+            grip: crate::tools::Handle { h: 1, v: 1 },
+            to: Vec3::new(512.0, 512.0, 0.0),
+        });
+
+        assert_eq!(document.find_solid(b).unwrap().bounds(), untouched);
+    }
+
+    #[test]
+    fn a_resized_brush_is_still_a_brush_the_compiler_will_take() {
+        let (mut document, a, _) = two_brushes();
+        document.selection.solids.insert(a);
+        let viewport = Viewport { size: (800.0, 600.0), zoom: 1.0, ..Viewport::new(ViewportKind::Front) };
+        let from = document.selection_bounds().unwrap();
+
+        apply_action(&mut document, &viewport, ToolAction::Resize {
+            from,
+            grip: crate::tools::Handle { h: -1, v: 1 },
+            to: Vec3::new(-256.0, 0.0, 192.0),
+        });
+
+        assert!(document.problems().is_empty(), "{:?}", document.problems());
+    }
+
+    #[test]
+    fn the_resize_preview_is_the_shape_the_resize_will_produce() {
+        // A preview computed differently from the edit is a preview that
+        // lies, and the only reason to draw one is to be believed.
+        let (mut document, a, _) = two_brushes();
+        document.selection.solids.insert(a);
+        let viewport = Viewport { size: (800.0, 600.0), zoom: 1.0, ..Viewport::new(ViewportKind::Top) };
+        let from = document.selection_bounds().unwrap();
+        let grip = crate::tools::Handle { h: 1, v: 1 };
+        let to = Vec3::new(128.0, 128.0, 0.0);
+
+        let (anchor, factor) = crate::tools::resize_factor(from, &viewport, grip, to, 16.0).unwrap();
+        let preview = resize_outline(&document, anchor, factor);
+        let predicted = bounds_of(&preview);
+
+        apply_action(&mut document, &viewport, ToolAction::Resize { from, grip, to });
+        assert_eq!(predicted, document.selection_bounds().unwrap());
+    }
+
+    /// The extent of a set of preview polygons.
+    fn bounds_of(polygons: &[Vec<Vec3>]) -> Aabb {
+        let mut bounds = Aabb::EMPTY;
+        for polygon in polygons {
+            for p in polygon { bounds.add_point(*p); }
+        }
+        bounds
+    }
+
+    #[test]
+    fn drawing_an_arch_makes_a_group_of_brushes_in_one_undo_step() {
+        let mut document = Document::new();
+        document.grid.size = 16.0;
+        document.map.world.solids.clear();
+        let viewport = Viewport { size: (800.0, 600.0), zoom: 1.0, ..Viewport::new(ViewportKind::Top) };
+
+        apply_action(&mut document, &viewport, ToolAction::CreateShape {
+            bounds: Aabb::new(Vec3::ZERO, Vec3::splat(256.0)),
+            shape: crate::shapes::Shape::Arch,
+            options: crate::shapes::Options { sides: 8, ..Default::default() },
+        });
+
+        assert_eq!(document.map.world.solids.len(), 8);
+        assert_eq!(document.selection.solids.len(), 8, "and it is selected, ready to be moved");
+        assert!(document.problems().is_empty(), "{:?}", document.problems());
+
+        // One press of ctrl-Z takes back the whole arch.
+        document.undo();
+        assert!(document.map.world.solids.is_empty());
+    }
+
+    #[test]
+    fn a_shape_stands_the_way_the_pane_it_was_drawn_in_implies() {
+        let bounds = Aabb::new(Vec3::ZERO, Vec3::splat(256.0));
+        let make = |kind: ViewportKind| {
+            let mut document = Document::new();
+            document.grid.size = 16.0;
+            document.map.world.solids.clear();
+            let viewport = Viewport { size: (800.0, 600.0), zoom: 1.0, ..Viewport::new(kind) };
+            apply_action(&mut document, &viewport, ToolAction::CreateShape {
+                bounds,
+                shape: crate::shapes::Shape::Cylinder,
+                options: crate::shapes::Options::default(),
+            });
+            document.map.world.solids[0].bounds().size()
+        };
+
+        // Drawn from above, a cylinder stands up: full height on z, inscribed
+        // on x and y. Drawn from the front it is a pipe lying along y.
+        let standing = make(ViewportKind::Top);
+        assert_eq!(standing.z, 256.0);
+        assert!(standing.x < 256.0);
+
+        let lying = make(ViewportKind::Front);
+        assert_eq!(lying.y, 256.0);
+        assert!(lying.z < 256.0);
+    }
+
+    #[test]
+    fn a_shape_takes_the_material_the_editor_is_set_to() {
+        let mut document = Document::new();
+        document.grid.size = 16.0;
+        document.map.world.solids.clear();
+        document.current_material = "tools/clip".into();
+        let viewport = Viewport { size: (800.0, 600.0), zoom: 1.0, ..Viewport::new(ViewportKind::Top) };
+
+        apply_action(&mut document, &viewport, ToolAction::CreateShape {
+            bounds: Aabb::new(Vec3::ZERO, Vec3::splat(256.0)),
+            shape: crate::shapes::Shape::Cylinder,
+            options: crate::shapes::Options::default(),
+        });
+
+        let solid = &document.map.world.solids[0];
+        assert!(solid.sides.iter().all(|s| s.material == "tools/clip"));
+    }
+
+    #[test]
+    fn a_flat_drag_becomes_a_shape_one_grid_unit_deep() {
+        // Drawing in a 2D pane gives no depth, so the grid supplies one. The
+        // same rule the block tool uses, for the same reason: a drag that
+        // produced nothing would look like a broken tool.
+        let mut document = Document::new();
+        document.grid.size = 16.0;
+        document.map.world.solids.clear();
+        let viewport = Viewport { size: (800.0, 600.0), zoom: 1.0, ..Viewport::new(ViewportKind::Top) };
+
+        apply_action(&mut document, &viewport, ToolAction::CreateShape {
+            bounds: Aabb::new(Vec3::ZERO, Vec3::new(256.0, 256.0, 0.0)),
+            shape: crate::shapes::Shape::Cylinder,
+            options: crate::shapes::Options::default(),
+        });
+
+        assert_eq!(document.map.world.solids.len(), 1);
+        assert_eq!(document.map.world.solids[0].bounds().size().z, 16.0);
+        assert!(document.problems().is_empty(), "{:?}", document.problems());
+    }
+
+    #[test]
+    fn a_shape_with_no_room_to_exist_leaves_the_map_alone() {
+        // With snapping off there is nothing to round a flat drag up to, and
+        // a brush enclosing no volume is not a brush.
+        let mut document = Document::new();
+        document.grid.snap = false;
+        document.map.world.solids.clear();
+        let viewport = Viewport { size: (800.0, 600.0), zoom: 1.0, ..Viewport::new(ViewportKind::Top) };
+
+        apply_action(&mut document, &viewport, ToolAction::CreateShape {
+            bounds: Aabb::new(Vec3::ZERO, Vec3::new(256.0, 256.0, 0.0)),
+            shape: crate::shapes::Shape::Cylinder,
+            options: crate::shapes::Options::default(),
+        });
+
+        assert!(document.map.world.solids.is_empty());
+        assert_eq!(document.undo_depth(), 0, "and nothing to undo");
+    }
+
 }
 
 #[cfg(test)]
@@ -1106,4 +1456,5 @@ mod view_tests {
         let faces = visible_faces(&document, viewport.eye, viewport.angles.vectors());
         assert!(!faces.is_empty(), "the default 3D view shows nothing");
     }
+
 }

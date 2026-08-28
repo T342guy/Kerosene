@@ -14,7 +14,18 @@ chisel [map.voidmap] [--content <dir>] [--no-build]
 `maps/`, `materials/` and the `.voiddef` class definitions -- to show entity
 classes and materials at all. The search lives in `void-vfs` and every tool
 and the engine share it, so they cannot disagree about which tree is in use.
-It looks in this order: `--content` if given,
+
+The reliable way to settle it is a **project file**: a `.voidproj` at the top
+of a project naming its content directory. See [formats](formats.md#voidproj).
+Without one, the tree is inferred, which works and is why a fresh clone needs
+no setup -- but inference is a guess, and a project file is how you overrule
+it. Three places are searched, nearest first: the tree the map lives in, the
+working directory, and the directory the executable is in. In each of them a
+project file wins over a guess, even a guess found closer down; between them,
+nearness decides. So a map sitting in a content tree of its own is not claimed
+by a project on the far side of the disk.
+
+Failing a project file, each place is searched like this: `--content` if given,
 then beside the map being opened, then the working directory, then beside its
 own executable, climbing up to six levels from each looking for a directory
 holding `voidengine.voiddef` (or, failing that, both `maps/` and `materials/`).
@@ -68,7 +79,7 @@ bars between the panes to resize them.
 
 | Key | |
 |---|---|
-| `1` `2` `3` `4` | select, block, entity, texture tool |
+| `1` `2` `3` `4` `5` | select, block, entity, texture, shape tool |
 | `[` `]` | finer / coarser grid |
 | `Ctrl+Z` / `Ctrl+Shift+Z` | undo / redo |
 | `Ctrl+S` | save (asks for a name the first time) |
@@ -87,10 +98,47 @@ bars between the panes to resize them.
 | Middle-drag | pan |
 | Scroll | zoom about the pointer |
 | Shift-click | add to or remove from the selection |
+| Drag a grip | resize the selection |
 
 Keys only reach the pane the pointer is over, and none of them fire while a
 property field has the keyboard -- naming an entity `wasd_door` should not fly
 the camera across the level.
+
+**Resizing.** Something selected in a 2D pane wears eight grips: four corners
+and four edge midpoints. Drag a corner to scale both axes at once, an edge to
+scale one; the opposite grip holds still, so the selection grows away from
+where you are pulling rather than wandering across the level. The axis the
+pane cannot see is left alone. Dragging a grip past the far side stops at one
+grid square instead of turning the brush inside out — an inverted brush is not
+a small brush, it is a hole in the world that compiles cleanly. The preview
+shows the shape it will become and its new size while you drag. The texture
+stays put in world space rather than stretching, so making a wall twice as
+wide tiles the bricks twice instead of drawing bricks twice the size.
+
+**Shapes that are not boxes.** A brush is a convex solid and no convex solid
+is curved, so an archway cannot be one brush. It is several, arranged to read
+as a curve — which is miserable to do by hand and is why people give up on
+curves. The **shape** tool (`5`) generates them: drag a box in a 2D pane the
+way you would with the block tool, and it fills it.
+
+| Shape | |
+|---|---|
+| wedge | A ramp: a box with one top edge pulled down to the floor. One brush. |
+| cylinder | A pillar or a pipe. One brush however many sides — a convex polygon swept along a line is still convex. |
+| cone | A spike or a pyramid. One brush. |
+| arch | A doorway, a tunnel mouth, a round window: a fan of brushes, one per segment. |
+| stairs | Solid steps, one brush each. Solid rather than hollow, because a player falls through thin treads when a physics tick lands between two of them. |
+
+The pane you draw in decides which way the shape stands: a cylinder drawn from
+above is a pillar, the same drag in the front view is a pipe lying across the
+room. Sides, arc and wall thickness are on the left, and only the ones the
+chosen shape uses are shown. The preview draws the actual shape and the number
+of brushes it will cost, not the box it is being fitted into. A whole arch is
+one undo step.
+
+`cargo run -p chisel --example shape_sheet -- shapes.png` renders every shape
+in both orientations. Geometry has a way of being valid and still wrong; a
+test can say the brushes are solid, only a picture can say they are an arch.
 
 **Building a level.** Draw brushes with the block tool in a 2D view; they snap
 to the grid, outward, so a brush is never smaller than the rubber band. Pick a
@@ -337,6 +385,48 @@ work in metres — `--scale-metres` converts.
 Welding is by the full corner tuple, not by position: two faces meeting at a
 hard edge legitimately share a position while needing different normals, and
 merging them rounds off every corner of the model.
+
+---
+
+## Kiln — building a project
+
+```sh
+kiln                              # build everything, from here
+kiln --content path/to/content    # or from there
+kiln --only maps --fast           # just relight, quickly
+kiln --only textures              # after adding art
+kiln --dry-run                    # say what would run
+kiln --tools                      # which compilers can be found
+```
+
+Runs the whole content pipeline over a project: the texture build, then models
+through Forge, then every map through Cleave, Umbra and Radiance, then the
+pack into a `.vault`.
+
+It is a program rather than a shell script for one reason, and it is the
+reason that matters: **a script is not shipped**. Install the tools, or copy
+them somewhere, and the thing that knows how to *use* them stays behind in a
+git checkout — so the first thing anyone does with a fresh copy of the
+toolchain is discover the build step is missing. Kiln installs beside the
+compilers it drives, finds them beside itself, and needs no shell.
+
+The compilers stay separate programs and Kiln shells out to them, exactly as
+Chisel does. You can still run any stage by hand or from a build server. Only
+the texture build is a library call, because Chisel makes the same one and the
+two must not be able to disagree.
+
+Sources decide what gets built: every `.obj` under `art/` becomes a
+`.voidmdl` at the matching path under `models/`, and every `.voidmap` under
+`maps/` becomes a `.voidbsp`. Nothing has a list to keep up to date.
+
+A map that leaks still compiles, and is reported at the end rather than
+stopping the build — finding out on the first of forty maps that the run is
+over is not a service. The archive is named after the project and written
+inside the content tree, which is where the engine looks for it.
+
+`scripts/build-content.sh` in this repository is a thin wrapper: it builds the
+tools from source and regenerates the sample map from the code that defines
+it, then calls Kiln. Neither of those two belongs in a shipped tool.
 
 ---
 

@@ -27,6 +27,7 @@ pub mod grid;
 pub mod inspector;
 pub mod leak;
 pub mod raster;
+pub mod shapes;
 pub mod textures;
 pub mod tools;
 pub mod viewport;

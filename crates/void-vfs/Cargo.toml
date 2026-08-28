@@ -8,5 +8,6 @@ authors.workspace = true
 
 [dependencies]
 anyhow.workspace = true
+void-kv.workspace = true
 thiserror.workspace = true
 log.workspace = true

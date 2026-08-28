@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: LGPL-3.0-or-later
-//! The editing tools: select, block, entity, texture.
+//! The editing tools: select, block, shape, entity, texture.
 //!
 //! Each tool is a small state machine over a drag. Keeping them here, away
 //! from the UI, means "what does dragging in the block tool do" is a question
@@ -16,6 +16,8 @@ pub enum ToolKind {
     Select,
     /// Drag out a box brush.
     Block,
+    /// Drag out something that is not a box: a wedge, a cylinder, an arch.
+    Shape,
     /// Click to place a point entity.
     Entity,
     /// Click a face to apply the current material.
@@ -27,6 +29,7 @@ impl ToolKind {
         match self {
             ToolKind::Select => "select",
             ToolKind::Block => "block",
+            ToolKind::Shape => "shape",
             ToolKind::Entity => "entity",
             ToolKind::Texture => "texture",
         }
@@ -36,13 +39,22 @@ impl ToolKind {
         match self {
             ToolKind::Select => "1",
             ToolKind::Block => "2",
+            ToolKind::Shape => "5",
             ToolKind::Entity => "3",
             ToolKind::Texture => "4",
         }
     }
 
-    pub fn all() -> [ToolKind; 4] {
-        [ToolKind::Select, ToolKind::Block, ToolKind::Entity, ToolKind::Texture]
+    /// Every tool, in the order the toolbar lists them -- which is the order
+    /// their shortcuts run in, so the list reads 1, 2, 3, 4, 5 down the side
+    /// rather than sending the eye hunting for the number it wants.
+    pub fn all() -> [ToolKind; 5] {
+        [ToolKind::Select, ToolKind::Block, ToolKind::Entity, ToolKind::Texture, ToolKind::Shape]
+    }
+
+    /// Whether this tool draws a box out and turns it into geometry.
+    pub fn draws_a_box(self) -> bool {
+        matches!(self, ToolKind::Block | ToolKind::Shape)
     }
 }
 
@@ -54,6 +66,19 @@ pub struct Drag {
     /// Whether the drag has moved far enough to count as a drag rather than a
     /// click. Without a threshold, every click nudges what it selects.
     pub is_dragging: bool,
+    /// The resize grip this drag took hold of, if it started on one.
+    ///
+    /// Decided at the press and then fixed: working it out afresh each frame
+    /// would let a drag change its mind about what it was doing as the
+    /// selection moved under the pointer.
+    pub grip: Option<Handle>,
+    /// The selection's extent when the drag began.
+    ///
+    /// A resize is a ratio against the size it started at, so the size it
+    /// started at has to be remembered. Reading it live would compound every
+    /// frame's scaling into the next -- a drag of a few pixels would grow the
+    /// brush without limit.
+    pub from: Option<Aabb>,
 }
 
 impl Drag {
@@ -62,6 +87,9 @@ impl Drag {
     }
 
     pub fn delta(&self) -> Vec3 { self.current - self.start }
+
+    /// Whether this drag is resizing rather than moving.
+    pub fn is_resize(&self) -> bool { self.grip.is_some() }
 }
 
 /// Pixels a pointer must travel before a click becomes a drag.
@@ -76,11 +104,19 @@ pub struct Tool {
     drag_origin_px: (f32, f32),
     /// Class placed by the entity tool.
     pub entity_class: String,
+    /// What the shape tool draws.
+    pub shape: crate::shapes::Shape,
+    /// How many sides it has, how far round it goes, how thick its wall is.
+    pub shape_options: crate::shapes::Options,
 }
 
 impl Tool {
     pub fn new() -> Tool {
-        Tool { entity_class: "info_player_start".to_string(), ..Default::default() }
+        Tool {
+            entity_class: "info_player_start".to_string(),
+            shape_options: crate::shapes::Options::default(),
+            ..Default::default()
+        }
     }
 
     pub fn set_kind(&mut self, kind: ToolKind) {
@@ -94,7 +130,25 @@ impl Tool {
         let depth = default_depth(document, viewport);
         let world = document.grid.snap_point(viewport.screen_to_world(x, y, depth));
         self.drag_origin_px = (x, y);
-        self.drag = Some(Drag { start: world, current: world, is_dragging: false });
+
+        // Pressing on one of the selection's grips resizes it; pressing
+        // anywhere else does what it always did. Only the select tool, and
+        // only in a 2D pane: a resize needs two axes on screen and a third
+        // that holds still, which is exactly what an orthographic view is.
+        let (grip, from) = match (self.kind, document.selection_bounds()) {
+            (ToolKind::Select, Some(bounds)) if viewport.kind.is_2d() => {
+                (handle_at(bounds, viewport, x, y), Some(bounds))
+            }
+            _ => (None, None),
+        };
+
+        self.drag = Some(Drag {
+            start: world,
+            current: world,
+            is_dragging: false,
+            grip,
+            from: grip.and(from),
+        });
     }
 
     /// Pointer moved while held.
@@ -115,15 +169,25 @@ impl Tool {
                 if !drag.is_dragging { return None; }
                 ToolAction::CreateBlock(drag.bounds())
             }
-            ToolKind::Entity => ToolAction::CreateEntity(self.entity_class.clone(), drag.start),
-            ToolKind::Texture => ToolAction::ApplyMaterialAt(drag.start),
-            ToolKind::Select => {
-                if drag.is_dragging {
-                    ToolAction::Move(drag.delta())
-                } else {
-                    ToolAction::PickAt(drag.start, add_to_selection)
+            ToolKind::Shape => {
+                if !drag.is_dragging { return None; }
+                ToolAction::CreateShape {
+                    bounds: drag.bounds(),
+                    shape: self.shape,
+                    options: self.shape_options,
                 }
             }
+            ToolKind::Entity => ToolAction::CreateEntity(self.entity_class.clone(), drag.start),
+            ToolKind::Texture => ToolAction::ApplyMaterialAt(drag.start),
+            ToolKind::Select => match (drag.grip, drag.from) {
+                (Some(grip), Some(from)) if drag.is_dragging => {
+                    ToolAction::Resize { from, grip, to: drag.current }
+                }
+                _ if drag.is_dragging => ToolAction::Move(drag.delta()),
+                // A click on a grip with no drag behind it is a click, and
+                // clicking is how you select something else.
+                _ => ToolAction::PickAt(drag.start, add_to_selection),
+            },
         })
     }
 
@@ -134,11 +198,157 @@ impl Tool {
 #[derive(Clone, Debug, PartialEq)]
 pub enum ToolAction {
     CreateBlock(Aabb),
+    /// Fill a box with something that is not a box.
+    ///
+    /// The shape and its settings ride along rather than being read back off
+    /// the tool, so the action is a complete description of what to do -- and
+    /// so a test can ask for an arch without building a Tool to hold the
+    /// request.
+    CreateShape {
+        bounds: Aabb,
+        shape: crate::shapes::Shape,
+        options: crate::shapes::Options,
+    },
+    /// Resize the selection by dragging one of its grips somewhere.
+    ///
+    /// Carries where the selection started rather than a finished scale
+    /// factor, so the ratio is worked out once, against the size the drag
+    /// began at, by the code that has the viewport to work it out in.
+    Resize { from: Aabb, grip: Handle, to: Vec3 },
     CreateEntity(String, Vec3),
     ApplyMaterialAt(Vec3),
     Move(Vec3),
     /// Select whatever is at this point; `true` adds to the selection.
     PickAt(Vec3, bool),
+}
+
+/// One of the eight grips around a selection, for resizing it.
+///
+/// Named by which way it lies from the centre in the view's own two axes:
+/// `(-1, -1)` is the corner nearest the origin of the pane, `(1, 0)` the
+/// middle of the right edge. `(0, 0)` is not a handle -- that is the inside
+/// of the box, which means move.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct Handle {
+    pub h: i8,
+    pub v: i8,
+}
+
+/// How close, in pixels, the pointer must be to grab a handle.
+///
+/// Generous, because the alternative is a resize that only starts on about
+/// one attempt in three, and because missing a handle costs nothing: the
+/// press falls through to a move, which is undoable and obvious.
+pub const HANDLE_GRAB: f32 = 7.0;
+
+/// How big the drawn grips are, in pixels.
+pub const HANDLE_SIZE: f32 = 8.0;
+
+impl Handle {
+    /// The eight grips, corners and edge midpoints.
+    pub fn all() -> impl Iterator<Item = Handle> {
+        [-1i8, 0, 1]
+            .into_iter()
+            .flat_map(|h| [-1i8, 0, 1].into_iter().map(move |v| Handle { h, v }))
+            .filter(|grip| !(grip.h == 0 && grip.v == 0))
+    }
+
+    /// Where this grip sits in the world, given what is selected.
+    pub fn world_position(self, bounds: Aabb, viewport: &Viewport) -> Vec3 {
+        let (h, v, _) = viewport.kind.axes();
+        let mut at = bounds.center();
+        at[h] = pick(bounds.min[h], bounds.max[h], self.h);
+        at[v] = pick(bounds.min[v], bounds.max[v], self.v);
+        at
+    }
+
+    /// The grip opposite this one -- the corner a drag pivots about.
+    ///
+    /// Dragging the right edge must hold the left edge still. Anything else
+    /// and the brush walks across the level while you resize it.
+    pub fn opposite(self) -> Handle {
+        Handle { h: -self.h, v: -self.v }
+    }
+
+    /// A short description, for the status bar.
+    pub fn label(self) -> &'static str {
+        match (self.h, self.v) {
+            (0, _) | (_, 0) => "edge",
+            _ => "corner",
+        }
+    }
+}
+
+fn pick(min: f32, max: f32, side: i8) -> f32 {
+    match side {
+        -1 => min,
+        1 => max,
+        _ => (min + max) * 0.5,
+    }
+}
+
+/// The grip nearest a screen point, if the pointer is close enough to one.
+///
+/// Corners are tested before edges, because at small zoom levels a corner
+/// grip and two edge grips overlap and the corner is the one that does what
+/// you meant.
+pub fn handle_at(bounds: Aabb, viewport: &Viewport, x: f32, y: f32) -> Option<Handle> {
+    let mut best: Option<(f32, Handle)> = None;
+    for grip in Handle::all() {
+        let (hx, hy) = viewport.world_to_screen(grip.world_position(bounds, viewport));
+        let distance = ((hx - x).powi(2) + (hy - y).powi(2)).sqrt();
+        if distance > HANDLE_GRAB { continue }
+
+        // A corner beats an edge at equal distance; otherwise nearest wins.
+        let corner = grip.h != 0 && grip.v != 0;
+        let ranked = if corner { distance - 0.001 } else { distance };
+        if best.is_none_or(|(previous, _)| ranked < previous) {
+            best = Some((ranked, grip));
+        }
+    }
+    best.map(|(_, grip)| grip)
+}
+
+/// The scale a resize drag asks for, and the point it pivots about.
+///
+/// Returns `None` when the drag would collapse the selection to nothing.
+/// Nothing is not a size: a brush of zero thickness still exists, still
+/// compiles, and is invisible in every view -- so the drag is refused at one
+/// grid square rather than allowed to produce one.
+pub fn resize_factor(
+    bounds: Aabb,
+    viewport: &Viewport,
+    grip: Handle,
+    to: Vec3,
+    minimum: f32,
+) -> Option<(Vec3, Vec3)> {
+    let (h, v, _) = viewport.kind.axes();
+    let anchor = grip.opposite().world_position(bounds, viewport);
+    let mut factor = Vec3::ONE;
+
+    for (axis, side) in [(h, grip.h), (v, grip.v)] {
+        if side == 0 { continue }
+        let was = pick(bounds.min[axis], bounds.max[axis], side) - anchor[axis];
+        if was.abs() < f32::EPSILON {
+            // The selection is already flat on this axis, so there is no
+            // ratio to scale by. Leaving it alone beats dividing by zero.
+            continue;
+        }
+        let now = to[axis] - anchor[axis];
+        // Dragged past the anchor, or squeezed below the smallest useful
+        // size: either way the answer is the minimum, on the side it started.
+        // The factor therefore stays positive, so the selection can be made
+        // very small but never pulled inside out -- and an inverted brush is
+        // not a small brush, it is a hole in the world that compiles.
+        let size = if now.signum() == was.signum() {
+            now.abs().max(minimum)
+        } else {
+            minimum
+        };
+        factor[axis] = size / was.abs();
+    }
+
+    (factor != Vec3::ONE).then_some((anchor, factor))
 }
 
 /// Depth to place new geometry at along a 2D view's hidden axis.
@@ -411,6 +621,232 @@ mod tests {
             assert!(!kind.shortcut().is_empty());
         }
     }
+
+    // ---- resize grips ------------------------------------------------------
+
+    /// A document with one 128-unit box selected, and a top view of it.
+    fn with_a_selected_box() -> (Document, Viewport, Aabb) {
+        let (mut document, viewport) = setup();
+        let bounds = Aabb::new(Vec3::ZERO, Vec3::splat(128.0));
+        let id = document.create_block(bounds.min, bounds.max);
+        document.selection.clear();
+        document.selection.solids.insert(id);
+        (document, viewport, bounds)
+    }
+
+    #[test]
+    fn every_grip_is_a_side_or_a_corner_and_never_the_middle() {
+        let grips: Vec<Handle> = Handle::all().collect();
+        assert_eq!(grips.len(), 8);
+        assert!(!grips.contains(&Handle { h: 0, v: 0 }), "the middle is a move, not a resize");
+        assert_eq!(grips.iter().filter(|g| g.h != 0 && g.v != 0).count(), 4, "four corners");
+        assert_eq!(grips.iter().filter(|g| g.h == 0 || g.v == 0).count(), 4, "four edges");
+    }
+
+    #[test]
+    fn a_grip_sits_where_the_selection_does() {
+        let (_, viewport, bounds) = with_a_selected_box();
+        // Top view: horizontal is x, vertical is y.
+        let corner = Handle { h: -1, v: -1 }.world_position(bounds, &viewport);
+        assert_eq!(corner.x, 0.0);
+        assert_eq!(corner.y, 0.0);
+
+        let right_edge = Handle { h: 1, v: 0 }.world_position(bounds, &viewport);
+        assert_eq!(right_edge.x, 128.0);
+        assert_eq!(right_edge.y, 64.0, "the middle of the edge, not a corner");
+    }
+
+    #[test]
+    fn every_grip_has_an_opposite_that_is_the_one_across_from_it() {
+        for grip in Handle::all() {
+            assert_eq!(grip.opposite().opposite(), grip);
+            assert_ne!(grip.opposite(), grip, "nothing is its own anchor");
+        }
+    }
+
+    #[test]
+    fn pressing_on_a_grip_takes_hold_of_it() {
+        let (document, viewport, bounds) = with_a_selected_box();
+        let mut tool = Tool::new();
+        let (x, y) = viewport.world_to_screen(Handle { h: 1, v: 1 }.world_position(bounds, &viewport));
+
+        tool.press(&document, &viewport, x, y);
+        assert_eq!(tool.drag.unwrap().grip, Some(Handle { h: 1, v: 1 }));
+        assert!(tool.drag.unwrap().is_resize());
+    }
+
+    #[test]
+    fn pressing_in_the_middle_of_the_selection_is_still_a_move() {
+        let (document, viewport, bounds) = with_a_selected_box();
+        let mut tool = Tool::new();
+        let (x, y) = viewport.world_to_screen(bounds.center());
+
+        tool.press(&document, &viewport, x, y);
+        assert_eq!(tool.drag.unwrap().grip, None);
+    }
+
+    #[test]
+    fn only_the_select_tool_has_grips() {
+        // Dragging a corner with the block tool draws a brush there, which is
+        // what the block tool is for.
+        let (document, viewport, bounds) = with_a_selected_box();
+        let mut tool = Tool { kind: ToolKind::Block, ..Tool::new() };
+        let (x, y) = viewport.world_to_screen(Handle { h: 1, v: 1 }.world_position(bounds, &viewport));
+
+        tool.press(&document, &viewport, x, y);
+        assert_eq!(tool.drag.unwrap().grip, None);
+    }
+
+    #[test]
+    fn dragging_a_grip_asks_for_a_resize() {
+        let (document, viewport, bounds) = with_a_selected_box();
+        let mut tool = Tool::new();
+        let (x, y) = viewport.world_to_screen(Handle { h: 1, v: 1 }.world_position(bounds, &viewport));
+
+        tool.press(&document, &viewport, x, y);
+        tool.drag_to(&document, &viewport, x + 128.0, y - 128.0);
+
+        match tool.release(false) {
+            Some(ToolAction::Resize { from, grip, .. }) => {
+                assert_eq!(from, bounds);
+                assert_eq!(grip, Handle { h: 1, v: 1 });
+            }
+            other => panic!("expected a resize, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_click_on_a_grip_selects_rather_than_resizing_by_nothing() {
+        let (document, viewport, bounds) = with_a_selected_box();
+        let mut tool = Tool::new();
+        let (x, y) = viewport.world_to_screen(Handle { h: 1, v: 1 }.world_position(bounds, &viewport));
+
+        tool.press(&document, &viewport, x, y);
+        assert!(matches!(tool.release(false), Some(ToolAction::PickAt(..))));
+    }
+
+    #[test]
+    fn dragging_a_corner_scales_both_axes_about_the_far_corner() {
+        let (_, viewport, bounds) = with_a_selected_box();
+        let grip = Handle { h: 1, v: 1 };
+        let to = Vec3::new(256.0, 256.0, 0.0);
+
+        let (anchor, factor) = resize_factor(bounds, &viewport, grip, to, 16.0).unwrap();
+        assert_eq!(anchor, Vec3::new(0.0, 0.0, 64.0), "the opposite corner holds still");
+        assert_eq!(factor.x, 2.0);
+        assert_eq!(factor.y, 2.0);
+        assert_eq!(factor.z, 1.0, "the axis the view cannot see is untouched");
+    }
+
+    #[test]
+    fn dragging_an_edge_scales_only_that_axis() {
+        let (_, viewport, bounds) = with_a_selected_box();
+        let grip = Handle { h: 1, v: 0 };
+        let to = Vec3::new(64.0, 999.0, 0.0);
+
+        let (_, factor) = resize_factor(bounds, &viewport, grip, to, 16.0).unwrap();
+        assert_eq!(factor.x, 0.5);
+        assert_eq!(factor.y, 1.0, "an edge grip does not touch the other axis");
+    }
+
+    #[test]
+    fn dragging_a_grip_past_the_far_side_stops_at_the_smallest_size() {
+        // Otherwise the brush turns inside out on the way through, which
+        // compiles and produces a hole in the world.
+        let (_, viewport, bounds) = with_a_selected_box();
+        let grip = Handle { h: 1, v: 1 };
+        let to = Vec3::new(-500.0, -500.0, 0.0);
+
+        let (anchor, factor) = resize_factor(bounds, &viewport, grip, to, 16.0).unwrap();
+        assert!(factor.x > 0.0 && factor.y > 0.0, "never inverted: {factor:?}");
+        let size = bounds.size() * factor;
+        assert_eq!(size.x, 16.0, "clamped to one grid square");
+        assert_eq!(size.y, 16.0);
+        assert_eq!(anchor, Vec3::new(0.0, 0.0, 64.0));
+    }
+
+    #[test]
+    fn a_resize_that_changes_nothing_asks_for_nothing() {
+        let (_, viewport, bounds) = with_a_selected_box();
+        let grip = Handle { h: 1, v: 1 };
+        let to = Handle { h: 1, v: 1 }.world_position(bounds, &viewport);
+        assert!(resize_factor(bounds, &viewport, grip, to, 16.0).is_none());
+    }
+
+    #[test]
+    fn a_selection_already_flat_on_an_axis_is_left_flat_rather_than_divided_by_zero() {
+        let (_, viewport, _) = with_a_selected_box();
+        let flat = Aabb::new(Vec3::ZERO, Vec3::new(0.0, 128.0, 128.0));
+        let grip = Handle { h: 1, v: 1 };
+
+        let (_, factor) = resize_factor(flat, &viewport, grip, Vec3::new(64.0, 256.0, 0.0), 16.0).unwrap();
+        assert!(factor.x.is_finite(), "{factor:?}");
+        assert_eq!(factor.x, 1.0);
+        assert_eq!(factor.y, 2.0);
+    }
+
+    #[test]
+    fn the_grip_under_the_pointer_is_the_one_you_get() {
+        let (_, viewport, bounds) = with_a_selected_box();
+        for grip in Handle::all() {
+            let (x, y) = viewport.world_to_screen(grip.world_position(bounds, &viewport));
+            assert_eq!(handle_at(bounds, &viewport, x, y), Some(grip), "{grip:?}");
+        }
+        let (cx, cy) = viewport.world_to_screen(bounds.center());
+        assert_eq!(handle_at(bounds, &viewport, cx, cy), None, "the middle is not a grip");
+    }
+
+    #[test]
+    fn a_corner_wins_over_the_edges_that_meet_at_it() {
+        // At a low zoom the three grips overlap, and the corner is the one
+        // anybody clicking there meant.
+        let (_, viewport, bounds) = with_a_selected_box();
+        let tiny = Viewport { zoom: 0.02, ..viewport };
+        let corner = Handle { h: 1, v: 1 };
+        let (x, y) = tiny.world_to_screen(corner.world_position(bounds, &tiny));
+
+        assert_eq!(handle_at(bounds, &tiny, x, y), Some(corner));
+    }
+
+    #[test]
+    fn dragging_the_shape_tool_asks_for_the_shape_it_is_set_to() {
+        let (document, viewport) = setup();
+        let mut tool = Tool {
+            kind: ToolKind::Shape,
+            shape: crate::shapes::Shape::Arch,
+            ..Tool::new()
+        };
+        tool.press(&document, &viewport, 400.0, 300.0);
+        tool.drag_to(&document, &viewport, 600.0, 100.0);
+
+        match tool.release(false) {
+            Some(ToolAction::CreateShape { bounds, shape, options }) => {
+                assert_eq!(shape, crate::shapes::Shape::Arch);
+                assert!(bounds.size().x > 0.0);
+                assert_eq!(options, crate::shapes::Options::default());
+            }
+            other => panic!("expected a shape, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_click_with_the_shape_tool_creates_nothing() {
+        let (document, viewport) = setup();
+        let mut tool = Tool { kind: ToolKind::Shape, ..Tool::new() };
+        tool.press(&document, &viewport, 400.0, 300.0);
+        assert_eq!(tool.release(false), None);
+    }
+
+    #[test]
+    fn every_tool_advertises_a_distinct_shortcut() {
+        // They are also what the keyboard handler binds, so a duplicate would
+        // make one of the two tools unreachable.
+        let mut seen = std::collections::HashSet::new();
+        for kind in ToolKind::all() {
+            assert!(seen.insert(kind.shortcut()), "{} reuses a shortcut", kind.label());
+        }
+    }
+
 }
 
 #[cfg(test)]
@@ -521,4 +957,5 @@ mod face_picking_tests {
         }
         assert_eq!(picked.len(), 6, "some faces are unreachable: {picked:?}");
     }
+
 }

@@ -1,0 +1,17 @@
+[package]
+name = "kiln"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+# The texture build is a library call, not a subprocess: Chisel makes the same
+# one, and two callers of the same step must not be able to disagree.
+alchemy = { path = "../alchemy" }
+void-vfs.workspace = true
+anyhow.workspace = true
+clap.workspace = true
+log.workspace = true
+env_logger.workspace = true

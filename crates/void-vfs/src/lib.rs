@@ -21,10 +21,13 @@
 
 pub mod archive;
 pub mod path;
+pub mod project;
+pub mod toolchain;
 pub mod root;
 
 pub use archive::{Archive, ArchiveBuilder, ArchiveError, crc32};
 pub use path::{extension, normalize, parent, with_extension};
+pub use project::Project;
 pub use root::Found;
 
 use std::collections::BTreeSet;

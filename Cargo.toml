@@ -21,6 +21,7 @@ members = [
     "tools/umbra",
     "tools/radiance",
     "tools/alchemy",
+    "tools/kiln",
     "tools/forge",
     "tools/vault",
 ]

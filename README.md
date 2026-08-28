@@ -18,6 +18,7 @@ a build server, replace one, or write your own. VoidEngine keeps that shape.
                                                                         └─vault─► content.vault ─► void
 
    chisel drives all of it: edits the map, runs the compilers, launches void.
+   kiln   runs the same pipeline over a whole project, with no editor.
 ```
 
 > **Not a Valve product.** VoidEngine is an independent reimplementation. It is
@@ -57,6 +58,7 @@ Seven programs, each with its own name, none of them the engine.
 | **Alchemy** | Compiles textures and authors materials. | VTFEdit / `vtex` |
 | **Forge** | Compiles source meshes into engine models. | `studiomdl` |
 | **Vault** | Packs a content tree into one archive. | `vpk` |
+| **Kiln** | Runs the whole pipeline over a project. | the batch file everyone writes |
 
 The engine itself is `void`.
 
@@ -67,9 +69,9 @@ The engine itself is `void`.
 Requires a Rust toolchain (edition 2024; developed against 1.94).
 
 ```sh
-cargo build --release              # engine and all seven tools
+cargo build --release              # engine and all eight tools
 ./scripts/build-content.sh         # compile the sample content and map
-cargo run --release -p void-runtime -- +map void_start
+cargo run --release -p void-runtime
 ```
 
 **The map compile is not optional.** Art and maps are committed as sources —
@@ -82,11 +84,30 @@ before every compile. On Linux the audio backend also needs ALSA headers
 `--no-default-features` and everything but the sound works.
 
 Nothing has to be run from the repository root. Every tool and the engine find
-the content tree the same way, with the same code: what you passed on the
-command line, then the tree the map lives in, then the working directory, then
-the directory the binary is in — climbing a few levels at each step, looking
-for `voidengine.voiddef` or a `maps/` and `materials/` pair. Each says which
-one it took.
+the content tree the same way, with the same code, and each says which answer
+it took. The reliable way to settle it is a **project file** — a `.voidproj`
+naming the content directory, like the one at the top of this repository:
+
+```
+project
+{
+    "name"     "VoidEngine"
+    "content"  "content"
+    "startmap" "void_start"
+}
+```
+
+Without one the tree is inferred by climbing for a directory that looks like a
+content root, which works and is why a fresh clone needs no setup. A project
+file is how you overrule the guess, and `startmap` is why `void` above needs
+no `+map`.
+
+Once the tools are built, **`kiln`** builds a project's content — textures,
+models, maps, and the archive — from anywhere. It is a program rather than a
+shell script because a script is not shipped: install the toolchain somewhere
+and the thing that knows how to use it would stay behind in a git checkout.
+`scripts/build-content.sh` is a wrapper that builds the tools from source and
+regenerates the sample map, then calls it.
 
 To open the sample level in the editor:
 
@@ -101,6 +122,12 @@ directory walk; `--no-build` turns it off. `F9` compiles and runs the map and
 builds the textures again first, so one you added since opening the editor is
 compiled before the map that uses it, and `view → reload textures` picks up a
 build done outside without restarting.
+
+Select something and it wears eight resize grips — drag a corner to scale both
+axes, an edge to scale one. The **shape** tool (`5`) draws what a box cannot:
+wedges, cylinders, cones, arches and staircases, generated as however many
+brushes the shape needs and undone in one step. Which pane you draw in decides
+which way it stands.
 
 `ctrl-S` saves; a map that has never been saved is asked for a name rather
 than being written somewhere you would have to go looking for.
@@ -186,9 +213,10 @@ crates/
   void-engine     the host: ties it together, with and without a window
   void-game       entity classes — the game DLL analogue
 tools/
-  chisel cleave umbra radiance alchemy forge vault
+  chisel cleave umbra radiance alchemy forge vault kiln
 apps/
   void            the runtime
+voidengine.voidproj  the project file: what content tree this is, and where
 content/          sample art, models, materials, the sample level, and the
                   archive packed from them -- a content tree, the thing every
                   tool and the engine go looking for
@@ -208,7 +236,7 @@ provenance of the algorithms.
 ## Status
 
 Everything above works end to end: you can draw a level in Chisel, compile it
-through all three stages, and walk around it. 981 tests cover the pieces and
+through all three stages, and walk around it. 1080 tests cover the pieces and
 the seams between them, including a suite that builds a map in memory,
 compiles it, loads it and plays it.
 

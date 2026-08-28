@@ -52,9 +52,20 @@ fn main() -> Result<()> {
         // mounted a directory that did not exist and then reported every
         // asset in the game as missing. The editor and the compilers find the
         // tree the same way, from the same code, so they cannot disagree.
-        match void_vfs::root::find(None, None) {
+        let found = void_vfs::root::find(None, None);
+        match found {
             Some(found) => {
                 log::info!("{}", void_vfs::root::describe(&Some(found.clone())));
+                // A project that names a start map is answering the question
+                // `void` with no arguments is otherwise stuck on: a game
+                // launched from a shortcut has nobody to type `+map` for it.
+                if config.map.is_none()
+                    && let Some(project) = &found.project
+                    && let Some(start) = &project.start_map
+                {
+                    log::info!("{}: starting on {start}", project.name);
+                    config.map = Some(start.clone());
+                }
                 config.content_paths.push(found.root);
             }
             None => {
@@ -227,6 +238,8 @@ fn print_help() {
     println!("  --headless <ticks>  Simulate without a window, then report. This is what a");
     println!("                      dedicated server runs.");
     println!("  --help              Show this.");
+    println!();
+    println!("With no +map, the project's `startmap` is loaded if it names one.");
     println!();
     println!("Anything starting with + is a console command, so any convar can be set:");
     println!("  void +map void_start");

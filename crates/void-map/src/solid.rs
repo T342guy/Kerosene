@@ -205,6 +205,138 @@ impl Solid {
         Solid { id: 0, sides }
     }
 
+    /// A face on the plane through three points, oriented to face `outward`.
+    ///
+    /// The three points fix the plane; which side is the front depends on the
+    /// order they are written in, and getting that wrong produces a brush
+    /// that is inside out -- a hole in the world that compiles cleanly and
+    /// looks, from most angles, like nothing at all. Rather than reason about
+    /// winding at every call site, say which way the face should look and let
+    /// this put the points in the order that means it.
+    fn facing(id: u32, points: [Vec3; 3], outward: Vec3, material: &str) -> Option<Side> {
+        let plane = Plane::from_map_points(points[0], points[1], points[2])?;
+        let points = if plane.normal.dot(outward) >= 0.0 {
+            points
+        } else {
+            [points[2], points[1], points[0]]
+        };
+        let plane = Plane::from_map_points(points[0], points[1], points[2])?;
+        let (uaxis, vaxis) = default_axes_for_plane(&plane, 0.25);
+        Some(Side {
+            id,
+            plane_points: points,
+            material: material.to_string(),
+            uaxis,
+            vaxis,
+            rotation: 0.0,
+            lightmap_scale: DEFAULT_LIGHTMAP_SCALE,
+            smoothing_groups: 0,
+        })
+    }
+
+    /// A convex polygon swept along an axis: the general prism.
+    ///
+    /// `profile` is the cross-section in world space, at `low` on `axis`, and
+    /// must be convex and wound consistently -- either way round, since the
+    /// faces are oriented from the polygon's own centre rather than from its
+    /// winding. Everything the shape tool draws that is not a cone is one of
+    /// these: a box is a four-sided prism, a wedge a three-sided one, a
+    /// cylinder an n-sided one, and one slice of an arch a four-sided one
+    /// with two of its corners pushed inward.
+    ///
+    /// `None` when the profile is not a polygon -- fewer than three points, or
+    /// three points in a line.
+    pub fn prism(profile: &[Vec3], axis: usize, low: f32, high: f32, material: &str) -> Option<Solid> {
+        if profile.len() < 3 || high <= low { return None }
+
+        let mut up = Vec3::ZERO;
+        up[axis] = 1.0;
+        let at = |p: Vec3, height: f32| {
+            let mut p = p;
+            p[axis] = height;
+            p
+        };
+
+        let centre = profile.iter().copied().sum::<Vec3>() / profile.len() as f32;
+        let mut sides = Vec::with_capacity(profile.len() + 2);
+        let mut id = 1;
+
+        // The two caps, from any three points of the profile: they are
+        // coplanar, so which three does not matter.
+        for (height, outward) in [(high, up), (low, -up)] {
+            let points = [
+                at(profile[0], height),
+                at(profile[1], height),
+                at(profile[2], height),
+            ];
+            sides.push(Self::facing(id, points, outward, material)?);
+            id += 1;
+        }
+
+        // One wall per edge, facing away from the middle.
+        for (i, &a) in profile.iter().enumerate() {
+            let b = profile[(i + 1) % profile.len()];
+            let along = at(b, low) - at(a, low);
+            let outward = along.cross(up).normalize_or_zero();
+            // Away from the centre regardless of which way the profile was
+            // wound, so a caller cannot get this wrong.
+            let outward = if outward.dot(at(a, low) - at(centre, low)) < 0.0 { -outward } else { outward };
+            if outward == Vec3::ZERO { return None }
+
+            let points = [at(a, low), at(b, low), at(b, high)];
+            sides.push(Self::facing(id, points, outward, material)?);
+            id += 1;
+        }
+
+        let solid = Solid { id: 0, sides };
+        solid.validate().ok()?;
+        Some(solid)
+    }
+
+    /// A convex polygon drawn to a point: the general cone.
+    ///
+    /// `profile` is the base, in world space; `apex` is the tip. A four-sided
+    /// base gives the pyramid, a many-sided one the spike the shape tool
+    /// calls a cone.
+    pub fn pyramid(profile: &[Vec3], axis: usize, base: f32, apex: Vec3, material: &str) -> Option<Solid> {
+        if profile.len() < 3 { return None }
+
+        let mut up = Vec3::ZERO;
+        up[axis] = 1.0;
+        let outward_base = if apex[axis] > base { -up } else { up };
+        let at = |p: Vec3| {
+            let mut p = p;
+            p[axis] = base;
+            p
+        };
+
+        let mut sides = Vec::with_capacity(profile.len() + 1);
+        sides.push(Self::facing(
+            1,
+            [at(profile[0]), at(profile[1]), at(profile[2])],
+            outward_base,
+            material,
+        )?);
+
+        let centre = profile.iter().copied().map(at).sum::<Vec3>() / profile.len() as f32;
+        for (i, &a) in profile.iter().enumerate() {
+            let b = profile[(i + 1) % profile.len()];
+            let (a, b) = (at(a), at(b));
+            // Outward is away from the axis through the middle of the base --
+            // the apex being off to one side does not change which way a
+            // wall looks.
+            let outward = (b - a).cross(apex - a).normalize_or_zero();
+            let outward = if outward.dot((a + b) * 0.5 - centre) < 0.0 { -outward } else { outward };
+            if outward == Vec3::ZERO { return None }
+
+            sides.push(Self::facing(i as u32 + 2, [a, b, apex], outward, material)?);
+        }
+
+        let solid = Solid { id: 0, sides };
+        solid.validate().ok()?;
+        Some(solid)
+    }
+
     /// The planes of every face, outward facing.
     pub fn planes(&self) -> Vec<Plane> {
         self.sides.iter().filter_map(|s| s.plane()).collect()
@@ -319,6 +451,32 @@ impl Solid {
     pub fn translate_world_locked(&mut self, delta: Vec3) {
         for side in &mut self.sides {
             for p in &mut side.plane_points { *p += delta; }
+        }
+    }
+
+    /// Scale the brush about a point.
+    ///
+    /// This is what a resize handle does, and it is why brushes are stored as
+    /// plane *points* rather than as plane equations: moving the points and
+    /// re-deriving the planes keeps a brush a brush, where scaling a normal
+    /// and a distance separately does not.
+    ///
+    /// The texture is left where it is in world space rather than stretched
+    /// with the surface. That is Hammer's behaviour and the one that is nearly
+    /// always wanted: making a wall twice as wide should tile the bricks
+    /// twice, not draw bricks twice the size.
+    pub fn scale(&mut self, anchor: Vec3, factor: Vec3) {
+        // A factor with an odd number of negative components mirrors the
+        // brush, which reverses every face's winding and turns its normal
+        // inward. A brush with inward normals is not a smaller brush, it is a
+        // hole in the world -- so the winding goes back the way it was.
+        let mirrored = factor.x * factor.y * factor.z < 0.0;
+
+        for side in &mut self.sides {
+            for p in &mut side.plane_points {
+                *p = anchor + (*p - anchor) * factor;
+            }
+            if mirrored { side.plane_points.reverse() }
         }
     }
 
@@ -499,5 +657,216 @@ mod tests {
             assert!((got.normal - want.normal).length() < 1e-4, "{got:?} vs {want:?}");
             assert!((got.dist - want.dist).abs() < 1e-2, "{got:?} vs {want:?}");
         }
+    }
+
+    // ---- scaling -----------------------------------------------------------
+
+    #[test]
+    fn scaling_about_a_corner_leaves_that_corner_where_it_was() {
+        let mut solid = Solid::cube(Aabb::new(Vec3::ZERO, Vec3::splat(64.0)), "dev/grid");
+        solid.scale(Vec3::ZERO, Vec3::new(2.0, 2.0, 2.0));
+
+        let bounds = solid.bounds();
+        assert_eq!(bounds.min, Vec3::ZERO, "the anchor does not move");
+        assert_eq!(bounds.max, Vec3::splat(128.0));
+    }
+
+    #[test]
+    fn scaling_one_axis_leaves_the_others_alone() {
+        let mut solid = Solid::cube(Aabb::new(Vec3::ZERO, Vec3::splat(64.0)), "dev/grid");
+        solid.scale(Vec3::ZERO, Vec3::new(1.0, 3.0, 1.0));
+
+        let bounds = solid.bounds();
+        assert_eq!(bounds.max, Vec3::new(64.0, 192.0, 64.0));
+    }
+
+    #[test]
+    fn a_scaled_brush_is_still_a_valid_brush() {
+        let mut solid = Solid::cube(Aabb::new(Vec3::ZERO, Vec3::splat(64.0)), "dev/grid");
+        solid.scale(Vec3::new(32.0, 32.0, 32.0), Vec3::new(0.5, 4.0, 1.5));
+
+        assert!(solid.validate().is_ok(), "{:?}", solid.validate());
+        assert_eq!(solid.windings().iter().filter(|w| w.is_some()).count(), 6);
+    }
+
+    #[test]
+    fn scaling_about_the_centre_grows_both_ways() {
+        let mut solid = Solid::cube(Aabb::new(Vec3::ZERO, Vec3::splat(64.0)), "dev/grid");
+        let centre = solid.center();
+        solid.scale(centre, Vec3::splat(2.0));
+
+        let bounds = solid.bounds();
+        assert_eq!(bounds.min, Vec3::splat(-32.0));
+        assert_eq!(bounds.max, Vec3::splat(96.0));
+    }
+
+    #[test]
+    fn mirroring_a_brush_keeps_its_faces_pointing_outward() {
+        // A negative factor turns the brush inside out unless the windings are
+        // put back, and an inside-out brush is a hole in the world rather
+        // than a solid -- one that compiles, too, which is the worst of it.
+        let mut solid = Solid::cube(Aabb::new(Vec3::ZERO, Vec3::splat(64.0)), "dev/grid");
+        solid.scale(Vec3::ZERO, Vec3::new(-1.0, 1.0, 1.0));
+
+        assert!(solid.validate().is_ok(), "{:?}", solid.validate());
+        assert!(solid.contains_point(Vec3::new(-32.0, 32.0, 32.0)), "the mirrored brush is solid");
+        assert_eq!(solid.bounds(), Aabb::new(Vec3::new(-64.0, 0.0, 0.0), Vec3::new(0.0, 64.0, 64.0)));
+    }
+
+    #[test]
+    fn mirroring_on_two_axes_needs_no_correction_and_gets_none() {
+        let mut solid = Solid::cube(Aabb::new(Vec3::ZERO, Vec3::splat(64.0)), "dev/grid");
+        solid.scale(Vec3::ZERO, Vec3::new(-1.0, -1.0, 1.0));
+
+        assert!(solid.validate().is_ok(), "{:?}", solid.validate());
+        assert!(solid.contains_point(Vec3::new(-32.0, -32.0, 32.0)));
+    }
+
+    #[test]
+    fn scaling_does_not_stretch_the_texture_with_the_surface() {
+        // Making a wall twice as wide should tile the bricks twice, not draw
+        // bricks twice the size.
+        let mut solid = Solid::cube(Aabb::new(Vec3::ZERO, Vec3::splat(64.0)), "dev/grid");
+        let before: Vec<_> = solid.sides.iter().map(|s| (s.uaxis, s.vaxis)).collect();
+        solid.scale(Vec3::ZERO, Vec3::new(2.0, 1.0, 1.0));
+
+        for (side, (u, v)) in solid.sides.iter().zip(before) {
+            assert_eq!(side.uaxis.scale, u.scale);
+            assert_eq!(side.vaxis.scale, v.scale);
+            assert_eq!(side.uaxis.offset, u.offset);
+            assert_eq!(side.vaxis.offset, v.offset);
+        }
+    }
+
+    #[test]
+    fn scaling_by_one_changes_nothing() {
+        let original = Solid::cube(Aabb::new(Vec3::ZERO, Vec3::splat(64.0)), "dev/grid");
+        let mut solid = original.clone();
+        solid.scale(Vec3::new(11.0, -3.0, 7.0), Vec3::ONE);
+        assert_eq!(solid.bounds(), original.bounds());
+    }
+
+    // ---- prisms and cones --------------------------------------------------
+
+    /// A regular polygon in the XY plane, at z = 0.
+    fn ngon(sides: usize, radius: f32) -> Vec<Vec3> {
+        (0..sides)
+            .map(|i| {
+                let a = std::f32::consts::TAU * i as f32 / sides as f32;
+                Vec3::new(a.cos() * radius, a.sin() * radius, 0.0)
+            })
+            .collect()
+    }
+
+    #[test]
+    fn a_four_sided_prism_is_a_box() {
+        let square = vec![
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(64.0, 0.0, 0.0),
+            Vec3::new(64.0, 64.0, 0.0),
+            Vec3::new(0.0, 64.0, 0.0),
+        ];
+        let solid = Solid::prism(&square, 2, 0.0, 32.0, "dev/grid").unwrap();
+
+        assert_eq!(solid.sides.len(), 6);
+        assert_eq!(solid.bounds(), Aabb::new(Vec3::ZERO, Vec3::new(64.0, 64.0, 32.0)));
+        assert!(solid.contains_point(Vec3::new(32.0, 32.0, 16.0)), "it is solid inside");
+        assert!(!solid.contains_point(Vec3::new(32.0, 32.0, 48.0)), "and not outside");
+    }
+
+    #[test]
+    fn a_prism_is_solid_whichever_way_its_profile_was_wound() {
+        // The caller should not have to know, and getting it wrong produces a
+        // brush that is inside out: a hole in the world that compiles.
+        let clockwise = ngon(8, 64.0);
+        let mut anticlockwise = clockwise.clone();
+        anticlockwise.reverse();
+
+        for profile in [clockwise, anticlockwise] {
+            let solid = Solid::prism(&profile, 2, 0.0, 128.0, "dev/grid").unwrap();
+            assert!(solid.validate().is_ok(), "{:?}", solid.validate());
+            assert!(solid.contains_point(Vec3::new(0.0, 0.0, 64.0)), "the middle is inside");
+            assert!(!solid.contains_point(Vec3::new(0.0, 0.0, 200.0)));
+            assert!(!solid.contains_point(Vec3::new(200.0, 0.0, 64.0)));
+        }
+    }
+
+    #[test]
+    fn a_cylinder_has_a_face_per_side_plus_two_caps() {
+        for sides in [3usize, 6, 12, 32] {
+            let solid = Solid::prism(&ngon(sides, 64.0), 2, 0.0, 128.0, "dev/grid").unwrap();
+            assert_eq!(solid.sides.len(), sides + 2, "{sides}-sided");
+            let real = solid.windings().iter().filter(|w| w.is_some()).count();
+            assert_eq!(real, sides + 2, "every face reaches the hull on a {sides}-gon");
+        }
+    }
+
+    #[test]
+    fn a_prism_can_be_swept_along_any_axis() {
+        // A cylinder drawn in the front view lies on its side, and that is
+        // the whole reason the axis is a parameter.
+        let profile: Vec<Vec3> = ngon(8, 64.0)
+            .into_iter()
+            .map(|p| Vec3::new(0.0, p.x, p.y))
+            .collect();
+        let solid = Solid::prism(&profile, 0, 0.0, 128.0, "dev/grid").unwrap();
+
+        assert!(solid.validate().is_ok());
+        assert!(solid.contains_point(Vec3::new(64.0, 0.0, 0.0)));
+        assert!(!solid.contains_point(Vec3::new(200.0, 0.0, 0.0)));
+    }
+
+    #[test]
+    fn a_profile_that_is_not_a_polygon_is_refused_rather_than_producing_a_bad_brush() {
+        let line = vec![Vec3::ZERO, Vec3::new(64.0, 0.0, 0.0), Vec3::new(128.0, 0.0, 0.0)];
+        assert!(Solid::prism(&line, 2, 0.0, 64.0, "dev/grid").is_none(), "collinear");
+        assert!(Solid::prism(&[Vec3::ZERO, Vec3::X], 2, 0.0, 64.0, "dev/grid").is_none(), "too few");
+    }
+
+    #[test]
+    fn a_prism_with_no_height_is_refused() {
+        // A brush of zero thickness exists, compiles, and cannot be seen.
+        let square = ngon(4, 64.0);
+        assert!(Solid::prism(&square, 2, 32.0, 32.0, "dev/grid").is_none());
+        assert!(Solid::prism(&square, 2, 32.0, 0.0, "dev/grid").is_none());
+    }
+
+    #[test]
+    fn a_pyramid_is_a_base_and_a_wall_per_edge() {
+        let apex = Vec3::new(0.0, 0.0, 128.0);
+        let solid = Solid::pyramid(&ngon(4, 64.0), 2, 0.0, apex, "dev/grid").unwrap();
+
+        assert_eq!(solid.sides.len(), 5);
+        assert!(solid.validate().is_ok(), "{:?}", solid.validate());
+        assert!(solid.contains_point(Vec3::new(0.0, 0.0, 8.0)), "wide at the bottom");
+        assert!(!solid.contains_point(Vec3::new(40.0, 40.0, 120.0)), "and narrow at the top");
+    }
+
+    #[test]
+    fn a_cone_points_the_way_its_apex_does() {
+        // Hanging downward is a stalactite, and it must be solid too.
+        let apex = Vec3::new(0.0, 0.0, -128.0);
+        let solid = Solid::pyramid(&ngon(12, 64.0), 2, 0.0, apex, "dev/grid").unwrap();
+
+        assert!(solid.validate().is_ok(), "{:?}", solid.validate());
+        assert!(solid.contains_point(Vec3::new(0.0, 0.0, -8.0)));
+        assert!(!solid.contains_point(Vec3::new(0.0, 0.0, 8.0)));
+    }
+
+    #[test]
+    fn a_generated_shape_survives_a_round_trip_through_the_file_format() {
+        // The point of writing real corner points rather than plane equations
+        // is that the file is readable and reloads as the same brush.
+        let mut map = crate::Map::new();
+        let solid = Solid::prism(&ngon(10, 96.0), 2, 0.0, 160.0, "dev/wall").unwrap();
+        let bounds = solid.bounds();
+        map.add_world_solid(solid);
+
+        let reloaded = crate::Map::parse(&map.to_text()).unwrap();
+        let back = reloaded.world.solids.first().unwrap();
+        assert_eq!(back.sides.len(), 12);
+        assert!(back.validate().is_ok());
+        assert!((back.bounds().min - bounds.min).length() < 0.01);
+        assert!((back.bounds().max - bounds.max).length() < 0.01);
     }
 }

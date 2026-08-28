@@ -196,6 +196,27 @@ impl Document {
         })
     }
 
+    /// Add a group of brushes as one edit, and select them.
+    ///
+    /// One undo step for the whole group, because a sixteen-segment arch is
+    /// one thing a person made and sixteen presses of ctrl-Z to take it back
+    /// is not undo, it is punishment.
+    pub fn create_shape(&mut self, solids: Vec<Solid>, label: &str) -> Vec<u32> {
+        if solids.is_empty() { return Vec::new() }
+        let label = label.to_string();
+        self.apply(format!("create {label}"), move |doc| {
+            doc.selection.clear();
+            solids
+                .into_iter()
+                .map(|solid| {
+                    let id = doc.map.add_world_solid(solid);
+                    doc.selection.solids.insert(id);
+                    id
+                })
+                .collect()
+        })
+    }
+
     /// Create a point entity at a position.
     pub fn create_entity(&mut self, classname: &str, position: Vec3) -> u32 {
         let position = self.grid.snap_point(position);
@@ -257,6 +278,44 @@ impl Document {
                     if let Some(origin) = entity.get_vec3("origin") {
                         entity.set_origin(origin + delta);
                     }
+                }
+            }
+        });
+    }
+
+    /// Scale everything selected about a point.
+    ///
+    /// The counterpart to [`Document::move_selection`], and the thing a
+    /// resize handle does. A factor of exactly one on an axis leaves that
+    /// axis alone, which is what dragging an edge handle rather than a corner
+    /// asks for.
+    ///
+    /// A point entity has no size, so it is *moved* by the same transform
+    /// rather than scaled: scaling a group of lights should spread them out,
+    /// not leave them where they were while the walls slide past.
+    pub fn scale_selection(&mut self, anchor: Vec3, factor: Vec3) {
+        if self.selection.is_empty() || factor == Vec3::ONE { return }
+        // Zero collapses a brush to nothing, and there is no undoing that in
+        // any way a person would recognise as undoing -- the brush is still
+        // there, and infinitely thin.
+        if factor.x == 0.0 || factor.y == 0.0 || factor.z == 0.0 { return }
+
+        self.apply("resize", |doc| {
+            let solids = doc.selection.solids.clone();
+            let entities = doc.selection.entities.clone();
+
+            for solid in doc.map.world.solids.iter_mut() {
+                if solids.contains(&solid.id) { solid.scale(anchor, factor); }
+            }
+            for entity in doc.map.entities.iter_mut() {
+                let selected = entities.contains(&entity.id);
+                for solid in entity.solids.iter_mut() {
+                    if selected || solids.contains(&solid.id) { solid.scale(anchor, factor); }
+                }
+                if selected
+                    && let Some(origin) = entity.get_vec3("origin")
+                {
+                    entity.set_origin(anchor + (origin - anchor) * factor);
                 }
             }
         });

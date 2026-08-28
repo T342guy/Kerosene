@@ -218,6 +218,39 @@ A test checks the set against the compiler's tool-material table in both
 directions: offering a tool material the compiler treats as world geometry
 would silently wall off a doorway.
 
+## `.voidproj` — the project file
+
+Where a project says, rather than implies, where its content is.
+
+```
+project
+{
+    "name"     "My Mod"
+    "content"  "content"
+    "startmap" "mm_intro"
+}
+```
+
+`content` is relative to the file, so a project can be cloned or moved
+anywhere and still be right. Every key is optional -- an empty `project { }`
+block still marks a directory as a project, with `content` defaulting to a
+`content/` directory beside it and then to the directory the file is in, which
+is the shape of a shipped game where the project file sits in the folder it
+describes. `startmap` is what `void` loads when nothing else says which; a
+project that is a library of maps simply omits it rather than having one
+invented.
+
+It exists because everything else about locating content is inference. The
+tools climb the directory tree looking for something *shaped* like a content
+root, which works, and is why a fresh clone needs no setup, and is still a
+guess -- one nobody could overrule short of passing `--content` to every tool
+every time. A project file is the answer that wins.
+
+Within any one place searched, a project file beats an inferred root even one
+found closer down: a stated answer that loses to a guess is not an answer.
+Between places, nearness still decides. The full order is in
+[tools.md](tools.md#chisel--the-world-editor).
+
 ## `.voiddef` — entity class definitions
 
 What an editor needs to know about the game's entities: for each class, the

@@ -156,3 +156,93 @@ fn the_repositorys_own_content_tree_is_found_from_a_map_in_it() {
     let found = find(None, Some(&map)).expect("the sample map's content is findable");
     assert!(found.root.join(MARKER).is_file(), "{} has no {MARKER}", found.root.display());
 }
+
+// ---- a project file beats every guess ------------------------------------
+
+#[test]
+fn a_project_file_names_the_content_and_the_search_stops_guessing() {
+    let dir = scratch("project-wins");
+    // A directory that *looks* like a content root, and a project file that
+    // says the content is somewhere else entirely. The project wins.
+    project(&dir);
+    std::fs::create_dir_all(dir.join("elsewhere/maps")).unwrap();
+    std::fs::write(dir.join("game.voidproj"), "project { \"content\" \"elsewhere\" }").unwrap();
+
+    let found = find(None, Some(&dir.join("maps/x.voidmap"))).unwrap();
+    assert_eq!(found.root, dir.join("elsewhere"));
+    assert_eq!(found.project.as_ref().map(|p| p.path.clone()), Some(dir.join("game.voidproj")));
+    assert!(found.why.contains("project"), "{}", found.why);
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_project_further_up_beats_a_content_tree_closer_down() {
+    // The whole reason to write one: a stated answer that loses to an
+    // inferred one is not an answer.
+    let dir = scratch("project-depth");
+    std::fs::write(dir.join("game.voidproj"), "project { \"content\" \"real\" }").unwrap();
+    std::fs::create_dir_all(dir.join("real/maps")).unwrap();
+
+    let deep = dir.join("a/b/c");
+    project(&deep);
+
+    let found = find(None, Some(&deep.join("maps/x.voidmap"))).unwrap();
+    assert_eq!(found.root, dir.join("real"));
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn an_explicit_content_directory_still_beats_a_project_file() {
+    let dir = scratch("explicit-wins");
+    std::fs::write(dir.join("game.voidproj"), "project { \"content\" \"elsewhere\" }").unwrap();
+
+    let asked = dir.join("what/i/asked/for");
+    let found = find(Some(&asked), Some(&dir.join("maps/x.voidmap"))).unwrap();
+    assert_eq!(found.root, asked);
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_project_file_that_will_not_parse_falls_through_to_the_search() {
+    // A broken project file should cost you a warning, not an editor.
+    let dir = scratch("project-broken");
+    project(&dir);
+    std::fs::write(dir.join("game.voidproj"), "project { \"content\"").unwrap();
+
+    let found = find(None, Some(&dir.join("maps/x.voidmap"))).unwrap();
+    assert_eq!(found.root, dir);
+    assert!(found.project.is_none());
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn what_it_found_names_the_project_file_when_one_decided_it() {
+    let dir = scratch("project-describe");
+    std::fs::create_dir_all(dir.join("content/maps")).unwrap();
+    std::fs::write(dir.join("game.voidproj"), "project { }").unwrap();
+
+    let text = describe(&find(None, Some(&dir.join("content/maps/x.voidmap"))));
+    assert!(text.contains("game.voidproj"), "{text}");
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_map_sitting_in_its_own_content_tree_is_not_claimed_by_a_project_elsewhere() {
+    // Nearness decides between places. A project file over the working
+    // directory -- which, running these tests, is the repository's own --
+    // must not reach across the disk and claim a map that has a content tree
+    // around it already.
+    let dir = scratch("nearness");
+    project(&dir);
+
+    let found = find(None, Some(&dir.join("maps/x.voidmap"))).unwrap();
+    assert_eq!(found.root, dir);
+    assert!(found.project.is_none());
+
+    let _ = std::fs::remove_dir_all(&dir);
+}

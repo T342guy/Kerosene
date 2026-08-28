@@ -59,10 +59,15 @@ Two edges in that picture are there for a reason worth stating. `chisel`
 depends on `alchemy`, because the editor builds the content tree's textures
 itself rather than shelling out to a sibling binary that may not be beside it.
 And everything -- the editor, the compilers, the runtime -- finds the content
-tree through `void_vfs::root`, one function they all call. Each of them working
-it out separately is not a hypothetical: they did, they disagreed, and a tool
-looking in the wrong directory is indistinguishable from a tool that is broken.
-A shared answer that explains itself is the whole of the fix.
+tree through `void_vfs::root`, one function they all call, and finds its
+sibling binaries through `void_vfs::toolchain`, likewise. Each of them working
+either out separately is not a hypothetical: they did, they disagreed, and a
+tool looking in the wrong directory is indistinguishable from a tool that is
+broken. A shared answer that explains itself is the whole of the fix.
+
+`kiln` sits above the compilers rather than beside them: it is the only tool
+that runs the others, and it does so as subprocesses, so nothing about the
+pipeline being one program leaks into the compilers being separate ones.
 
 ## The map pipeline in detail
 

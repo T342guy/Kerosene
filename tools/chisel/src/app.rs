@@ -52,6 +52,22 @@ const FALLBACK_MATERIALS: &[&str] = &[
     "tools/skybox",
 ];
 
+/// The egui key a tool's advertised shortcut stands for.
+///
+/// Here rather than on `ToolKind` so the tool definitions stay free of the UI
+/// toolkit: what a tool *is* should not depend on what draws it.
+fn shortcut_key(shortcut: &str) -> Option<Key> {
+    Some(match shortcut {
+        "1" => Key::Num1,
+        "2" => Key::Num2,
+        "3" => Key::Num3,
+        "4" => Key::Num4,
+        "5" => Key::Num5,
+        "6" => Key::Num6,
+        _ => return None,
+    })
+}
+
 /// A file operation waiting for a name.
 ///
 /// Naming a map is a decision, so it gets a field to type into rather than a
@@ -651,14 +667,13 @@ impl ChiselApp {
             }
             if i.consume_key(Modifiers::NONE, Key::Escape) { actions.push(Action::Cancel) }
 
-            // Tool shortcuts, as Hammer numbers them.
-            for (index, kind) in ToolKind::all().into_iter().enumerate() {
-                let key = match index {
-                    0 => Key::Num1,
-                    1 => Key::Num2,
-                    2 => Key::Num3,
-                    _ => Key::Num4,
-                };
+            // Tool shortcuts, as Hammer numbers them. Driven by the number
+            // each tool advertises rather than by its position in the list,
+            // so adding a tool in the middle cannot silently renumber the
+            // ones after it -- which is exactly what happened when the shape
+            // tool went in between block and entity.
+            for kind in ToolKind::all() {
+                let Some(key) = shortcut_key(kind.shortcut()) else { continue };
                 if i.consume_key(Modifiers::NONE, key) { actions.push(Action::Tool(kind)) }
             }
 
@@ -853,6 +868,11 @@ impl ChiselApp {
             ui.separator();
             self.material_browser(ui);
 
+            if self.tool.kind == ToolKind::Shape {
+                ui.separator();
+                self.shape_panel(ui);
+            }
+
             if self.tool.kind == ToolKind::Entity {
                 ui.separator();
                 ui.label(RichText::new("entity").strong());
@@ -870,6 +890,53 @@ impl ChiselApp {
                 });
             }
         });
+    }
+
+    /// What the shape tool will draw, and how many pieces of it.
+    ///
+    /// Only the settings the chosen shape actually uses are shown. A slider
+    /// that does nothing is worse than no slider: it makes you wonder what
+    /// you did wrong.
+    fn shape_panel(&mut self, ui: &mut egui::Ui) {
+        use crate::shapes::{MAX_SIDES, MIN_SIDES, Shape};
+
+        ui.label(RichText::new("shape").strong());
+        for shape in Shape::all() {
+            let selected = self.tool.shape == shape;
+            if ui
+                .selectable_label(selected, shape.label())
+                .on_hover_text(shape.help())
+                .clicked()
+            {
+                self.tool.shape = shape;
+                self.status = format!("{}: {}", shape.label(), shape.help());
+            }
+        }
+
+        let shape = self.tool.shape;
+        let options = &mut self.tool.shape_options;
+        if shape.uses_sides() {
+            let label = if shape == Shape::Stairs { "steps" } else { "sides" };
+            ui.add(egui::Slider::new(&mut options.sides, MIN_SIDES..=MAX_SIDES).text(label))
+                .on_hover_text(
+                    "More segments read as smoother and cost the compiler more \
+                     faces. Eight is round enough for a pillar you walk past.",
+                );
+        }
+        if shape.uses_arc() {
+            ui.add(egui::Slider::new(&mut options.arc, 15.0..=360.0).text("arc"))
+                .on_hover_text("Degrees. 180 is a doorway, 360 a ring.");
+        }
+        if shape.uses_wall() {
+            ui.add(egui::Slider::new(&mut options.wall, 4.0..=256.0).text("wall"))
+                .on_hover_text("How thick the arch is, in void units.");
+        }
+
+        ui.label(
+            RichText::new("drag a box in a 2D pane; the pane decides which way it stands")
+                .size(10.0)
+                .weak(),
+        );
     }
 
     // ---- the property inspector -----------------------------------------
@@ -2167,10 +2234,6 @@ impl ChiselApp {
             viewport.angles.yaw -= delta.x * 0.25;
             viewport.angles.pitch += delta.y * 0.25;
             viewport.angles = viewport.angles.clamped_view();
-        }
-
-        if !kind.is_2d() {
-            self.fly(index, response, ui);
         }
 
         if !kind.is_2d() {

@@ -20,6 +20,7 @@
 //! right, and says which one it took, because a wrong guess that explains
 //! itself costs a minute and a silent one costs an afternoon.
 
+use crate::project::Project;
 use std::path::{Path, PathBuf};
 
 /// The file that marks a directory as a content root beyond doubt.
@@ -43,40 +44,82 @@ pub fn is_content_root(dir: &Path) -> bool {
 pub struct Found {
     pub root: PathBuf,
     pub why: &'static str,
+    /// The project file that named it, when one did.
+    ///
+    /// Carried along because a project says more than where its content is --
+    /// what it is called, which map it starts on -- and the caller that asked
+    /// where the content was is the caller that wants the rest of it.
+    pub project: Option<Project>,
+}
+
+impl Found {
+    /// A root nothing but the search knows about.
+    fn guessed(root: PathBuf, why: &'static str) -> Found {
+        Found { root, why, project: None }
+    }
 }
 
 /// Find the content tree.
 ///
-/// In order: what the user asked for, the tree the map being opened lives in,
-/// the working directory, and the tree beside the executable. The map's own
-/// tree comes before the working directory on purpose -- opening
+/// Three places are tried, nearest first: the tree the map being opened lives
+/// in, then the working directory, then the directory the executable is in.
+/// The map's own tree comes first on purpose -- opening
 /// `~/maps/mine/level.voidmap` should find `~/maps/mine`'s content, not the
 /// content of wherever a shell happened to be.
+///
+/// Within each place a project file wins over a guess, even a guess that
+/// would have been found closer: `--content` aside, a written answer is the
+/// only kind anyone can correct, and one that loses to inference is not an
+/// answer at all. Between places, nearness still decides -- a project file on
+/// the far side of the disk does not get to claim a map that is sitting in a
+/// content tree of its own.
 pub fn find(explicit: Option<&Path>, map: Option<&Path>) -> Option<Found> {
     if let Some(dir) = explicit {
         // An explicit path is taken at its word even if it looks wrong: being
         // overruled by a guess is worse than being told the answer is empty.
-        return Some(Found { root: dir.to_path_buf(), why: "given with --content" });
+        return Some(Found::guessed(dir.to_path_buf(), "given with --content"));
     }
 
-    if let Some(map) = map
-        && let Some(root) = map.parent().and_then(climb)
-    {
-        return Some(Found { root, why: "found next to the map" });
-    }
-
-    if let Some(root) = std::env::current_dir().ok().and_then(|d| climb(&d)) {
-        return Some(Found { root, why: "found from the working directory" });
-    }
-
-    if let Some(root) = std::env::current_exe()
+    let map_dir = map.and_then(|m| m.parent()).map(Path::to_path_buf);
+    let working = std::env::current_dir().ok();
+    let beside_exe = std::env::current_exe()
         .ok()
-        .and_then(|exe| exe.parent().map(Path::to_path_buf))
-        .and_then(|dir| climb(&dir))
-    {
-        return Some(Found { root, why: "found next to the executable" });
+        .and_then(|exe| exe.parent().map(Path::to_path_buf));
+
+    let places: [(Option<PathBuf>, &'static str, &'static str); 3] = [
+        (map_dir, "named by the project holding the map", "found next to the map"),
+        (working, "named by the project in the working directory", "found from the working directory"),
+        (beside_exe, "named by the project beside the executable", "found next to the executable"),
+    ];
+
+    for (from, stated, guessed) in &places {
+        let Some(from) = from else { continue };
+        if let Some(project) = climb_for_project(from) {
+            return Some(Found { root: project.content.clone(), why: stated, project: Some(project) });
+        }
+        if let Some(root) = climb(from) {
+            return Some(Found::guessed(root, guessed));
+        }
     }
 
+    None
+}
+
+/// Walk up from a directory looking for a project file.
+fn climb_for_project(from: &Path) -> Option<Project> {
+    let mut at = from.to_path_buf();
+    for _ in 0..MAX_CLIMB {
+        if let Some(file) = crate::project::in_directory(&at) {
+            match Project::read(&file) {
+                Ok(project) => return Some(project),
+                // A project file that will not parse is a problem worth
+                // reporting and not worth stopping for: falling through to
+                // the search leaves a broken editor rather than no editor.
+                Err(e) => log::warn!("ignoring {}: {e}", file.display()),
+            }
+        }
+        if !at.pop() { break }
+    }
     None
 }
 
@@ -100,7 +143,15 @@ fn climb(from: &Path) -> Option<PathBuf> {
 /// What to tell the user about the content root, in one line.
 pub fn describe(found: &Option<Found>) -> String {
     match found {
-        Some(f) => format!("content: {} ({})", f.root.display(), f.why),
+        Some(f) => match &f.project {
+            Some(project) => format!(
+                "content: {} ({}, {})",
+                f.root.display(),
+                f.why,
+                project.path.display()
+            ),
+            None => format!("content: {} ({})", f.root.display(), f.why),
+        },
         None => "no content tree found -- no entity classes, no materials. \
                  Start from a project directory, or pass --content."
             .to_string(),
