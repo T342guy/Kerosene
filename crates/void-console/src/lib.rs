@@ -186,6 +186,29 @@ pub struct Console {
     exec_handler: Option<Arc<dyn Fn(&str) -> Option<String> + Send + Sync>>,
     /// Depth guard: an `exec` that execs itself would otherwise spin forever.
     exec_depth: u32,
+    /// Things commands have asked the host to do.
+    ///
+    /// A command only ever gets `&mut Console` -- deliberately, because that
+    /// is what lets the same string work from a key binding, a config file
+    /// and the command line. Anything needing more than the console (loading
+    /// a map, running a script, quitting) leaves a request here and the host
+    /// picks it up once a frame. A queue rather than a slot because two
+    /// requests in one config file must both survive.
+    requests: VecDeque<(String, String)>,
+}
+
+/// A request a command left for the host.
+pub mod requests {
+    /// Load a map. The payload is its name.
+    pub const MAP: &str = "map";
+    /// Exit.
+    pub const QUIT: &str = "quit";
+    /// Evaluate script source. The payload is the source.
+    pub const SCRIPT: &str = "script";
+    /// Load a script file by name.
+    pub const SCRIPT_FILE: &str = "script_file";
+    /// Forget every loaded script and load them again.
+    pub const SCRIPT_RELOAD: &str = "script_reload";
 }
 
 const MAX_EXEC_DEPTH: u32 = 16;
@@ -207,6 +230,7 @@ impl Console {
             waiting: false,
             exec_handler: None,
             exec_depth: 0,
+            requests: VecDeque::new(),
         };
         con.register_builtins();
         con
@@ -404,6 +428,20 @@ impl Console {
             );
         }
     }
+
+    // ---- host requests ---------------------------------------------------
+
+    /// Ask the host to do something the console cannot do itself.
+    pub fn request(&mut self, kind: &str, payload: impl Into<String>) {
+        self.requests.push_back((kind.to_string(), payload.into()));
+    }
+
+    /// Take everything commands have asked the host for.
+    pub fn take_requests(&mut self) -> Vec<(String, String)> {
+        self.requests.drain(..).collect()
+    }
+
+    pub fn pending_requests(&self) -> usize { self.requests.len() }
 
     pub fn log(&self) -> impl Iterator<Item = &LogLine> { self.log.iter() }
     pub fn log_len(&self) -> usize { self.log.len() }

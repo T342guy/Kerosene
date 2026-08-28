@@ -21,6 +21,35 @@ pub enum Value {
     Angle(Angles),
 }
 
+impl std::fmt::Display for Value {
+    /// How a value is written where text is what is wanted -- a script
+    /// reading a keyvalue, a trace line, a debug dump. Numbers come out the
+    /// way level data spells them, so a float that happens to be whole does
+    /// not read as `250.000000`.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Value::Bool(v) => write!(f, "{}", if *v { 1 } else { 0 }),
+            Value::Int(v) => write!(f, "{v}"),
+            Value::Float(v) => write!(f, "{}", void_math::format_float(*v)),
+            Value::Text(v) => write!(f, "{v}"),
+            Value::Vector(v) => write!(
+                f,
+                "{} {} {}",
+                void_math::format_float(v.x),
+                void_math::format_float(v.y),
+                void_math::format_float(v.z)
+            ),
+            Value::Angle(a) => write!(
+                f,
+                "{} {} {}",
+                void_math::format_float(a.pitch),
+                void_math::format_float(a.yaw),
+                void_math::format_float(a.roll)
+            ),
+        }
+    }
+}
+
 impl Value {
     /// Read as a float, converting where it makes sense.
     ///

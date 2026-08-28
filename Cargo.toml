@@ -13,6 +13,7 @@ members = [
     "crates/void-render",
     "crates/void-engine",
     "crates/void-game",
+    "crates/void-script",
     "apps/void",
     "tools/chisel",
     "tools/cleave",
@@ -44,6 +45,7 @@ void-entity  = { path = "crates/void-entity" }
 void-render  = { path = "crates/void-render" }
 void-engine  = { path = "crates/void-engine" }
 void-game    = { path = "crates/void-game" }
+void-script  = { path = "crates/void-script" }
 
 anyhow      = "1"
 thiserror   = "2"
@@ -62,6 +64,9 @@ egui        = "0.32"
 egui-wgpu   = "0.32"
 egui-winit  = { version = "0.32", default-features = false, features = ["links", "wayland", "x11"] }
 pollster    = "0.4"
+# Scripting. Pure Rust, no C toolchain, and small enough to embed without the
+# engine becoming a host for someone else's runtime.
+rhai        = "1"
 
 [profile.release]
 opt-level = 3

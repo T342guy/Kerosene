@@ -20,6 +20,7 @@ pub mod collision;
 pub mod engine;
 pub mod host;
 pub mod input;
+pub mod scripting;
 
 pub use collision::{LevelCollision, Mover};
 pub use engine::{Engine, EngineConfig, Level, PlayerState};

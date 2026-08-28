@@ -77,6 +77,36 @@ pub struct EntityWorld {
     /// Recent I/O, for a `developer 2`-style trace of what fired what.
     trace: Vec<String>,
     trace_enabled: bool,
+    /// Things entities have asked the host to do.
+    ///
+    /// The same shape as the console's outbox, and for the same reason: a
+    /// class handler gets `&mut EntityWorld` and nothing else, deliberately,
+    /// so that the game DLL cannot reach into the engine. Anything needing
+    /// more than the entity world -- running a script, loading a sound --
+    /// leaves a request here and the engine picks it up at the end of the
+    /// tick, in order.
+    requests: Vec<HostRequest>,
+}
+
+/// Something an entity asked the engine to do.
+#[derive(Clone, Debug, PartialEq)]
+pub struct HostRequest {
+    pub kind: String,
+    pub payload: String,
+    /// The entity that asked, so the engine can answer in its context.
+    pub caller: EntityId,
+    /// Whatever set the chain off, if anything.
+    pub activator: Option<EntityId>,
+}
+
+/// Request kinds the engine understands.
+pub mod host_requests {
+    /// Run script source. The payload is the source.
+    pub const SCRIPT: &str = "script";
+    /// Call a function a loaded script defined. The payload is its name.
+    pub const SCRIPT_CALL: &str = "script_call";
+    /// Load a script file. The payload is its name.
+    pub const SCRIPT_FILE: &str = "script_file";
 }
 
 impl EntityWorld {
@@ -93,6 +123,7 @@ impl EntityWorld {
             player: None,
             trace: Vec::new(),
             trace_enabled: false,
+            requests: Vec::new(),
         }
     }
 
@@ -405,6 +436,7 @@ impl EntityWorld {
             Target::Caller => caller.into_iter().filter(|&id| self.exists(id)).collect(),
             Target::Myself => caller.into_iter().filter(|&id| self.exists(id)).collect(),
             Target::Player => self.player.into_iter().filter(|&id| self.exists(id)).collect(),
+            Target::Handle(id) => std::iter::once(*id).filter(|&id| self.exists(id)).collect(),
         }
     }
 
@@ -516,6 +548,29 @@ impl EntityWorld {
     // ---- debugging -------------------------------------------------------
 
     /// Record every output that fires, for a `developer`-style I/O trace.
+    // ---- host requests ---------------------------------------------------
+
+    /// Ask the engine to do something the entity world cannot do itself.
+    pub fn request(
+        &mut self,
+        kind: &str,
+        payload: impl Into<String>,
+        caller: EntityId,
+        activator: Option<EntityId>,
+    ) {
+        self.requests.push(HostRequest {
+            kind: kind.to_string(),
+            payload: payload.into(),
+            caller,
+            activator,
+        });
+    }
+
+    /// Take everything entities have asked the engine for.
+    pub fn take_requests(&mut self) -> Vec<HostRequest> { std::mem::take(&mut self.requests) }
+
+    pub fn pending_requests(&self) -> usize { self.requests.len() }
+
     pub fn set_trace(&mut self, on: bool) {
         self.trace_enabled = on;
         if !on { self.trace.clear(); }

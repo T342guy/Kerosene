@@ -279,6 +279,23 @@ class
 
 class
 {
+    "name" "logic_script"
+    "base" "Entity" "base" "Point"
+    "help" "Runs a script. The seam between entity wiring, which is a graph, and the things that are not graphs -- arithmetic, conditions, anything that has to remember more than a counter."
+    key { "name" "scriptfile" "label" "Script file" "type" "string"
+          "help" "Loaded from scripts/<name>.voidscript when the map starts. A function in it can then be called by name." }
+    key { "name" "function" "label" "Default function" "type" "string"
+          "help" "What CallScriptFunction runs when the input carries no parameter of its own." }
+    key { "name" "code" "label" "Inline code" "type" "string"
+          "help" "What RunScriptCode runs when the input carries no parameter. For one-liners not worth a file." }
+    input  { "name" "RunScriptCode" "parameter" "script source" }
+    input  { "name" "CallScriptFunction" "parameter" "function name" }
+    input  { "name" "RunScriptFile" "parameter" "file name" }
+    output { "name" "OnScriptRun" "help" "Fired whenever this entity runs something." }
+}
+
+class
+{
     "name" "point_message"
     "base" "Entity" "base" "Point"
     "help" "Prints to the console. Useful while building a level and wiring it up."

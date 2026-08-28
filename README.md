@@ -162,13 +162,14 @@ tools/
 apps/
   void            the runtime
 content/          sample art, models, materials and the sample level
-docs/             architecture, formats, tool reference, licensing
+docs/             architecture, formats, tools, scripting, licensing
 ```
 
 Read [`docs/architecture.md`](docs/architecture.md) for how the pieces fit,
 [`docs/formats.md`](docs/formats.md) for the file formats, and
 [`docs/tools.md`](docs/tools.md) for the full tool reference.
-[`docs/licensing.md`](docs/licensing.md) covers the dependency audit and the
+[`docs/scripting.md`](docs/scripting.md) covers the script API, and
+[`docs/licensing.md`](docs/licensing.md) the dependency audit and the
 provenance of the algorithms.
 
 ---

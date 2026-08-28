@@ -35,7 +35,7 @@ pub use io::{Connection, InputEvent, PendingEvent, Target};
 pub use registry::{ClassDef, ClassRegistry, InputHandler, SpawnHandler, ThinkHandler};
 pub use schema::{ClassKind, ClassSpec, IoSpec, KeyKind, KeySpec, Schema, SchemaError};
 pub use value::{Fields, Value};
-pub use world::{Entity, EntityId, EntityWorld, SpawnError};
+pub use world::{Entity, EntityId, EntityWorld, HostRequest, SpawnError, host_requests};
 
 /// How many events may be dispatched in one tick before the engine assumes a
 /// loop and stops.

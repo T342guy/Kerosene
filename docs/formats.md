@@ -10,6 +10,7 @@
 | `.voidmat` | Material | text (KeyValues) | Alchemy, by hand | `.vmt` |
 | `.voidmdl` | Model | binary | Forge | `.mdl` |
 | `.voiddef` | Entity class definitions | text (KeyValues) | the game, by hand | `.fgd` |
+| `.voidscript` | Level script | text (Rhai) | by hand | `.nut` (VScript) |
 | `.vault` | Content archive | binary | Vault | `.vpk` |
 
 Text where a person edits or reviews it; binary where the engine loads it.
@@ -234,6 +235,24 @@ keys someone chose — which is what makes a diff between two saves readable.
 `void-game` checks it against the class registry in both directions: an input
 the game handles and the file does not offer is a build failure, and so is an
 input the file offers that nothing handles.
+
+## `.voidscript` — level scripts
+
+A map's script, loaded automatically when the level starts if it is named
+after the map. The language is [Rhai](https://rhai.rs); the API, the hooks and
+the limits are in [`scripting.md`](scripting.md).
+
+```rhai
+fn on_map_start() {
+    for door in find_by_class("func_door") {
+        print(`${door} at ${door.origin}`);
+    }
+}
+```
+
+Nothing about the format is special — it is source text the engine hands to a
+VM. It is listed here because it is content the engine loads by name and packs
+into a `.vault` with everything else.
 
 ## `.vault` — content archives
 

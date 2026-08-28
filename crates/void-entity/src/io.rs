@@ -90,6 +90,12 @@ pub enum Target {
     Caller,
     Myself,
     Player,
+    /// One specific entity, by handle.
+    ///
+    /// Not reachable from a map file, where everything is addressed by name.
+    /// Scripts need it: acting on one of a dozen unnamed lights has to mean
+    /// that one, and a name-based target would mean all of them or none.
+    Handle(crate::EntityId),
 }
 
 impl Target {

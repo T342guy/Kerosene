@@ -79,7 +79,8 @@ CDDL or SSPL crate at any depth.
 | `(MIT OR Apache-2.0) AND OFL-1.1 AND Ubuntu-font-1.0` | 1 |
 
 (Counts are per dependency *edge*, so a crate pulled in by several others is
-counted more than once; the distinct-crate total is 219.)
+counted more than once. Regenerate them with the command below; the table is a
+snapshot and the command is the truth.)
 
 Regenerate with:
 

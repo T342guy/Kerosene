@@ -347,3 +347,254 @@ fn the_console_does_not_repeat_its_own_output() {
     let count = engine.console.log().filter(|l| l.text == "hello from the console").count();
     assert_eq!(count, 1, "the console echoed itself");
 }
+
+// ---- scripting ------------------------------------------------------------
+
+/// An engine with a map and a script file on disk, since both are read
+/// through the VFS.
+fn engine_with_script(script: &str) -> (void_engine::engine::Engine, std::path::PathBuf) {
+    use void_engine::engine::{Engine, EngineConfig};
+
+    let dir = std::env::temp_dir().join(format!(
+        "voidengine-script-{}-{:?}",
+        std::process::id(),
+        std::thread::current().id()
+    ));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(dir.join("maps")).unwrap();
+    std::fs::create_dir_all(dir.join("scripts")).unwrap();
+    let bsp = build(&corridor_map(true, true));
+    std::fs::write(dir.join("maps/testmap.voidbsp"), bsp.to_bytes()).unwrap();
+    std::fs::write(dir.join("scripts/testmap.voidscript"), script).unwrap();
+
+    let engine = Engine::new(&EngineConfig {
+        content_paths: vec![dir.clone()],
+        ..Default::default()
+    });
+    (engine, dir)
+}
+
+#[test]
+fn a_maps_script_loads_with_it_and_its_start_hook_runs() {
+    let (mut engine, dir) = engine_with_script(
+        r#" fn on_map_start() { print("the script ran"); } "#,
+    );
+    engine.load_map("testmap").unwrap();
+    assert!(
+        engine.console.log().any(|l| l.text == "the script ran"),
+        "on_map_start never ran"
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_map_with_no_script_is_silent_rather_than_an_error() {
+    use void_engine::engine::{Engine, EngineConfig};
+    let dir = std::env::temp_dir().join(format!("voidengine-noscript-{}", std::process::id()));
+    std::fs::create_dir_all(dir.join("maps")).unwrap();
+    let bsp = build(&corridor_map(true, true));
+    std::fs::write(dir.join("maps/testmap.voidbsp"), bsp.to_bytes()).unwrap();
+
+    let mut engine = Engine::new(&EngineConfig {
+        content_paths: vec![dir.clone()],
+        ..Default::default()
+    });
+    engine.load_map("testmap").unwrap();
+    assert!(!engine.console.log().any(|l| l.text.contains("script")), "it complained");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_script_can_open_a_door_through_the_same_path_a_wire_would() {
+    // The point of the whole action queue: a script fires an input, and it
+    // arrives through the event queue with the same ordering and delays an
+    // output wired in the editor would have.
+    let (mut engine, dir) = engine_with_script("");
+    engine.load_map("testmap").unwrap();
+
+    let door = engine.entities.find_by_name("gate").first().copied().expect("the map has a door");
+    let before = engine.entities.get(door).unwrap().fields.f32("door_state", -1.0);
+
+    engine.run_script(r#" ent_fire("gate", "Open"); "#).unwrap();
+    for _ in 0..8 { engine.tick(TICK, &InputState::default()); }
+
+    let after = engine.entities.get(door).unwrap().fields.f32("door_state", -1.0);
+    assert_ne!(before, after, "the door never moved");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_script_reads_the_world_it_is_actually_in() {
+    let (mut engine, dir) = engine_with_script("");
+    engine.load_map("testmap").unwrap();
+
+    assert_eq!(engine.run_script("map_name()").unwrap().as_deref(), Some("testmap"));
+    assert_eq!(
+        engine.run_script(r#" find_by_name("gate").classname "#).unwrap().as_deref(),
+        Some("func_door")
+    );
+    // The player exists and is somewhere, and a script can measure from it.
+    assert_eq!(engine.run_script("player() != ()").unwrap().as_deref(), Some("true"));
+    assert_eq!(
+        engine.run_script(r#" cvar_float("sv_gravity") > 0.0 "#).unwrap().as_deref(),
+        Some("true")
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_script_setting_a_keyvalue_changes_the_entity() {
+    let (mut engine, dir) = engine_with_script("");
+    engine.load_map("testmap").unwrap();
+    engine.run_script(r#" find_by_name("gate").set("speed", 999.0); "#).unwrap();
+
+    let door = engine.entities.find_by_name("gate")[0];
+    assert_eq!(engine.entities.get(door).unwrap().fields.f32("speed", 0.0), 999.0);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_handle_a_script_kept_across_a_death_does_not_hit_the_next_entity() {
+    // Handles carry the slot's generation for the same reason queued events
+    // do. Without it a script holding a reference over a respawn would be
+    // acting on whatever moved into the slot.
+    use void_engine::scripting::{pack, unpack};
+    use void_script::ScriptAction;
+
+    let (mut engine, dir) = engine_with_script("");
+    engine.load_map("testmap").unwrap();
+
+    let victim = engine.entities.find_by_name("gate")[0];
+    let stale = pack(victim);
+    engine.entities.remove(victim);
+    engine.entities.run(0.0);
+
+    // The slot is free; something else takes it.
+    let replacement = engine.entities.spawn("logic_relay");
+    assert_eq!(replacement.index, unpack(stale).index, "the test needs the slot reused");
+
+    engine.apply_script_actions(vec![ScriptAction::SetField {
+        entity: stale,
+        key: "speed".into(),
+        value: "1".into(),
+    }]);
+    assert!(
+        engine.entities.get(replacement).unwrap().fields.text("speed").is_none(),
+        "a stale handle wrote to the entity that replaced it"
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_tick_hook_runs_every_tick_and_sees_time_moving() {
+    let (mut engine, dir) = engine_with_script(
+        r#"
+        let ticks = 0;
+        fn on_tick(dt) {
+            ticks += 1;
+            if ticks == 3 { print(`three ticks at ${time() > 0.0}`); }
+        }
+        "#,
+    );
+    engine.load_map("testmap").unwrap();
+    for _ in 0..4 { engine.tick(TICK, &InputState::default()); }
+    assert!(
+        engine.console.log().any(|l| l.text == "three ticks at true"),
+        "the tick hook did not run"
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_broken_script_reports_and_leaves_the_game_running() {
+    let (mut engine, dir) = engine_with_script(" this is not valid ((( ");
+    engine.load_map("testmap").unwrap();
+    assert!(
+        engine.console.log().any(|l| l.level == void_console::LogLevel::Error),
+        "a broken script loaded silently"
+    );
+    // ...and the map is still playable.
+    for _ in 0..4 { engine.tick(TICK, &InputState::default()); }
+    assert!(engine.tick_count > 0);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_logic_script_entity_calls_a_function_when_its_input_fires() {
+    // The seam: an output fires an input, and a function in the map's script
+    // runs. This is what makes scripting reachable from the editor.
+    use void_entity::{InputEvent, Target};
+
+    let (mut engine, dir) = engine_with_script(
+        r#" fn on_used(who) { print(`used by ${who}`); } "#,
+    );
+    engine.load_map("testmap").unwrap();
+
+    let id = engine.entities.spawn("logic_script");
+    engine.entities.set_targetname(id, "brain");
+    engine.entities.get_mut(id).unwrap().fields.set(
+        "function",
+        void_entity::Value::Text("on_used".into()),
+    );
+
+    engine.entities.accept_input(id, &InputEvent::new("CallScriptFunction"));
+    engine.take_entity_requests();
+    assert!(
+        engine.console.log().any(|l| l.text == "used by brain"),
+        "the script function never ran"
+    );
+
+    // ...and through the queue, the way an output would arrive.
+    engine.entities.queue_input(Target::Named("brain".into()), "CallScriptFunction", "", 0.0, None, None);
+    engine.tick(TICK, &InputState::default());
+    let runs = engine.console.log().filter(|l| l.text == "used by brain").count();
+    assert_eq!(runs, 2, "the queued input did not reach the script");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_logic_script_can_carry_its_code_inline() {
+    use void_entity::InputEvent;
+
+    let (mut engine, dir) = engine_with_script("");
+    engine.load_map("testmap").unwrap();
+
+    let id = engine.entities.spawn("logic_script");
+    engine.entities.get_mut(id).unwrap().fields.set(
+        "code",
+        void_entity::Value::Text(r#" print("inline"); "#.into()),
+    );
+    engine.entities.accept_input(id, &InputEvent::new("RunScriptCode"));
+    engine.take_entity_requests();
+
+    assert!(engine.console.log().any(|l| l.text == "inline"));
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn the_script_console_command_runs_and_shows_its_value() {
+    use void_engine::engine::take_console_requests;
+
+    let (mut engine, dir) = engine_with_script("");
+    engine.load_map("testmap").unwrap();
+    engine.console.set("sv_cheats", "1");
+
+    engine.console.execute("script 6 * 7");
+    take_console_requests(&mut engine);
+    assert!(engine.console.log().any(|l| l.text == "42"), "the value was not shown");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn scripting_is_cheat_protected() {
+    // A script can move entities and set convars. It is not something a
+    // server should hand out for free.
+    let (mut engine, dir) = engine_with_script("");
+    engine.load_map("testmap").unwrap();
+    engine.console.set("sv_cheats", "0");
+
+    engine.console.execute(r#" script print("should not run") "#);
+    void_engine::engine::take_console_requests(&mut engine);
+    assert!(!engine.console.log().any(|l| l.text == "should not run"));
+    let _ = std::fs::remove_dir_all(&dir);
+}

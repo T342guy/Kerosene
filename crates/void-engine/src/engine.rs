@@ -15,7 +15,7 @@ use crate::input::InputState;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use void_bsp::{Bsp, contents};
-use void_console::{ConVarFlags, Console};
+use void_console::{ConVarFlags, Console, requests};
 use void_entity::{EntityId, EntityWorld};
 use void_math::{Aabb, Angles, Vec3};
 use crate::collision::LevelCollision;
@@ -69,6 +69,8 @@ pub struct Engine {
     pub console: Console,
     /// The global log relay, drained into the console once a frame.
     pub log: Option<std::sync::Arc<void_console::LogRelay>>,
+    /// The script VM. Empty until a map with a script loads.
+    pub script: void_script::ScriptHost,
     pub vfs: Arc<Vfs>,
     pub level: Option<Level>,
     pub entities: EntityWorld,
@@ -156,6 +158,7 @@ impl Engine {
         let mut engine = Engine {
             console,
             log: config.log.clone(),
+            script: void_script::ScriptHost::new(),
             vfs,
             level: None,
             entities,
@@ -211,6 +214,14 @@ impl Engine {
         self.time = 0.0;
         self.tick_count = 0;
         self.accumulator = 0.0;
+
+        // A map's script loads after every entity exists, so `on_map_start`
+        // can find them. A map without one is the normal case and is silent.
+        self.load_map_script(name);
+        // ...and any `logic_script` that named a file of its own got its
+        // request in during spawn.
+        self.take_entity_requests();
+        self.call_script_hook(void_script::hooks::MAP_START, vec![]);
         Ok(())
     }
 
@@ -321,6 +332,13 @@ impl Engine {
 
         self.update_triggers();
         self.entities.run(dt);
+        self.take_entity_requests();
+
+        // Only when a script asked for it: the snapshot a hook reads is
+        // O(entities) to build, and most maps define no tick hook at all.
+        if self.script.has_function(void_script::hooks::TICK) {
+            self.call_script_hook(void_script::hooks::TICK, vec![rhai::Dynamic::from(dt as f64)]);
+        }
     }
 
     fn movement_params(&self) -> MoveParams {
@@ -462,12 +480,47 @@ fn register_commands(console: &mut Console) {
         match args.get(1) {
             Some(name) => {
                 let name = name.to_string();
-                con.set("__pending_map", &name);
+                con.request(requests::MAP, name);
             }
             None => con.warn("usage: map <name>"),
         }
     });
-    console.register_cvar("__pending_map", "", ConVarFlags::HIDDEN, "Map the host should load next.");
+
+    console.register_command(
+        "script",
+        ConVarFlags::CHEAT,
+        "Run script source: script <code>",
+        |con, args| {
+            // Everything after the command word, unsplit: script source has
+            // spaces in it and tokenising it would be actively wrong.
+            let source = args.rest.clone();
+            if source.trim().is_empty() {
+                con.warn("usage: script <code>");
+                return;
+            }
+            con.request(requests::SCRIPT, source);
+        },
+    );
+
+    console.register_command(
+        "script_execute",
+        ConVarFlags::CHEAT,
+        "Load and run a script file: script_execute <name>",
+        |con, args| match args.get(1) {
+            Some(name) => {
+                let name = name.to_string();
+                con.request(requests::SCRIPT_FILE, name);
+            }
+            None => con.warn("usage: script_execute <name>"),
+        },
+    );
+
+    console.register_command(
+        "script_reload",
+        ConVarFlags::CHEAT,
+        "Forget every loaded script and load them again.",
+        |con, _| con.request(requests::SCRIPT_RELOAD, ""),
+    );
 
     console.register_command(
         "condump",
@@ -487,12 +540,11 @@ fn register_commands(console: &mut Console) {
     );
 
     console.register_command("quit", ConVarFlags::NONE, "Exit.", |con, _| {
-        con.set("__quit", "1");
+        con.request(requests::QUIT, "");
     });
     console.register_command("exit", ConVarFlags::NONE, "Exit.", |con, _| {
-        con.set("__quit", "1");
+        con.request(requests::QUIT, "");
     });
-    console.register_cvar("__quit", "0", ConVarFlags::HIDDEN, "Set when the host should exit.");
 
     console.register_command("noclip", ConVarFlags::CHEAT, "Toggle flying through walls.", |con, _| {
         let on = con.bool("sv_noclip");
@@ -508,13 +560,23 @@ fn register_commands(console: &mut Console) {
 
 /// Poll the console for requests engine commands left behind.
 pub fn take_console_requests(engine: &mut Engine) {
-    let pending = engine.console.string("__pending_map").to_string();
-    if !pending.is_empty() {
-        engine.console.set("__pending_map", "");
-        engine.request_map(&pending);
-    }
-    if engine.console.bool("__quit") {
-        engine.should_quit = true;
+    for (kind, payload) in engine.console.take_requests() {
+        match kind.as_str() {
+            requests::MAP => engine.request_map(&payload),
+            requests::QUIT => engine.should_quit = true,
+            requests::SCRIPT => match engine.run_script(&payload) {
+                Ok(Some(value)) => engine.console.echo(value),
+                Ok(None) => {}
+                Err(e) => engine.console.error(format!("script: {e}")),
+            },
+            requests::SCRIPT_FILE => {
+                if let Err(e) = engine.load_script(&payload) {
+                    engine.console.error(format!("script_execute: {e}"));
+                }
+            }
+            requests::SCRIPT_RELOAD => engine.reload_scripts(),
+            other => engine.console.warn(format!("unknown host request `{other}`")),
+        }
     }
 }
 
