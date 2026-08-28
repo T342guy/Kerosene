@@ -8,7 +8,7 @@ fn record(relay: &LogRelay, level: log::Level, target: &str, text: &str) {
     relay.log(&log::Record::builder().level(level).target(target).args(format_args!("{text}")).build());
 }
 
-fn relay() -> LogRelay { LogRelay::new(log::LevelFilter::Debug) }
+fn relay() -> LogRelay { LogRelay::detached_uniform(log::LevelFilter::Debug) }
 
 #[test]
 fn a_record_from_the_game_reaches_the_console() {
@@ -57,7 +57,7 @@ fn levels_map_onto_the_consoles_own() {
 
 #[test]
 fn a_record_below_the_level_is_not_kept() {
-    let relay = LogRelay::new(log::LevelFilter::Warn);
+    let relay = LogRelay::detached_uniform(log::LevelFilter::Warn);
     record(&relay, log::Level::Info, "void_game", "chatter");
     record(&relay, log::Level::Error, "void_game", "trouble");
     let lines = relay.take().0;
@@ -122,4 +122,54 @@ fn the_environment_can_choose_the_level_but_nonsense_does_not() {
     assert_eq!(level_from_env(log::LevelFilter::Info), log::LevelFilter::Info);
     unsafe { std::env::remove_var("RUST_LOG") };
     assert_eq!(level_from_env(log::LevelFilter::Info), log::LevelFilter::Info);
+}
+
+// ---- whose chatter belongs in the console ---------------------------------
+
+#[test]
+fn our_own_crates_are_recognised_by_their_log_targets() {
+    // `log` targets are crate paths with underscores, and a module path is
+    // separated with colons -- both have to count.
+    for target in ["void", "void_engine", "void_render::mesh", "chisel", "kiln", "cleave"] {
+        assert!(is_ours(target), "{target} should be ours");
+    }
+}
+
+#[test]
+fn everything_else_is_not() {
+    for target in ["wgpu_hal::vulkan::instance", "naga", "winit", "calloop", "voidbird"] {
+        assert!(!is_ours(target), "{target} should not be ours");
+    }
+}
+
+#[test]
+fn a_foreign_crates_information_does_not_reach_the_console() {
+    // A console opened to read one line and found full of Vulkan loader
+    // chatter is a console nobody opens twice.
+    let relay = LogRelay::detached(log::LevelFilter::Info);
+    record(&relay, log::Level::Info, "wgpu_hal::vulkan", "Loader Message");
+    record(&relay, log::Level::Info, "void_engine::host", "loading maps/x");
+
+    let (lines, _) = relay.take();
+    let texts: Vec<&str> = lines.iter().map(|l| l.text.as_str()).collect();
+    assert_eq!(texts, vec!["loading maps/x"]);
+}
+
+#[test]
+fn a_foreign_crates_warning_still_does() {
+    // Held to warnings, not silenced: a warning from the graphics backend is
+    // the one thing it says that anybody needs to act on.
+    let relay = LogRelay::detached(log::LevelFilter::Info);
+    record(&relay, log::Level::Warn, "wgpu_hal::vulkan", "device lost");
+
+    let (lines, _) = relay.take();
+    assert_eq!(lines.len(), 1);
+    assert_eq!(lines[0].text, "device lost");
+}
+
+#[test]
+fn asking_for_less_holds_our_own_crates_to_it_too() {
+    let relay = LogRelay::detached(log::LevelFilter::Error);
+    record(&relay, log::Level::Warn, "void_engine", "a warning");
+    assert!(relay.take().0.is_empty(), "error-only means error-only");
 }

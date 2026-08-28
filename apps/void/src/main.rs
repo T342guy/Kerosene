@@ -17,7 +17,7 @@
 
 use anyhow::Result;
 use std::path::PathBuf;
-use void_engine::engine::{Engine, EngineConfig, take_console_requests};
+use void_engine::engine::{Engine, EngineConfig, report_unhandled, take_console_requests};
 use void_engine::input::InputState;
 use void_math::Angles;
 
@@ -95,7 +95,8 @@ fn main() -> Result<()> {
 fn run_headless(config: EngineConfig, ticks: u64) -> Result<()> {
     let mut engine = Engine::new(&config);
     engine.console.run_buffered();
-    take_console_requests(&mut engine);
+    let unclaimed = take_console_requests(&mut engine);
+    report_unhandled(&mut engine, unclaimed);
 
     if let Some(map) = config.map.as_deref() {
         engine.load_map(map)?;
@@ -114,7 +115,8 @@ fn run_headless(config: EngineConfig, ticks: u64) -> Result<()> {
     for _ in 0..ticks {
         engine.tick(interval, &input);
         engine.console.run_buffered();
-        take_console_requests(&mut engine);
+        let unclaimed = take_console_requests(&mut engine);
+    report_unhandled(&mut engine, unclaimed);
         if engine.should_quit { break; }
     }
     let elapsed = started.elapsed().as_secs_f32();

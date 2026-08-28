@@ -38,12 +38,32 @@ pub struct ConsoleUi {
     /// What the input was when the completions were worked out. Any other
     /// edit invalidates them.
     completion_source: String,
+    /// Whether the console has introduced itself yet.
+    greeted: bool,
     /// Lines scrolled back from the bottom. Zero means pinned to the newest.
     pub scroll: usize,
 }
 
 impl ConsoleUi {
     pub fn new() -> ConsoleUi { ConsoleUi::default() }
+
+    /// Say what the console is, the first time it is opened.
+    ///
+    /// An empty console with a blinking cursor tells you nothing about what
+    /// it accepts, and "there are two hundred of them, here is how to search"
+    /// is not something anybody guesses. Once per session: after that it is
+    /// noise between you and the output you opened the console to read.
+    pub fn greet(&mut self, console: &mut Console) {
+        if self.greeted { return }
+        self.greeted = true;
+        console.print(format!(
+            "VoidEngine console -- {} commands and convars. \
+             `find <text>` searches them, `help <name>` explains one, \
+             `cvarlist` lists the lot. Tab completes, up walks back, \
+             ` or escape closes.",
+            console.name_count(),
+        ));
+    }
 
     pub fn toggle(&mut self) {
         self.open = !self.open;

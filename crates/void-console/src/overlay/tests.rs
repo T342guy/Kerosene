@@ -231,3 +231,56 @@ fn the_shared_prefix_of_nothing_is_nothing() {
     assert_eq!(common_prefix(&["abc".into(), "abd".into()]), "ab");
     assert_eq!(common_prefix(&["abc".into(), "xyz".into()]), "");
 }
+
+// ---- introducing itself ---------------------------------------------------
+
+#[test]
+fn the_console_says_what_it_is_the_first_time_it_opens() {
+    // An empty box with a blinking cursor reads as "this accepts nothing".
+    let mut console = Console::new();
+    let mut ui = ConsoleUi::new();
+    ui.greet(&mut console);
+
+    let said: String = console.log().map(|l| l.text.clone()).collect();
+    assert!(said.contains("find"), "{said}");
+    assert!(said.contains("help"), "{said}");
+    assert!(said.contains("cvarlist"), "{said}");
+    assert!(said.contains("escape"), "it says how to leave: {said}");
+}
+
+#[test]
+fn the_greeting_counts_what_is_actually_registered() {
+    let mut console = Console::new();
+    let builtins = console.name_count();
+    assert!(builtins > 0, "a console with no builtins is a broken console");
+
+    console.register_cvar("sv_wibble", "1", crate::ConVarFlags::NONE, "test");
+    assert_eq!(console.name_count(), builtins + 1);
+
+    let mut ui = ConsoleUi::new();
+    ui.greet(&mut console);
+    let said: String = console.log().map(|l| l.text.clone()).collect();
+    assert!(said.contains(&(builtins + 1).to_string()), "{said}");
+}
+
+#[test]
+fn the_console_introduces_itself_once_and_then_stops() {
+    // After the first time it is noise between you and the output you opened
+    // the console to read.
+    let mut console = Console::new();
+    let mut ui = ConsoleUi::new();
+    ui.greet(&mut console);
+    let after_first = console.log_len();
+
+    ui.greet(&mut console);
+    ui.greet(&mut console);
+    assert_eq!(console.log_len(), after_first);
+}
+
+#[test]
+fn a_hidden_convar_is_not_counted_among_the_things_you_can_type() {
+    let mut console = Console::new();
+    let before = console.name_count();
+    console.register_cvar("sv_secret", "1", crate::ConVarFlags::HIDDEN, "test");
+    assert_eq!(console.name_count(), before, "hidden means hidden");
+}

@@ -42,20 +42,26 @@ struct Shared {
 /// The global logger, and the handle the engine drains it through.
 pub struct LogRelay {
     shared: Mutex<Shared>,
+    /// How loudly our own crates may log.
     level: log::LevelFilter,
+    /// How loudly everything else may. See [`LogRelay::level_for`].
+    foreign: log::LevelFilter,
 }
 
 impl std::fmt::Debug for LogRelay {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // Deliberately does not take the lock: a Debug print is often the
         // thing you reach for while chasing a deadlock.
-        f.debug_struct("LogRelay").field("level", &self.level).finish_non_exhaustive()
+        f.debug_struct("LogRelay")
+            .field("level", &self.level)
+            .field("foreign", &self.foreign)
+            .finish_non_exhaustive()
     }
 }
 
 impl LogRelay {
-    fn new(level: log::LevelFilter) -> LogRelay {
-        LogRelay { shared: Mutex::new(Shared::default()), level }
+    fn new(level: log::LevelFilter, foreign: log::LevelFilter) -> LogRelay {
+        LogRelay { shared: Mutex::new(Shared::default()), level, foreign }
     }
 
     /// A relay that is not the global logger.
@@ -64,7 +70,14 @@ impl LogRelay {
     /// that depends on the global one untestable and unembeddable. A detached
     /// relay is fed by hand -- through [`log::Log`] -- and drained the same
     /// way as the real one.
-    pub fn detached(level: log::LevelFilter) -> LogRelay { LogRelay::new(level) }
+    pub fn detached(level: log::LevelFilter) -> LogRelay {
+        LogRelay::new(level, foreign_level(level))
+    }
+
+    /// A detached relay that holds everything to one level, ours or not.
+    pub fn detached_uniform(level: log::LevelFilter) -> LogRelay {
+        LogRelay::new(level, level)
+    }
 
     /// Start writing every record to a file as well.
     ///
@@ -101,9 +114,23 @@ impl LogRelay {
     }
 }
 
+impl LogRelay {
+    /// The level a target is held to.
+    ///
+    /// Everything that is not ours is held to warnings. A console opened to
+    /// read one line and found full of Vulkan loader chatter is a console
+    /// nobody opens twice -- and the graphics backend narrating its startup
+    /// at info level is not information anyone asked for. `RUST_LOG` lifts
+    /// the restriction, because someone who sets it is debugging the thing
+    /// they set it for.
+    fn level_for(&self, target: &str) -> log::LevelFilter {
+        if is_ours(target) { self.level } else { self.foreign }
+    }
+}
+
 impl log::Log for LogRelay {
     fn enabled(&self, metadata: &log::Metadata) -> bool {
-        metadata.level() <= self.level
+        metadata.level() <= self.level_for(metadata.target())
     }
 
     fn log(&self, record: &log::Record) {
@@ -140,6 +167,23 @@ impl log::Log for LogRelay {
     }
 }
 
+
+/// Crates whose chatter belongs in the game's console.
+///
+/// Log targets are crate paths with underscores, so `void` catches
+/// `void_engine`, `void_render` and the rest, and each tool catches itself.
+const OURS: &[&str] = &[
+    "void", "chisel", "cleave", "umbra", "radiance", "alchemy", "forge", "vault", "kiln",
+];
+
+/// Whether a log target is one of ours.
+pub fn is_ours(target: &str) -> bool {
+    OURS.iter().any(|name| {
+        target == *name
+            || target.strip_prefix(name).is_some_and(|rest| rest.starts_with(['_', ':']))
+    })
+}
+
 /// Install the relay as the process-wide logger.
 ///
 /// Returns the handle even if another logger got there first -- a test binary
@@ -148,15 +192,31 @@ impl log::Log for LogRelay {
 /// here would mean a game that refuses to start because something else set up
 /// logging, which is not a trade anyone would take.
 pub fn install(level: log::LevelFilter) -> Arc<LogRelay> {
-    let relay = Arc::new(LogRelay::new(level));
+    let foreign = foreign_level(level);
+    let relay = Arc::new(LogRelay::new(level, foreign));
     // The global logger must outlive the process. Leaking one Arc clone is
     // the honest way to say that: the alternative is a static whose drop
     // order relative to the last log call nobody can reason about.
     let global: &'static Arc<LogRelay> = Box::leak(Box::new(Arc::clone(&relay)));
     if log::set_logger(global.as_ref()).is_ok() {
-        log::set_max_level(level);
+        // The loudest of the two, or records would be filtered out by `log`
+        // itself before the relay ever got the chance to sort them.
+        log::set_max_level(level.max(foreign));
     }
     relay
+}
+
+/// How loudly crates that are not ours may log.
+///
+/// Warnings and worse, which is the level at which a foreign crate is telling
+/// you something you need to act on. Unless `RUST_LOG` is set: someone who
+/// sets it is debugging the thing they set it for, and second-guessing them
+/// would make the variable useless.
+pub fn foreign_level(ours: log::LevelFilter) -> log::LevelFilter {
+    if std::env::var_os("RUST_LOG").is_some() {
+        return ours;
+    }
+    ours.min(log::LevelFilter::Warn)
 }
 
 /// Read a level filter the way `RUST_LOG` spells one, falling back to a

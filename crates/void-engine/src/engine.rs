@@ -553,6 +553,13 @@ fn register_cvars(console: &mut Console) {
 /// only gets the console, and threading the whole engine through it would make
 /// every command able to do anything.
 fn register_commands(console: &mut Console) {
+    console.register_command(
+        "toggleconsole",
+        ConVarFlags::NONE,
+        "Open or close the developer console.",
+        |con, _| con.request(requests::TOGGLE_CONSOLE, ""),
+    );
+
     console.register_command("map", ConVarFlags::NONE, "Load a map: map <name>", |con, args| {
         match args.get(1) {
             Some(name) => {
@@ -663,7 +670,8 @@ fn register_commands(console: &mut Console) {
 }
 
 /// Poll the console for requests engine commands left behind.
-pub fn take_console_requests(engine: &mut Engine) {
+pub fn take_console_requests(engine: &mut Engine) -> Vec<(String, String)> {
+    let mut unhandled = Vec::new();
     for (kind, payload) in engine.console.take_requests() {
         match kind.as_str() {
             requests::MAP => engine.request_map(&payload),
@@ -693,8 +701,24 @@ pub fn take_console_requests(engine: &mut Engine) {
                 let status = engine.audio.status.clone();
                 engine.console.print(format!("audio: {status}"));
             }
-            other => engine.console.warn(format!("unknown host request `{other}`")),
+            // Not ours. The console can ask for things the *host* owns --
+            // opening the console itself, most obviously -- and the engine
+            // has no business knowing a window exists. Handing them back
+            // beats teaching it.
+            _ => unhandled.push((kind, payload)),
         }
+    }
+    unhandled
+}
+
+/// Report requests nobody claimed.
+///
+/// For a caller with nothing to add -- a headless server has no console to
+/// open -- so that an unrecognised request is still said out loud rather than
+/// dropped on the floor.
+pub fn report_unhandled(engine: &mut Engine, requests: Vec<(String, String)>) {
+    for (kind, _) in requests {
+        engine.console.warn(format!("unknown host request `{kind}`"));
     }
 }
 

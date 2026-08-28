@@ -481,6 +481,36 @@ path". The usual reason is that it has never been compiled — the `.voidmap` is
 right there and nothing turned it into a `.voidbsp` — so that is what it says,
 along with the command to run and the list of paths it searched.
 
+### The console
+
+`` ` `` opens it, `` ` `` or escape closes it, and `toggleconsole` does the
+same from a binding or the command line. Those two keys are read by the host
+before anything else sees them and are never passed on — a way out that the
+thing you are trying to leave can capture is not a way out, and handling them
+any later meant the console's own text field swallowed them. The same mistake
+put the backtick that opened it *into* the prompt, so every command typed
+afterwards began with a character that made it unknown.
+
+While it is open the console takes the keyboard completely and releases the
+mouse: a console you cannot type an `n` into without walking forward is not a
+console. Tab completes the command word and cycles the candidates, up and down
+walk history, page up and down scroll without disturbing what you are typing.
+
+It introduces itself the first time it opens, because an empty box with a
+blinking cursor reads as "this accepts nothing":
+
+```
+VoidEngine console -- 52 commands and convars. `find <text>` searches them,
+`help <name>` explains one, `cvarlist` lists the lot. Tab completes, up walks
+back, ` or escape closes.
+```
+
+Log lines from the engine appear in it as they happen. Crates that are not
+ours — the graphics backend, the window library — are held to warnings, so
+opening the console to read one line does not mean scrolling past a page of
+Vulkan loader chatter. `RUST_LOG` lifts that: someone who sets it is debugging
+the thing they set it for.
+
 ### Useful convars
 
 | Convar | |

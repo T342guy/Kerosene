@@ -12,7 +12,7 @@
 //! Simulation is decoupled from rendering on purpose. A 240 Hz display should
 //! draw 240 smooth frames of a 64 Hz simulation, not simulate 240 times.
 
-use crate::engine::{Engine, EngineConfig, take_console_requests};
+use crate::engine::{Engine, EngineConfig, report_unhandled, take_console_requests};
 use crate::input::InputSystem;
 use void_console::ConsoleUi;
 use std::sync::Arc;
@@ -100,16 +100,40 @@ impl ApplicationHandler for App {
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
-        // egui gets first refusal while the console is open, and the game
-        // sees nothing: a console you cannot type an `n` into without walking
-        // forward is not a console.
-        if self.console_ui.open {
-            if let Some(gfx) = &mut self.gfx {
-                let response = gfx.egui_state.on_window_event(&gfx.window, &event);
-                let swallow = response.consumed
-                    && !matches!(event, WindowEvent::RedrawRequested | WindowEvent::CloseRequested);
-                if swallow { return }
+        // The keys that open and close the console are handled here, before
+        // anything else sees them, and are never passed on.
+        //
+        // Afterwards would be too late. A focused text field makes egui claim
+        // every keystroke, so the console swallowed the very keys that close
+        // it -- and the backtick that opened it was typed *into* the prompt,
+        // so every command after it began with a character that made it
+        // unknown. One ordering mistake, and the console appeared both to
+        // have no commands and to be impossible to leave.
+        if let WindowEvent::KeyboardInput { event, .. } = &event
+            && let PhysicalKey::Code(code) = event.physical_key
+            && let Some(action) = self.intercept(code)
+        {
+            // On the press, not the release, and not on auto-repeat: a held
+            // key must not toggle the console sixty times a second.
+            if event.state == ElementState::Pressed && !event.repeat {
+                match action {
+                    Intercepted::ToggleConsole => self.toggle_console(),
+                    Intercepted::ReleaseMouse => self.set_mouse_capture(false),
+                }
             }
+            return;
+        }
+
+        // egui gets first refusal on everything else while the console is
+        // open, and the game sees nothing: a console you cannot type an `n`
+        // into without walking forward is not a console.
+        if self.console_ui.open
+            && let Some(gfx) = &mut self.gfx
+        {
+            let response = gfx.egui_state.on_window_event(&gfx.window, &event);
+            let swallow = response.consumed
+                && !matches!(event, WindowEvent::RedrawRequested | WindowEvent::CloseRequested);
+            if swallow { return }
         }
 
         match event {
@@ -137,31 +161,15 @@ impl ApplicationHandler for App {
                 let pressed = event.state == ElementState::Pressed;
                 if event.repeat { return; }
 
-                if let PhysicalKey::Code(code) = event.physical_key {
-                    // The console key is handled here rather than through a
-                    // binding so that it always works, including out of a
-                    // console whose bindings someone has just broken.
-                    if matches!(code, KeyCode::Backquote) && pressed {
-                        self.toggle_console();
-                        return;
-                    }
-                    if code == KeyCode::Escape && pressed {
-                        if self.console_ui.open {
-                            self.toggle_console();
-                            return;
-                        }
-                        self.set_mouse_capture(false);
-                        return;
-                    }
-                    // Held movement keys must not stay held while the console
-                    // has the keyboard, or the player walks the whole time it
-                    // is open.
-                    if self.console_ui.open { return }
-                    if let Some(name) = key_name(code) {
-                        if let Some(command) = self.input.key_event(name, pressed) {
-                            self.engine.console.execute_user(&command);
-                        }
-                    }
+                // Held movement keys must not stay held while the console
+                // has the keyboard, or the player walks the whole time it is
+                // open.
+                if self.console_ui.open { return }
+                if let PhysicalKey::Code(code) = event.physical_key
+                    && let Some(name) = key_name(code)
+                    && let Some(command) = self.input.key_event(name, pressed)
+                {
+                    self.engine.console.execute_user(&command);
                 }
             }
 
@@ -205,7 +213,35 @@ impl ApplicationHandler for App {
     }
 }
 
+/// A key the host acts on itself, whatever else is on screen.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Intercepted {
+    ToggleConsole,
+    ReleaseMouse,
+}
+
+/// What the host must do with a key before anything else sees it.
+///
+/// Only two keys qualify, and both for the same reason: they are how you get
+/// *out* of something. A way out that can be captured by the thing you are
+/// trying to leave is not a way out -- which is exactly what happened when
+/// these were handled after egui, and the console kept the keys that close
+/// it. The console key is deliberately not a binding either, so it still
+/// works out of a config whose bindings someone has just broken.
+pub fn intercepted(code: KeyCode, console_open: bool) -> Option<Intercepted> {
+    match code {
+        KeyCode::Backquote => Some(Intercepted::ToggleConsole),
+        KeyCode::Escape if console_open => Some(Intercepted::ToggleConsole),
+        KeyCode::Escape => Some(Intercepted::ReleaseMouse),
+        _ => None,
+    }
+}
+
 impl App {
+    fn intercept(&self, code: KeyCode) -> Option<Intercepted> {
+        intercepted(code, self.console_ui.open)
+    }
+
     /// Open or close the console, and hand the mouse and keyboard over.
     fn toggle_console(&mut self) {
         self.console_ui.toggle();
@@ -213,6 +249,7 @@ impl App {
             // Whatever was held stays held forever otherwise.
             self.input.release_all();
             self.set_mouse_capture(false);
+            self.console_ui.greet(&mut self.engine.console);
         }
     }
 
@@ -237,7 +274,18 @@ impl App {
         let input_state = self.input.state();
 
         self.engine.frame(real_dt, &input_state);
-        take_console_requests(&mut self.engine);
+        // Whatever the engine did not claim is the host's: opening the
+        // console is the obvious one, and `toggleconsole` being a command
+        // rather than only a key is what lets it be bound somewhere else.
+        let unhandled = take_console_requests(&mut self.engine);
+        let mut leftover = Vec::new();
+        for (kind, payload) in unhandled {
+            match kind.as_str() {
+                void_console::requests::TOGGLE_CONSOLE => self.toggle_console(),
+                _ => leftover.push((kind, payload)),
+            }
+        }
+        report_unhandled(&mut self.engine, leftover);
 
         if self.engine.should_quit {
             event_loop.exit();
@@ -570,4 +618,38 @@ fn mouse_button_name(button: MouseButton) -> Option<&'static str> {
         MouseButton::Middle => "mouse3",
         _ => return None,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_console_key_is_intercepted_whether_the_console_is_open_or_not() {
+        // Both directions, and before egui sees it. Handled afterwards, a
+        // focused text field claims every keystroke: the console kept the key
+        // that closes it, and the backtick that opened it was typed into the
+        // prompt so that every command after it began with a `.
+        assert_eq!(intercepted(KeyCode::Backquote, false), Some(Intercepted::ToggleConsole));
+        assert_eq!(intercepted(KeyCode::Backquote, true), Some(Intercepted::ToggleConsole));
+    }
+
+    #[test]
+    fn escape_closes_the_console_when_it_is_open_and_frees_the_mouse_when_it_is_not() {
+        assert_eq!(intercepted(KeyCode::Escape, true), Some(Intercepted::ToggleConsole));
+        assert_eq!(intercepted(KeyCode::Escape, false), Some(Intercepted::ReleaseMouse));
+    }
+
+    #[test]
+    fn nothing_else_is_taken_from_the_console() {
+        // Everything the console needs must reach it, or typing into it is
+        // full of holes that are maddening to find.
+        for code in [
+            KeyCode::KeyW, KeyCode::KeyN, KeyCode::Enter, KeyCode::Tab,
+            KeyCode::ArrowUp, KeyCode::ArrowDown, KeyCode::PageUp, KeyCode::PageDown,
+            KeyCode::Backspace, KeyCode::Space, KeyCode::Digit1, KeyCode::Semicolon,
+        ] {
+            assert_eq!(intercepted(code, true), None, "{code:?} must reach the console");
+        }
+    }
 }

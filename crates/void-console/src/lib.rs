@@ -215,6 +215,9 @@ pub mod requests {
     pub const STOP_SOUND: &str = "stop_sound";
     /// Reopen the audio device and forget every loaded sound.
     pub const SOUND_RESTART: &str = "sound_restart";
+    /// Open or close the console. Owned by the host, not the engine: a
+    /// dedicated server has a console and no window to draw one in.
+    pub const TOGGLE_CONSOLE: &str = "toggle_console";
 }
 
 const MAX_EXEC_DEPTH: u32 = 16;
@@ -345,6 +348,16 @@ impl Console {
             .collect();
         out.sort_by_key(|(n, _)| *n);
         out
+    }
+
+    /// How many names there are to complete against.
+    ///
+    /// Worth stating out loud when the console opens: the difference between
+    /// "this thing accepts nothing" and "this thing accepts two hundred
+    /// things, here is how to search them" is the whole of whether anyone
+    /// uses it.
+    pub fn name_count(&self) -> usize {
+        self.complete("").len()
     }
 
     /// Names matching a prefix, for tab completion. Commands and convars

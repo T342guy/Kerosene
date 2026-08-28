@@ -135,6 +135,10 @@ than being written somewhere you would have to go looking for.
 renamed map is not shadowed by a `.voidbsp` under its old name. The title bar
 and the status bar both name the file, with a `*` when it has unsaved changes.
 
+`` ` `` opens the developer console, `` ` `` or escape closes it. It says what
+it holds the first time you open it — `find`, `help` and `cvarlist` are how you
+get at the rest — and everything the engine logs appears in it as it happens.
+
 No display? The engine runs headless — which is what a dedicated server is,
 not a testing mode bolted on the side:
 
@@ -236,7 +240,7 @@ provenance of the algorithms.
 ## Status
 
 Everything above works end to end: you can draw a level in Chisel, compile it
-through all three stages, and walk around it. 1080 tests cover the pieces and
+through all three stages, and walk around it. 1099 tests cover the pieces and
 the seams between them, including a suite that builds a map in memory,
 compiles it, loads it and plays it.
 
