@@ -210,6 +210,10 @@ out of the repository. The generator reports what it changed and what was
 already correct, so re-running it on an unchanged tree is a no-op and a diff
 against it is meaningful.
 
+Chisel runs the generator, and the batch compile after it, before it finishes
+loading. So a clone with the `.voidtex` files missing -- which is every clone,
+since they are build artefacts -- still opens an editor with textures in it.
+
 A test checks the set against the compiler's tool-material table in both
 directions: offering a tool material the compiler treats as world geometry
 would silently wall off a doorway.

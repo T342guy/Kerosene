@@ -8,6 +8,7 @@ authors.workspace = true
 
 [dependencies]
 void-engine.workspace = true
+void-vfs.workspace = true
 void-game.workspace = true
 void-console.workspace = true
 void-math.workspace = true

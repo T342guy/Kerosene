@@ -47,7 +47,31 @@ fn main() -> Result<()> {
         startup_commands: parsed.commands,
     };
     if config.content_paths.is_empty() {
-        config.content_paths.push(PathBuf::from("content"));
+        // Searched for, not assumed. `./content` is only right when the game
+        // is started from the repository root; started any other way it
+        // mounted a directory that did not exist and then reported every
+        // asset in the game as missing. The editor and the compilers find the
+        // tree the same way, from the same code, so they cannot disagree.
+        match void_vfs::root::find(None, None) {
+            Some(found) => {
+                log::info!("{}", void_vfs::root::describe(&Some(found.clone())));
+                config.content_paths.push(found.root);
+            }
+            None => {
+                log::warn!("{}", void_vfs::root::describe(&None));
+                config.content_paths.push(PathBuf::from("content"));
+            }
+        }
+    }
+
+    // A vault sitting in the content tree is mounted without being asked for.
+    // That is what shipping looks like: the game a player installs has its
+    // content packed, and needing a command-line flag to see it would mean
+    // the shipped game only ran when launched from a script.
+    if config.archives.is_empty() {
+        for root in config.content_paths.clone() {
+            config.archives.extend(vaults_in(&root));
+        }
     }
 
     match parsed.headless_ticks {
@@ -165,6 +189,23 @@ fn parse_args(args: &[String]) -> Result<ParsedArgs> {
     Ok(parsed)
 }
 
+/// Every `.vault` archive in a directory, in a stable order.
+///
+/// Sorted by name so two machines mount the same archives in the same order,
+/// and so `pak01` comes before `pak02` -- with loose files still winning over
+/// both, which is what makes dropping a file beside a shipped archive work.
+fn vaults_in(dir: &std::path::Path) -> Vec<PathBuf> {
+    let mut found: Vec<PathBuf> = std::fs::read_dir(dir)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .map(|e| e.path())
+        .filter(|p| p.extension().is_some_and(|e| e == "vault"))
+        .collect();
+    found.sort();
+    found
+}
+
 fn next<'a>(args: &'a [String], i: &mut usize, flag: &str) -> Result<&'a str> {
     *i += 1;
     args.get(*i)
@@ -179,7 +220,10 @@ fn print_help() {
     println!();
     println!("options:");
     println!("  --content <dir>     Mount a content directory. Repeatable; searched in order.");
-    println!("  --vault <file>      Mount a .vault archive.");
+    println!("                      With none, the content tree is found: from the working");
+    println!("                      directory, then beside the executable.");
+    println!("  --vault <file>      Mount a .vault archive. With none, every .vault in the");
+    println!("                      content tree is mounted.");
     println!("  --headless <ticks>  Simulate without a window, then report. This is what a");
     println!("                      dedicated server runs.");
     println!("  --help              Show this.");

@@ -5,6 +5,7 @@
 //! chisel                          # start with a sample room
 //! chisel content/maps/void_start.voidmap
 //! chisel --content content        # where to look for materials
+//! chisel --no-build               # skip the texture build on the way in
 //! ```
 //!
 //! The editor's logic lives in the `chisel` library and is tested without a
@@ -26,6 +27,7 @@ fn main() -> Result<()> {
 
     let mut map: Option<PathBuf> = None;
     let mut content: Option<PathBuf> = None;
+    let mut build = true;
     let args: Vec<String> = std::env::args().skip(1).collect();
     let mut i = 0;
     while i < args.len() {
@@ -34,11 +36,16 @@ fn main() -> Result<()> {
                 i += 1;
                 content = args.get(i).map(PathBuf::from);
             }
+            "--no-build" => build = false,
             "--help" | "-h" => {
-                println!("chisel [map.voidmap] [--content <dir>]");
+                println!("chisel [map.voidmap] [--content <dir>] [--no-build]");
                 println!();
                 println!("With no --content, the content tree is found: beside the map,");
                 println!("then from the working directory, then beside the executable.");
+                println!();
+                println!("Textures are built from the content tree's art before the editor");
+                println!("opens. --no-build skips that; nothing already compiled is rebuilt");
+                println!("either way.");
                 return Ok(());
             }
             other => map = Some(PathBuf::from(other)),
@@ -50,14 +57,22 @@ fn main() -> Result<()> {
     // repository root and silently found nothing anywhere else, which left
     // the editor with no entity classes and no materials -- looking broken
     // rather than misconfigured.
-    let found = chisel::content::find(content.as_deref(), map.as_deref());
-    log::info!("{}", chisel::content::describe(&found));
+    let found = void_vfs::root::find(content.as_deref(), map.as_deref());
+    log::info!("{}", void_vfs::root::describe(&found));
     let root = found.as_ref().map(|f| f.root.clone()).unwrap_or_default();
 
+    // Before the editor is built, not after: `ChiselApp::new` scans the
+    // materials tree once, and an editor that scanned it before the textures
+    // existed is an editor with no textures in it -- which is what happened,
+    // and which no amount of reloading afterwards makes obvious.
+    let build_note = if build { build_content(&found) } else { None };
+
     let mut app = ChiselApp::new(root);
-    app.content_note = chisel::content::describe(&found);
+    app.content_note = void_vfs::root::describe(&found);
     if found.is_none() {
         app.status = app.content_note.clone();
+    } else if let Some(note) = build_note {
+        app.status = note;
     }
     match map {
         Some(path) => app.open(path),
@@ -68,9 +83,31 @@ fn main() -> Result<()> {
 
     let event_loop = EventLoop::new()?;
     event_loop.set_control_flow(ControlFlow::Wait);
-    let mut host = Host { app, gfx: None };
+    let mut host = Host { app, gfx: None, title: String::new() };
     event_loop.run_app(&mut host)?;
     Ok(())
+}
+
+/// Build the content tree's textures, before anything reads them.
+///
+/// Returns what to put in the status bar, or `None` when there was nothing to
+/// say. A failure here is reported and then ignored: a texture that will not
+/// compile is a reason to show the editor and say so, not a reason to refuse
+/// to open at all.
+fn build_content(found: &Option<void_vfs::root::Found>) -> Option<String> {
+    let root = &found.as_ref()?.root;
+    match alchemy::build_textures(root) {
+        Ok(build) => {
+            log::info!("{build}");
+            // Silent when there was nothing to do. The interesting case is the
+            // first run in a fresh clone, where it explains the pause.
+            build.did_anything().then(|| build.to_string())
+        }
+        Err(e) => {
+            log::warn!("could not build textures: {e:#}");
+            Some(format!("could not build textures: {e}"))
+        }
+    }
 }
 
 struct Gfx {
@@ -86,6 +123,12 @@ struct Gfx {
 struct Host {
     app: ChiselApp,
     gfx: Option<Gfx>,
+    /// The title the window is currently wearing.
+    ///
+    /// Kept so it is only set when it changes: `set_title` is a call into the
+    /// window manager, and making it sixty times a second to say the same
+    /// thing is work nobody asked for.
+    title: String,
 }
 
 impl ApplicationHandler for Host {
@@ -148,6 +191,16 @@ impl Host {
 
         let Some(gfx) = &mut self.gfx else { return Ok(()) };
         gfx.egui_state.handle_platform_output(&gfx.window, output.platform_output);
+
+        // The title says which map is open and whether it is saved. Set from
+        // here rather than from the editor, because the window is the host's:
+        // egui's viewport commands are only carried out by an integration
+        // that processes them, and this one draws egui itself.
+        let title = self.app.window_title();
+        if title != self.title {
+            gfx.window.set_title(&title);
+            self.title = title;
+        }
 
         let jobs = context.tessellate(output.shapes, output.pixels_per_point);
         let descriptor = egui_wgpu::ScreenDescriptor {

@@ -15,7 +15,7 @@ use crate::tools::{Tool, ToolKind};
 use crate::viewport::Viewport;
 use crate::raster::Shading;
 use crate::textures::TextureCache;
-use crate::{classes, draw, raster};
+use crate::{classes, draw, files, raster};
 use egui::{Context, Key, Modifiers, RichText};
 use std::path::PathBuf;
 use void_entity::{ClassKind, KeyKind, Schema};
@@ -51,6 +51,61 @@ const FALLBACK_MATERIALS: &[&str] = &[
     "tools/skip",
     "tools/skybox",
 ];
+
+/// A file operation waiting for a name.
+///
+/// Naming a map is a decision, so it gets a field to type into rather than a
+/// menu item with the answer baked in. "save as maps/untitled.voidmap" was
+/// the whole of the editor's file handling, and it is not a way to name
+/// anything: the second map you make overwrites the first.
+pub struct NamePrompt {
+    pub kind: PromptKind,
+    /// What has been typed. A bare name means a map in this project; see
+    /// [`crate::files::resolve`].
+    pub name: String,
+    /// Why the last attempt did not go through.
+    pub error: Option<String>,
+    /// Set on the frame it opens, so the field can take the keyboard.
+    fresh: bool,
+}
+
+/// What a [`NamePrompt`] will do with the name.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum PromptKind {
+    /// Write the map under a new name, leaving any existing file alone.
+    SaveAs,
+    /// Move the map, and the artefacts compiled from it, to a new name.
+    Rename,
+}
+
+impl PromptKind {
+    pub fn title(self) -> &'static str {
+        match self {
+            PromptKind::SaveAs => "save as",
+            PromptKind::Rename => "rename",
+        }
+    }
+
+    pub fn verb(self) -> &'static str {
+        match self {
+            PromptKind::SaveAs => "save",
+            PromptKind::Rename => "rename",
+        }
+    }
+}
+
+/// What someone chose when told a change would be lost.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum Decision { Save, Discard, Cancel }
+
+/// Something that would discard unsaved work, held until it is confirmed.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Discarding {
+    /// Start again on an empty map.
+    New,
+    /// Open a map from disk.
+    Open(PathBuf),
+}
 
 pub struct ChiselApp {
     pub document: Document,
@@ -92,6 +147,10 @@ pub struct ChiselApp {
     pub fly_speed: f32,
     /// The rasterised 3D panes, kept until something they depend on moves.
     previews: [Option<Preview>; 4],
+    /// A save-as or rename waiting for a name.
+    pub prompt: Option<NamePrompt>,
+    /// Something that would throw away unsaved work, waiting to be confirmed.
+    pub discarding: Option<Discarding>,
     /// In-progress property edits, held until the field is done with.
     ///
     /// Committing on every keystroke would push a whole undo snapshot per
@@ -166,6 +225,8 @@ impl ChiselApp {
             split: egui::vec2(0.5, 0.5),
             fly_speed: DEFAULT_FLY_SPEED,
             previews: [const { None }; 4],
+            prompt: None,
+            discarding: None,
             properties: None,
         }
     }
@@ -201,12 +262,264 @@ impl ChiselApp {
         }
     }
 
-    fn save(&mut self, path: Option<PathBuf>) {
+    /// Save, asking for a name first if the map has never had one.
+    ///
+    /// A new document has no path, and the old behaviour was to put "no path
+    /// to save to" in the status bar and stop. That reads as ctrl-S doing
+    /// nothing at all, which is precisely what it was doing.
+    pub fn save(&mut self, path: Option<PathBuf>) {
         self.commit_properties();
+        if path.is_none() && self.document.path.is_none() {
+            self.begin_prompt(PromptKind::SaveAs);
+            return;
+        }
         match self.document.save(path) {
-            Ok(path) => self.status = format!("saved {}", path.display()),
+            Ok(path) => self.status = format!("saved {}", files::label(&path, &self.content_root)),
             Err(e) => self.status = format!("could not save: {e}"),
         }
+    }
+
+    /// Open the name field, filled in with the map's current name.
+    pub fn begin_prompt(&mut self, kind: PromptKind) {
+        let name = match self.document.path.as_deref() {
+            Some(path) => {
+                // Without the `maps/` prefix: it is where every map goes, so
+                // showing it invites deleting it, and a name typed without it
+                // means the same thing anyway.
+                let label = files::label(path, &self.content_root);
+                label.strip_prefix("maps/").unwrap_or(&label).to_string()
+            }
+            None => "untitled".to_string(),
+        };
+        self.prompt = Some(NamePrompt { kind, name, error: None, fresh: true });
+    }
+
+    /// Act on the name that was typed, or say why it will not do.
+    ///
+    /// Returns whether the prompt is finished with.
+    pub fn confirm_prompt(&mut self) -> bool {
+        let Some(prompt) = &self.prompt else { return true };
+        let (kind, typed) = (prompt.kind, prompt.name.clone());
+
+        let target = match files::resolve(&typed, &self.content_root) {
+            Ok(target) => target,
+            Err(e) => {
+                if let Some(prompt) = &mut self.prompt { prompt.error = Some(e) }
+                return false;
+            }
+        };
+
+        let outcome = match kind {
+            PromptKind::SaveAs => self.save_as(target),
+            PromptKind::Rename => self.rename_to(target),
+        };
+        match outcome {
+            Ok(said) => {
+                self.status = said;
+                self.prompt = None;
+                true
+            }
+            Err(e) => {
+                if let Some(prompt) = &mut self.prompt { prompt.error = Some(e) }
+                false
+            }
+        }
+    }
+
+    /// Write the map under a new name.
+    fn save_as(&mut self, target: PathBuf) -> Result<String, String> {
+        self.commit_properties();
+        match self.document.save(Some(target.clone())) {
+            Ok(path) => Ok(format!("saved {}", files::label(&path, &self.content_root))),
+            Err(e) => Err(format!("could not save: {e}")),
+        }
+    }
+
+    /// Move the map, and anything compiled from it, to a new name.
+    ///
+    /// A map that has never been saved has nothing on disk to move, so this
+    /// is a save under the new name -- which is what someone renaming an
+    /// untitled map means by it.
+    fn rename_to(&mut self, target: PathBuf) -> Result<String, String> {
+        self.commit_properties();
+        let Some(from) = self.document.path.clone() else {
+            return self.save_as(target);
+        };
+        if from == target {
+            return Ok(format!("{} is already its name", files::label(&target, &self.content_root)));
+        }
+        if target.exists() {
+            return Err(format!("{} already exists", files::label(&target, &self.content_root)));
+        }
+        if !from.exists() {
+            return self.save_as(target);
+        }
+
+        let moved = files::move_map(&from, &target)
+            .map_err(|e| format!("could not rename: {e}"))?;
+        self.document.path = Some(target.clone());
+
+        // Written out afterwards, so the file under the new name is the map
+        // as it stands rather than as it was when it was last saved.
+        if self.document.is_modified()
+            && let Err(e) = self.document.save(None)
+        {
+            return Err(format!("renamed, but could not save: {e}"));
+        }
+
+        let name = files::label(&target, &self.content_root);
+        Ok(match moved.len() {
+            0 => format!("renamed to {name}"),
+            n => format!("renamed to {name} ({n} compiled files moved with it)"),
+        })
+    }
+
+    /// Do something that would throw away unsaved work, or ask first.
+    fn discard_or_ask(&mut self, what: Discarding) {
+        if self.document.is_modified() {
+            self.discarding = Some(what);
+        } else {
+            self.discard_now(what);
+        }
+    }
+
+    fn discard_now(&mut self, what: Discarding) {
+        match what {
+            Discarding::New => {
+                self.document = Document::new();
+                self.status = "new map".into();
+            }
+            Discarding::Open(path) => self.open(path),
+        }
+    }
+
+    /// The name field, and the "this will lose work" question.
+    fn file_windows(&mut self, ctx: &Context) {
+        if let Some(prompt) = &mut self.prompt {
+            let (kind, mut cancel, mut confirm) = (prompt.kind, false, false);
+            let fresh = std::mem::take(&mut prompt.fresh);
+            let mut name = std::mem::take(&mut prompt.name);
+            let error = prompt.error.clone();
+
+            // A modal rather than a floating window: it dims what is behind
+            // it and swallows the clicks, so nobody draws half a brush into a
+            // map that is mid-way through being renamed.
+            let modal = egui::Modal::new(egui::Id::new("chisel-name-prompt"))
+                .show(ctx, |ui| {
+                    ui.set_min_width(420.0);
+                    ui.heading(kind.title());
+                    ui.add_space(2.0);
+                    ui.label(RichText::new("name").size(11.0).weak());
+                    let mut output = egui::TextEdit::singleline(&mut name)
+                        .desired_width(f32::INFINITY)
+                        .hint_text("arena")
+                        .show(ui);
+                    let field = &output.response;
+                    if fresh {
+                        field.request_focus();
+                        // And with the whole name selected, so typing
+                        // replaces it. The field is filled in with the
+                        // current name because that is usually what is being
+                        // changed -- which makes "delete it first" the most
+                        // common thing the dialog asks of anyone.
+                        let all = egui::text::CCursorRange::two(
+                            egui::text::CCursor::new(0),
+                            egui::text::CCursor::new(name.chars().count()),
+                        );
+                        output.state.cursor.set_char_range(Some(all));
+                        output.state.clone().store(ui.ctx(), output.response.id);
+                    }
+                    if output.response.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter)) {
+                        confirm = true;
+                    }
+
+                    // What the name is about to mean, before it means it.
+                    match files::resolve(&name, &self.content_root) {
+                        Ok(path) => {
+                            let label = files::label(&path, &self.content_root);
+                            let exists = path.exists();
+                            let note = if exists && kind == PromptKind::SaveAs {
+                                RichText::new(format!("{label}  -- overwrites the map already there"))
+                                    .size(11.0)
+                                    .color(egui::Color32::from_rgb(220, 170, 90))
+                            } else {
+                                RichText::new(label).size(11.0).weak()
+                            };
+                            ui.label(note);
+                        }
+                        Err(e) => {
+                            ui.label(RichText::new(e).size(11.0).color(egui::Color32::from_rgb(220, 110, 110)));
+                        }
+                    }
+                    if let Some(error) = &error {
+                        ui.label(RichText::new(error).color(egui::Color32::from_rgb(220, 110, 110)));
+                    }
+
+                    ui.add_space(4.0);
+                    ui.horizontal(|ui| {
+                        if ui.button(kind.verb()).clicked() { confirm = true }
+                        if ui.button("cancel").clicked() { cancel = true }
+                    });
+                });
+
+            if let Some(prompt) = &mut self.prompt {
+                prompt.name = name;
+            }
+            // Escape, or a click on the dimmed background.
+            if modal.should_close() { cancel = true }
+            if cancel {
+                self.prompt = None;
+            } else if confirm {
+                self.confirm_prompt();
+            }
+        }
+
+        if let Some(what) = self.discarding.clone() {
+            let mut decided = None;
+            let modal = egui::Modal::new(egui::Id::new("chisel-unsaved"))
+                .show(ctx, |ui| {
+                    ui.set_min_width(360.0);
+                    ui.heading("unsaved changes");
+                    ui.add_space(2.0);
+                    ui.label(format!("{} has changes that have not been saved.", self.document.title()));
+                    ui.add_space(6.0);
+                    ui.horizontal(|ui| {
+                        if ui.button("save first").clicked() { decided = Some(Decision::Save) }
+                        if ui.button("discard them").clicked() { decided = Some(Decision::Discard) }
+                        if ui.button("cancel").clicked() { decided = Some(Decision::Cancel) }
+                    });
+                });
+            // Escape and a click outside both mean "no", which is the answer
+            // that keeps the work.
+            if modal.should_close() { decided = Some(Decision::Cancel) }
+
+            match decided {
+                Some(Decision::Save) => {
+                    self.discarding = None;
+                    let had_path = self.document.path.is_some();
+                    self.save(None);
+                    // With no path the save turned into a name prompt, and
+                    // going ahead now would throw away the work it is asking
+                    // where to put.
+                    if had_path { self.discard_now(what) }
+                }
+                Some(Decision::Discard) => {
+                    self.discarding = None;
+                    self.discard_now(what);
+                }
+                Some(Decision::Cancel) => self.discarding = None,
+                None => {}
+            }
+        }
+    }
+
+    /// What the window should be called: the map, and whether it is saved.
+    ///
+    /// The title bar is the one place the name is visible without opening a
+    /// menu, and the `*` is the only thing in the window that answers "have I
+    /// saved this" from across the room.
+    pub fn window_title(&self) -> String {
+        format!("{} -- Chisel", self.document.title())
     }
 
     /// Frame everything, or the selection if there is one.
@@ -235,6 +548,7 @@ impl ChiselApp {
         self.inspector(ctx);
         self.status_bar(ctx);
         self.compile_window(ctx);
+        self.file_windows(ctx);
         self.viewports_panel(ctx);
     }
 
@@ -282,6 +596,12 @@ impl ChiselApp {
     }
 
     fn shortcuts(&mut self, ctx: &Context) {
+        // A modal takes the keyboard whole. Otherwise ctrl-S while the "save
+        // as" field is open would save the map under the name the dialog is
+        // asking you to replace, and escape would both close the dialog and
+        // clear the selection behind it.
+        if self.prompt.is_some() || self.discarding.is_some() { return }
+
         // A property field has to be able to contain the characters these
         // shortcuts use. Without this guard, typing `1` into a keyvalue
         // switches tools and typing `[` changes the grid size -- which is
@@ -292,6 +612,7 @@ impl ChiselApp {
             Undo,
             Redo,
             Save,
+            SaveAs,
             Delete,
             Cancel,
             Tool(ToolKind),
@@ -312,6 +633,13 @@ impl ChiselApp {
             {
                 actions.push(Action::Redo)
             }
+            // The shifted chord is read first because it has to be. egui
+            // matches modifiers loosely -- a pattern of ctrl-S also matches a
+            // press of ctrl-shift-S -- so plain save would fire as well, and
+            // the map would be written under its old name behind the dialog
+            // asking for a new one. Consuming the shifted form first takes the
+            // event out of the queue before the looser pattern sees it.
+            if i.consume_key(ctrl | Modifiers::SHIFT, Key::S) { actions.push(Action::SaveAs) }
             if i.consume_key(ctrl, Key::S) { actions.push(Action::Save) }
 
             if typing { return }
@@ -357,6 +685,7 @@ impl ChiselApp {
                     }
                 }
                 Action::Save => self.save(None),
+                Action::SaveAs => self.begin_prompt(PromptKind::SaveAs),
                 Action::Delete => {
                     let n = self.document.delete_selection();
                     if n > 0 { self.status = format!("deleted {n}") }
@@ -378,16 +707,48 @@ impl ChiselApp {
             egui::MenuBar::new().ui(ui, |ui| {
                 ui.menu_button("file", |ui| {
                     if ui.button("new").clicked() {
-                        self.document = Document::new();
-                        self.status = "new map".into();
+                        self.discard_or_ask(Discarding::New);
                         ui.close();
                     }
-                    if ui.button("save").clicked() { self.save(None); ui.close(); }
-                    if ui.button("save as maps/untitled.voidmap").clicked() {
-                        let path = self.content_root.join("maps/untitled.voidmap");
-                        self.save(Some(path));
+
+                    // The maps in this project, by name. A file browser would
+                    // be the general answer; this is the one that is right
+                    // almost every time, and it is one click.
+                    let maps = files::maps_in(&self.content_root);
+                    ui.menu_button("open", |ui| {
+                        if maps.is_empty() {
+                            ui.label(RichText::new("no maps in this project yet").size(11.0).weak());
+                        }
+                        for map in &maps {
+                            let name = files::label(map, &self.content_root);
+                            let name = name.strip_prefix("maps/").unwrap_or(&name);
+                            if ui.button(name).clicked() {
+                                self.discard_or_ask(Discarding::Open(map.clone()));
+                                ui.close();
+                            }
+                        }
+                    });
+
+                    ui.separator();
+                    if ui.button("save            ctrl-S").clicked() {
+                        self.save(None);
                         ui.close();
                     }
+                    if ui.button("save as...      ctrl-shift-S").clicked() {
+                        self.begin_prompt(PromptKind::SaveAs);
+                        ui.close();
+                    }
+                    if ui.button("rename...").clicked() {
+                        self.begin_prompt(PromptKind::Rename);
+                        ui.close();
+                    }
+
+                    ui.separator();
+                    let where_it_is = match self.document.path.as_deref() {
+                        Some(path) => files::label(path, &self.content_root),
+                        None => "not saved anywhere yet".to_string(),
+                    };
+                    ui.label(RichText::new(where_it_is).size(11.0).weak());
                 });
 
                 ui.menu_button("edit", |ui| {
@@ -907,6 +1268,35 @@ impl ChiselApp {
         egui::TopBottomPanel::bottom("status").show(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.label(RichText::new(&self.status).monospace().size(11.0));
+
+                // Where the map lives, always visible. "Did that save?" is
+                // not a question an editor should make anyone guess at, and
+                // an unnamed map is worth saying outright rather than showing
+                // as `untitled.voidmap` as though it were a file.
+                ui.separator();
+                let (file, colour) = match self.document.path.as_deref() {
+                    Some(path) => {
+                        let name = files::label(path, &self.content_root);
+                        if self.document.is_modified() {
+                            (format!("{name} *"), Some(egui::Color32::from_rgb(240, 200, 90)))
+                        } else {
+                            (name, None)
+                        }
+                    }
+                    None => ("not saved".to_string(), Some(egui::Color32::from_rgb(240, 200, 90))),
+                };
+                let label = RichText::new(file).monospace().size(11.0);
+                let label = match colour { Some(c) => label.color(c), None => label };
+                ui.label(label).on_hover_text(match self.document.path.as_deref() {
+                    Some(path) => format!(
+                        "{}\n\nctrl-S saves. file -> rename... moves it, and takes anything \
+                         compiled from it along.",
+                        path.display()
+                    ),
+                    None => "This map has never been saved. ctrl-S will ask for a name."
+                        .to_string(),
+                });
+
                 ui.separator();
                 ui.label(
                     RichText::new(format!(
@@ -951,9 +1341,10 @@ impl ChiselApp {
                 };
                 ui.label(label).on_hover_text(if missing > 0 {
                     format!(
-                        "{}\n\n{missing} materials have no compiled texture. Run \
-                         scripts/build-content.sh, or `alchemy batch`, then \
-                         view -> reload textures.",
+                        "{}\n\n{missing} materials have no compiled texture behind them. \
+                         Chisel builds the textures on startup and again before every \
+                         compile, so these are ones that would not build -- check the log. \
+                         view -> reload textures picks up a build done outside.",
                         self.content_note
                     )
                 } else {
@@ -1123,9 +1514,15 @@ impl ChiselApp {
         // The compilers read files, so the map has to be on disk first --
         // and compiling something other than what was saved would be a
         // genuinely confusing bug to chase.
-        let path = match self.document.path.clone() {
-            Some(path) => path,
-            None => self.content_root.join("maps/untitled.voidmap"),
+        // A map with no name is named before it is compiled, rather than
+        // being saved as `untitled` behind your back. The name is not
+        // cosmetic: it is what `void +map <name>` loads, so a compile that
+        // picks one for you is a compile whose output you have to go looking
+        // for.
+        let Some(path) = self.document.path.clone() else {
+            self.begin_prompt(PromptKind::SaveAs);
+            self.status = "name the map before compiling it".into();
+            return;
         };
         if let Err(e) = self.document.save(Some(path.clone())) {
             self.status = format!("could not save before compiling: {e}");
@@ -2162,6 +2559,7 @@ pub fn starter_document() -> Document {
     document.create_entity("info_player_start", Vec3::new(64.0, 256.0, 16.0));
     document.create_entity("light", Vec3::new(256.0, 256.0, 192.0));
     document.selection.clear();
+    document.mark_clean();
     document
 }
 
@@ -2248,5 +2646,299 @@ mod tests {
         assert_eq!(panes[1].kind, ViewportKind::Top);
         assert_eq!(panes[2].kind, ViewportKind::Front);
         assert_eq!(panes[3].kind, ViewportKind::Right);
+    }
+
+    // ---- saving, naming and renaming ------------------------------------
+
+    /// An editor pointed at an empty scratch project.
+    fn app_in(name: &str) -> (ChiselApp, PathBuf) {
+        let root = std::env::temp_dir().join(format!(
+            "chisel-app-{name}-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join("maps")).unwrap();
+        let mut app = ChiselApp::new(root.clone());
+        app.document = starter_document();
+        (app, root)
+    }
+
+    #[test]
+    fn saving_a_map_that_has_no_name_asks_for_one_instead_of_failing() {
+        let (mut app, root) = app_in("save-unnamed");
+        app.save(None);
+
+        let prompt = app.prompt.as_ref().expect("ctrl-S on an unnamed map should ask for a name");
+        assert_eq!(prompt.kind, PromptKind::SaveAs);
+        assert!(app.document.path.is_none(), "nothing is written until it has a name");
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn a_typed_name_saves_into_the_projects_maps_directory() {
+        let (mut app, root) = app_in("save-named");
+        app.save(None);
+        app.prompt.as_mut().unwrap().name = "arena".into();
+        assert!(app.confirm_prompt());
+
+        let expected = root.join("maps/arena.voidmap");
+        assert_eq!(app.document.path.as_deref(), Some(expected.as_path()));
+        assert!(expected.is_file(), "the map is on disk");
+        assert!(!app.document.is_modified(), "and no longer counts as unsaved");
+        assert!(app.prompt.is_none());
+        assert!(app.status.contains("maps/arena.voidmap"), "{}", app.status);
+
+        // And it is a map, not an empty file.
+        let text = std::fs::read_to_string(&expected).unwrap();
+        assert!(text.contains("worldspawn"), "{text}");
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn a_name_that_will_not_do_leaves_the_prompt_open_and_says_why() {
+        let (mut app, root) = app_in("save-bad-name");
+        app.save(None);
+        app.prompt.as_mut().unwrap().name = "   ".into();
+
+        assert!(!app.confirm_prompt(), "the prompt stays open");
+        let prompt = app.prompt.as_ref().unwrap();
+        assert!(prompt.error.is_some(), "and says what is wrong");
+        assert!(app.document.path.is_none());
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn saving_again_writes_the_same_file_without_asking() {
+        let (mut app, root) = app_in("save-again");
+        app.save(Some(root.join("maps/arena.voidmap")));
+        app.document.create_block(Vec3::ZERO, Vec3::splat(64.0));
+        assert!(app.document.is_modified());
+
+        app.save(None);
+        assert!(app.prompt.is_none(), "a map with a name is not asked about again");
+        assert!(!app.document.is_modified());
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn renaming_moves_the_map_and_what_was_compiled_from_it() {
+        let (mut app, root) = app_in("rename");
+        app.save(Some(root.join("maps/old.voidmap")));
+        std::fs::write(root.join("maps/old.voidbsp"), b"compiled").unwrap();
+
+        app.begin_prompt(PromptKind::Rename);
+        assert_eq!(app.prompt.as_ref().unwrap().name, "old.voidmap", "filled in with the current name");
+        app.prompt.as_mut().unwrap().name = "new".into();
+        assert!(app.confirm_prompt());
+
+        assert_eq!(app.document.path.as_deref(), Some(root.join("maps/new.voidmap").as_path()));
+        assert!(!root.join("maps/old.voidmap").exists());
+        assert!(root.join("maps/new.voidbsp").is_file(), "the compiled map came too");
+        assert!(app.status.contains("renamed"), "{}", app.status);
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn renaming_over_an_existing_map_is_refused() {
+        let (mut app, root) = app_in("rename-clash");
+        app.save(Some(root.join("maps/old.voidmap")));
+        std::fs::write(root.join("maps/taken.voidmap"), "someone else's work").unwrap();
+
+        app.begin_prompt(PromptKind::Rename);
+        app.prompt.as_mut().unwrap().name = "taken".into();
+        assert!(!app.confirm_prompt(), "the prompt stays open");
+
+        assert!(app.prompt.as_ref().unwrap().error.as_ref().unwrap().contains("already exists"));
+        assert_eq!(
+            std::fs::read_to_string(root.join("maps/taken.voidmap")).unwrap(),
+            "someone else's work",
+            "and the map that was there is untouched"
+        );
+        assert!(root.join("maps/old.voidmap").is_file());
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn renaming_a_map_that_was_never_saved_just_saves_it() {
+        let (mut app, root) = app_in("rename-unsaved");
+        app.begin_prompt(PromptKind::Rename);
+        app.prompt.as_mut().unwrap().name = "first".into();
+        assert!(app.confirm_prompt());
+
+        assert!(root.join("maps/first.voidmap").is_file());
+        assert!(!app.document.is_modified());
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn renaming_carries_unsaved_changes_to_the_new_name() {
+        let (mut app, root) = app_in("rename-dirty");
+        app.save(Some(root.join("maps/old.voidmap")));
+        let before = std::fs::read_to_string(root.join("maps/old.voidmap")).unwrap();
+        app.document.create_block(Vec3::ZERO, Vec3::splat(64.0));
+
+        app.begin_prompt(PromptKind::Rename);
+        app.prompt.as_mut().unwrap().name = "new".into();
+        assert!(app.confirm_prompt());
+
+        let after = std::fs::read_to_string(root.join("maps/new.voidmap")).unwrap();
+        assert_ne!(after, before, "the file under the new name is the map as it stands");
+        assert!(!app.document.is_modified());
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn opening_a_map_with_unsaved_changes_asks_first() {
+        let (mut app, root) = app_in("discard");
+        app.save(Some(root.join("maps/arena.voidmap")));
+        let other = root.join("maps/other.voidmap");
+        std::fs::copy(root.join("maps/arena.voidmap"), &other).unwrap();
+        app.document.create_block(Vec3::ZERO, Vec3::splat(64.0));
+
+        app.discard_or_ask(Discarding::Open(other.clone()));
+        assert_eq!(app.discarding, Some(Discarding::Open(other.clone())));
+        assert_eq!(app.document.path.as_deref(), Some(root.join("maps/arena.voidmap").as_path()));
+
+        // Answering the question goes through with it.
+        app.discarding = None;
+        app.discard_now(Discarding::Open(other.clone()));
+        assert_eq!(app.document.path.as_deref(), Some(other.as_path()));
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn a_saved_map_is_replaced_without_a_question() {
+        let (mut app, root) = app_in("no-question");
+        app.save(Some(root.join("maps/arena.voidmap")));
+
+        app.discard_or_ask(Discarding::New);
+        assert!(app.discarding.is_none(), "nothing would be lost, so nothing is asked");
+        assert!(app.document.path.is_none());
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn compiling_an_unnamed_map_asks_for_a_name_rather_than_inventing_one() {
+        let (mut app, root) = app_in("compile-unnamed");
+        app.compile_now(Quality::Fast);
+
+        assert!(app.compile.is_none(), "nothing is compiled yet");
+        assert_eq!(app.prompt.as_ref().map(|p| p.kind), Some(PromptKind::SaveAs));
+        assert!(!root.join("maps/untitled.voidmap").exists(), "and no `untitled` is left behind");
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn the_maps_offered_to_open_are_the_ones_in_the_project() {
+        let (mut app, root) = app_in("map-list");
+        app.save(Some(root.join("maps/arena.voidmap")));
+        app.save(Some(root.join("maps/lobby.voidmap")));
+
+        let names: Vec<String> = files::maps_in(&root)
+            .iter()
+            .map(|p| files::label(p, &root))
+            .collect();
+        assert_eq!(names, vec!["maps/arena.voidmap", "maps/lobby.voidmap"]);
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// Draw one frame with no window, the way the editor would.
+    ///
+    /// egui does not need a renderer to produce a frame, so the whole UI can
+    /// be exercised in a test. It is worth doing: a panel that panics or a
+    /// borrow that conflicts only shows up when the code actually runs, and
+    /// "it compiled" has never been the same thing as "it opens".
+    fn draw_a_frame(app: &mut ChiselApp) -> egui::FullOutput {
+        let ctx = egui::Context::default();
+        ctx.run(egui::RawInput::default(), |ctx| app.ui(ctx))
+    }
+
+    #[test]
+    fn the_editor_draws_a_frame() {
+        let (mut app, root) = app_in("frame");
+        let output = draw_a_frame(&mut app);
+        assert!(!output.shapes.is_empty(), "a frame with nothing in it is not a frame");
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn the_name_prompt_draws_and_stays_open_until_it_is_answered() {
+        let (mut app, root) = app_in("frame-prompt");
+        app.begin_prompt(PromptKind::SaveAs);
+
+        draw_a_frame(&mut app);
+        assert!(app.prompt.is_some(), "drawing it must not dismiss it");
+        // The field takes the keyboard on the frame it opens, and only then.
+        assert!(!app.prompt.as_ref().unwrap().fresh);
+
+        draw_a_frame(&mut app);
+        assert!(app.prompt.is_some());
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn the_unsaved_changes_question_draws() {
+        let (mut app, root) = app_in("frame-discard");
+        app.document.create_block(Vec3::ZERO, Vec3::splat(64.0));
+        app.discard_or_ask(Discarding::New);
+
+        draw_a_frame(&mut app);
+        assert_eq!(app.discarding, Some(Discarding::New), "asked, and still waiting");
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn the_window_title_names_the_map_and_whether_it_is_saved() {
+        let (mut app, root) = app_in("title");
+        assert_eq!(app.window_title(), "untitled -- Chisel");
+
+        app.save(Some(root.join("maps/arena.voidmap")));
+        assert_eq!(app.window_title(), "arena.voidmap -- Chisel");
+
+        app.document.create_block(Vec3::ZERO, Vec3::splat(64.0));
+        assert_eq!(app.window_title(), "arena.voidmap * -- Chisel");
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn a_modal_takes_the_keyboard_from_the_shortcuts_behind_it() {
+        let (mut app, root) = app_in("modal-keys");
+        app.save(Some(root.join("maps/arena.voidmap")));
+        app.begin_prompt(PromptKind::SaveAs);
+
+        // Ctrl-S with the dialog open must not save under the old name --
+        // that is the name the dialog is asking you to replace.
+        app.status = "nothing has happened yet".into();
+        let ctx = egui::Context::default();
+        let mut input = egui::RawInput::default();
+        input.events.push(egui::Event::Key {
+            key: Key::S,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+            modifiers: Modifiers::COMMAND,
+        });
+        let _ = ctx.run(input, |ctx| app.ui(ctx));
+
+        assert!(app.prompt.is_some(), "the dialog is still asking");
+        assert_eq!(app.status, "nothing has happened yet", "the shortcut behind the modal fired");
+
+        let _ = std::fs::remove_dir_all(&root);
     }
 }

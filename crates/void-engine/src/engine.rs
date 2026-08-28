@@ -20,7 +20,7 @@ use void_entity::{EntityId, EntityWorld};
 use void_math::{Aabb, Angles, Vec3};
 use crate::collision::LevelCollision;
 use void_physics::{MoveInput, MoveParams, MoveState};
-use void_vfs::Vfs;
+use void_vfs::{Vfs, VfsError};
 
 /// Server tick rate. 64 is Source's modern default: fine enough that
 /// movement feels continuous, coarse enough to be affordable.
@@ -62,6 +62,53 @@ impl Default for EngineConfig {
             startup_commands: Vec::new(),
         }
     }
+}
+
+/// Say why a map would not load, in terms someone can act on.
+///
+/// "not found in any search path" is true and useless. The overwhelmingly
+/// common reason a map is missing is that it has never been compiled -- the
+/// `.voidmap` is right there, and nothing turned it into a `.voidbsp`. The
+/// next most common is that the content tree being searched is not the one
+/// the map lives in. Both are worth saying outright, along with what was
+/// searched, because the alternative is reading the source to find out.
+pub fn explain_missing_map(vfs: &Vfs, name: &str, why: &VfsError) -> String {
+    let mut said = format!("could not load the map '{name}'\n");
+
+    // Anything other than "it is not there" is its own problem -- a permission,
+    // a truncated archive -- and guessing "you forgot to compile it" over the
+    // top of it would send someone the wrong way.
+    if !matches!(why, VfsError::NotFound(_)) {
+        return format!("{said}  {why}").trim_end().to_string();
+    }
+
+    if vfs.exists(&format!("maps/{name}.voidmap")) {
+        said.push_str(&format!("  maps/{name}.voidmap is there, but has not been compiled.\n"));
+        said.push_str("  build it with:  scripts/build-content.sh\n");
+        said.push_str(&format!("  or on its own:  cleave maps/{name}.voidmap\n"));
+    } else {
+        let mut maps: Vec<String> = vfs
+            .list("maps", Some("voidbsp"))
+            .iter()
+            .filter_map(|p| p.strip_prefix("maps/").map(|n| n.trim_end_matches(".voidbsp").to_string()))
+            .collect();
+        maps.sort();
+        maps.dedup();
+        if maps.is_empty() {
+            said.push_str("  no compiled maps in any search path. Run scripts/build-content.sh\n");
+        } else {
+            said.push_str(&format!("  compiled maps here: {}\n", maps.join(", ")));
+        }
+    }
+
+    said.push_str("  searched:\n");
+    for layer in vfs.describe() {
+        said.push_str(&format!("    {layer}\n"));
+    }
+    if vfs.path_count() == 0 {
+        said.push_str("    (nothing mounted)\n");
+    }
+    said.trim_end().to_string()
 }
 
 /// A loaded level.
@@ -124,8 +171,12 @@ impl Engine {
             vfs.add_directory(dir, "GAME");
         }
         for archive in &config.archives {
-            if let Err(e) = vfs.mount_archive(archive, "GAME") {
-                log::warn!("could not mount {}: {e}", archive.display());
+            match vfs.mount_archive(archive, "GAME").map(|_| ()) {
+                // Said out loud. Which archives are mounted decides which
+                // version of every asset the game is running, and working
+                // that out from the outside means guessing.
+                Ok(()) => log::info!("mounted {}", archive.display()),
+                Err(e) => log::warn!("could not mount {}: {e}", archive.display()),
             }
         }
         // Loose files win over packed ones, so a developer can drop a file
@@ -201,10 +252,10 @@ impl Engine {
     /// Load a map by name, e.g. `void_start`.
     pub fn load_map(&mut self, name: &str) -> anyhow::Result<()> {
         let path = format!("maps/{name}.voidbsp");
-        let bytes = self
-            .vfs
-            .read(&path)
-            .map_err(|e| anyhow::anyhow!("could not read {path}: {e}"))?;
+        let bytes = match self.vfs.read(&path) {
+            Ok(bytes) => bytes,
+            Err(e) => anyhow::bail!("{}", explain_missing_map(&self.vfs, name, &e)),
+        };
         let bsp = Bsp::from_bytes(&bytes, &path)?;
 
         self.console.print(format!("loading {path}"));
@@ -653,4 +704,98 @@ pub fn map_path(name: &str) -> String { format!("maps/{name}.voidbsp") }
 /// Whether a path looks like a map name rather than a file.
 pub fn is_bare_map_name(name: &str) -> bool {
     !name.contains('/') && !name.contains('.') && Path::new(name).extension().is_none()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A content tree with the given files in it, empty.
+    fn tree(name: &str, files: &[&str]) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!(
+            "void-engine-maps-{name}-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+        for file in files {
+            let path = dir.join(file);
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(&path, b"not really a map").unwrap();
+        }
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    fn vfs_over(dir: &std::path::Path) -> Vfs {
+        let mut vfs = Vfs::new();
+        vfs.add_directory(dir, "GAME");
+        vfs
+    }
+
+    fn not_found(name: &str) -> VfsError {
+        VfsError::NotFound(format!("maps/{name}.voidbsp"))
+    }
+
+    #[test]
+    fn a_map_that_was_never_compiled_is_told_so_and_told_what_to_run() {
+        let dir = tree("uncompiled", &["maps/arena.voidmap"]);
+        let said = explain_missing_map(&vfs_over(&dir), "arena", &not_found("arena"));
+
+        assert!(said.contains("has not been compiled"), "{said}");
+        assert!(said.contains("cleave maps/arena.voidmap"), "{said}");
+        assert!(said.contains("build-content.sh"), "{said}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_map_nobody_has_heard_of_gets_the_list_of_ones_that_exist() {
+        let dir = tree("wrong-name", &["maps/arena.voidbsp", "maps/lobby.voidbsp"]);
+        let said = explain_missing_map(&vfs_over(&dir), "areena", &not_found("areena"));
+
+        assert!(said.contains("arena, lobby"), "{said}");
+        assert!(!said.contains("has not been compiled"), "{said}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn an_empty_content_tree_says_nothing_is_compiled_rather_than_nothing_exists() {
+        let dir = tree("empty", &[]);
+        let said = explain_missing_map(&vfs_over(&dir), "arena", &not_found("arena"));
+
+        assert!(said.contains("no compiled maps"), "{said}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn the_search_paths_are_always_listed() {
+        let dir = tree("paths", &["maps/arena.voidmap"]);
+        let said = explain_missing_map(&vfs_over(&dir), "arena", &not_found("arena"));
+
+        assert!(said.contains("searched:"), "{said}");
+        assert!(said.contains(&dir.display().to_string()), "{said}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn with_nothing_mounted_it_says_so() {
+        let said = explain_missing_map(&Vfs::new(), "arena", &not_found("arena"));
+        assert!(said.contains("(nothing mounted)"), "{said}");
+    }
+
+    #[test]
+    fn a_failure_that_is_not_a_missing_file_is_reported_as_itself() {
+        // A truncated archive is not a map you forgot to compile, and telling
+        // someone to run the compiler would send them the wrong way.
+        let dir = tree("io", &["maps/arena.voidmap"]);
+        let said = explain_missing_map(
+            &vfs_over(&dir),
+            "arena",
+            &VfsError::BadPath("maps/arena.voidbsp".into()),
+        );
+
+        assert!(!said.contains("has not been compiled"), "{said}");
+        assert!(said.contains("not a usable virtual path"), "{said}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }

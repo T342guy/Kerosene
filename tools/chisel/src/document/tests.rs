@@ -301,7 +301,9 @@ fn a_document_round_trips_through_a_file() {
 #[test]
 fn the_title_shows_unsaved_changes() {
     let mut d = doc();
-    assert_eq!(d.title(), "untitled.voidmap");
+    // Not "untitled.voidmap": a map that has never been saved has no file,
+    // and showing one is how saving came to look as though it had happened.
+    assert_eq!(d.title(), "untitled");
     block(&mut d, 0.0, 64.0);
     assert!(d.title().ends_with('*'), "{}", d.title());
 }

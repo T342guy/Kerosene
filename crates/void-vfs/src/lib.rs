@@ -21,9 +21,11 @@
 
 pub mod archive;
 pub mod path;
+pub mod root;
 
 pub use archive::{Archive, ArchiveBuilder, ArchiveError, crc32};
 pub use path::{extension, normalize, parent, with_extension};
+pub use root::Found;
 
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};

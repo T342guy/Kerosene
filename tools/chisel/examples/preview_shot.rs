@@ -23,9 +23,17 @@ fn main() -> Result<()> {
     };
     let eye = Vec3::new(number(2, 80.0), number(3, 80.0), number(4, 96.0));
 
-    let document = chisel::Document::open(map.into())?;
+    let map_path = std::path::PathBuf::from(map);
+    let document = chisel::Document::open(map_path.clone())?;
+
+    // The same search the editor does, so a shot taken from anywhere shows
+    // the same textures the editor would.
+    let found = void_vfs::root::find(None, Some(&map_path));
+    eprintln!("{}", void_vfs::root::describe(&found));
     let mut vfs = void_vfs::Vfs::new();
-    vfs.add_directory(std::path::Path::new("content"), "GAME");
+    if let Some(found) = &found {
+        vfs.add_directory(&found.root, "GAME");
+    }
     let mut cache = TextureCache::new();
 
     let (w, h) = (960usize, 600usize);

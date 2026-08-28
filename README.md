@@ -72,13 +72,21 @@ cargo build --release              # engine and all seven tools
 cargo run --release -p void-runtime -- +map void_start
 ```
 
-**The build step is not optional.** Art and maps are committed as sources —
+**The map compile is not optional.** Art and maps are committed as sources —
 `.png`, `.obj`, `.wav`, `.voidmap` — and the engine loads only compiled
-`.voidtex`, `.voidmdl` and `.voidbsp`. Skip it and every surface is the
-missing-material checkerboard, because the materials genuinely are not there
-yet. On Linux the audio backend also needs ALSA headers (`libasound2-dev`, or
-`alsa-lib-devel`); without them, build with `--no-default-features` and
-everything but the sound works.
+`.voidtex`, `.voidmdl` and `.voidbsp`. Skip the script and the game will tell
+you which map has never been compiled and what to run; textures it now handles
+itself, because Chisel builds them on the way to opening its window and again
+before every compile. On Linux the audio backend also needs ALSA headers
+(`libasound2-dev`, or `alsa-lib-devel`); without them, build with
+`--no-default-features` and everything but the sound works.
+
+Nothing has to be run from the repository root. Every tool and the engine find
+the content tree the same way, with the same code: what you passed on the
+command line, then the tree the map lives in, then the working directory, then
+the directory the binary is in — climbing a few levels at each step, looking
+for `voidengine.voiddef` or a `maps/` and `materials/` pair. Each says which
+one it took.
 
 To open the sample level in the editor:
 
@@ -86,11 +94,19 @@ To open the sample level in the editor:
 cargo run --release -p chisel -- content/maps/void_start.voidmap
 ```
 
-`F9` compiles and runs it, building the materials on the way, so a texture you
-added since the last build is compiled before the map that uses it. Chisel's 3D
-pane reads the same compiled textures the engine does, so it needs the build
-step too — a compile reloads them, and `view → reload textures` picks up a
-rebuild done outside the editor without restarting.
+Chisel builds the content tree's textures before it finishes loading, so the
+editor opens with the textures in it rather than with a note about how to get
+them. It skips anything already compiled, so the second start costs a
+directory walk; `--no-build` turns it off. `F9` compiles and runs the map and
+builds the textures again first, so one you added since opening the editor is
+compiled before the map that uses it, and `view → reload textures` picks up a
+build done outside without restarting.
+
+`ctrl-S` saves; a map that has never been saved is asked for a name rather
+than being written somewhere you would have to go looking for.
+`file → rename…` moves a map and takes what was compiled from it along, so a
+renamed map is not shadowed by a `.voidbsp` under its old name. The title bar
+and the status bar both name the file, with a `*` when it has unsaved changes.
 
 No display? The engine runs headless — which is what a dedicated server is,
 not a testing mode bolted on the side:
@@ -173,7 +189,9 @@ tools/
   chisel cleave umbra radiance alchemy forge vault
 apps/
   void            the runtime
-content/          sample art, models, materials and the sample level
+content/          sample art, models, materials, the sample level, and the
+                  archive packed from them -- a content tree, the thing every
+                  tool and the engine go looking for
 docs/             architecture, formats, tools, scripting, audio, licensing
 ```
 
@@ -190,7 +208,7 @@ provenance of the algorithms.
 ## Status
 
 Everything above works end to end: you can draw a level in Chisel, compile it
-through all three stages, and walk around it. 605 tests cover the pieces and
+through all three stages, and walk around it. 981 tests cover the pieces and
 the seams between them, including a suite that builds a map in memory,
 compiles it, loads it and plays it.
 

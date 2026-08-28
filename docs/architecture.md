@@ -55,6 +55,15 @@ Nothing points upward. `void-math` knows about nothing; `void-engine` knows
 about everything. The tools sit off to the side, depending on the format crates
 but never on the engine.
 
+Two edges in that picture are there for a reason worth stating. `chisel`
+depends on `alchemy`, because the editor builds the content tree's textures
+itself rather than shelling out to a sibling binary that may not be beside it.
+And everything -- the editor, the compilers, the runtime -- finds the content
+tree through `void_vfs::root`, one function they all call. Each of them working
+it out separately is not a hypothetical: they did, they disagreed, and a tool
+looking in the wrong directory is indistinguishable from a tool that is broken.
+A shared answer that explains itself is the whole of the fix.
+
 ## The map pipeline in detail
 
 ### Cleave: `.voidmap` → `.voidbsp`

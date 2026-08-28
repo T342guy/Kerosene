@@ -1,19 +1,24 @@
 // SPDX-License-Identifier: LGPL-3.0-or-later
 //! Finding the content tree.
 //!
-//! Chisel is useless without one: entity classes, materials and textures all
-//! live there, and with no content root it falls back to three hard-coded
-//! class names and flat colours. That is a bad enough state that *guessing*
-//! at it is not acceptable -- and guessing is what it used to do, by assuming
-//! `./content` relative to whatever directory it happened to be started from.
+//! Every tool in the engine needs the same answer to the same question: where
+//! is the content? Chisel reads entity classes and materials out of it, the
+//! compilers write into it, and the runtime mounts it as a search path. When
+//! each of them worked that out its own way, they disagreed -- and disagreeing
+//! about a directory looks, from the outside, like every one of them being
+//! broken in a different way at once.
 //!
-//! Run from the repository root, that worked. Run any other way -- the
-//! installed binary, a map opened from a file manager, `cargo run` from a
-//! subdirectory -- it silently found nothing, and the editor looked broken
-//! rather than misconfigured.
+//! So the answer lives here, once, and they all ask for it.
 //!
-//! So it searches instead, in the order the answer is most likely to be
-//! right, and says which one it took.
+//! The old answer was to assume `./content` relative to whatever directory the
+//! process happened to be started from. Run from the repository root that
+//! worked. Run any other way -- an installed binary, a map opened from a file
+//! manager, `cargo run` from a subdirectory -- it silently found nothing, and
+//! the tool looked broken rather than misconfigured.
+//!
+//! So this searches instead, in the order the answer is most likely to be
+//! right, and says which one it took, because a wrong guess that explains
+//! itself costs a minute and a silent one costs an afternoon.
 
 use std::path::{Path, PathBuf};
 
@@ -54,10 +59,10 @@ pub fn find(explicit: Option<&Path>, map: Option<&Path>) -> Option<Found> {
         return Some(Found { root: dir.to_path_buf(), why: "given with --content" });
     }
 
-    if let Some(map) = map {
-        if let Some(root) = map.parent().and_then(climb) {
-            return Some(Found { root, why: "found next to the map" });
-        }
+    if let Some(map) = map
+        && let Some(root) = map.parent().and_then(climb)
+    {
+        return Some(Found { root, why: "found next to the map" });
     }
 
     if let Some(root) = std::env::current_dir().ok().and_then(|d| climb(&d)) {
@@ -97,7 +102,7 @@ pub fn describe(found: &Option<Found>) -> String {
     match found {
         Some(f) => format!("content: {} ({})", f.root.display(), f.why),
         None => "no content tree found -- no entity classes, no materials. \
-                 Start Chisel from a project directory or pass --content."
+                 Start from a project directory, or pass --content."
             .to_string(),
     }
 }

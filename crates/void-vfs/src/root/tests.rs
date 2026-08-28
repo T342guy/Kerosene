@@ -4,7 +4,7 @@ use super::*;
 /// A scratch directory, cleaned up by the caller.
 fn scratch(name: &str) -> PathBuf {
     let dir = std::env::temp_dir().join(format!(
-        "chisel-content-{name}-{}-{:?}",
+        "voidroot-{name}-{}-{:?}",
         std::process::id(),
         std::thread::current().id()
     ));

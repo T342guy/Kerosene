@@ -7,6 +7,9 @@ license.workspace = true
 authors.workspace = true
 
 [dependencies]
+# The texture build runs inside the editor, not as a shelled-out
+# sibling binary: see `build_content` in main.rs.
+alchemy = { path = "../alchemy" }
 void-math.workspace = true
 void-map.workspace = true
 void-kv.workspace = true

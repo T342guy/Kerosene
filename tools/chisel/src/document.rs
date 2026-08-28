@@ -120,6 +120,15 @@ impl Document {
 
     pub fn is_modified(&self) -> bool { self.modified }
 
+    /// Treat the map as it stands as a starting point rather than as work.
+    ///
+    /// The starter room is built by the same calls a designer would make, so
+    /// it arrives looking like unsaved changes. Without this, a fresh editor
+    /// asks whether to throw away a room nobody made, every time -- and a
+    /// question that is always wrong is one people learn to click through,
+    /// including the time it is right.
+    pub fn mark_clean(&mut self) { self.modified = false; }
+
     /// A counter that changes whenever the map does. See [`Document::revision`].
     pub fn revision(&self) -> u64 { self.revision }
     pub fn undo_depth(&self) -> usize { self.undo.len() }
@@ -453,13 +462,17 @@ impl Document {
     }
 
     /// A one-line summary for the title bar.
+    ///
+    /// A map with no path is "untitled", not "untitled.voidmap": the second
+    /// looks like a file, and a name that looks like a file is why saving
+    /// appeared to have already happened.
     pub fn title(&self) -> String {
         let name = self
             .path
             .as_ref()
             .and_then(|p| p.file_name())
             .map(|n| n.to_string_lossy().into_owned())
-            .unwrap_or_else(|| "untitled.voidmap".to_string());
+            .unwrap_or_else(|| "untitled".to_string());
         if self.modified { format!("{name} *") } else { name }
     }
 }

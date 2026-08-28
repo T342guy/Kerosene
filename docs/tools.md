@@ -7,12 +7,14 @@ Seven programs. None of them is the engine, and none of them depends on it.
 ## Chisel — the world editor
 
 ```sh
-chisel [map.voidmap] [--content <dir>]
+chisel [map.voidmap] [--content <dir>] [--no-build]
 ```
 
 **Finding the content.** Chisel needs the content root -- the tree holding
 `maps/`, `materials/` and the `.voiddef` class definitions -- to show entity
-classes and materials at all. It looks in this order: `--content` if given,
+classes and materials at all. The search lives in `void-vfs` and every tool
+and the engine share it, so they cannot disagree about which tree is in use.
+It looks in this order: `--content` if given,
 then beside the map being opened, then the working directory, then beside its
 own executable, climbing up to six levels from each looking for a directory
 holding `voidengine.voiddef` (or, failing that, both `maps/` and `materials/`).
@@ -22,11 +24,40 @@ project's map should not show this project's entities.
 
 The status bar says what it found: `20 classes, 41 materials` when the content
 is there, `no entity classes` in red when it is not, and `n materials unbuilt`
-in amber when the source art has not been through Alchemy. If the first is red,
-nothing in the editor will look right, and `chisel --help` lists the search
-order. `cargo run -p chisel --example diagnose -- <dir>` prints the same thing
-without opening a window, which is the fastest way to answer "why does Chisel
-show no entities".
+in amber when a material has no texture behind it. If the first is red, nothing
+in the editor will look right, and `chisel --help` lists the search order.
+`cargo run -p chisel --example diagnose` prints the same thing without opening
+a window -- discovery, classes, materials, which materials have no texture, and
+which maps have never been compiled -- which is the fastest way to answer "why
+does Chisel show no entities". It changes nothing unless given `--build`.
+
+**Textures are built on the way in.** Before the editor finishes loading it
+runs the same texture build Alchemy's `build` command does: the developer set
+is regenerated, then every image under `art/` is compiled into `materials/`.
+Anything already compiled is skipped, so the cost after the first run is a
+directory walk. It happens *before* the materials are scanned, because scanning
+first and building second is an editor with no textures in it and no way to
+tell. `--no-build` turns it off; `F9` does it again before compiling the map,
+so a texture added during a session is compiled before the map that uses it.
+
+**Files.** `ctrl-S` saves. A map that has never been saved is asked for a name
+first rather than being written to `untitled.voidmap` somewhere -- the name is
+what `void +map <name>` loads, so an editor that picks one for you is an editor
+whose output you have to go looking for. `ctrl-shift-S` and `file → save as…`
+ask for a name outright. A bare name means a map in this project: typing
+`arena` writes `<content>/maps/arena.voidmap`. An absolute path is taken as
+given.
+
+`file → rename…` moves the map *and* the artefacts compiled from it -- the
+`.voidbsp`, `.voidprt` and `.voidleak`. Leaving a `.voidbsp` behind under the
+old name is worse than clutter: the game still loads it, so a renamed map
+appears to work under a name that no longer exists and to be missing under the
+one that does. Renaming onto a map that already exists is refused.
+
+`file → open` lists the maps in the project. Anything that would throw away
+unsaved changes asks first, and offers to save. The title bar and the status
+bar both name the file, with a `*` when there are unsaved changes; a map with
+no file yet says `not saved` rather than showing an invented one.
 
 Four panes, each showing whichever view you point it at: 3D, or any of the six
 flat views -- top, bottom, front, back, left and right. Hammer's layout,
@@ -40,7 +71,8 @@ bars between the panes to resize them.
 | `1` `2` `3` `4` | select, block, entity, texture tool |
 | `[` `]` | finer / coarser grid |
 | `Ctrl+Z` / `Ctrl+Shift+Z` | undo / redo |
-| `Ctrl+S` | save |
+| `Ctrl+S` | save (asks for a name the first time) |
+| `Ctrl+Shift+S` | save as |
 | `Delete` | delete selection |
 | `Escape` | clear selection, cancel a drag |
 | `F9` | compile (fast) and run |
@@ -260,10 +292,24 @@ broken renderer — so Radiance says so.
 alchemy compile art/grid.png -o materials/dev/grid.voidtex [--normal] [--clamp] [--ui]
 alchemy material dev/grid --basetexture dev/grid --shader lit
 alchemy batch art -o materials --make-materials
+alchemy build content
 alchemy info materials/dev/grid.voidtex
 ```
 
 Compiles PNG/JPEG/TGA into `.voidtex` and authors `.voidmat` materials.
+
+`build` is the whole texture half of a content build for one project: the
+developer set is generated into `art/`, then everything under `art/` is
+compiled into `materials/`. It is one command because three callers need
+exactly it -- this tool, `scripts/build-content.sh`, and Chisel on the way to
+opening its window -- and three callers with three ideas of what "build the
+textures" meant is how the editor came to open with no textures in it while the
+build script insisted everything was fine. Alchemy is a library as well as a
+command so the editor can call it rather than shell out to a sibling binary
+that may not be on the path.
+
+`batch` and `build` skip an image whose `.voidtex` is already newer than it, so
+a build with nothing to do costs a directory walk.
 
 Alpha is dropped when an image does not use it, which saves a quarter of the
 memory. In `batch` mode, a file ending `_normal` or `_n` is taken to be a
@@ -297,11 +343,15 @@ merging them rounds off every corner of the model.
 ## Vault — content archives
 
 ```sh
-vault pack content -o content.vault [--ext voidtex --ext voidmat] [--exclude tmp]
-vault list content.vault [--long]
-vault verify content.vault
-vault unpack content.vault -o extracted
+vault pack content -o content/void_content.vault [--ext voidtex] [--exclude tmp]
+vault list content/void_content.vault [--long]
+vault verify content/void_content.vault
+vault unpack content/void_content.vault -o extracted
 ```
+
+The archive belongs *inside* the content tree, which is where a shipped game
+keeps its archives and where the engine looks without being told. Writing it
+into the tree it packs is safe: `.vault` is never one of the extensions packed.
 
 Packs a content tree into one archive. Every entry carries a CRC, checked on
 read and by `verify`.
@@ -324,10 +374,22 @@ from the command line with no flag needing to exist for it:
 void +map void_start
 void +map void_start +sv_gravity 200 +developer 1
 void --headless 640 +map void_start
+void --content path/to/content --vault extra.vault +map void_start
 ```
 
 `--headless` runs the simulation with no window at all — which is what a
 dedicated server is, not a testing mode bolted on the side.
+
+With no `--content`, the engine finds the content tree the way every tool does
+(see Chisel, above) and says which one it took. With no `--vault`, every
+`.vault` in that tree is mounted, in name order, so a packed install runs
+without being told about its own archives. Loose files still win over packed
+ones, which is what makes dropping a file beside a shipped archive work.
+
+A map that will not load says why rather than saying "not found in any search
+path". The usual reason is that it has never been compiled — the `.voidmap` is
+right there and nothing turned it into a `.voidbsp` — so that is what it says,
+along with the command to run and the list of paths it searched.
 
 ### Useful convars
 

@@ -183,24 +183,21 @@ fn run_compile(
 ) -> Result<(), ()> {
     let compiled = map.with_extension("voidbsp");
 
-    // Alchemy first. It skips everything already compiled, so the usual cost
-    // is one directory walk -- and the one time it is not, it is the run that
-    // saves the map from loading as a checkerboard.
+    // Alchemy first, and in-process rather than as a stage. The compilers are
+    // separate programs on purpose; the texture build is not, because the
+    // editor runs the same build on the way in, and two callers of the same
+    // step should not be able to disagree about what it does. It skips
+    // everything already compiled, so the usual cost is one directory walk --
+    // and the one time it is not, it is the run that saves the map from
+    // loading as a checkerboard.
     if settings.run_materials {
-        let art = settings.content_root.join("art");
-        if art.is_dir() {
-            let materials = settings.content_root.join("materials");
-            stage(
-                "alchemy",
-                &[
-                    "batch".into(),
-                    art.display().to_string(),
-                    "-o".into(),
-                    materials.display().to_string(),
-                    "--make-materials".into(),
-                ],
-                sender,
-            )?;
+        let _ = sender.send(CompileMessage::Stage("alchemy".into()));
+        match alchemy::build_textures(&settings.content_root) {
+            Ok(build) => { let _ = sender.send(CompileMessage::Line(format!("  {build}"))); }
+            Err(e) => {
+                let _ = sender.send(CompileMessage::Failed(format!("alchemy: {e:#}")));
+                return Err(());
+            }
         }
     }
 
@@ -231,9 +228,16 @@ fn run_compile(
     if settings.run_after {
         if let Some(name) = compiled.file_stem().and_then(|s| s.to_str()) {
             let _ = sender.send(CompileMessage::Stage(format!("launching {name}")));
-            // Detached: the editor should not block on the game, and closing
-            // the game should not take the editor with it.
+            // Detached, so the editor does not block on the game and closing
+            // the game does not take the editor with it. The content root is
+            // handed over explicitly: the editor already knows which tree
+            // this map belongs to, and letting the game work it out again --
+            // from a working directory it inherited from the editor, which
+            // inherited it from a shell -- is how a map compiled here comes
+            // to be launched against a content tree somewhere else.
             let _ = tool_command("void")
+                .arg("--content")
+                .arg(&settings.content_root)
                 .arg("+map")
                 .arg(name)
                 .stdout(Stdio::null())
