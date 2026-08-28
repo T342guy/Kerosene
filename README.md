@@ -190,9 +190,10 @@ Known limits, stated plainly:
 - **No skeletal animation.** `.voidmdl` carries bones and per-vertex weights, and
   Forge preserves them, but nothing animates them yet.
 - **Chisel's 3D view is software-rasterised, not GPU-rendered.** Occlusion is
-  correct — it has a real depth buffer — but there are no textures, no
-  lighting, and no shadows. It shows shape, scale and what is in front of what.
-  The compiled map in the engine is one keystroke away.
+  correct — it has a real depth buffer — and it draws materials, mipped and
+  perspective-correct. There is no lighting and there are no shadows, and it
+  reads the *compiled* textures, so the content has to be built first. The
+  compiled map in the engine is one keystroke away.
 - **No block compression for textures.** `.voidtex` is uncompressed. A bad BC
   encoder is worse than none.
 - **Sound is stereo, and does not know about walls.** Falloff and panning are

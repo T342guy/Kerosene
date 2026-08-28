@@ -305,3 +305,127 @@ fn the_title_shows_unsaved_changes() {
     block(&mut d, 0.0, 64.0);
     assert!(d.title().ends_with('*'), "{}", d.title());
 }
+
+// ---- face editing ---------------------------------------------------------
+
+/// Two cubes, with the whole of the first one's faces selected.
+fn two_cubes_with_one_selected() -> (Document, u32, u32) {
+    let mut document = Document::new();
+    document.grid.size = 16.0;
+    let a = document.create_block(Vec3::ZERO, Vec3::splat(64.0));
+    let b = document.create_block(Vec3::new(256.0, 0.0, 0.0), Vec3::new(320.0, 64.0, 64.0));
+    document.selection.clear();
+    let sides: Vec<u32> =
+        document.find_solid(a).unwrap().sides.iter().map(|s| s.id).collect();
+    for side in sides {
+        document.selection.faces.insert((a, side));
+    }
+    (document, a, b)
+}
+
+#[test]
+fn an_edit_reaches_every_selected_face_and_no_others() {
+    let (mut document, a, b) = two_cubes_with_one_selected();
+    let changed = document.edit_faces("shift", |side, _, _| {
+        crate::faces::shift_by(side, 8.0, 0.0);
+    });
+    assert_eq!(changed, 6, "a cube has six faces");
+
+    assert!(
+        document.find_solid(a).unwrap().sides.iter().all(|s| s.uaxis.offset == 8.0),
+        "not every selected face moved"
+    );
+    assert!(
+        document.find_solid(b).unwrap().sides.iter().all(|s| s.uaxis.offset == 0.0),
+        "an unselected brush was edited"
+    );
+}
+
+#[test]
+fn editing_a_whole_selection_is_one_undo_step() {
+    // Six presses of ctrl-Z to take back one nudge is a bug in everything but
+    // name.
+    let (mut document, a, _) = two_cubes_with_one_selected();
+    let before = document.undo_depth();
+
+    document.edit_faces("shift", |side, _, _| crate::faces::shift_by(side, 8.0, 0.0));
+    assert_eq!(document.undo_depth(), before + 1);
+
+    document.undo();
+    assert!(
+        document.find_solid(a).unwrap().sides.iter().all(|s| s.uaxis.offset == 0.0),
+        "one undo did not take the whole edit back"
+    );
+}
+
+#[test]
+fn editing_with_nothing_selected_does_nothing_and_costs_no_undo() {
+    let mut document = Document::new();
+    document.create_block(Vec3::ZERO, Vec3::splat(64.0));
+    document.selection.clear();
+    let before = document.undo_depth();
+
+    assert_eq!(document.edit_faces("shift", |side, _, _| side.uaxis.offset = 99.0), 0);
+    assert_eq!(document.undo_depth(), before, "an empty edit pushed an undo step");
+}
+
+#[test]
+fn an_edit_is_handed_the_faces_own_shape() {
+    // Fit and justify need the face's winding, and the plane it lies on. An
+    // edit given the wrong face's shape would fit the texture to the wrong
+    // rectangle -- which looks almost right, and is the worst kind of wrong.
+    let mut document = Document::new();
+    document.grid.size = 16.0;
+    let id = document.create_block(Vec3::ZERO, Vec3::new(256.0, 64.0, 64.0));
+    document.selection.clear();
+
+    // Just the top face.
+    let side = document
+        .find_solid(id)
+        .unwrap()
+        .sides
+        .iter()
+        .find(|s| s.plane().is_some_and(|p| p.normal.z > 0.9))
+        .unwrap()
+        .id;
+    document.selection.faces.insert((id, side));
+
+    document.edit_faces("fit", |side, _, winding| {
+        crate::faces::justify(side, winding, crate::faces::Justify::Fit, (256, 256));
+    });
+
+    let solid = document.find_solid(id).unwrap();
+    let edited = solid.sides.iter().find(|s| s.id == side).unwrap();
+    let (_, winding) = crate::faces::winding_of(solid, side).unwrap();
+    let (min, max) = crate::faces::texel_bounds(edited, &winding).unwrap();
+    assert!((max.0 - min.0 - 256.0).abs() < 1e-1, "u span {}", max.0 - min.0);
+    assert!((max.1 - min.1 - 256.0).abs() < 1e-1, "v span {}", max.1 - min.1);
+}
+
+#[test]
+fn the_selected_faces_come_back_in_a_stable_order() {
+    // A panel showing "the first selected face" has to show the same one from
+    // frame to frame.
+    let (document, _, _) = two_cubes_with_one_selected();
+    let first: Vec<(u32, u32)> =
+        document.selected_face_specs().iter().map(|f| (f.solid, f.side.id)).collect();
+    let again: Vec<(u32, u32)> =
+        document.selected_face_specs().iter().map(|f| (f.solid, f.side.id)).collect();
+    assert_eq!(first, again);
+    assert_eq!(first.len(), 6);
+    assert_eq!(document.selected_face_count(), 6);
+}
+
+#[test]
+fn a_face_spec_carries_the_plane_and_winding_that_face_sits_on() {
+    let (document, _, _) = two_cubes_with_one_selected();
+    for spec in document.selected_face_specs() {
+        assert!(spec.winding.points.len() >= 3, "a face with no shape");
+        for point in &spec.winding.points {
+            assert!(
+                (spec.plane.normal.dot(*point) - spec.plane.dist).abs() < 0.1,
+                "a winding point is off its own plane"
+            );
+        }
+    }
+}

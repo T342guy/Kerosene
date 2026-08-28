@@ -1,5 +1,0 @@
-sky
-{
-	"$basetexture" "dev/sky_void"
-	"$surfaceprop" "default"
-}

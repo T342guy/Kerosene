@@ -9,5 +9,13 @@
 *.voidleak
 content/maps/*.voidbsp
 
+# The developer texture set, written by `alchemy dev-textures`. Generated
+# because the colours and the grid spacing mean something, and a meaning that
+# lives in a PNG is one nobody can read or review.
+content/art/dev/
+content/art/tools/
+content/materials/dev/
+content/materials/tools/
+
 **/*.rs.bk
 .DS_Store

@@ -21,10 +21,12 @@ pub mod classes;
 pub mod compile;
 pub mod draw;
 pub mod document;
+pub mod faces;
 pub mod grid;
 pub mod inspector;
 pub mod leak;
 pub mod raster;
+pub mod textures;
 pub mod tools;
 pub mod viewport;
 

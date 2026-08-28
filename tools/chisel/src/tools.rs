@@ -7,7 +7,7 @@
 
 use crate::document::Document;
 use crate::viewport::{Viewport, ray_box};
-use void_math::{Aabb, Vec3};
+use void_math::{Aabb, Vec3, Winding};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub enum ToolKind {
@@ -209,6 +209,67 @@ pub fn pick_solid_3d(document: &Document, origin: Vec3, direction: Vec3) -> Opti
     best.map(|(_, id)| id)
 }
 
+/// The face a 3D pick ray hits first, as `(solid id, side id)`.
+///
+/// Against the actual face polygons rather than the brush's bounding box:
+/// picking a *face* is what the texture tool does, and a box hit says nothing
+/// about which of six faces you meant. Back-facing polygons are skipped, so
+/// clicking a wall from inside a room picks the wall you can see and not the
+/// one behind you.
+pub fn pick_face_3d(
+    document: &Document,
+    origin: Vec3,
+    direction: Vec3,
+) -> Option<(u32, u32)> {
+    let mut best: Option<(f32, (u32, u32))> = None;
+    for (_, solid) in document.map.all_solids() {
+        for (side, winding) in solid.face_windings() {
+            let Some(plane) = side.plane() else { continue };
+            let facing = plane.normal.dot(direction);
+            // Only faces turned towards the ray, and never one it runs along.
+            if facing >= -1e-6 { continue }
+
+            let distance = -(plane.normal.dot(origin) - plane.dist) / facing;
+            if distance < 0.0 { continue }
+            let hit = origin + direction * distance;
+            if !winding_contains(&winding, plane.normal, hit) { continue }
+            if best.is_none_or(|(d, _)| distance < d) {
+                best = Some((distance, (solid.id, side.id)));
+            }
+        }
+    }
+    best.map(|(_, ids)| ids)
+}
+
+/// Whether a point on a face's plane is inside the face.
+///
+/// The winding is convex, so the point is inside when it falls on the same
+/// side of every edge. Which side that is depends on the winding order, and
+/// this project's is clockwise seen from the front -- so rather than encode
+/// that here and be wrong the day it changes, the first edge that says
+/// anything decides and the rest must agree.
+///
+/// The epsilon lets a click landing exactly on an edge count for one of the
+/// two faces rather than for neither.
+fn winding_contains(winding: &Winding, normal: Vec3, point: Vec3) -> bool {
+    let n = winding.points.len();
+    if n < 3 { return false }
+
+    let mut sign = 0.0f32;
+    for i in 0..n {
+        let a = winding.points[i];
+        let b = winding.points[(i + 1) % n];
+        let side = (b - a).cross(point - a).dot(normal);
+        if side.abs() <= 0.05 { continue }
+        if sign == 0.0 {
+            sign = side.signum();
+        } else if side.signum() != sign {
+            return false;
+        }
+    }
+    true
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -349,5 +410,115 @@ mod tests {
             assert!(!kind.label().is_empty());
             assert!(!kind.shortcut().is_empty());
         }
+    }
+}
+
+#[cfg(test)]
+mod face_picking_tests {
+    use super::*;
+    use void_map::Solid;
+    use void_math::Aabb;
+
+    fn room() -> (Document, u32) {
+        let mut document = Document::new();
+        document.map.world.solids.clear();
+        let id = document.map.next_id();
+        let mut solid = Solid::cube(Aabb::new(Vec3::ZERO, Vec3::splat(128.0)), "dev/grid");
+        solid.id = id;
+        document.map.world.solids.push(solid);
+        (document, id)
+    }
+
+    #[test]
+    fn a_ray_picks_the_face_it_points_at_not_just_the_brush() {
+        // The texture tool needs a face; a bounding-box hit says nothing about
+        // which of six faces you meant.
+        let (document, id) = room();
+        let hit = pick_face_3d(&document, Vec3::new(-100.0, 64.0, 64.0), Vec3::X)
+            .expect("the ray hits the cube");
+        assert_eq!(hit.0, id);
+
+        let side = document
+            .find_solid(id)
+            .unwrap()
+            .sides
+            .iter()
+            .find(|s| s.id == hit.1)
+            .expect("the side exists");
+        assert!(
+            side.plane().unwrap().normal.x < -0.9,
+            "picked the wrong face: {:?}",
+            side.plane().unwrap().normal
+        );
+    }
+
+    #[test]
+    fn the_nearest_face_wins() {
+        let (mut document, first) = room();
+        let id = document.map.next_id();
+        let mut nearer = Solid::cube(
+            Aabb::new(Vec3::new(-200.0, 0.0, 0.0), Vec3::new(-150.0, 128.0, 128.0)),
+            "dev/wall",
+        );
+        nearer.id = id;
+        document.map.world.solids.push(nearer);
+
+        let hit = pick_face_3d(&document, Vec3::new(-400.0, 64.0, 64.0), Vec3::X).unwrap();
+        assert_eq!(hit.0, id, "the far brush was picked over the near one");
+        let _ = first;
+    }
+
+    #[test]
+    fn a_ray_pointing_away_hits_nothing() {
+        let (document, _) = room();
+        assert!(pick_face_3d(&document, Vec3::new(-100.0, 64.0, 64.0), -Vec3::X).is_none());
+    }
+
+    #[test]
+    fn a_ray_missing_the_face_hits_nothing_even_on_its_plane() {
+        // On the plane of the -X face, but past the end of it.
+        let (document, _) = room();
+        assert!(pick_face_3d(&document, Vec3::new(-100.0, 900.0, 64.0), Vec3::X).is_none());
+    }
+
+    #[test]
+    fn standing_in_a_room_picks_the_wall_you_are_looking_at() {
+        // The face whose normal points back at the ray, not the one behind
+        // the camera that the ray would also cross.
+        let document = crate::app::starter_document();
+        let hit = pick_face_3d(&document, Vec3::new(256.0, 256.0, 64.0), Vec3::X)
+            .expect("a sealed room has a wall in every direction");
+
+        let solid = document.find_solid(hit.0).expect("the brush exists");
+        let side = solid.sides.iter().find(|s| s.id == hit.1).expect("the side exists");
+        let normal = side.plane().unwrap().normal;
+        assert!(normal.x < -0.9, "picked a face turned away from the camera: {normal:?}");
+    }
+
+    #[test]
+    fn a_camera_buried_in_solid_rock_picks_nothing() {
+        // Every face of the brush around it is either behind it or turned
+        // away. Reporting a hit would mean texturing a face you cannot see.
+        let (document, _) = room();
+        assert!(pick_face_3d(&document, Vec3::splat(64.0), Vec3::X).is_none());
+    }
+
+    #[test]
+    fn every_face_of_a_cube_is_reachable() {
+        let (document, id) = room();
+        let mut picked = std::collections::HashSet::new();
+        for (from, direction) in [
+            (Vec3::new(-200.0, 64.0, 64.0), Vec3::X),
+            (Vec3::new(300.0, 64.0, 64.0), -Vec3::X),
+            (Vec3::new(64.0, -200.0, 64.0), Vec3::Y),
+            (Vec3::new(64.0, 300.0, 64.0), -Vec3::Y),
+            (Vec3::new(64.0, 64.0, -200.0), Vec3::Z),
+            (Vec3::new(64.0, 64.0, 300.0), -Vec3::Z),
+        ] {
+            let hit = pick_face_3d(&document, from, direction).expect("hits");
+            assert_eq!(hit.0, id);
+            picked.insert(hit.1);
+        }
+        assert_eq!(picked.len(), 6, "some faces are unreachable: {picked:?}");
     }
 }

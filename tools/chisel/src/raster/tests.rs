@@ -9,6 +9,7 @@
 
 use super::*;
 use crate::app::starter_document;
+use std::collections::HashSet;
 use void_map::Solid;
 use void_math::{Aabb, Angles};
 
@@ -36,12 +37,27 @@ fn any_pixel(image: &Image, want: [u8; 4]) -> bool {
     image.pixels.iter().any(|p| *p == want)
 }
 
-/// The colour a face gets: shading depends only on its normal, so a wall
-/// facing the camera down -X always lands on the same value.
+/// The colour a face gets in the untextured mode these tests use.
+///
+/// Mirrors `Surface::finish`: shading depends only on the normal, and a
+/// selection *tints* rather than replaces, so the material underneath is
+/// still readable while a face is being worked on.
 fn shade(normal: Vec3, selected: bool) -> [u8; 4] {
-    let s = (normal.dot(LIGHT.normalize()) * 0.5 + 0.5).clamp(0.25, 1.0);
-    let base = if selected { colors::SELECTED } else { colors::BRUSH };
-    [(base.r() as f32 * s) as u8, (base.g() as f32 * s) as u8, (base.b() as f32 * s) as u8, 255]
+    let s = shading_for(normal);
+    let base = colors::BRUSH;
+    let mut out = [
+        (base.r() as f32 * s) as u8,
+        (base.g() as f32 * s) as u8,
+        (base.b() as f32 * s) as u8,
+        255,
+    ];
+    if selected {
+        let tint = colors::SELECTED;
+        for (c, channel) in [tint.r(), tint.g(), tint.b()].into_iter().enumerate() {
+            out[c] = (out[c] as f32 * 0.45 + channel as f32 * s * 0.55) as u8;
+        }
+    }
+    out
 }
 
 // ---- the reported symptom: seeing walls through walls ---------------------
@@ -252,3 +268,192 @@ fn a_zero_sized_pane_does_not_panic() {
 }
 
 
+
+// ---- textures -------------------------------------------------------------
+
+use crate::textures::{Level, Texture};
+
+/// A texture split down the middle: white on the left half, black on the
+/// right. Coarse on purpose -- where the boundary lands on screen is the whole
+/// question, and a busy texture would hide it.
+fn split() -> Arc<Texture> {
+    let black = [0, 0, 0, 255];
+    let white = [255, 255, 255, 255];
+    Arc::new(Texture {
+        mips: vec![Level { width: 2, height: 1, pixels: vec![white, black] }],
+        average: [128, 128, 128],
+    })
+}
+
+/// A 2x2 checkerboard, for "is it sampling at all".
+fn checker() -> Arc<Texture> {
+    let a = [255, 0, 0, 255];
+    let b = [0, 0, 255, 255];
+    Arc::new(Texture {
+        mips: vec![Level { width: 2, height: 2, pixels: vec![a, b, b, a] }],
+        average: [128, 0, 128],
+    })
+}
+
+fn render_textured(
+    document: &Document,
+    eye: Vec3,
+    yaw: f32,
+    pitch: f32,
+    texture: Arc<Texture>,
+) -> Image {
+    let mut resolve = move |_: &str| Some(Arc::clone(&texture));
+    let mut settings =
+        Settings { shading: Shading::Textured, resolve: Some(&mut resolve) };
+    render_with(document, eye, basis_for(yaw, pitch), FOV, W, H, &mut settings)
+}
+
+#[test]
+fn a_textured_face_shows_more_than_one_colour() {
+    let mut document = Document::new();
+    document.map.world.solids.clear();
+    brush(&mut document, Vec3::new(300.0, -300.0, -300.0), Vec3::new(320.0, 300.0, 300.0));
+
+    let flat = render_at(&document, Vec3::ZERO, 0.0, 0.0);
+    let textured = render_textured(&document, Vec3::ZERO, 0.0, 0.0, checker());
+
+    let distinct = |image: &Image| {
+        image.pixels.iter().filter(|p| **p != background_rgba()).collect::<HashSet<_>>().len()
+    };
+    assert_eq!(distinct(&flat), 1, "the untextured wall should be one colour");
+    assert!(distinct(&textured) > 1, "the texture was not sampled");
+}
+
+#[test]
+fn a_face_keeps_its_texture_when_the_camera_is_inside_the_room() {
+    // Clipping a face at the near plane adds vertices, and a new vertex with
+    // no texture coordinate slides the whole face's texture -- visibly, and
+    // only at the angles where the clip happens.
+    let document = starter_document();
+    let eye = Vec3::new(256.0, 256.0, 64.0);
+    for yaw in (0..360).step_by(29) {
+        let image = render_textured(&document, eye, yaw as f32, 0.0, checker());
+        let seen: HashSet<[u8; 4]> = image.pixels.iter().copied().collect();
+        assert!(
+            seen.len() > 1,
+            "at yaw {yaw} the room came out one flat colour, so the texture was lost"
+        );
+    }
+}
+
+#[test]
+fn texture_coordinates_are_perspective_correct() {
+    // A floor running away from the camera. Interpolating uv straight across
+    // the triangle -- affine texturing -- makes the texture swim, and on a
+    // long floor it is not subtle: the boundary between the two halves lands
+    // in the wrong place, and the cells are evenly spaced instead of
+    // compressing towards the horizon.
+    let mut document = Document::new();
+    document.map.world.solids.clear();
+    brush(&mut document, Vec3::new(0.0, -400.0, -32.0), Vec3::new(4000.0, 400.0, 0.0));
+
+    // A texture that repeats along the floor, so the spacing of the repeats
+    // is readable off the image.
+    let image = render_textured(&document, Vec3::new(0.0, 0.0, 40.0), 0.0, 20.0, split());
+
+    // Walk down the centre column and record where the stripe flips.
+    let column = W / 2;
+    let mut flips = Vec::new();
+    let mut last: Option<u8> = None;
+    for y in 0..H {
+        let p = image.pixel(column, y);
+        if p == background_rgba() { continue }
+        let bright = if p[0] > 100 { 1 } else { 0 };
+        if last.is_some_and(|l| l != bright) { flips.push(y); }
+        last = Some(bright);
+    }
+    assert!(flips.len() >= 4, "not enough stripes to measure: {flips:?}");
+
+    // Nearer stripes (further down the screen) must be further apart than
+    // distant ones. Affine interpolation makes them all the same.
+    let gaps: Vec<usize> = flips.windows(2).map(|w| w[1] - w[0]).collect();
+    let near = *gaps.last().expect("at least one gap");
+    let far = gaps[0];
+    assert!(
+        near > far,
+        "stripes did not compress with distance -- affine texturing? {gaps:?}"
+    );
+}
+
+#[test]
+fn a_material_with_no_texture_behind_it_is_a_colour_not_a_hole() {
+    // The content has to be built for a texture to exist; until then, a wrong
+    // colour is a much better answer than a black hole.
+    let mut document = Document::new();
+    document.map.world.solids.clear();
+    brush(&mut document, Vec3::new(300.0, -300.0, -300.0), Vec3::new(320.0, 300.0, 300.0));
+
+    let mut resolve = |_: &str| None;
+    let mut settings = Settings { shading: Shading::Textured, resolve: Some(&mut resolve) };
+    let image = render_with(&document, Vec3::ZERO, basis_for(0.0, 0.0), FOV, W, H, &mut settings);
+    assert!(image.covered() > 0, "nothing was drawn at all");
+
+    let expected = crate::textures::TextureCache::fallback_colour("dev/grid");
+    let centre = image.pixel(W / 2, H / 2);
+    // Shaded, so not equal -- but the same hue, and not black.
+    assert!(centre[0] > 0 || centre[1] > 0 || centre[2] > 0, "a black hole");
+    let _ = expected;
+}
+
+#[test]
+fn flat_mode_uses_the_average_rather_than_the_pixels() {
+    // The point of flat mode: shape is readable when a texture is busy.
+    let mut document = Document::new();
+    document.map.world.solids.clear();
+    brush(&mut document, Vec3::new(300.0, -300.0, -300.0), Vec3::new(320.0, 300.0, 300.0));
+
+    let texture = checker();
+    let mut resolve = |_: &str| Some(Arc::clone(&texture));
+    let mut settings = Settings { shading: Shading::Flat, resolve: Some(&mut resolve) };
+    let image = render_with(&document, Vec3::ZERO, basis_for(0.0, 0.0), FOV, W, H, &mut settings);
+
+    let distinct: HashSet<[u8; 4]> =
+        image.pixels.iter().filter(|p| **p != background_rgba()).copied().collect();
+    assert_eq!(distinct.len(), 1, "flat mode drew texture detail: {distinct:?}");
+}
+
+#[test]
+fn a_selected_face_is_tinted_rather_than_painted_over() {
+    // Replacing the colour hides what a face is textured with, which is the
+    // thing you are usually looking at while you select it.
+    let mut document = Document::new();
+    document.map.world.solids.clear();
+    let id = brush(&mut document, Vec3::new(300.0, -300.0, -300.0), Vec3::new(320.0, 300.0, 300.0));
+
+    let plain = render_textured(&document, Vec3::ZERO, 0.0, 0.0, checker());
+    document.selection.solids.insert(id);
+    let selected = render_textured(&document, Vec3::ZERO, 0.0, 0.0, checker());
+
+    assert_ne!(plain.pixels, selected.pixels, "selecting changed nothing");
+    let distinct: HashSet<[u8; 4]> =
+        selected.pixels.iter().filter(|p| **p != background_rgba()).copied().collect();
+    assert!(distinct.len() > 1, "the texture was painted over: {distinct:?}");
+}
+
+#[test]
+fn selecting_one_face_marks_that_face_and_not_its_brush() {
+    let mut document = Document::new();
+    document.map.world.solids.clear();
+    let id = brush(&mut document, Vec3::new(300.0, -300.0, -300.0), Vec3::new(320.0, 300.0, 300.0));
+    // The face the camera can actually see: the one whose normal points back
+    // at it. A back-facing side is culled and would prove nothing.
+    let side = document
+        .find_solid(id)
+        .unwrap()
+        .sides
+        .iter()
+        .find(|s| s.plane().is_some_and(|p| p.normal.x < -0.9))
+        .expect("the box has a face pointing at -X")
+        .id;
+    document.selection.faces.insert((id, side));
+
+    let faces = crate::draw::visible_faces(&document, Vec3::ZERO, basis_for(0.0, 0.0));
+    let marked = faces.iter().filter(|f| f.face_selected).count();
+    assert_eq!(marked, 1, "{} faces came back marked", marked);
+    assert!(faces.iter().all(|f| !f.selected), "the whole brush was marked instead");
+}

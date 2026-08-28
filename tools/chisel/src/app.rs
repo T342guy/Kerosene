@@ -13,6 +13,8 @@ use crate::document::Document;
 use crate::inspector::{self, PropertyRow};
 use crate::tools::{Tool, ToolKind};
 use crate::viewport::Viewport;
+use crate::raster::Shading;
+use crate::textures::TextureCache;
 use crate::{classes, draw, raster};
 use egui::{Context, Key, Modifiers, RichText};
 use std::path::PathBuf;
@@ -68,6 +70,16 @@ pub struct ChiselApp {
     pub content_root: PathBuf,
     /// The game's entity class definitions, read from the content tree.
     pub schema: Schema,
+    /// Textures for the 3D pane and the material browser.
+    pub textures: TextureCache,
+    /// Thumbnails handed to egui, one per material, built on demand.
+    thumbnails: std::collections::HashMap<String, egui::TextureHandle>,
+    /// The content tree, for reading textures the way the engine does.
+    pub vfs: void_vfs::Vfs,
+    /// How the 3D panes draw.
+    pub shading: Shading,
+    /// Substring filter on the material browser.
+    pub material_filter: String,
     /// The route out of a leaking map, from the last compile.
     pub leak: crate::leak::LeakTrace,
     /// Where the four panes divide, as fractions of the area. Dragged.
@@ -113,6 +125,18 @@ impl ChiselApp {
         let models = scan_models(&content_root);
         let loaded = classes::load(&content_root);
         let status = loaded.summary();
+        let mut vfs = void_vfs::Vfs::new();
+        vfs.add_directory(&content_root, "GAME");
+        // Archives too, so a packed content tree previews like a loose one.
+        for archive in std::fs::read_dir(&content_root)
+            .into_iter()
+            .flatten()
+            .flatten()
+            .map(|e| e.path())
+            .filter(|p| p.extension().is_some_and(|e| e == "vault"))
+        {
+            let _ = vfs.mount_archive(&archive, "GAME");
+        }
         ChiselApp {
             document: Document::new(),
             tool: Tool::new(),
@@ -128,6 +152,11 @@ impl ChiselApp {
             models,
             content_root,
             schema: loaded.schema,
+            textures: TextureCache::new(),
+            thumbnails: std::collections::HashMap::new(),
+            vfs,
+            shading: Shading::default(),
+            material_filter: String::new(),
             leak: crate::leak::LeakTrace::default(),
             split: egui::vec2(0.5, 0.5),
             fly_speed: DEFAULT_FLY_SPEED,
@@ -391,6 +420,23 @@ impl ChiselApp {
                 ui.menu_button("view", |ui| {
                     ui.checkbox(&mut self.document.grid.visible, "show grid");
                     ui.checkbox(&mut self.document.grid.snap, "snap to grid");
+
+                    ui.separator();
+                    ui.label(RichText::new("3D panes").size(11.0).weak());
+                    for mode in Shading::all() {
+                        if ui.radio_value(&mut self.shading, mode, mode.label()).clicked() {
+                            self.status = format!("3D panes: {}", mode.label());
+                        }
+                    }
+                    if ui.button("reload textures").clicked() {
+                        self.textures.clear();
+                        self.thumbnails.clear();
+                        self.materials = scan_materials(&self.content_root);
+                        self.status = "textures reloaded".into();
+                        ui.close();
+                    }
+
+                    ui.separator();
                     if ui.button("frame everything").clicked() { self.frame_all(); ui.close(); }
                     if self.maximised.is_some() && ui.button("show four panes").clicked() {
                         self.maximised = None;
@@ -426,19 +472,7 @@ impl ChiselApp {
             });
 
             ui.separator();
-            ui.label(RichText::new("material").strong());
-            egui::ScrollArea::vertical().max_height(180.0).show(ui, |ui| {
-                let materials = self.materials.clone();
-                for material in &materials {
-                    let selected = self.document.current_material == *material;
-                    if ui.selectable_label(selected, material).clicked() {
-                        self.document.current_material = material.clone();
-                        if !self.document.selection.is_empty() {
-                            self.document.apply_material();
-                        }
-                    }
-                }
-            });
+            self.material_browser(ui);
 
             if self.tool.kind == ToolKind::Entity {
                 ui.separator();
@@ -462,6 +496,121 @@ impl ChiselApp {
     // ---- the property inspector -----------------------------------------
 
     /// Write pending property edits into the document, as one undo step.
+    /// The material picker: a grid of what the textures actually look like.
+    ///
+    /// A list of names is only usable by someone who already knows what every
+    /// name looks like, which is nobody on their first level. The thumbnails
+    /// are the same pixels the 3D pane draws with, so picking one is picking
+    /// what you can see.
+    fn material_browser(&mut self, ui: &mut egui::Ui) {
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("material").strong());
+            if !self.material_filter.is_empty() && ui.small_button("x").clicked() {
+                self.material_filter.clear();
+            }
+        });
+        ui.add(
+            egui::TextEdit::singleline(&mut self.material_filter)
+                .desired_width(f32::INFINITY)
+                .hint_text("filter"),
+        );
+
+        let current = self.document.current_material.clone();
+        let filter = self.material_filter.to_ascii_lowercase();
+        let materials: Vec<String> = self
+            .materials
+            .iter()
+            .filter(|m| filter.is_empty() || m.to_ascii_lowercase().contains(&filter))
+            .cloned()
+            .collect();
+
+        // What is on the selection, so the picker shows where you already are.
+        ui.label(
+            RichText::new(&current)
+                .monospace()
+                .size(10.0)
+                .color(draw::colors::SELECTED),
+        );
+
+        const CELL: f32 = 48.0;
+        egui::ScrollArea::vertical().max_height(300.0).auto_shrink([false, false]).show(
+            ui,
+            |ui| {
+                let columns = ((ui.available_width() + 4.0) / (CELL + 6.0)).floor().max(1.0) as usize;
+                let mut picked = None;
+                egui::Grid::new("materials").spacing([4.0, 4.0]).show(ui, |ui| {
+                    for (index, material) in materials.iter().enumerate() {
+                        let handle = self.thumbnail(ui.ctx(), material);
+                        let selected = *material == current;
+                        let image = egui::Image::new(&handle)
+                            .fit_to_exact_size(egui::vec2(CELL, CELL))
+                            .corner_radius(2.0);
+                        let response = ui
+                            .add(egui::ImageButton::new(image).selected(selected))
+                            .on_hover_text(match self.textures.problem(material) {
+                                Some(problem) => format!("{material}\n\n{problem}"),
+                                None => material.clone(),
+                            });
+                        if response.clicked() { picked = Some(material.clone()); }
+                        if index % columns == columns - 1 { ui.end_row(); }
+                    }
+                });
+                if let Some(material) = picked {
+                    self.document.current_material = material.clone();
+                    if !self.document.selection.is_empty() {
+                        let faces = self.document.apply_material();
+                        self.status = format!("{material} on {faces} faces");
+                    } else {
+                        self.status = material;
+                    }
+                }
+            },
+        );
+    }
+
+    /// An egui texture for a material, built once.
+    ///
+    /// From a mid mip rather than the top one: a 48-pixel thumbnail of a
+    /// 256-pixel texture is going to be scaled down anyway, and scaling down
+    /// something already filtered looks like the texture rather than like
+    /// aliasing.
+    fn thumbnail(&mut self, ctx: &Context, material: &str) -> egui::TextureHandle {
+        if let Some(handle) = self.thumbnails.get(material) { return handle.clone() }
+
+        let image = match self.textures.get(&self.vfs, material) {
+            Some(texture) => {
+                let level = texture.level(texture.mips.len().saturating_sub(2));
+                egui::ColorImage {
+                    size: [level.width as usize, level.height as usize],
+                    pixels: level
+                        .pixels
+                        .iter()
+                        .map(|p| egui::Color32::from_rgba_unmultiplied(p[0], p[1], p[2], p[3]))
+                        .collect(),
+                    source_size: egui::vec2(level.width as f32, level.height as f32),
+                }
+            }
+            None => {
+                // A flat swatch of the fallback colour, so a material with no
+                // texture behind it is still a distinct thing to click.
+                let [r, g, b] = TextureCache::fallback_colour(material);
+                egui::ColorImage {
+                    size: [2, 2],
+                    pixels: vec![egui::Color32::from_rgb(r, g, b); 4],
+                    source_size: egui::vec2(2.0, 2.0),
+                }
+            }
+        };
+
+        let handle = ctx.load_texture(
+            format!("mat-{material}"),
+            image,
+            egui::TextureOptions::LINEAR,
+        );
+        self.thumbnails.insert(material.to_string(), handle.clone());
+        handle
+    }
+
     fn commit_properties(&mut self) {
         let Some(edit) = self.properties.as_mut() else { return };
         if !edit.dirty { return }
@@ -513,6 +662,15 @@ impl ChiselApp {
 
         egui::SidePanel::right("inspector").exact_width(320.0).show(ctx, |ui| {
             ui.add_space(4.0);
+
+            // A face selection is what you are looking at when you have one,
+            // so it comes first.
+            if self.document.selected_face_count() > 0 {
+                egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
+                    self.face_panel(ui);
+                });
+                return;
+            }
 
             let Some(&id) = selected.first() else {
                 self.no_entity_selected(ui);
@@ -1050,6 +1208,251 @@ impl ChiselApp {
     }
 
 
+    /// The face editor: how the texture sits on the selected faces.
+    ///
+    /// The arithmetic is in [`crate::faces`] and tested there; this is the
+    /// dial in front of it. Every control acts on the whole selection at once,
+    /// as one undo step.
+    fn face_panel(&mut self, ui: &mut egui::Ui) {
+        use crate::faces::{self, Justify};
+
+        let specs = self.document.selected_face_specs();
+        let Some(first) = specs.first().cloned() else { return };
+        let count = specs.len();
+
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("face").strong());
+            ui.label(
+                RichText::new(if count == 1 {
+                    "1 face".to_string()
+                } else {
+                    format!("{count} faces")
+                })
+                .size(11.0)
+                .weak(),
+            );
+        });
+
+        // Which material, and the texture behind it.
+        let materials: std::collections::BTreeSet<&str> =
+            specs.iter().map(|f| f.side.material.as_str()).collect();
+        let shown = match materials.len() {
+            1 => first.side.material.clone(),
+            n => format!("{n} different materials"),
+        };
+        ui.label(RichText::new(&shown).monospace().size(11.0));
+
+        let size = self
+            .textures
+            .get(&self.vfs, &first.side.material)
+            .map(|t| (t.width(), t.height()))
+            // The content may not be built. 256 is what the dev set is, and a
+            // fit against the wrong size is better than no fit at all.
+            .unwrap_or((256, 256));
+        ui.label(
+            RichText::new(format!("{} x {} texels", size.0, size.1)).size(10.0).weak(),
+        );
+
+        ui.horizontal(|ui| {
+            let current = self.document.current_material.clone();
+            if ui
+                .button("apply current")
+                .on_hover_text(format!("Put {current} on {count} face(s)"))
+                .clicked()
+            {
+                let applied = self.document.apply_material();
+                self.status = format!("{current} on {applied} faces");
+            }
+            if ui.button("pick up").on_hover_text("Take this face's material").clicked() {
+                self.document.current_material = first.side.material.clone();
+                self.status = format!("picked up {}", first.side.material);
+            }
+        });
+
+        ui.separator();
+
+        // A value shared by every selected face, or None when they differ.
+        // Showing one face's number for six is how you overwrite five of them
+        // by accident.
+        let shared = |get: fn(&crate::document::FaceSpec) -> f32| -> Option<f32> {
+            let first = get(&specs[0]);
+            specs.iter().all(|f| (get(f) - first).abs() < 1e-4).then_some(first)
+        };
+
+        let mut edit: Option<(&'static str, FaceEdit)> = None;
+
+        ui.label(RichText::new("scale (units per texel)").size(11.0).weak());
+        ui.horizontal(|ui| {
+            if let Some(value) = number(ui, "u", shared(|f| f.side.uaxis.scale), 0.01) {
+                edit = Some(("scale", FaceEdit::ScaleU(value)));
+            }
+            if let Some(value) = number(ui, "v", shared(|f| f.side.vaxis.scale), 0.01) {
+                edit = Some(("scale", FaceEdit::ScaleV(value)));
+            }
+        });
+
+        ui.label(RichText::new("shift (texels)").size(11.0).weak());
+        ui.horizontal(|ui| {
+            if let Some(value) = number(ui, "u", shared(|f| f.side.uaxis.offset), 1.0) {
+                edit = Some(("shift", FaceEdit::ShiftU(value)));
+            }
+            if let Some(value) = number(ui, "v", shared(|f| f.side.vaxis.offset), 1.0) {
+                edit = Some(("shift", FaceEdit::ShiftV(value)));
+            }
+        });
+
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("rotate").size(11.0).weak());
+            for degrees in [-90.0f32, -15.0, 15.0, 90.0] {
+                if ui.small_button(format!("{degrees:+.0}")).clicked() {
+                    edit = Some(("rotate", FaceEdit::Rotate(degrees)));
+                }
+            }
+        });
+
+        ui.separator();
+        ui.label(RichText::new("alignment").size(11.0).weak());
+        ui.horizontal(|ui| {
+            if ui
+                .button("world")
+                .on_hover_text(
+                    "The default projection. Adjacent faces of a wall share a \
+                     continuous texture.",
+                )
+                .clicked()
+            {
+                edit = Some(("align to world", FaceEdit::AlignWorld));
+            }
+            if ui
+                .button("face")
+                .on_hover_text(
+                    "Axes in the face's own plane. A texture on a slope stops \
+                     being foreshortened, at the cost of no longer lining up \
+                     with its neighbours.",
+                )
+                .clicked()
+            {
+                edit = Some(("align to face", FaceEdit::AlignFace));
+            }
+            if ui
+                .button("fit")
+                .on_hover_text("Scale so the texture spans the face exactly once")
+                .clicked()
+            {
+                edit = Some(("fit", FaceEdit::Justify(Justify::Fit)));
+            }
+        });
+
+        ui.label(RichText::new("justify").size(11.0).weak());
+        ui.horizontal(|ui| {
+            for how in [
+                Justify::Left,
+                Justify::Right,
+                Justify::Top,
+                Justify::Bottom,
+                Justify::Centre,
+            ] {
+                if ui.small_button(how.label()).clicked() {
+                    edit = Some(("justify", FaceEdit::Justify(how)));
+                }
+            }
+        });
+
+        ui.separator();
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("lightmap").size(11.0).weak());
+            if let Some(value) = number(ui, "vu/luxel", shared(|f| f.side.lightmap_scale), 0.5) {
+                edit = Some(("lightmap scale", FaceEdit::Lightmap(value)));
+            }
+        });
+
+        ui.separator();
+        if ui.button("clear face selection").clicked() {
+            self.document.selection.faces.clear();
+        }
+
+        if let Some((label, what)) = edit {
+            let changed = self.document.edit_faces(label, move |side, plane, winding| {
+                match what {
+                    FaceEdit::ScaleU(v) => faces::set_scale(side, v, side.vaxis.scale),
+                    FaceEdit::ScaleV(v) => faces::set_scale(side, side.uaxis.scale, v),
+                    FaceEdit::ShiftU(v) => faces::set_shift(side, v, side.vaxis.offset),
+                    FaceEdit::ShiftV(v) => faces::set_shift(side, side.uaxis.offset, v),
+                    FaceEdit::Rotate(d) => faces::rotate_by(side, plane, winding, d),
+                    FaceEdit::AlignWorld => faces::align_to_world(side, plane),
+                    FaceEdit::AlignFace => faces::align_to_face(side, plane),
+                    FaceEdit::Justify(how) => faces::justify(side, winding, how, size),
+                    FaceEdit::Lightmap(v) => side.lightmap_scale = v.clamp(1.0, 128.0),
+                }
+            });
+            self.status = format!("{label} on {changed} faces");
+        }
+    }
+
+    /// A click in a 3D pane.
+    ///
+    /// What it picks depends on the tool, because "the thing under the
+    /// pointer" means different things: the select tool wants the brush or the
+    /// entity that owns it, and the texture tool wants the one face you are
+    /// looking at. Picking a brush when someone meant a face is how a whole
+    /// room ends up wearing the same texture.
+    fn pick_in_3d(&mut self, index: usize, x: f32, y: f32, ui: &egui::Ui) {
+        let (origin, direction) = self.viewports[index].pick_ray(x, y);
+        let (add, sample) = ui.input(|i| (i.modifiers.shift, i.modifiers.ctrl));
+
+        if self.tool.kind == ToolKind::Texture {
+            let Some((solid, side)) = crate::tools::pick_face_3d(&self.document, origin, direction)
+            else {
+                if !add { self.document.selection.faces.clear(); }
+                return;
+            };
+
+            // Ctrl samples: the eyedropper every texture tool has, and worth
+            // having now that the browser shows what you picked up.
+            if sample {
+                if let Some(material) = self
+                    .document
+                    .find_solid(solid)
+                    .and_then(|s| s.sides.iter().find(|s| s.id == side))
+                    .map(|s| s.material.clone())
+                {
+                    self.status = format!("picked up {material}");
+                    self.document.current_material = material;
+                }
+                return;
+            }
+
+            if !add { self.document.selection.clear(); }
+            self.document.selection.faces.insert((solid, side));
+            if !add {
+                // A plain click with the texture tool applies, which is what
+                // the tool is named after. Shift only selects, for building up
+                // a set of faces to edit together.
+                let material = self.document.current_material.clone();
+                self.document.apply_material();
+                self.status = format!("{material} on 1 face");
+            }
+            return;
+        }
+
+        if !add { self.document.selection.clear(); }
+        if let Some(id) = crate::tools::pick_solid_3d(&self.document, origin, direction) {
+            // Clicking a brush that belongs to an entity selects the entity:
+            // that is the thing a designer thinks of as the door. Same rule
+            // the 2D views follow.
+            let owner = self
+                .document
+                .map
+                .all_solids()
+                .find(|(_, s)| s.id == id)
+                .map(|(e, _)| (e.id, e.is_brush_entity() && e.classname() != "worldspawn"));
+            match owner {
+                Some((entity, true)) => { self.document.selection.entities.insert(entity); }
+                _ => { self.document.selection.solids.insert(id); }
+            }
+        }
+    }
+
     /// Fly the 3D camera with the keyboard.
     ///
     /// WASD along the view, Q and E straight up and down, Shift to hurry and
@@ -1119,17 +1522,27 @@ impl ChiselApp {
             f.to_bits().hash(&mut hasher);
         }
         (width, height).hash(&mut hasher);
+        (self.shading as u8).hash(&mut hasher);
+        // A texture arriving after a failed load changes the picture.
+        self.textures.len().hash(&mut hasher);
         let key = hasher.finish();
 
         let stale = self.previews[index].as_ref().is_none_or(|p| p.key != key);
         if stale {
-            let image = raster::render(
+            let viewport = viewport.clone();
+            let vfs = &self.vfs;
+            let cache = &mut self.textures;
+            let mut resolve = move |material: &str| cache.get(vfs, material);
+            let mut settings =
+                raster::Settings { shading: self.shading, resolve: Some(&mut resolve) };
+            let image = raster::render_with(
                 &self.document,
                 viewport.eye,
                 viewport.angles.vectors(),
                 viewport.fov,
                 width,
                 height,
+                &mut settings,
             );
             let pixels: Vec<egui::Color32> = image
                 .pixels
@@ -1232,7 +1645,7 @@ impl ChiselApp {
             // An entity marker is a line segment, not a loop; clipping a loop
             // is the wrong operation for it.
             let clipped = if polygon.len() > 2 {
-                draw::clip_near(&camera, draw::NEAR)
+                draw::clip_near_positions(&camera, draw::NEAR)
             } else if camera.iter().all(|p| p.z >= draw::NEAR) {
                 camera
             } else {
@@ -1311,17 +1724,12 @@ impl ChiselApp {
         }
 
         if !kind.is_2d() {
-            // The 3D pane picks but does not edit: dragging geometry is done
-            // in the orthographic views, where a drag is unambiguous.
+            // The 3D pane picks but does not drag geometry: a drag there has
+            // no unambiguous depth, and the orthographic views do have one.
             if response.clicked() {
                 if let Some(pos) = response.interact_pointer_pos() {
                     let (x, y) = local(pos);
-                    let (origin, direction) = self.viewports[index].pick_ray(x, y);
-                    let add = ui.input(|i| i.modifiers.shift);
-                    if !add { self.document.selection.clear(); }
-                    if let Some(id) = crate::tools::pick_solid_3d(&self.document, origin, direction) {
-                        self.document.selection.solids.insert(id);
-                    }
+                    self.pick_in_3d(index, x, y, ui);
                 }
             }
             return;
@@ -1359,6 +1767,44 @@ impl ChiselApp {
 ///
 /// Falls back to a built-in list when there is nothing to scan, so the editor
 /// is usable before any content exists.
+/// One thing the face panel can ask for.
+///
+/// A value rather than a closure so the panel can decide *what* to do while
+/// the UI is being drawn and apply it afterwards, without holding a borrow of
+/// the document across the whole panel.
+#[derive(Clone, Copy, Debug)]
+enum FaceEdit {
+    ScaleU(f32),
+    ScaleV(f32),
+    ShiftU(f32),
+    ShiftV(f32),
+    Rotate(f32),
+    AlignWorld,
+    AlignFace,
+    Justify(crate::faces::Justify),
+    /// World units per luxel. Finer means a sharper shadow and a bigger
+    /// lightmap, so it is a per-face choice rather than a map-wide one.
+    Lightmap(f32),
+}
+
+/// A number that several faces may or may not agree on.
+///
+/// `None` means they differ, and the field shows nothing rather than one
+/// face's value -- which is how you overwrite the other five by accident.
+/// Returns the new value only when the edit is finished, so dragging does not
+/// push an undo step per pixel.
+fn number(ui: &mut egui::Ui, label: &str, shared: Option<f32>, speed: f32) -> Option<f32> {
+    ui.label(RichText::new(label).size(11.0).weak());
+    let mut value = shared.unwrap_or(0.0) as f64;
+    let mut widget = egui::DragValue::new(&mut value).speed(speed as f64);
+    if shared.is_none() {
+        widget = widget.custom_formatter(|_, _| "--".to_string());
+    }
+    let response = ui.add(widget);
+    let finished = response.drag_stopped() || response.lost_focus();
+    (finished && response.changed()).then_some(value as f32)
+}
+
 /// What a property widget did this frame.
 struct WidgetResult {
     /// The value in the buffer moved.

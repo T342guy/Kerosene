@@ -16,3 +16,10 @@ log.workspace = true
 env_logger.workspace = true
 image.workspace = true
 glam.workspace = true
+
+[dev-dependencies]
+# For one cross-check: every tool texture this set draws must be a tool the
+# compiler actually understands, and every tool it understands must have a
+# texture. Offering one it treats as world geometry would silently wall off a
+# doorway.
+cleave = { path = "../cleave" }

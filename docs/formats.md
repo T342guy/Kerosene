@@ -182,6 +182,31 @@ path and no branch in the hot loop.
 Bones are listed parents-first, so a single forward pass can build world
 transforms with no recursion and no sorting.
 
+## The developer texture set
+
+Not a format, but content the tools generate rather than ship, and worth
+knowing where it comes from: `alchemy dev-textures` writes `content/art/dev/`
+and `content/art/tools/` along with their materials.
+
+`dev/` are 256x256 checkerboards. At the default texture scale of 0.25 world
+units per texel that covers 64 vu, so the 4x4 grid on them reads as **16 vu
+cells** -- the size most brushwork is done at -- with a fainter 4 vu
+subdivision over it. The checker is what makes a stretched texture obvious: a
+square that is not square is visible from across a room, where a stretched grid
+line is not. Only `dev/measure` carries numbers, because a world-aligned
+projection mirrors on opposite walls and text in a tiling texture therefore
+reads backwards on half of them.
+
+`tools/` are 128x128, flat, hatched, and labelled with their own name. A colour
+alone does not tell `clip` from `playerclip` at a glance.
+
+They are generated rather than committed because they are *defined* by numbers
+-- this grid is 16 units, that colour means "blocks players" -- and a
+definition that lives in a PNG is one nobody can read or review. A test checks
+the set against the compiler's tool-material table in both directions: offering
+a tool material the compiler treats as world geometry would silently wall off a
+doorway.
+
 ## `.voiddef` — entity class definitions
 
 What an editor needs to know about the game's entities: for each class, the

@@ -15,11 +15,16 @@ CARGO_FLAGS=""
 echo "==> building tools"
 cargo build --quiet $CARGO_FLAGS -p cleave -p umbra -p radiance -p alchemy -p forge -p vault
 
+echo "==> alchemy: the developer texture set"
+# Generated rather than committed: these are defined by numbers -- this grid is
+# 16 units, that colour means "blocks players" -- and a definition living in a
+# PNG is one nobody can read. Written first so `batch` below leaves the
+# materials it wrote alone; they know which shader each wants, which nothing
+# can work out from a PNG.
+"$BIN/alchemy" dev-textures -o content/art --materials content/materials
+
 echo "==> alchemy: textures and materials"
 "$BIN/alchemy" batch content/art -o content/materials --make-materials
-# The sky needs the sky shader rather than the lit default.
-"$BIN/alchemy" material dev/sky_void --shader sky --basetexture dev/sky_void \
-    -o content/materials/dev/sky_void.voidmat
 
 echo "==> forge: models"
 "$BIN/forge" compile content/art/props/crate.obj -o content/models/props/crate.voidmdl --scale-metres

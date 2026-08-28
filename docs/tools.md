@@ -71,9 +71,31 @@ carries, which for a freshly placed entity is none. Chisel says so in the
 status bar rather than looking like a game with no settings.
 
 **The 3D pane** is rasterised in software with a depth buffer, so what hides
-what is decided per pixel. It shows shape, scale and selection -- not textures
-or lighting, which is what compiling and running the map is for, one keystroke
-away.
+what is decided per pixel, and it draws the materials themselves --
+perspective-correct, mipped, with a face tinted rather than painted over when
+it is selected so you can still see what it is wearing. `view` switches
+between *textured*, *flat colour* (each material's average, when a texture is
+too busy to read shape through) and *shaded only* (untextured grey, for hunting
+a brush in the wrong place). Lighting is not previewed; compiling and running
+the map is one keystroke away.
+
+It reads the **compiled** `.voidtex`, through the same VFS the engine uses, so
+what it shows is what the engine will draw -- including from inside a `.vault`
+archive. The consequence is worth stating plainly: **the content has to be
+built**. A material Alchemy has not compiled yet shows as a flat colour derived
+from its name, so it is a wrong colour rather than a black hole, and `view →
+reload textures` picks up a rebuild without restarting.
+
+**Materials** are picked from a grid of what they actually look like, with a
+filter box. A list of names is only usable by someone who already knows what
+every name looks like, which is nobody on their first level.
+
+**Face editing.** With the texture tool, clicking a face in the 3D pane selects
+it (shift adds, ctrl picks its material up), and the inspector becomes a face
+editor: scale, shift, rotation, fit, align to world or to the face itself,
+justify to an edge or the middle, and the lightmap scale. Everything acts on
+the whole selection as one undo step, and a value the selected faces disagree
+about shows as `--` rather than as one of them.
 
 **Compiling.** `map → compile` opens a window with the settings and three
 buttons: *compile* runs exactly what the window is showing, while *fast* and
@@ -88,6 +110,14 @@ line to the wall it goes through. `map → clear the leak trace` puts it away.
 Chisel runs the compilers as separate programs, looking for them beside its own
 executable and then on `PATH`. `map → check tools are installed` says which it
 found.
+
+**Developer textures.** `alchemy dev-textures` writes the standard set, and
+`scripts/build-content.sh` runs it: `dev/` measurement checkerboards where one
+cell is 16 vu at the default texture scale, and the full `tools/` set --
+`nodraw`, `clip`, `playerclip`, `trigger`, `hint`, `skip`, `skybox` and the
+rest -- each a flat colour with its own name written across it. The compiler
+already understood every one of those; until now none of them had a texture, so
+picking one in the editor showed nothing.
 
 **Units.** Distances are void units (`vu`); one is an inch. A player is 72 vu
 tall and runs at 320 vu/s, which is the scale a room is judged against. The

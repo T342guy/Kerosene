@@ -14,8 +14,8 @@
 use crate::grid::Grid;
 use std::collections::HashSet;
 use std::path::PathBuf;
-use void_map::{Entity, Map, Solid};
-use void_math::{Aabb, Vec3};
+use void_map::{Entity, Map, Side, Solid};
+use void_math::{Aabb, Plane, Vec3, Winding};
 
 /// How many undo steps to keep.
 pub const MAX_UNDO: usize = 128;
@@ -279,6 +279,77 @@ impl Document {
         })
     }
 
+    // ---- face editing ----------------------------------------------------
+
+    pub fn selected_face_count(&self) -> usize { self.selection.faces.len() }
+
+    /// The selected faces, each with the plane and winding it sits on.
+    ///
+    /// Copies rather than borrows, because every caller is a panel that wants
+    /// to read the numbers and then hand back an edit -- and holding a borrow
+    /// across that is the shape of code that cannot compile.
+    pub fn selected_face_specs(&self) -> Vec<FaceSpec> {
+        let mut out = Vec::with_capacity(self.selection.faces.len());
+        for (_, solid) in self.map.all_solids() {
+            for side in &solid.sides {
+                if !self.selection.faces.contains(&(solid.id, side.id)) { continue }
+                let Some((plane, winding)) = crate::faces::winding_of(solid, side.id) else {
+                    continue;
+                };
+                out.push(FaceSpec {
+                    solid: solid.id,
+                    side: side.clone(),
+                    plane,
+                    winding,
+                });
+            }
+        }
+        // Stable order, so a panel showing "the first selected face" shows the
+        // same one from frame to frame.
+        out.sort_by_key(|f| (f.solid, f.side.id));
+        out
+    }
+
+    /// Apply an edit to every selected face, as one undo step.
+    ///
+    /// One step for the whole selection rather than one per face: a designer
+    /// who nudged a texture across six faces means one nudge, and six presses
+    /// of ctrl-Z to take it back is a bug in everything but name.
+    ///
+    /// The winding is computed before the edit and passed in, because every
+    /// operation that needs it -- fit, justify, rotate about the centre --
+    /// wants the face's shape as it is now, and the shape does not change.
+    pub fn edit_faces(
+        &mut self,
+        label: impl Into<String>,
+        edit: impl Fn(&mut Side, &Plane, &Winding),
+    ) -> usize {
+        if self.selection.faces.is_empty() { return 0 }
+
+        // Worked out first: `all_solids_mut` hands out one solid at a time, and
+        // a face's winding needs the whole solid.
+        let shapes: std::collections::HashMap<(u32, u32), (Plane, Winding)> = self
+            .selected_face_specs()
+            .into_iter()
+            .map(|f| ((f.solid, f.side.id), (f.plane, f.winding)))
+            .collect();
+        if shapes.is_empty() { return 0 }
+
+        self.apply(label, move |doc| {
+            let faces = doc.selection.faces.clone();
+            let mut changed = 0;
+            for solid in all_solids_mut(&mut doc.map) {
+                for side in solid.sides.iter_mut() {
+                    if !faces.contains(&(solid.id, side.id)) { continue }
+                    let Some((plane, winding)) = shapes.get(&(solid.id, side.id)) else { continue };
+                    edit(side, plane, winding);
+                    changed += 1;
+                }
+            }
+            changed
+        })
+    }
+
     /// Turn the selected brushes into a brush entity of the given class.
     ///
     /// This is how a designer makes a door: build the brush in the world, then
@@ -394,6 +465,15 @@ impl Document {
 }
 
 /// Every solid in the map, mutably.
+/// One selected face, with everything a panel needs to describe it.
+#[derive(Clone, Debug)]
+pub struct FaceSpec {
+    pub solid: u32,
+    pub side: Side,
+    pub plane: Plane,
+    pub winding: Winding,
+}
+
 fn all_solids_mut(map: &mut Map) -> impl Iterator<Item = &mut Solid> {
     std::iter::once(&mut map.world)
         .chain(map.entities.iter_mut())

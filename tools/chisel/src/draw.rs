@@ -373,6 +373,49 @@ pub fn to_camera_space(points: &[Vec3], eye: Vec3, basis: void_math::Basis) -> V
         .collect()
 }
 
+/// A vertex on its way to the screen: where it is, and what texel is on it.
+///
+/// The two travel together because clipping has to move both. A polygon cut
+/// by the near plane gains vertices, and a new vertex with no texture
+/// coordinate would slide its whole face's texture -- visibly, and only at
+/// the angles where the clip happens.
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct FaceVertex {
+    /// Camera space: `x` right, `y` up, `z` forward.
+    pub position: Vec3,
+    /// Texture coordinate, in texels rather than normalised, because that is
+    /// what the face's texture axes produce and the texture's size is not
+    /// known here.
+    pub texel: (f32, f32),
+}
+
+impl FaceVertex {
+    fn lerp(self, other: FaceVertex, t: f32) -> FaceVertex {
+        FaceVertex {
+            position: self.position + (other.position - self.position) * t,
+            texel: (
+                self.texel.0 + (other.texel.0 - self.texel.0) * t,
+                self.texel.1 + (other.texel.1 - self.texel.1) * t,
+            ),
+        }
+    }
+}
+
+/// The texel coordinate of a world point on a face.
+///
+/// The same arithmetic Cleave writes into a `TexInfo` and the engine's shader
+/// reads, so what Chisel shows and what the compiled map shows are the same
+/// thing. A preview that computed this differently would be a preview that
+/// lies about texture alignment, which is the one thing it is for.
+pub fn texel_for(side: &void_map::Side, point: Vec3) -> (f32, f32) {
+    let u = &side.uaxis;
+    let v = &side.vaxis;
+    (
+        point.dot(u.axis) / u.safe_scale() + u.offset,
+        point.dot(v.axis) / v.safe_scale() + v.offset,
+    )
+}
+
 /// Clip a camera-space polygon against the near plane.
 ///
 /// Returns the part with `z >= near`, which may have more vertices than it
@@ -383,31 +426,33 @@ pub fn to_camera_space(points: &[Vec3], eye: Vec3, basis: void_math::Basis) -> V
 /// inside a room, which is the normal case for a level editor, the floor,
 /// ceiling and side walls all have corners behind you, so whole walls vanish
 /// as the camera turns.
-pub fn clip_near(polygon: &[Vec3], near: f32) -> Vec<Vec3> {
+pub fn clip_near(polygon: &[FaceVertex], near: f32) -> Vec<FaceVertex> {
     if polygon.len() < 3 { return Vec::new(); }
 
-    let mut out: Vec<Vec3> = Vec::with_capacity(polygon.len() + 2);
+    let mut out: Vec<FaceVertex> = Vec::with_capacity(polygon.len() + 2);
     for i in 0..polygon.len() {
         let current = polygon[i];
         let next = polygon[(i + 1) % polygon.len()];
-        let current_in = current.z >= near;
-        let next_in = next.z >= near;
+        let current_in = current.position.z >= near;
+        let next_in = next.position.z >= near;
 
         if current_in { out.push(current); }
         // Emit a crossing point whenever the edge changes side.
         if current_in != next_in {
-            let span = next.z - current.z;
+            let span = next.position.z - current.position.z;
             if span.abs() > 1e-9 {
-                let t = (near - current.z) / span;
-                let mut crossing = current + (next - current) * t;
+                let t = (near - current.position.z) / span;
+                let mut crossing = current.lerp(next, t);
                 // Land exactly on the plane rather than a hair off it, so the
                 // perspective divide below cannot see a depth of zero.
-                crossing.z = near;
+                crossing.position.z = near;
                 // A vertex sitting exactly on the plane is both inside and a
                 // crossing, and would otherwise be emitted twice. A repeated
                 // point makes a zero-length edge, which is where stroke
                 // tessellation used to produce a spike across the screen.
-                if out.last().is_none_or(|last| last.distance_squared(crossing) > 1e-12) {
+                if out.last().is_none_or(|last| {
+                    last.position.distance_squared(crossing.position) > 1e-12
+                }) {
                     out.push(crossing);
                 }
             }
@@ -415,22 +460,37 @@ pub fn clip_near(polygon: &[Vec3], near: f32) -> Vec<Vec3> {
     }
     // The same again across the wrap: the crossing on the last edge can land
     // exactly on the first vertex.
-    if out.len() >= 2 && out[0].distance_squared(*out.last().expect("checked")) <= 1e-12 {
+    if out.len() >= 2
+        && out[0].position.distance_squared(out.last().expect("checked").position) <= 1e-12
+    {
         out.pop();
     }
     if out.len() < 3 { Vec::new() } else { out }
+}
+
+/// Clip a plain camera-space polygon, for callers with no texture on it.
+pub fn clip_near_positions(polygon: &[Vec3], near: f32) -> Vec<Vec3> {
+    let vertices: Vec<FaceVertex> = polygon
+        .iter()
+        .map(|p| FaceVertex { position: *p, texel: (0.0, 0.0) })
+        .collect();
+    clip_near(&vertices, near).into_iter().map(|v| v.position).collect()
 }
 
 /// One face of the document, ready to draw in the 3D pane.
 #[derive(Clone, Debug)]
 pub struct VisibleFace {
     /// The polygon in camera space, clipped to the near plane.
-    pub polygon: Vec<Vec3>,
+    pub polygon: Vec<FaceVertex>,
     /// Sort key: the depth of the farthest vertex.
     pub depth: f32,
     /// World-space face normal, for flat shading.
     pub normal: Vec3,
+    /// Which material is on it.
+    pub material: String,
     pub selected: bool,
+    /// Whether this face in particular is selected, as against its brush.
+    pub face_selected: bool,
 }
 
 /// Every face visible from a viewpoint, clipped and sorted back to front.
@@ -452,15 +512,29 @@ pub fn visible_faces(document: &Document, eye: Vec3, basis: void_math::Basis) ->
             if plane.normal.dot(eye - winding.center()) <= 0.0 { continue; }
 
             let camera = to_camera_space(&winding.points, eye, basis);
-            let polygon = clip_near(&camera, NEAR);
+            let vertices: Vec<FaceVertex> = winding
+                .points
+                .iter()
+                .zip(camera)
+                .map(|(world, position)| FaceVertex { position, texel: texel_for(side, *world) })
+                .collect();
+            let polygon = clip_near(&vertices, NEAR);
             if polygon.len() < 3 { continue; }
 
             // Sort by the *farthest* vertex, not the average. A small object
             // standing on a large surface has a greater average depth than the
             // surface it sits on, so averaging sorts the surface later and
             // paints it straight over the object.
-            let depth = polygon.iter().fold(f32::MIN, |acc, p| acc.max(p.z));
-            faces.push(VisibleFace { polygon, depth, normal: plane.normal, selected });
+            let depth = polygon.iter().fold(f32::MIN, |acc, v| acc.max(v.position.z));
+            let face_selected = document.selection.faces.contains(&(solid.id, side.id));
+            faces.push(VisibleFace {
+                polygon,
+                depth,
+                normal: plane.normal,
+                material: side.material.clone(),
+                selected,
+                face_selected,
+            });
         }
     }
 
@@ -757,7 +831,7 @@ mod view_tests {
             Vec3::new(10.0, 10.0, 100.0),
             Vec3::new(-10.0, 10.0, 100.0),
         ];
-        assert_eq!(clip_near(&quad, NEAR), quad);
+        assert_eq!(clip_near_positions(&quad, NEAR), quad);
     }
 
     #[test]
@@ -768,7 +842,7 @@ mod view_tests {
             Vec3::new(10.0, 10.0, -100.0),
             Vec3::new(-10.0, 10.0, -100.0),
         ];
-        assert!(clip_near(&quad, NEAR).is_empty());
+        assert!(clip_near_positions(&quad, NEAR).is_empty());
     }
 
     #[test]
@@ -781,7 +855,7 @@ mod view_tests {
             Vec3::new(10.0, 10.0, 200.0),
             Vec3::new(-10.0, 10.0, 200.0),
         ];
-        let clipped = clip_near(&quad, NEAR);
+        let clipped = clip_near_positions(&quad, NEAR);
         assert!(clipped.len() >= 3, "the visible half should survive, got {clipped:?}");
         assert!(
             clipped.iter().all(|p| p.z >= NEAR - 1e-4),
@@ -802,7 +876,7 @@ mod view_tests {
             Vec3::new(10.0, 10.0, 100.0),
             Vec3::new(-10.0, 10.0, 100.0),
         ];
-        assert_eq!(clip_near(&quad, NEAR).len(), 5);
+        assert_eq!(clip_near_positions(&quad, NEAR).len(), 5);
     }
 
     #[test]
@@ -819,7 +893,7 @@ mod view_tests {
             Vec3::new(10.0, 10.0, 50.0),
             Vec3::new(-10.0, 10.0, 0.5),
         ];
-        let clipped = clip_near(&quad, NEAR);
+        let clipped = clip_near_positions(&quad, NEAR);
         assert_eq!(clipped.len(), 4, "{clipped:?}");
         for pair in clipped.windows(2) {
             assert!(pair[0].distance_squared(pair[1]) > 1e-12, "a point was repeated: {clipped:?}");
@@ -840,7 +914,7 @@ mod view_tests {
             Vec3::new(10.0, 10.0, 0.5),
             Vec3::new(-10.0, 10.0, 0.5),
         ];
-        assert!(clip_near(&quad, NEAR).is_empty());
+        assert!(clip_near_positions(&quad, NEAR).is_empty());
     }
 
     #[test]
@@ -854,7 +928,7 @@ mod view_tests {
                 Vec3::new(10.0, 10.0, 500.0),
                 Vec3::new(-10.0, 10.0, z),
             ];
-            for p in clip_near(&quad, NEAR) {
+            for p in clip_near_positions(&quad, NEAR) {
                 assert!(p.z >= NEAR - 1e-4, "z = {} slipped through for start {z}", p.z);
                 assert!((p.x / p.z).is_finite() && (p.y / p.z).is_finite());
             }
@@ -896,7 +970,7 @@ mod view_tests {
         let faces = visible_faces(&document, eye, basis);
         assert!(!faces.is_empty(), "the wall in front of the camera vanished");
         for face in &faces {
-            assert!(face.polygon.iter().all(|p| p.z >= NEAR - 1e-4));
+            assert!(face.polygon.iter().all(|v| v.position.z >= NEAR - 1e-4));
         }
     }
 

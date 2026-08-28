@@ -20,6 +20,9 @@ use std::path::{Path, PathBuf};
 use void_asset::{Material, Shader, Texture, TextureFlags, material::MaterialError};
 use void_asset::texture::PixelFormat;
 
+mod devtex;
+mod font;
+
 #[derive(Parser, Debug)]
 #[command(name = "alchemy", version, about = "Compile textures and author materials")]
 struct Args {
@@ -29,6 +32,15 @@ struct Args {
 
 #[derive(Subcommand, Debug)]
 enum Command {
+    /// Write the standard developer and tool texture set.
+    DevTextures {
+        /// Where the art tree lives; `dev/` and `tools/` go under it.
+        #[arg(short, long, default_value = "content/art")]
+        output: PathBuf,
+        /// Also write the matching materials, under this root.
+        #[arg(long)]
+        materials: Option<PathBuf>,
+    },
     /// Compile an image into a .voidtex.
     Compile {
         image: PathBuf,
@@ -102,6 +114,15 @@ fn main() -> Result<()> {
         }
         Command::Batch { directory, output, make_materials } => {
             batch(&directory, &output, make_materials)
+        }
+        Command::DevTextures { output, materials } => {
+            let count = devtex::write_all(&output)?;
+            println!("  wrote {count} textures under {}", output.display());
+            if let Some(root) = materials {
+                let written = devtex::write_materials(&root)?;
+                println!("  wrote {written} materials under {}", root.display());
+            }
+            Ok(())
         }
         Command::Info { file } => info(&file),
     }

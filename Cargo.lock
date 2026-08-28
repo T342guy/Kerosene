@@ -53,6 +53,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
+ "cleave",
  "env_logger",
  "glam",
  "image",
@@ -366,6 +367,7 @@ dependencies = [
  "egui-winit",
  "env_logger",
  "glam",
+ "image",
  "log",
  "pollster",
  "void-asset",
