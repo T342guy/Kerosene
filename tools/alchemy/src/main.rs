@@ -116,11 +116,11 @@ fn main() -> Result<()> {
             batch(&directory, &output, make_materials)
         }
         Command::DevTextures { output, materials } => {
-            let count = devtex::write_all(&output)?;
-            println!("  wrote {count} textures under {}", output.display());
+            let textures = devtex::write_all(&output)?;
+            println!("  textures under {}: {textures}", output.display());
             if let Some(root) = materials {
                 let written = devtex::write_materials(&root)?;
-                println!("  wrote {written} materials under {}", root.display());
+                println!("  materials under {}: {written}", root.display());
             }
             Ok(())
         }

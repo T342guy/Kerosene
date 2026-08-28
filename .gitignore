@@ -1,7 +1,13 @@
 /target
 
 # Build outputs, reproducible with scripts/build-content.sh from the sources
-# committed beside them (.voidmap, .png, .obj, .voidmat).
+# committed beside them (.voidmap, .png, .obj, .voidmat, .wav).
+#
+# The developer texture set under art/dev and art/tools is *not* here, even
+# though `alchemy dev-textures` writes it. Having a generator is a reason to
+# keep one, not a reason to leave the output out of the repository: a clone
+# has to work, and the generator being deterministic means a change to it
+# shows up as a reviewable diff rather than as nothing at all.
 *.voidtex
 *.voidmdl
 *.vault
@@ -9,13 +15,6 @@
 *.voidleak
 content/maps/*.voidbsp
 
-# The developer texture set, written by `alchemy dev-textures`. Generated
-# because the colours and the grid spacing mean something, and a meaning that
-# lives in a PNG is one nobody can read or review.
-content/art/dev/
-content/art/tools/
-content/materials/dev/
-content/materials/tools/
 
 **/*.rs.bk
 .DS_Store
