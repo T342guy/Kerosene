@@ -1,0 +1,384 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="ALL" />
+  </component>
+  <component name="CargoProjects">
+    <cargoProject FILE="$PROJECT_DIR$/Cargo.toml">
+      <package file="$PROJECT_DIR$/tools/alchemy">
+        <feature name="default" enabled="true" />
+      </package>
+      <package file="$PROJECT_DIR$/tools/chisel">
+        <feature name="default" enabled="true" />
+      </package>
+      <package file="$PROJECT_DIR$/tools/cleave">
+        <feature name="default" enabled="true" />
+      </package>
+      <package file="$PROJECT_DIR$/tools/forge">
+        <feature name="default" enabled="true" />
+      </package>
+      <package file="$PROJECT_DIR$/tools/radiance">
+        <feature name="default" enabled="true" />
+      </package>
+      <package file="$PROJECT_DIR$/tools/umbra">
+        <feature name="default" enabled="true" />
+      </package>
+      <package file="$PROJECT_DIR$/tools/vault">
+        <feature name="default" enabled="true" />
+      </package>
+      <package file="$PROJECT_DIR$/crates/void-asset">
+        <feature name="default" enabled="true" />
+      </package>
+      <package file="$PROJECT_DIR$/crates/void-audio">
+        <feature name="default" enabled="true" />
+      </package>
+      <package file="$PROJECT_DIR$/crates/void-bsp">
+        <feature name="default" enabled="true" />
+      </package>
+      <package file="$PROJECT_DIR$/crates/void-console">
+        <feature name="default" enabled="true" />
+      </package>
+      <package file="$PROJECT_DIR$/crates/void-engine">
+        <feature name="default" enabled="true" />
+      </package>
+      <package file="$PROJECT_DIR$/crates/void-entity">
+        <feature name="default" enabled="true" />
+      </package>
+      <package file="$PROJECT_DIR$/crates/void-game">
+        <feature name="default" enabled="true" />
+      </package>
+      <package file="$PROJECT_DIR$/crates/void-kv">
+        <feature name="default" enabled="true" />
+      </package>
+      <package file="$PROJECT_DIR$/crates/void-map">
+        <feature name="default" enabled="true" />
+      </package>
+      <package file="$PROJECT_DIR$/crates/void-math">
+        <feature name="default" enabled="true" />
+      </package>
+      <package file="$PROJECT_DIR$/crates/void-physics">
+        <feature name="default" enabled="true" />
+      </package>
+      <package file="$PROJECT_DIR$/crates/void-render">
+        <feature name="default" enabled="true" />
+      </package>
+      <package file="$PROJECT_DIR$/apps/void">
+        <feature name="default" enabled="true" />
+      </package>
+      <package file="$PROJECT_DIR$/crates/void-script">
+        <feature name="default" enabled="true" />
+      </package>
+      <package file="$PROJECT_DIR$/crates/void-vfs">
+        <feature name="default" enabled="true" />
+      </package>
+    </cargoProject>
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="be408a6b-e4f2-4fe8-9acd-c3a1e51c5f16" name="Changes" comment="" />
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="ExecutionTargetManager" SELECTED_TARGET="RsBuildProfile:release" />
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="MacroExpansionManager">
+    <option name="directoryName" value="hwNyDbWr" />
+  </component>
+  <component name="NextEditCompletionFeaturesState">
+    <decayedCancelled>
+      <entry key="MS100" value="1.0" />
+      <entry key="MS500" value="1.0" />
+      <entry key="S2" value="1.0000000000000018" />
+      <entry key="S5" value="1.0000029557882362" />
+      <entry key="S10" value="1.003437815872966" />
+      <entry key="S30" value="1.3802903549366774" />
+      <entry key="S60" value="2.233400956232078" />
+      <entry key="M2" value="3.2338437584644173" />
+      <entry key="M5" value="4.498665140359801" />
+      <entry key="M10" value="5.562042385069271" />
+      <entry key="M15" value="6.1462862243000576" />
+      <entry key="M30" value="6.930421139643813" />
+      <entry key="H1" value="7.422882187316736" />
+      <entry key="H2" value="7.699889948557698" />
+      <entry key="H4" value="7.846926205315881" />
+      <entry key="D1" value="7.974056818808162" />
+      <entry key="W1" value="7.996283124244363" />
+    </decayedCancelled>
+    <decayedSelected>
+      <entry key="MS100" value="0.0" />
+      <entry key="MS500" value="0.0" />
+      <entry key="S2" value="0.0" />
+      <entry key="S5" value="0.0" />
+      <entry key="S10" value="0.0" />
+      <entry key="S30" value="0.0" />
+      <entry key="S60" value="0.0" />
+      <entry key="M2" value="0.0" />
+      <entry key="M5" value="0.0" />
+      <entry key="M10" value="0.0" />
+      <entry key="M15" value="0.0" />
+      <entry key="M30" value="0.0" />
+      <entry key="H1" value="0.0" />
+      <entry key="H2" value="0.0" />
+      <entry key="H4" value="0.0" />
+      <entry key="D1" value="0.0" />
+      <entry key="W1" value="0.0" />
+    </decayedSelected>
+    <decayedShown>
+      <entry key="MS100" value="0.8827029962906549" />
+      <entry key="MS500" value="0.9753554615276419" />
+      <entry key="S2" value="0.9937810933225566" />
+      <entry key="S5" value="0.9975107260744136" />
+      <entry key="S10" value="1.0021846870141626" />
+      <entry key="S30" value="1.3796426105245732" />
+      <entry key="S60" value="2.2328155286270115" />
+      <entry key="M2" value="3.233322020767511" />
+      <entry key="M5" value="4.4976001006779605" />
+      <entry key="M10" value="5.560674547819026" />
+      <entry key="M15" value="6.145008517729495" />
+      <entry key="M30" value="6.929519545964633" />
+      <entry key="H1" value="7.422345523726243" />
+      <entry key="H2" value="7.69959704502434" />
+      <entry key="H4" value="7.846773179496454" />
+      <entry key="D1" value="7.9740303626680795" />
+      <entry key="W1" value="7.996279320964533" />
+    </decayedShown>
+  </component>
+  <component name="ProjectColorInfo"><![CDATA[{
+  "associatedIndex": 4,
+  "fromUser": false
+}]]></component>
+  <component name="ProjectId" id="3IX8vq1jvyh1hnMyrs1CbuM6IsK" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "CidrDebugProfileConversion": "true",
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "RunOnceActivity.rust.reset.selective.auto.import": "true",
+    "RunOnceActivity.typescript.service.memoryLimit.init": "true",
+    "codeWithMe.voiceChat.enabledByDefault": "false",
+    "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1": "true",
+    "git-widget-placeholder": "claude/voidengine-creation-wf8x39",
+    "junie.onboarding.icon.badge.shown": "true",
+    "last_opened_file_path": "/home/T342guy/Documents/GitHub/VoidEngine",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "nodejs_package_manager_path": "npm",
+    "org.rust.cargo.project.model.PROJECT_DISCOVERY": "true",
+    "org.rust.cargo.project.model.impl.CargoExternalSystemProjectAware.subscribe.first.balloon": "",
+    "org.rust.first.attach.projects": "true",
+    "to.speed.mode.migration.done": "true"
+  }
+}]]></component>
+  <component name="RunManager" selected="Cargo.build">
+    <configuration name="Run alchemy" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
+      <option name="command" value="run --package alchemy --bin alchemy" />
+      <option name="workingDirectory" value="file://$PROJECT_DIR$" />
+      <envs />
+      <option name="emulateTerminal" value="true" />
+      <option name="channel" value="DEFAULT" />
+      <option name="requiredFeatures" value="true" />
+      <option name="allFeatures" value="false" />
+      <option name="withSudo" value="false" />
+      <option name="buildTarget" value="REMOTE" />
+      <option name="backtrace" value="SHORT" />
+      <option name="isRedirectInput" value="false" />
+      <option name="redirectInputPath" value="" />
+      <method v="2">
+        <option name="CARGO.BUILD_TASK_PROVIDER" enabled="true" />
+      </method>
+    </configuration>
+    <configuration name="Run chisel" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
+      <option name="command" value="run --package chisel --bin chisel" />
+      <option name="workingDirectory" value="file://$PROJECT_DIR$" />
+      <envs />
+      <option name="emulateTerminal" value="true" />
+      <option name="channel" value="DEFAULT" />
+      <option name="requiredFeatures" value="true" />
+      <option name="allFeatures" value="false" />
+      <option name="withSudo" value="false" />
+      <option name="buildTarget" value="REMOTE" />
+      <option name="backtrace" value="SHORT" />
+      <option name="isRedirectInput" value="false" />
+      <option name="redirectInputPath" value="" />
+      <method v="2">
+        <option name="CARGO.BUILD_TASK_PROVIDER" enabled="true" />
+      </method>
+    </configuration>
+    <configuration name="Run cleave" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
+      <option name="command" value="run --package cleave --bin cleave" />
+      <option name="workingDirectory" value="file://$PROJECT_DIR$" />
+      <envs />
+      <option name="emulateTerminal" value="true" />
+      <option name="channel" value="DEFAULT" />
+      <option name="requiredFeatures" value="true" />
+      <option name="allFeatures" value="false" />
+      <option name="withSudo" value="false" />
+      <option name="buildTarget" value="REMOTE" />
+      <option name="backtrace" value="SHORT" />
+      <option name="isRedirectInput" value="false" />
+      <option name="redirectInputPath" value="" />
+      <method v="2">
+        <option name="CARGO.BUILD_TASK_PROVIDER" enabled="true" />
+      </method>
+    </configuration>
+    <configuration name="Run forge" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
+      <option name="command" value="run --package forge --bin forge" />
+      <option name="workingDirectory" value="file://$PROJECT_DIR$" />
+      <envs />
+      <option name="emulateTerminal" value="true" />
+      <option name="channel" value="DEFAULT" />
+      <option name="requiredFeatures" value="true" />
+      <option name="allFeatures" value="false" />
+      <option name="withSudo" value="false" />
+      <option name="buildTarget" value="REMOTE" />
+      <option name="backtrace" value="SHORT" />
+      <option name="isRedirectInput" value="false" />
+      <option name="redirectInputPath" value="" />
+      <method v="2">
+        <option name="CARGO.BUILD_TASK_PROVIDER" enabled="true" />
+      </method>
+    </configuration>
+    <configuration name="Run radiance" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
+      <option name="command" value="run --package radiance --bin radiance" />
+      <option name="workingDirectory" value="file://$PROJECT_DIR$" />
+      <envs />
+      <option name="emulateTerminal" value="true" />
+      <option name="channel" value="DEFAULT" />
+      <option name="requiredFeatures" value="true" />
+      <option name="allFeatures" value="false" />
+      <option name="withSudo" value="false" />
+      <option name="buildTarget" value="REMOTE" />
+      <option name="backtrace" value="SHORT" />
+      <option name="isRedirectInput" value="false" />
+      <option name="redirectInputPath" value="" />
+      <method v="2">
+        <option name="CARGO.BUILD_TASK_PROVIDER" enabled="true" />
+      </method>
+    </configuration>
+    <configuration name="Run umbra" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
+      <option name="command" value="run --package umbra --bin umbra" />
+      <option name="workingDirectory" value="file://$PROJECT_DIR$" />
+      <envs />
+      <option name="emulateTerminal" value="true" />
+      <option name="channel" value="DEFAULT" />
+      <option name="requiredFeatures" value="true" />
+      <option name="allFeatures" value="false" />
+      <option name="withSudo" value="false" />
+      <option name="buildTarget" value="REMOTE" />
+      <option name="backtrace" value="SHORT" />
+      <option name="isRedirectInput" value="false" />
+      <option name="redirectInputPath" value="" />
+      <method v="2">
+        <option name="CARGO.BUILD_TASK_PROVIDER" enabled="true" />
+      </method>
+    </configuration>
+    <configuration name="Run vault" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
+      <option name="command" value="run --package vault --bin vault" />
+      <option name="workingDirectory" value="file://$PROJECT_DIR$" />
+      <envs />
+      <option name="emulateTerminal" value="true" />
+      <option name="channel" value="DEFAULT" />
+      <option name="requiredFeatures" value="true" />
+      <option name="allFeatures" value="false" />
+      <option name="withSudo" value="false" />
+      <option name="buildTarget" value="REMOTE" />
+      <option name="backtrace" value="SHORT" />
+      <option name="isRedirectInput" value="false" />
+      <option name="redirectInputPath" value="" />
+      <method v="2">
+        <option name="CARGO.BUILD_TASK_PROVIDER" enabled="true" />
+      </method>
+    </configuration>
+    <configuration name="Run void" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
+      <option name="command" value="run --package void-runtime --bin void" />
+      <option name="workingDirectory" value="file://$PROJECT_DIR$" />
+      <envs />
+      <option name="emulateTerminal" value="true" />
+      <option name="channel" value="DEFAULT" />
+      <option name="requiredFeatures" value="true" />
+      <option name="allFeatures" value="false" />
+      <option name="withSudo" value="false" />
+      <option name="buildTarget" value="REMOTE" />
+      <option name="backtrace" value="SHORT" />
+      <option name="isRedirectInput" value="false" />
+      <option name="redirectInputPath" value="" />
+      <method v="2">
+        <option name="CARGO.BUILD_TASK_PROVIDER" enabled="true" />
+      </method>
+    </configuration>
+    <configuration name="Test VoidEngine" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
+      <option name="buildProfileId" value="test" />
+      <option name="command" value="test --workspace" />
+      <option name="workingDirectory" value="file://$PROJECT_DIR$" />
+      <envs />
+      <option name="emulateTerminal" value="true" />
+      <option name="channel" value="DEFAULT" />
+      <option name="requiredFeatures" value="true" />
+      <option name="allFeatures" value="false" />
+      <option name="withSudo" value="false" />
+      <option name="buildTarget" value="REMOTE" />
+      <option name="backtrace" value="SHORT" />
+      <option name="isRedirectInput" value="false" />
+      <option name="redirectInputPath" value="" />
+      <method v="2">
+        <option name="CARGO.BUILD_TASK_PROVIDER" enabled="true" />
+      </method>
+    </configuration>
+    <configuration name="build" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
+      <option name="buildProfileId" value="release" />
+      <option name="command" value="build --release" />
+      <option name="workingDirectory" value="file://$PROJECT_DIR$" />
+      <envs />
+      <option name="emulateTerminal" value="true" />
+      <option name="channel" value="DEFAULT" />
+      <option name="requiredFeatures" value="true" />
+      <option name="allFeatures" value="false" />
+      <option name="withSudo" value="false" />
+      <option name="buildTarget" value="REMOTE" />
+      <option name="backtrace" value="SHORT" />
+      <option name="isRedirectInput" value="false" />
+      <option name="redirectInputPath" value="" />
+      <method v="2">
+        <option name="CARGO.BUILD_TASK_PROVIDER" enabled="true" />
+      </method>
+    </configuration>
+    <list>
+      <item itemvalue="Cargo.build" />
+      <item itemvalue="Cargo.Run alchemy" />
+      <item itemvalue="Cargo.Run chisel" />
+      <item itemvalue="Cargo.Run cleave" />
+      <item itemvalue="Cargo.Run forge" />
+      <item itemvalue="Cargo.Run radiance" />
+      <item itemvalue="Cargo.Run umbra" />
+      <item itemvalue="Cargo.Run vault" />
+      <item itemvalue="Cargo.Run void" />
+      <item itemvalue="Cargo.Test VoidEngine" />
+    </list>
+  </component>
+  <component name="RustProjectSettings">
+    <option name="toolchainHomeDirectory" value="$USER_HOME$/.cargo/bin" />
+  </component>
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="be408a6b-e4f2-4fe8-9acd-c3a1e51c5f16" name="Changes" comment="" />
+      <created>1787899785882</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1787899785882</updated>
+    </task>
+    <servers />
+  </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="3" />
+  </component>
+</project>
