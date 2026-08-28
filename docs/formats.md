@@ -184,9 +184,10 @@ transforms with no recursion and no sorting.
 
 ## The developer texture set
 
-Not a format, but content the tools generate rather than ship, and worth
-knowing where it comes from: `alchemy dev-textures` writes `content/art/dev/`
-and `content/art/tools/` along with their materials.
+Not a format, but content worth knowing the provenance of: `alchemy
+dev-textures` writes `content/art/dev/` and `content/art/tools/` along with
+their materials. The PNGs and `.voidmat` files it writes are committed; only
+the compiled `.voidtex` is not, because that is a build artefact.
 
 `dev/` are 256x256 checkerboards. At the default texture scale of 0.25 world
 units per texel that covers 64 vu, so the 4x4 grid on them reads as **16 vu
@@ -200,12 +201,18 @@ reads backwards on half of them.
 `tools/` are 128x128, flat, hatched, and labelled with their own name. A colour
 alone does not tell `clip` from `playerclip` at a glance.
 
-They are generated rather than committed because they are *defined* by numbers
--- this grid is 16 units, that colour means "blocks players" -- and a
-definition that lives in a PNG is one nobody can read or review. A test checks
-the set against the compiler's tool-material table in both directions: offering
-a tool material the compiler treats as world geometry would silently wall off a
-doorway.
+They are *generated* because they are defined by numbers -- this grid is 16
+units, that colour means "blocks players" -- and a definition that lives only
+in a PNG is one nobody can read or review. They are *committed* anyway, because
+a fresh clone with no textures in it is a fresh clone that looks broken:
+having a generator is a reason to keep one, not a reason to leave its output
+out of the repository. The generator reports what it changed and what was
+already correct, so re-running it on an unchanged tree is a no-op and a diff
+against it is meaningful.
+
+A test checks the set against the compiler's tool-material table in both
+directions: offering a tool material the compiler treats as world geometry
+would silently wall off a doorway.
 
 ## `.voiddef` — entity class definitions
 

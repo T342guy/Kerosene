@@ -25,17 +25,20 @@ fn main() -> Result<()> {
         .init();
 
     let mut map: Option<PathBuf> = None;
-    let mut content = PathBuf::from("content");
+    let mut content: Option<PathBuf> = None;
     let args: Vec<String> = std::env::args().skip(1).collect();
     let mut i = 0;
     while i < args.len() {
         match args[i].as_str() {
             "--content" => {
                 i += 1;
-                content = PathBuf::from(args.get(i).cloned().unwrap_or_default());
+                content = args.get(i).map(PathBuf::from);
             }
             "--help" | "-h" => {
                 println!("chisel [map.voidmap] [--content <dir>]");
+                println!();
+                println!("With no --content, the content tree is found: beside the map,");
+                println!("then from the working directory, then beside the executable.");
                 return Ok(());
             }
             other => map = Some(PathBuf::from(other)),
@@ -43,7 +46,19 @@ fn main() -> Result<()> {
         i += 1;
     }
 
-    let mut app = ChiselApp::new(content);
+    // Searched for rather than assumed. Guessing `./content` worked from the
+    // repository root and silently found nothing anywhere else, which left
+    // the editor with no entity classes and no materials -- looking broken
+    // rather than misconfigured.
+    let found = chisel::content::find(content.as_deref(), map.as_deref());
+    log::info!("{}", chisel::content::describe(&found));
+    let root = found.as_ref().map(|f| f.root.clone()).unwrap_or_default();
+
+    let mut app = ChiselApp::new(root);
+    app.content_note = chisel::content::describe(&found);
+    if found.is_none() {
+        app.status = app.content_note.clone();
+    }
     match map {
         Some(path) => app.open(path),
         // A fresh editor opens on a room rather than an empty void: an empty

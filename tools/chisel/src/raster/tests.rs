@@ -457,3 +457,195 @@ fn selecting_one_face_marks_that_face_and_not_its_brush() {
     assert_eq!(marked, 1, "{} faces came back marked", marked);
     assert!(faces.iter().all(|f| !f.selected), "the whole brush was marked instead");
 }
+
+// ---- the reported symptom: trigger brushes are not semi-clear -------------
+
+fn brush_with(document: &mut Document, min: Vec3, max: Vec3, material: &str) -> u32 {
+    let id = document.map.next_id();
+    let mut solid = Solid::cube(Aabb::new(min, max), material);
+    solid.id = id;
+    document.map.world.solids.push(solid);
+    id
+}
+
+fn flat_texture(rgb: [u8; 3]) -> Arc<Texture> {
+    let pixel = [rgb[0], rgb[1], rgb[2], 255];
+    Arc::new(Texture {
+        mips: vec![Level { width: 1, height: 1, pixels: vec![pixel] }],
+        average: rgb,
+    })
+}
+
+/// Render in flat mode, giving each material its own colour.
+///
+/// The shaded-only mode the other tests use paints every face the same grey,
+/// so blending a face over another face of the same colour is invisible by
+/// construction -- it would pass whether the blend happened or not.
+fn render_coloured(document: &Document) -> Image {
+    let mut resolve = |material: &str| {
+        Some(flat_texture(if material.starts_with("tools/") {
+            [220, 40, 40]
+        } else {
+            [30, 60, 200]
+        }))
+    };
+    let mut settings = Settings { shading: Shading::Flat, resolve: Some(&mut resolve) };
+    render_with(document, Vec3::ZERO, basis_for(0.0, 0.0), FOV, W, H, &mut settings)
+}
+
+fn wall(document: &mut Document) {
+    brush_with(
+        document,
+        Vec3::new(600.0, -400.0, -400.0),
+        Vec3::new(620.0, 400.0, 400.0),
+        "dev/grid",
+    );
+}
+
+fn volume(document: &mut Document, near: f32, material: &str) {
+    brush_with(
+        document,
+        Vec3::new(near, -60.0, -60.0),
+        Vec3::new(near + 40.0, 60.0, 60.0),
+        material,
+    );
+}
+
+fn empty() -> Document {
+    let mut document = Document::new();
+    document.map.world.solids.clear();
+    document
+}
+
+fn centre(image: &Image) -> [u8; 4] {
+    image.pixel(image.width / 2, image.height / 2)
+}
+
+#[test]
+fn tool_volumes_are_see_through_and_world_materials_are_not() {
+    // The whole point: a trigger is a region, not a wall. Drawn opaque it
+    // hides the room it is sitting in, which makes a level with triggers in
+    // it impossible to work in.
+    for tool in ["tools/trigger", "tools/clip", "tools/hint", "tools/skip", "tools/water"] {
+        assert!(opacity_for(tool) < 1.0, "{tool} is drawn solid");
+    }
+    // `nodraw` is a wall nobody sees, not a volume, so it stays solid -- and
+    // so does anything outside `tools/`.
+    for solid in
+        ["tools/nodraw", "tools/invisible", "tools/skybox", "tools/sky", "dev/grid", "dev/wall"]
+    {
+        assert_eq!(opacity_for(solid), 1.0, "{solid} was made see-through");
+    }
+    // The prefix is a directory, not a spelling.
+    assert_eq!(opacity_for("dev/tools_test"), 1.0);
+    assert_eq!(opacity_for("TOOLS/Trigger"), opacity_for("tools/trigger"));
+}
+
+#[test]
+fn a_wall_shows_through_a_trigger_volume() {
+    let mut with_trigger = empty();
+    wall(&mut with_trigger);
+    volume(&mut with_trigger, 200.0, "tools/trigger");
+
+    let mut bare = empty();
+    wall(&mut bare);
+
+    let mut solid = empty();
+    wall(&mut solid);
+    volume(&mut solid, 200.0, "tools/nodraw");
+
+    let trigger = centre(&render_coloured(&with_trigger));
+    let bare = centre(&render_coloured(&bare));
+    let solid = centre(&render_coloured(&solid));
+
+    assert_ne!(trigger, bare, "the trigger did not draw over the wall");
+    assert_ne!(trigger, solid, "the trigger was drawn solid");
+    // A mix, not one or the other: every channel lands between the two.
+    for c in 0..3 {
+        let (lo, hi) = (bare[c].min(solid[c]), bare[c].max(solid[c]));
+        assert!(
+            (lo..=hi).contains(&trigger[c]),
+            "channel {c} is {} , outside the wall ({}) and the volume ({})",
+            trigger[c],
+            bare[c],
+            solid[c]
+        );
+    }
+}
+
+#[test]
+fn a_nodraw_brush_hides_the_wall_behind_it() {
+    // The counter-case that makes the test above mean something: the same
+    // geometry with a solid tool material covers what is behind it.
+    let mut with_wall = empty();
+    wall(&mut with_wall);
+    volume(&mut with_wall, 200.0, "tools/nodraw");
+
+    let mut alone = empty();
+    volume(&mut alone, 200.0, "tools/nodraw");
+
+    assert_eq!(
+        centre(&render_coloured(&with_wall)),
+        centre(&render_coloured(&alone)),
+        "a solid tool brush let the wall through"
+    );
+}
+
+#[test]
+fn a_volume_does_not_erase_what_is_behind_it_from_the_depth_buffer() {
+    // A volume that claimed the depth buffer would hide everything drawn
+    // after it -- including a second volume overlapping it. Two triggers one
+    // behind the other must both show, so the region they share is a
+    // different colour again.
+    let mut one = empty();
+    wall(&mut one);
+    volume(&mut one, 200.0, "tools/trigger");
+
+    let mut two = empty();
+    wall(&mut two);
+    volume(&mut two, 200.0, "tools/trigger");
+    volume(&mut two, 300.0, "tools/trigger");
+
+    assert_ne!(
+        centre(&render_coloured(&one)),
+        centre(&render_coloured(&two)),
+        "the nearer volume hid the one behind it instead of stacking with it"
+    );
+}
+
+#[test]
+fn the_world_is_drawn_before_the_volumes() {
+    // The two-pass sort, from the outside. Blending only works if what is
+    // under a volume is already painted, so every solid face has to go down
+    // first -- including one that is *behind* the volume and would otherwise
+    // sort after it.
+    let mut document = empty();
+    wall(&mut document);
+    volume(&mut document, 200.0, "tools/trigger");
+
+    let mut faces = crate::draw::visible_faces(&document, Vec3::ZERO, basis_for(0.0, 0.0));
+    faces.sort_by(|a, b| {
+        let (a_solid, b_solid) =
+            (opacity_for(&a.material) >= 1.0, opacity_for(&b.material) >= 1.0);
+        b_solid.cmp(&a_solid).then(b.depth.total_cmp(&a.depth))
+    });
+    let first_volume = faces.iter().position(|f| opacity_for(&f.material) < 1.0);
+    let last_solid = faces.iter().rposition(|f| opacity_for(&f.material) >= 1.0);
+    let (Some(first_volume), Some(last_solid)) = (first_volume, last_solid) else {
+        panic!("the scene needs both a solid face and a volume face");
+    };
+    assert!(last_solid < first_volume, "a volume sorted before the world");
+}
+
+#[test]
+fn blending_is_a_mix_and_stays_opaque() {
+    let black = [0, 0, 0, 255];
+    let white = [255, 255, 255, 255];
+    assert_eq!(blend(black, white, 0.0), black, "alpha 0 changed the pixel");
+    assert_eq!(blend(black, white, 1.0), white, "alpha 1 did not take the colour");
+    let mid = blend(black, white, 0.5);
+    assert!((120..=136).contains(&mid[0]), "half way is {mid:?}");
+    // The pane is handed to egui as an image; a hole in it is a hole in the
+    // viewport, not a see-through brush.
+    assert_eq!(blend(black, white, 0.45)[3], 255);
+}

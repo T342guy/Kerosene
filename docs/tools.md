@@ -10,6 +10,24 @@ Seven programs. None of them is the engine, and none of them depends on it.
 chisel [map.voidmap] [--content <dir>]
 ```
 
+**Finding the content.** Chisel needs the content root -- the tree holding
+`maps/`, `materials/` and the `.voiddef` class definitions -- to show entity
+classes and materials at all. It looks in this order: `--content` if given,
+then beside the map being opened, then the working directory, then beside its
+own executable, climbing up to six levels from each looking for a directory
+holding `voidengine.voiddef` (or, failing that, both `maps/` and `materials/`).
+Opening a map from anywhere in a project therefore just works, and the map's
+own tree wins over the working directory on purpose -- editing another
+project's map should not show this project's entities.
+
+The status bar says what it found: `20 classes, 41 materials` when the content
+is there, `no entity classes` in red when it is not, and `n materials unbuilt`
+in amber when the source art has not been through Alchemy. If the first is red,
+nothing in the editor will look right, and `chisel --help` lists the search
+order. `cargo run -p chisel --example diagnose -- <dir>` prints the same thing
+without opening a window, which is the fastest way to answer "why does Chisel
+show no entities".
+
 Four panes, each showing whichever view you point it at: 3D, or any of the six
 flat views -- top, bottom, front, back, left and right. Hammer's layout,
 because brush geometry is axis-aligned far more often than not and an
@@ -79,6 +97,13 @@ too busy to read shape through) and *shaded only* (untextured grey, for hunting
 a brush in the wrong place). Lighting is not previewed; compiling and running
 the map is one keystroke away.
 
+Tool **volumes** are drawn see-through, as they are in Hammer, because that is
+what they are: a trigger is a region, not a wall, and one drawn solid hides the
+room it is sitting in. `tools/nodraw` and the other solid tool materials are
+the exception -- those *are* walls, just ones nobody sees, so they stay opaque.
+A volume does not claim the depth buffer either, so two overlapping ones both
+show and neither erases what is behind it.
+
 It reads the **compiled** `.voidtex`, through the same VFS the engine uses, so
 what it shows is what the engine will draw -- including from inside a `.vault`
 archive. The consequence is worth stating plainly: **the content has to be
@@ -102,6 +127,12 @@ buttons: *compile* runs exactly what the window is showing, while *fast* and
 *full* apply a quality preset and leave every other choice alone. That
 distinction matters -- "build even if the map leaks" is not something a quality
 preset gets to forget.
+
+A compile starts by running Alchemy over `content/art`, so a texture added or
+changed since the last build is compiled before the map that uses it, and the
+editor's own texture cache is reloaded when the compile finishes -- a new
+texture shows up in the pane without a restart. Uncheck *build materials* to
+skip that stage when the art has not moved.
 
 When a map is not sealed, Cleave writes a `.voidleak` trace beside it and
 Chisel loads it and draws the route out in red, through every pane. Follow the
@@ -142,6 +173,11 @@ Cleave refuses to build it — visibility would be nearly useless and the compil
 would take far longer. `--ignore-leaks` builds it anyway and writes a `.voidleak`
 trace naming the route out, which is the only practical way to find a one-unit
 gap in a large map.
+
+A compile that seals the map **deletes** any `.voidleak` left beside it by an
+earlier one. A stale trace is worse than none: Chisel loads whatever is on
+disk, so a map that leaked once would go on reporting a leak through every
+successful compile after it.
 
 ### Tool materials
 

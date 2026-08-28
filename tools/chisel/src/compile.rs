@@ -19,6 +19,14 @@ use std::sync::mpsc::{Receiver, Sender, channel};
 /// What to run, and how thoroughly.
 #[derive(Clone, Debug)]
 pub struct CompileSettings {
+    /// Compile any art that has no texture behind it yet, before the map.
+    ///
+    /// On by default. A map whose materials have never been through Alchemy
+    /// loads with every surface as the missing-material checkerboard, and
+    /// "run a shell script first" is not an answer an editor gets to give.
+    pub run_materials: bool,
+    /// Where the art lives, for that stage.
+    pub content_root: PathBuf,
     pub run_vis: bool,
     /// Skip the expensive visibility pass. Right while a layout is moving.
     pub fast_vis: bool,
@@ -35,6 +43,8 @@ pub struct CompileSettings {
 impl Default for CompileSettings {
     fn default() -> Self {
         CompileSettings {
+            run_materials: true,
+            content_root: PathBuf::from("content"),
             run_vis: true,
             fast_vis: false,
             run_lighting: true,
@@ -172,6 +182,27 @@ fn run_compile(
     sender: &Sender<CompileMessage>,
 ) -> Result<(), ()> {
     let compiled = map.with_extension("voidbsp");
+
+    // Alchemy first. It skips everything already compiled, so the usual cost
+    // is one directory walk -- and the one time it is not, it is the run that
+    // saves the map from loading as a checkerboard.
+    if settings.run_materials {
+        let art = settings.content_root.join("art");
+        if art.is_dir() {
+            let materials = settings.content_root.join("materials");
+            stage(
+                "alchemy",
+                &[
+                    "batch".into(),
+                    art.display().to_string(),
+                    "-o".into(),
+                    materials.display().to_string(),
+                    "--make-materials".into(),
+                ],
+                sender,
+            )?;
+        }
+    }
 
     // Cleave.
     let mut args = vec![map.display().to_string()];
@@ -324,10 +355,12 @@ mod tests {
             run_after: false,
             run_vis: false,
             run_lighting: false,
+            run_materials: false,
             ..Default::default()
         };
         settings.set_quality(Quality::Fast);
         assert!(settings.ignore_leaks, "a leaking map was told to build anyway");
+        assert!(!settings.run_materials, "a preset overrode the material stage");
         assert!(!settings.run_after);
         assert!(!settings.run_vis);
         assert!(!settings.run_lighting);
@@ -346,6 +379,16 @@ mod tests {
         let settings = CompileSettings { ignore_leaks: true, ..Default::default() };
         if settings.ignore_leaks { args.push("--ignore-leaks".into()); }
         assert!(args.iter().any(|a| a == "--ignore-leaks"));
+    }
+
+    #[test]
+    fn materials_are_compiled_before_the_map_by_default() {
+        // A map whose art has never been through Alchemy loads with every
+        // surface as the missing-material checkerboard, and "run a shell
+        // script first" is not an answer an editor gets to give.
+        assert!(CompileSettings::default().run_materials);
+        assert!(CompileSettings::fast().run_materials);
+        assert!(CompileSettings::full().run_materials);
     }
 
     #[test]

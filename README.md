@@ -86,9 +86,11 @@ To open the sample level in the editor:
 cargo run --release -p chisel -- content/maps/void_start.voidmap
 ```
 
-`F9` compiles and runs it. Chisel's 3D pane reads the same compiled textures
-the engine does, so it needs the build step too — `view → reload textures`
-picks up a rebuild without restarting.
+`F9` compiles and runs it, building the materials on the way, so a texture you
+added since the last build is compiled before the map that uses it. Chisel's 3D
+pane reads the same compiled textures the engine does, so it needs the build
+step too — a compile reloads them, and `view → reload textures` picks up a
+rebuild done outside the editor without restarting.
 
 No display? The engine runs headless — which is what a dedicated server is,
 not a testing mode bolted on the side:

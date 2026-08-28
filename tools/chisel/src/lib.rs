@@ -19,6 +19,7 @@
 pub mod app;
 pub mod classes;
 pub mod compile;
+pub mod content;
 pub mod draw;
 pub mod document;
 pub mod faces;

@@ -80,6 +80,10 @@ pub struct ChiselApp {
     pub shading: Shading,
     /// Substring filter on the material browser.
     pub material_filter: String,
+    /// Where the content tree came from, for the status bar to show. An
+    /// editor with no content is nearly useless, so how it decided is worth
+    /// having in front of you rather than in a log nobody reads.
+    pub content_note: String,
     /// The route out of a leaking map, from the last compile.
     pub leak: crate::leak::LeakTrace,
     /// Where the four panes divide, as fractions of the area. Dragged.
@@ -157,6 +161,7 @@ impl ChiselApp {
             vfs,
             shading: Shading::default(),
             material_filter: String::new(),
+            content_note: String::new(),
             leak: crate::leak::LeakTrace::default(),
             split: egui::vec2(0.5, 0.5),
             fly_speed: DEFAULT_FLY_SPEED,
@@ -171,7 +176,9 @@ impl ChiselApp {
         if names.is_empty() {
             return FALLBACK_CLASSES.iter().map(|s| s.to_string()).collect();
         }
-        names.into_iter().map(str::to_string).collect()
+        // `worldspawn` is `kind any` because its brushes are the world. It is
+        // not something anyone places.
+        names.into_iter().filter(|n| *n != "worldspawn").map(str::to_string).collect()
     }
 
     /// Classes that brushes can be tied to.
@@ -244,10 +251,21 @@ impl ChiselApp {
             .map(|p| p.to_path_buf())
             .or_else(|| self.document.path.clone().map(|p| p.with_extension("voidbsp")));
 
-        self.leak = map
-            .as_deref()
-            .and_then(crate::leak::LeakTrace::beside)
-            .unwrap_or_default();
+        // Cleared first, and unconditionally. A trace is about one compile,
+        // and keeping the last one around because this compile wrote none is
+        // how a fixed map goes on reporting a leak.
+        self.leak = crate::leak::LeakTrace::default();
+        if let Some(trace) = map.as_deref().and_then(crate::leak::LeakTrace::beside) {
+            self.leak = trace;
+        }
+
+        // Alchemy may have just produced textures that failed to load when
+        // the editor started. Without this the pane keeps drawing the flat
+        // fallback until someone restarts, which looks exactly like the
+        // compile having done nothing.
+        self.textures.clear();
+        self.thumbnails.clear();
+        self.materials = scan_materials(&self.content_root);
 
         self.status = if failed {
             "compile failed".into()
@@ -911,6 +929,37 @@ impl ChiselApp {
                 ui.separator();
                 ui.label(RichText::new(self.viewports[self.active].kind.label()).monospace().size(11.0));
 
+                // An editor with no content is nearly useless, and the way it
+                // used to fail was silent: three hard-coded class names, flat
+                // colours, and no clue why.
+                ui.separator();
+                let missing = self.textures.problem_count();
+                let (text, colour) = if self.schema.is_empty() {
+                    ("no entity classes".to_string(), Some(draw::colors::LEAK))
+                } else if missing > 0 {
+                    (
+                        format!("{missing} materials unbuilt"),
+                        Some(egui::Color32::from_rgb(240, 200, 90)),
+                    )
+                } else {
+                    (format!("{} classes, {} materials", self.schema.len(), self.materials.len()), None)
+                };
+                let label = RichText::new(text).monospace().size(11.0);
+                let label = match colour {
+                    Some(c) => label.color(c),
+                    None => label,
+                };
+                ui.label(label).on_hover_text(if missing > 0 {
+                    format!(
+                        "{}\n\n{missing} materials have no compiled texture. Run \
+                         scripts/build-content.sh, or `alchemy batch`, then \
+                         view -> reload textures.",
+                        self.content_note
+                    )
+                } else {
+                    self.content_note.clone()
+                });
+
                 if let Some(bounds) = self.document.selection_bounds() {
                     let size = bounds.size();
                     let centre = bounds.center();
@@ -987,6 +1036,12 @@ impl ChiselApp {
                     ui.add(egui::Slider::new(&mut settings.samples, 1..=4).text("samples"));
                     ui.add(egui::Slider::new(&mut settings.bounces, 0..=4).text("bounces"));
                 });
+                ui.checkbox(&mut settings.run_materials, "compile new materials first")
+                    .on_hover_text(
+                        "Runs Alchemy over the art tree, skipping anything already \
+                         compiled. Without it, a material that has never been through \
+                         Alchemy loads as the missing-material checkerboard.",
+                    );
                 ui.checkbox(&mut settings.ignore_leaks, "build even if the map leaks")
                     .on_hover_text(
                         "A map that leaks has no sealed inside, so visibility is near \
@@ -1084,6 +1139,8 @@ impl ChiselApp {
             return;
         }
 
+        let mut settings = settings;
+        settings.content_root = self.content_root.clone();
         self.compile_settings = settings.clone();
         self.compile = Some(CompileJob::start(&path, settings));
         self.show_compile = true;

@@ -74,6 +74,27 @@ fn shading_for(normal: Vec3) -> f32 {
     AMBIENT + (1.0 - AMBIENT) * facing
 }
 
+/// How solid a face is drawn, given its material.
+///
+/// Tool brushes are see-through, because that is what they are: a trigger
+/// volume is a region, not a wall, and one drawn opaque hides the room it is
+/// meant to be sitting in. Drawing them solid made a level with triggers in it
+/// impossible to work in -- which is the same reason Hammer draws them this
+/// way.
+///
+/// `nodraw` is the exception among tool materials: it *is* a wall, it is just
+/// one nobody sees, so it stays solid.
+pub fn opacity_for(material: &str) -> f32 {
+    let lower = material.to_ascii_lowercase();
+    let Some(tool) = lower.strip_prefix("tools/") else { return 1.0 };
+    match tool {
+        // Solid geometry that happens not to be drawn.
+        "nodraw" | "invisible" | "skybox" | "sky" => 1.0,
+        // Everything else is a volume: clip, trigger, hint, skip, water.
+        _ => 0.45,
+    }
+}
+
 /// How the 3D pane draws faces.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub enum Shading {
@@ -167,9 +188,18 @@ pub fn render_with(
         ]
     };
 
-    let faces = draw::visible_faces(document, eye, basis);
+    let mut faces = draw::visible_faces(document, eye, basis);
+    // A see-through face has to be drawn over what is behind it, so the solid
+    // world goes down first and the volumes on top. Within each group the
+    // depth buffer still decides; this only orders the two passes.
+    faces.sort_by(|a, b| {
+        let (a_solid, b_solid) = (opacity_for(&a.material) >= 1.0, opacity_for(&b.material) >= 1.0);
+        b_solid.cmp(&a_solid).then(b.depth.total_cmp(&a.depth))
+    });
+
     for (index, face) in faces.into_iter().enumerate() {
         let shade = shading_for(face.normal);
+        let opacity = opacity_for(&face.material);
 
         // A selected face is tinted rather than replaced, so what it is
         // textured with is still readable while it is being worked on.
@@ -209,7 +239,7 @@ pub fn render_with(
             })
             .collect();
 
-        let surface = Surface { texture: texture.clone(), flat, shade, tint };
+        let surface = Surface { texture: texture.clone(), flat, shade, tint, opacity };
         // A convex polygon fans from any vertex.
         for i in 1..vertices.len().saturating_sub(1) {
             triangle(
@@ -246,9 +276,13 @@ struct Surface {
     shade: f32,
     /// Mixed in over the top, for a selection.
     tint: Option<egui::Color32>,
+    /// 1.0 for world geometry, less for a tool volume.
+    opacity: f32,
 }
 
 impl Surface {
+    fn is_opaque(&self) -> bool { self.opacity >= 1.0 }
+
     fn finish(&self, colour: [u8; 3]) -> [u8; 4] {
         let mut out = [
             (colour[0] as f32 * self.shade) as u8,
@@ -346,8 +380,13 @@ fn triangle(
                 (w0 * v[0].screen[2] + w1 * v[1].screen[2] + w2 * v[2].screen[2]) * inv_area;
             let at = y * image.width + x;
             if inv_z <= depth[at] { continue }
-            depth[at] = inv_z;
-            face_at[at] = face;
+            // A see-through face does not take the depth buffer: two of them
+            // overlapping should both show, and something further away behind
+            // one of them must not be erased by it.
+            if surface.is_opaque() {
+                depth[at] = inv_z;
+                face_at[at] = face;
+            }
 
             let colour = match &surface.texture {
                 Some(texture) if inv_z.abs() > 1e-12 => {
@@ -362,9 +401,25 @@ fn triangle(
                 }
                 _ => surface.flat,
             };
-            image.pixels[at] = surface.finish(colour);
+            let painted = surface.finish(colour);
+            image.pixels[at] = if surface.is_opaque() {
+                painted
+            } else {
+                blend(image.pixels[at], painted, surface.opacity)
+            };
         }
     }
+}
+
+/// Mix a colour over what is already there.
+fn blend(under: [u8; 4], over: [u8; 4], alpha: f32) -> [u8; 4] {
+    let alpha = alpha.clamp(0.0, 1.0);
+    let mut out = [0u8; 4];
+    for c in 0..3 {
+        out[c] = (under[c] as f32 + (over[c] as f32 - under[c] as f32) * alpha) as u8;
+    }
+    out[3] = 255;
+    out
 }
 
 /// Twice the area of a triangle in whatever space its points are in.

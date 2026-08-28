@@ -123,10 +123,24 @@ fn main() -> Result<()> {
     std::fs::write(&prt_path, &output.prt)
         .with_context(|| format!("writing {}", prt_path.display()))?;
 
-    if let Some(leak) = &output.leak {
-        let lin_path = out_path.with_extension("voidleak");
-        std::fs::write(&lin_path, leak.to_lin())?;
-        println!("  wrote {} (load it in Chisel to see the leak)", lin_path.display());
+    // The trace describes *this* compile. A sealed map must clear the one
+    // left by an earlier broken build, or every later compile looks like it
+    // leaked -- the editor loads the file, not the result, and has no way to
+    // tell a stale trace from a fresh one.
+    let leak_path = out_path.with_extension("voidleak");
+    match &output.leak {
+        Some(leak) => {
+            std::fs::write(&leak_path, leak.to_lin())?;
+            println!("  wrote {} (load it in Chisel to see the leak)", leak_path.display());
+        }
+        None => {
+            if leak_path.exists() {
+                std::fs::remove_file(&leak_path).with_context(|| {
+                    format!("removing the stale leak trace {}", leak_path.display())
+                })?;
+                println!("  the map is sealed; removed the old {}", leak_path.display());
+            }
+        }
     }
 
     println!("  wrote {} ({:.1} KiB) and {} in {:.2}s",
