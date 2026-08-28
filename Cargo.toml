@@ -23,6 +23,7 @@ members = [
     "tools/alchemy",
     "tools/forge",
     "tools/vault",
+    "alsa"
 ]
 
 [workspace.package]
@@ -30,7 +31,7 @@ version = "0.1.0"
 edition = "2024"
 rust-version = "1.94"
 license = "LGPL-3.0-or-later"
-authors = ["VoidEngine contributors"]
+authors = ["T342guy"]
 repository = "https://github.com/t342guy/voidengine"
 
 [workspace.dependencies]
@@ -72,6 +73,8 @@ rhai        = "1"
 # Audio output. Needs ALSA headers on Linux (libasound2-dev); the mixer
 # itself is pure Rust and builds without it.
 cpal        = "0.18"
+alsa = "0.12.1"
+alsa-sys = "0.6.1"
 
 [profile.release]
 opt-level = 3
