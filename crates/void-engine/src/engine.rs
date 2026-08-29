@@ -115,6 +115,12 @@ pub fn explain_missing_map(vfs: &Vfs, name: &str, why: &VfsError) -> String {
 pub struct Level {
     pub name: String,
     pub bsp: Bsp,
+    /// What the sky is tinted, from the map's `light_environment`.
+    ///
+    /// Kept on the level rather than read per frame: it cannot change while a
+    /// map is loaded, and the entity that names it is inert at runtime, so
+    /// this is the only moment anything asks.
+    pub sky_color: Vec3,
 }
 
 /// The engine.
@@ -298,7 +304,8 @@ impl Engine {
         let count = self.entities.load_from_bsp(&bsp)?;
         self.console.print(format!("{count} entities"));
 
-        self.level = Some(Level { name: name.to_string(), bsp });
+        let sky_color = self.sky_color_from_map();
+        self.level = Some(Level { name: name.to_string(), bsp, sky_color });
         self.spawn_player();
         self.time = 0.0;
         self.tick_count = 0;
@@ -315,6 +322,29 @@ impl Engine {
         self.take_entity_requests();
         self.call_script_hook(void_script::hooks::MAP_START, vec![]);
         Ok(())
+    }
+
+    /// The sun's colour, which is also what the sky is tinted.
+    ///
+    /// Radiance reads the same `_light` value to bake the lighting, so a map
+    /// lit by a warm sun gets a warm sky without anyone stating it twice.
+    /// White when a map has no `light_environment`, since a tint of nothing
+    /// is the same as no tint.
+    fn sky_color_from_map(&self) -> Vec3 {
+        let Some(id) = self.entities.find_by_class("light_environment").first().copied() else {
+            return Vec3::ONE;
+        };
+        let Some(entity) = self.entities.get(id) else { return Vec3::ONE };
+        // "r g b brightness"; the brightness belongs to the lighting compile
+        // and would blow the sky out if it were applied here as well.
+        let raw = entity.fields.text("_light").unwrap_or_default();
+        let numbers: Vec<f32> = raw
+            .split_whitespace()
+            .take(3)
+            .filter_map(|n| n.parse::<f32>().ok())
+            .collect();
+        if numbers.len() < 3 { return Vec3::ONE }
+        Vec3::new(numbers[0], numbers[1], numbers[2]) / 255.0
     }
 
     /// Put the player at an `info_player_start`, or somewhere sane if there is
@@ -485,6 +515,7 @@ impl Engine {
 
         let player_entity = self.player.entity;
         let mut hurt = 0.0;
+        let mut entered: Vec<EntityId> = Vec::new();
         for (id, model_index, offset) in triggers {
             let Some(model) = level.bsp.models.get(model_index) else { continue };
             let bounds = model.bounds();
@@ -496,10 +527,21 @@ impl Engine {
             // Gathered before the touch update, because a `trigger_once`
             // removes itself in there and would otherwise deal nothing on the
             // tick it fired.
-            if inside && !self.entities.get(id).is_some_and(|e| e.fields.bool("disabled", false)) {
+            let live = !self.entities.get(id).is_some_and(|e| e.fields.bool("disabled", false));
+            if inside && live {
                 hurt += void_game::triggers::hurt_per_second(&self.entities, id) * dt;
+                let was = self.entities.get(id).is_some_and(|e| e.fields.bool("occupied", false));
+                if !was { entered.push(id) }
             }
             void_game::triggers::update_touch(&mut self.entities, id, inside, player_entity);
+        }
+
+        // Volumes that act on the player when they arrive rather than while
+        // they stay. Applied after the touch pass so that a teleport lands
+        // the player somewhere the same tick's outputs have already fired
+        // from -- the wire and the move belong to the same moment.
+        for id in entered {
+            self.enter_trigger(id);
         }
 
         // Applied once, after the loop: two overlapping hurt volumes should
@@ -508,6 +550,43 @@ impl Engine {
         // against.
         if hurt > 0.0 {
             self.hurt_player(hurt, "hurt");
+        }
+    }
+
+    /// Act on a trigger the player has just entered.
+    fn enter_trigger(&mut self, id: EntityId) {
+        if let Some((dir, speed)) = void_game::triggers::push_of(&self.entities, id) {
+            // Added to what the player already had, so running onto a pad
+            // carries your speed with you instead of replacing it. Leaving
+            // the ground explicitly, or the next tick's ground check would
+            // flatten a straight-up launch before it started.
+            self.player.movement.velocity += dir * speed;
+            self.player.movement.on_ground = false;
+        }
+
+        if let Some(target) = void_game::triggers::teleport_target(&self.entities, id) {
+            let destination = self
+                .entities
+                .find_by_name(&target)
+                .first()
+                .copied()
+                .and_then(|to| self.entities.get(to).map(|e| e.origin));
+            match destination {
+                Some(origin) => {
+                    // The view is left alone. Turning the player's head is a
+                    // thing the client owns -- angles come from input every
+                    // tick, so setting them here would be overwritten before
+                    // anyone saw it, and pretending otherwise would be worse
+                    // than not doing it.
+                    self.player.movement.origin = origin;
+                    self.player.previous_origin = origin;
+                    self.player.movement.velocity = Vec3::ZERO;
+                    self.player.movement.on_ground = false;
+                }
+                None => self.console.warn(format!(
+                    "trigger_teleport points at `{target}`, which is not in this map"
+                )),
+            }
         }
     }
 

@@ -46,6 +46,11 @@ impl CameraUniform {
     pub fn set_sky_color(&mut self, c: Vec3) { self.sky_color = c.extend(1.0).to_array(); }
 }
 
+/// Anisotropic filtering samples. 16 is the usual maximum and is supported
+/// everywhere wgpu runs; a device that cannot manage it clamps down rather
+/// than failing.
+const MAX_ANISOTROPY: u16 = 16;
+
 /// The depth format. 32-bit float because a Source-scale map spans 32768
 /// units, and 24-bit depth z-fights visibly at that range.
 pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
@@ -286,6 +291,11 @@ impl Renderer {
             mag_filter: wgpu::FilterMode::Linear,
             min_filter: wgpu::FilterMode::Linear,
             mipmap_filter: wgpu::FilterMode::Linear,
+            // Brush geometry is floors and walls seen at grazing angles, which
+            // is precisely the case trilinear filtering handles worst: the
+            // mip is chosen for the shortest axis, so a corridor floor blurs
+            // to mush a few metres out. Anisotropy costs a sampler flag.
+            anisotropy_clamp: MAX_ANISOTROPY,
             ..Default::default()
         });
 

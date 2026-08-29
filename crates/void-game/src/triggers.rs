@@ -9,9 +9,16 @@
 use crate::set_field;
 use void_entity::io::InputEvent;
 use void_entity::{ClassDef, ClassRegistry, EntityId, EntityWorld, Value};
+use void_math::Vec3;
 
 pub fn register(registry: &mut ClassRegistry) {
-    for name in ["trigger_multiple", "trigger_once", "trigger_hurt"] {
+    for name in [
+        "trigger_multiple",
+        "trigger_once",
+        "trigger_hurt",
+        "trigger_push",
+        "trigger_teleport",
+    ] {
         registry.register(
             ClassDef::new(name)
                 .on_spawn(spawn_trigger)
@@ -77,6 +84,33 @@ pub fn update_touch(world: &mut EntityWorld, id: EntityId, inside: bool, activat
     } else {
         world.fire_output(id, "OnEndTouch", activator, None);
     }
+}
+
+/// The shove a `trigger_push` gives, if it is one.
+///
+/// An impulse applied on entry rather than a force applied while inside. A
+/// launch pad is what these are almost always for, and a continuous push
+/// would also mean a player standing in one could not walk out of it.
+pub fn push_of(world: &EntityWorld, id: EntityId) -> Option<(Vec3, f32)> {
+    let entity = world.get(id)?;
+    if !entity.classname.eq_ignore_ascii_case("trigger_push") { return None }
+    let dir = entity.fields.vec3("pushdir", Vec3::Z);
+    let speed = entity.fields.f32("speed", 400.0);
+    let dir = dir.normalize_or_zero();
+    if dir.length_squared() < 1e-6 || speed == 0.0 { return None }
+    Some((dir, speed))
+}
+
+/// Where a `trigger_teleport` sends things, if it is one.
+///
+/// A targetname rather than a position, so the destination can be moved in the
+/// editor without anyone editing a number, and so several teleports can share
+/// one.
+pub fn teleport_target(world: &EntityWorld, id: EntityId) -> Option<String> {
+    let entity = world.get(id)?;
+    if !entity.classname.eq_ignore_ascii_case("trigger_teleport") { return None }
+    let target = entity.fields.text("target")?.trim();
+    (!target.is_empty()).then(|| target.to_string())
 }
 
 /// Damage a `trigger_hurt` deals per second, if any.

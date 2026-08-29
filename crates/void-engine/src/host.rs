@@ -375,6 +375,9 @@ impl App {
         );
         uniform.set_lightmaps(self.engine.console.bool("r_lightmap"));
         uniform.set_fullbright(self.engine.console.bool("r_fullbright"));
+        if let Some(level) = &self.engine.level {
+            uniform.set_sky_color(level.sky_color);
+        }
         gfx.renderer.update_camera(&gfx.queue, &uniform);
 
         // Where each brush entity has moved to, from the same fields the

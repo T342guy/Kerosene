@@ -1000,6 +1000,170 @@ fn a_button_can_switch_a_brush_out_of_the_world() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+// ---- push and teleport ------------------------------------------------------
+
+#[test]
+fn walking_into_a_trigger_push_throws_the_player() {
+    let mut map = corridor_map(false, false);
+    let at = add_brush_entity(
+        &mut map,
+        "trigger_push",
+        Aabb::new(Vec3::new(96.0, 0.0, 0.0), Vec3::new(160.0, 128.0, 64.0)),
+        "tools/trigger",
+    );
+    map.entities[at].set("targetname", "pad");
+    map.entities[at].set("pushdir", "0 0 1");
+    map.entities[at].set("speed", "500");
+
+    let (mut engine, dir) = engine_with(&map, "push");
+    let walking = InputState { forward: 1.0, view_angles: Angles::ZERO, ..Default::default() };
+
+    let mut highest: f32 = 0.0;
+    for _ in 0..(2.0 / TICK) as usize {
+        engine.tick(TICK, &walking);
+        highest = highest.max(engine.player.movement.origin.z);
+    }
+
+    assert!(highest > 40.0, "should have been launched, only reached {highest}");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_push_adds_to_the_speed_the_player_arrives_with() {
+    // Rather than replacing it: running onto a pad should carry you further
+    // than stepping onto one, which is the whole appeal of them.
+    let mut map = corridor_map(false, false);
+    let at = add_brush_entity(
+        &mut map,
+        "trigger_push",
+        Aabb::new(Vec3::new(96.0, 0.0, 0.0), Vec3::new(160.0, 128.0, 64.0)),
+        "tools/trigger",
+    );
+    map.entities[at].set("pushdir", "1 0 0");
+    map.entities[at].set("speed", "400");
+
+    let (mut engine, dir) = engine_with(&map, "push-add");
+    let walking = InputState { forward: 1.0, view_angles: Angles::ZERO, ..Default::default() };
+
+    // The peak, not the end: a horizontal shove along the floor is braked by
+    // ground friction within a few ticks, which is correct and is why a pad
+    // that means to launch you points upward.
+    let mut fastest: f32 = 0.0;
+    for _ in 0..(0.6 / TICK) as usize {
+        engine.tick(TICK, &walking);
+        fastest = fastest.max(engine.player.movement.velocity.x);
+    }
+
+    assert!(
+        fastest > 400.0,
+        "arrived at running speed and should have been shoved faster still, peaked at {fastest}"
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_trigger_teleport_moves_the_player_to_what_it_targets() {
+    let mut map = corridor_map(false, false);
+    let at = add_brush_entity(
+        &mut map,
+        "trigger_teleport",
+        Aabb::new(Vec3::new(96.0, 0.0, 0.0), Vec3::new(160.0, 128.0, 128.0)),
+        "tools/trigger",
+    );
+    map.entities[at].set("target", "arrival");
+
+    let id = map.next_id();
+    let mut destination = Entity::new(id, "info_target");
+    destination.set_origin(Vec3::new(448.0, 64.0, 8.0));
+    destination.set("targetname", "arrival");
+    map.entities.push(destination);
+
+    let (mut engine, dir) = engine_with(&map, "teleport");
+    let walking = InputState { forward: 1.0, view_angles: Angles::ZERO, ..Default::default() };
+    for _ in 0..(1.0 / TICK) as usize { engine.tick(TICK, &walking); }
+
+    assert!(
+        engine.player.movement.origin.x > 400.0,
+        "should have been teleported past the wall, at {:?}",
+        engine.player.movement.origin
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_teleport_with_no_destination_says_so_rather_than_moving_nowhere() {
+    // Silently doing nothing is the worst option: a designer who mistyped a
+    // targetname would walk through the volume and conclude teleports are
+    // broken.
+    let mut map = corridor_map(false, false);
+    let at = add_brush_entity(
+        &mut map,
+        "trigger_teleport",
+        Aabb::new(Vec3::new(96.0, 0.0, 0.0), Vec3::new(160.0, 128.0, 128.0)),
+        "tools/trigger",
+    );
+    map.entities[at].set("target", "nowhere_at_all");
+
+    let (mut engine, dir) = engine_with(&map, "teleport-broken");
+    let walking = InputState { forward: 1.0, view_angles: Angles::ZERO, ..Default::default() };
+    for _ in 0..(1.0 / TICK) as usize { engine.tick(TICK, &walking); }
+
+    assert!(
+        engine.console.log().any(|l| l.text.contains("nowhere_at_all")),
+        "the broken target should be named in the console"
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+// ---- the sky ---------------------------------------------------------------
+
+#[test]
+fn the_sky_takes_its_tint_from_the_maps_sun() {
+    // The value was plumbed to the shader and never fed: `set_sky_color`
+    // existed with no callers, so every sky rendered at full white however
+    // the map was lit.
+    let mut map = corridor_map(false, false);
+    let id = map.next_id();
+    let mut sun = Entity::new(id, "light_environment");
+    sun.set_origin(Vec3::new(256.0, 64.0, 96.0));
+    sun.set("_light", "255 128 64 200");
+    map.entities.push(sun);
+
+    let (engine, dir) = engine_with(&map, "sky");
+    let sky = engine.level.as_ref().unwrap().sky_color;
+
+    assert!((sky.x - 1.0).abs() < 0.01, "{sky:?}");
+    assert!((sky.y - 128.0 / 255.0).abs() < 0.01, "{sky:?}");
+    assert!((sky.z - 64.0 / 255.0).abs() < 0.01, "{sky:?}");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_map_with_no_sun_gets_an_untinted_sky() {
+    // White, not black: a tint of nothing has to mean no tint, or a map
+    // without a light_environment would render its sky as a silhouette.
+    let (engine, dir) = engine_with(&corridor_map(false, false), "no-sky");
+    assert_eq!(engine.level.as_ref().unwrap().sky_color, Vec3::ONE);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn the_suns_brightness_does_not_leak_into_the_sky_tint() {
+    // `_light` is "r g b brightness", and the brightness belongs to the
+    // lighting compile. Taking all four would blow the sky out to white.
+    let mut map = corridor_map(false, false);
+    let id = map.next_id();
+    let mut sun = Entity::new(id, "light_environment");
+    sun.set_origin(Vec3::new(256.0, 64.0, 96.0));
+    sun.set("_light", "128 128 128 4000");
+    map.entities.push(sun);
+
+    let (engine, dir) = engine_with(&map, "sky-bright");
+    let sky = engine.level.as_ref().unwrap().sky_color;
+    assert!((sky.x - 0.5).abs() < 0.01, "brightness leaked into the tint: {sky:?}");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 // ---- ladders --------------------------------------------------------------
 
 #[test]
