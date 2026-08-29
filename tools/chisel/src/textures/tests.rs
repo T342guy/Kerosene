@@ -163,3 +163,54 @@ fn the_average_of_a_real_texture_is_a_real_average() {
     assert!((60..=200).contains(&r), "{r},{g},{b}");
     assert!(r.abs_diff(g) < 24 && g.abs_diff(b) < 24, "not grey: {r},{g},{b}");
 }
+
+// ---- choosing a mip to draw at a known size --------------------------------
+
+/// A texture with a full mip chain from `top` pixels down to one.
+fn chain(top: u32) -> Texture {
+    let mut mips = Vec::new();
+    let mut size = top;
+    loop {
+        mips.push(Level { width: size, height: size, pixels: vec![[0; 4]; (size * size) as usize] });
+        if size == 1 { break }
+        size /= 2;
+    }
+    Texture { mips, average: [0; 3] }
+}
+
+#[test]
+fn a_swatch_is_drawn_from_a_mip_at_least_as_big_as_itself() {
+    // The bug this replaces: picking two from the end of the chain gave a
+    // 2x2 image for every 256-pixel texture, so every material in the browser
+    // was the same flat smudge.
+    let texture = chain(256);
+    assert_eq!(texture.level_for_size(128).width, 128);
+    assert_eq!(texture.level_for_size(64).width, 64);
+    assert_eq!(texture.level_for_size(48).width, 64, "just big enough, not just too small");
+}
+
+#[test]
+fn asking_for_more_than_the_texture_has_gives_the_biggest_there_is() {
+    let texture = chain(64);
+    assert_eq!(texture.level_for_size(512).width, 64);
+}
+
+#[test]
+fn asking_for_something_tiny_gives_the_smallest() {
+    let texture = chain(64);
+    assert_eq!(texture.level_for_size(1).width, 1);
+}
+
+#[test]
+fn a_size_of_zero_is_not_a_division_by_zero_or_a_panic() {
+    let texture = chain(64);
+    assert!(texture.level_for_size(0).width >= 1);
+}
+
+#[test]
+fn a_texture_with_one_level_always_gives_that_level() {
+    let texture = chain(1);
+    for size in [0, 1, 64, 4096] {
+        assert_eq!(texture.level_for_size(size).width, 1);
+    }
+}

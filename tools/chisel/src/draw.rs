@@ -182,24 +182,34 @@ pub fn draw_2d(
         let _ = (h, v);
     }
 
-    // Point entities.
+    // Point entities, each drawn as what it is. A room full of identical
+    // squares is a wall of labels you have to read; a shape is something you
+    // see without reading.
     for entity in document.map.entities.iter().filter(|e| e.solids.is_empty()) {
         let origin = entity.origin();
         let selected = document.selection.entities.contains(&entity.id);
-        let color = if selected { colors::SELECTED } else { colors::ENTITY };
+        let kind = crate::icons::Kind::of(entity.classname());
+        let color = if selected { colors::SELECTED } else { kind.colour() };
         let center = to_screen(origin);
-        let half = 5.0;
-        painter.rect_stroke(
-            Rect::from_center_size(center, Vec2::splat(half * 2.0)),
-            0.0,
-            Stroke::new(if selected { 2.0 } else { 1.0 }, color),
-            egui::StrokeKind::Middle,
-        );
+        crate::icons::draw(painter, center, 7.0, kind, color);
+        if selected {
+            // A ring, so the selection reads at a glance without the icon
+            // having to change shape.
+            painter.circle_stroke(center, 10.0, Stroke::new(1.5, color));
+        }
+        // Its name if it has one, because that is what the wiring refers to
+        // and what you are looking for when you are looking. The classname is
+        // the icon's job now, and repeating it beside every icon is the wall
+        // of text the icons were drawn to replace.
         if viewport.zoom > 0.15 {
+            let label = entity
+                .get("targetname")
+                .filter(|n| !n.trim().is_empty())
+                .unwrap_or_else(|| entity.classname());
             painter.text(
-                center + Vec2::new(8.0, -4.0),
+                center + Vec2::new(10.0, -5.0),
                 egui::Align2::LEFT_TOP,
-                entity.classname(),
+                label,
                 egui::FontId::proportional(10.0),
                 color,
             );

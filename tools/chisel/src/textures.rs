@@ -56,6 +56,24 @@ impl Texture {
         &self.mips[mip.min(self.mips.len().saturating_sub(1))]
     }
 
+    /// The smallest mip that is still at least `size` pixels across.
+    ///
+    /// For drawing a texture at a known size -- a thumbnail, a swatch -- where
+    /// the right level is the one just big enough. Picking by position in the
+    /// chain instead is how the material picker came to draw every swatch
+    /// from a 2x2 image: the second-to-last mip of a 256-pixel texture is
+    /// two pixels wide, so every checkerboard in the browser was a flat
+    /// smudge and no two materials could be told apart.
+    pub fn level_for_size(&self, size: u32) -> &Level {
+        let index = self
+            .mips
+            .iter()
+            .position(|m| m.width < size.max(1))
+            .map(|first_too_small| first_too_small.saturating_sub(1))
+            .unwrap_or(self.mips.len().saturating_sub(1));
+        self.level(index)
+    }
+
     /// Sample in normalised coordinates, at a chosen mip.
     pub fn sample(&self, u: f32, v: f32, mip: usize) -> [u8; 4] {
         let level = self.level(mip);

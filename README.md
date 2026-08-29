@@ -123,6 +123,10 @@ builds the textures again first, so one you added since opening the editor is
 compiled before the map that uses it, and `view → reload textures` picks up a
 build done outside without restarting.
 
+Point entities are drawn as what they are — a lamp for a light, a figure for
+the player start — and `M` opens an asset browser with names, folders, a search
+and a rendered preview for every model.
+
 A brush's type — world, `func_detail`, `func_door`, `trigger_multiple` — is a
 setting at the top of its panel, with that type's settings underneath and
 nothing to press first; picking a trigger textures it invisible for you.
@@ -251,7 +255,7 @@ provenance of the algorithms.
 ## Status
 
 Everything above works end to end: you can draw a level in Chisel, compile it
-through all three stages, and walk around it. 1178 tests cover the pieces and
+through all three stages, and walk around it. 1219 tests cover the pieces and
 the seams between them, including a suite that builds a map in memory,
 compiles it, loads it and plays it.
 

@@ -38,6 +38,13 @@ const DEFAULT_FLY_SPEED: f32 = 384.0;
 /// The width of the bars between panes, in points.
 const SPLITTER: f32 = 5.0;
 
+/// How many pixels of texture a material swatch is built from.
+///
+/// Larger than any swatch is drawn, so one is always scaled down. egui filters
+/// on the way down and not on the way up, and a swatch scaled up from a mip
+/// smaller than itself is a blur.
+const THUMBNAIL: u32 = 128;
+
 /// Materials offered in the material picker when the content tree cannot be
 /// scanned.
 const FALLBACK_MATERIALS: &[&str] = &[
@@ -66,6 +73,19 @@ fn shortcut_key(shortcut: &str) -> Option<Key> {
         "6" => Key::Num6,
         _ => return None,
     })
+}
+
+/// What the asset browser is being used to pick.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Browsing {
+    /// The material new brushes wear, and what a click paints onto the
+    /// selection.
+    Material,
+    /// A model. Carries the property row the pick should go back to, and the
+    /// value already there so the browser can show what is chosen. `None` is
+    /// a browse with nowhere to put the answer -- opened from the menu, to
+    /// see what a project has in it.
+    Model { row: Option<usize>, current: String },
 }
 
 /// A file operation waiting for a name.
@@ -163,6 +183,14 @@ pub struct ChiselApp {
     pub fly_speed: f32,
     /// The rasterised 3D panes, kept until something they depend on moves.
     previews: [Option<Preview>; 4],
+    /// The asset browser, and what it is picking for.
+    pub browsing: Option<Browsing>,
+    /// What has been typed into the browser's search box.
+    pub browse_filter: String,
+    /// How big the browser draws its swatches, in points.
+    pub browse_size: f32,
+    /// Rendered model previews, one per model, built on demand.
+    model_previews: std::collections::HashMap<String, egui::TextureHandle>,
     /// A save-as or rename waiting for a name.
     pub prompt: Option<NamePrompt>,
     /// Something that would throw away unsaved work, waiting to be confirmed.
@@ -241,6 +269,10 @@ impl ChiselApp {
             split: egui::vec2(0.5, 0.5),
             fly_speed: DEFAULT_FLY_SPEED,
             previews: [const { None }; 4],
+            browsing: None,
+            browse_filter: String::new(),
+            browse_size: 96.0,
+            model_previews: std::collections::HashMap::new(),
             prompt: None,
             discarding: None,
             properties: None,
@@ -564,6 +596,7 @@ impl ChiselApp {
         self.inspector(ctx);
         self.status_bar(ctx);
         self.compile_window(ctx);
+        self.browser_window(ctx);
         self.file_windows(ctx);
         self.viewports_panel(ctx);
     }
@@ -595,7 +628,9 @@ impl ChiselApp {
         // compile having done nothing.
         self.textures.clear();
         self.thumbnails.clear();
+        self.model_previews.clear();
         self.materials = scan_materials(&self.content_root);
+        self.models = scan_models(&self.content_root);
 
         self.status = if failed {
             "compile failed".into()
@@ -629,6 +664,7 @@ impl ChiselApp {
             Redo,
             Save,
             SaveAs,
+            Browse,
             Delete,
             Cancel,
             Tool(ToolKind),
@@ -681,6 +717,7 @@ impl ChiselApp {
             if i.consume_key(Modifiers::NONE, Key::OpenBracket) { actions.push(Action::Finer) }
             if i.consume_key(Modifiers::NONE, Key::CloseBracket) { actions.push(Action::Coarser) }
             if i.consume_key(Modifiers::NONE, Key::F9) { actions.push(Action::Compile) }
+            if i.consume_key(Modifiers::NONE, Key::M) { actions.push(Action::Browse) }
         });
 
         for action in actions {
@@ -701,6 +738,7 @@ impl ChiselApp {
                 }
                 Action::Save => self.save(None),
                 Action::SaveAs => self.begin_prompt(PromptKind::SaveAs),
+                Action::Browse => self.browsing = Some(Browsing::Material),
                 Action::Delete => {
                     let n = self.document.delete_selection();
                     if n > 0 { self.status = format!("deleted {n}") }
@@ -822,6 +860,15 @@ impl ChiselApp {
                             self.status = format!("3D panes: {}", mode.label());
                         }
                     }
+                    ui.separator();
+                    if ui.button("browse materials...  M").clicked() {
+                        self.browsing = Some(Browsing::Material);
+                        ui.close();
+                    }
+                    if ui.button("browse models...").clicked() {
+                        self.browsing = Some(Browsing::Model { row: None, current: String::new() });
+                        ui.close();
+                    }
                     if ui.button("reload textures").clicked() {
                         self.textures.clear();
                         self.thumbnails.clear();
@@ -876,12 +923,30 @@ impl ChiselApp {
             if self.tool.kind == ToolKind::Entity {
                 ui.separator();
                 ui.label(RichText::new("entity").strong());
-                egui::ScrollArea::vertical().max_height(200.0).show(ui, |ui| {
+                egui::ScrollArea::vertical().max_height(240.0).show(ui, |ui| {
                     for class in self.point_classes() {
                         let selected = self.tool.entity_class == class;
                         let help =
                             self.schema.get(&class).map(|s| s.help.clone()).unwrap_or_default();
-                        let item = ui.selectable_label(selected, &class);
+                        let kind = crate::icons::Kind::of(&class);
+
+                        // The same icon the viewport will draw, so the list
+                        // and the map read as the same thing.
+                        let item = ui.horizontal(|ui| {
+                            let (rect, _) = ui.allocate_exact_size(
+                                egui::vec2(16.0, 16.0),
+                                egui::Sense::hover(),
+                            );
+                            crate::icons::draw(
+                                ui.painter(),
+                                rect.center(),
+                                6.0,
+                                kind,
+                                kind.colour(),
+                            );
+                            ui.selectable_label(selected, &class)
+                        });
+                        let item = item.inner;
                         let item = if help.is_empty() { item } else { item.on_hover_text(help) };
                         if item.clicked() {
                             self.tool.entity_class = class;
@@ -951,8 +1016,12 @@ impl ChiselApp {
     fn material_browser(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
             ui.label(RichText::new("material").strong());
-            if !self.material_filter.is_empty() && ui.small_button("x").clicked() {
-                self.material_filter.clear();
+            if ui
+                .small_button("browse")
+                .on_hover_text("Open the material browser, with names and room to look")
+                .clicked()
+            {
+                self.browsing = Some(Browsing::Material);
             }
         });
         ui.add(
@@ -1014,18 +1083,227 @@ impl ChiselApp {
         );
     }
 
+    /// The asset browser: a window with room to look in.
+    ///
+    /// The picker used to be a two-column strip of unlabelled 48-pixel
+    /// swatches in a 120-point panel. That is not a browser, it is a
+    /// keyhole -- and with the swatches drawn from a 2x2 mip, every one of
+    /// them was the same grey square. Here there is space, names, folders,
+    /// and a search.
+    fn browser_window(&mut self, ctx: &Context) {
+        let Some(browsing) = self.browsing.clone() else { return };
+
+        let (title, all): (&str, Vec<String>) = match browsing {
+            Browsing::Material => ("materials", self.materials.clone()),
+            Browsing::Model { .. } => ("models", self.models.clone()),
+        };
+
+        let mut open = true;
+        let mut picked: Option<String> = None;
+        egui::Window::new(title)
+            .open(&mut open)
+            .default_width(560.0)
+            .default_height(520.0)
+            .resizable(true)
+            .show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new("search").size(11.0).weak());
+                    ui.add(
+                        egui::TextEdit::singleline(&mut self.browse_filter)
+                            .desired_width(240.0)
+                            .hint_text("any words, any order"),
+                    );
+                    if !self.browse_filter.is_empty() && ui.small_button("x").clicked() {
+                        self.browse_filter.clear();
+                    }
+                    ui.add(
+                        egui::Slider::new(&mut self.browse_size, 48.0..=160.0)
+                            .show_value(false)
+                            .text("size"),
+                    );
+                });
+                ui.separator();
+
+                let matching = crate::browse::filtered(&all, &self.browse_filter);
+                if matching.is_empty() {
+                    ui.label(
+                        RichText::new(if all.is_empty() {
+                            "nothing here. Has the content been built?"
+                        } else {
+                            "nothing matches"
+                        })
+                        .weak(),
+                    );
+                    return;
+                }
+
+                let cell = self.browse_size;
+                egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
+                    for folder in crate::browse::folders(&matching) {
+                        let name = if folder.name.is_empty() { "(loose)" } else { &folder.name };
+                        ui.label(
+                            RichText::new(format!("{name}/  {}", folder.items.len()))
+                                .monospace()
+                                .size(11.0)
+                                .color(draw::colors::TEXT),
+                        );
+                        ui.separator();
+
+                        // Wrapped by hand rather than with a Grid, so a
+                        // resized window reflows instead of clipping.
+                        let per_row =
+                            ((ui.available_width() + 8.0) / (cell + 12.0)).floor().max(1.0) as usize;
+                        for chunk in folder.items.chunks(per_row) {
+                            ui.horizontal(|ui| {
+                                for item in chunk {
+                                    if self.browse_cell(ui, ctx, &browsing, item, cell) {
+                                        picked = Some(item.clone());
+                                    }
+                                }
+                            });
+                        }
+                        ui.add_space(8.0);
+                    }
+                });
+            });
+
+        if let Some(item) = picked {
+            self.apply_browsed(&browsing, &item);
+            open = false;
+        }
+        if !open {
+            self.browsing = None;
+        }
+    }
+
+    /// One swatch, with its name under it. Returns whether it was clicked.
+    fn browse_cell(
+        &mut self,
+        ui: &mut egui::Ui,
+        ctx: &Context,
+        browsing: &Browsing,
+        item: &str,
+        cell: f32,
+    ) -> bool {
+        let current = match browsing {
+            Browsing::Material => self.document.current_material.clone(),
+            Browsing::Model { current, .. } => current.clone(),
+        };
+
+        let mut clicked = false;
+        ui.vertical(|ui| {
+            ui.set_width(cell);
+            let handle = match browsing {
+                Browsing::Material => self.thumbnail(ctx, item),
+                Browsing::Model { .. } => self.model_thumbnail(ctx, item),
+            };
+            let image = egui::Image::new(&handle)
+                .fit_to_exact_size(egui::vec2(cell, cell))
+                .corner_radius(3.0);
+            let response = ui
+                .add(egui::ImageButton::new(image).selected(item == current))
+                .on_hover_text(self.browse_hover(browsing, item));
+            clicked = response.clicked();
+
+            // The name, under it, always. Hovering twenty tooltips to find a
+            // texture is the thing this replaces.
+            ui.label(
+                RichText::new(crate::browse::leaf(item))
+                    .monospace()
+                    .size(10.0)
+                    .color(if item == current { draw::colors::SELECTED } else { draw::colors::TEXT }),
+            );
+        });
+        clicked
+    }
+
+    /// What to say about an asset on hover.
+    fn browse_hover(&self, browsing: &Browsing, item: &str) -> String {
+        match browsing {
+            Browsing::Material => {
+                let meaning = cleave::material::describe(item);
+                match self.textures.problem(item) {
+                    Some(problem) => format!("{item}\n{meaning}\n\n{problem}"),
+                    None => format!("{item}\n{meaning}"),
+                }
+            }
+            Browsing::Model { .. } => item.to_string(),
+        }
+    }
+
+    /// Act on a picked asset.
+    fn apply_browsed(&mut self, browsing: &Browsing, item: &str) {
+        match browsing {
+            Browsing::Material => {
+                self.document.current_material = item.to_string();
+                if !self.document.selection.is_empty() {
+                    let faces = self.document.apply_material();
+                    self.status = format!("{item} on {faces} faces");
+                } else {
+                    self.status = item.to_string();
+                }
+            }
+            Browsing::Model { row: Some(row), .. } => {
+                if let Some(edit) = self.properties.as_mut()
+                    && let Some(row) = edit.rows.get_mut(*row)
+                {
+                    row.value = Some(item.to_string());
+                    edit.dirty = true;
+                }
+                self.commit_properties();
+                self.status = format!("model {item}");
+            }
+            // Opened from the menu, with nothing to set: looking is the point.
+            Browsing::Model { row: None, .. } => {
+                self.status = format!("{item} -- place one with a prop_static");
+            }
+        }
+    }
+
+    /// An egui texture showing a model, rendered once.
+    fn model_thumbnail(&mut self, ctx: &Context, name: &str) -> egui::TextureHandle {
+        if let Some(handle) = self.model_previews.get(name) { return handle.clone() }
+
+        const SIZE: usize = 128;
+        let image = match self.load_model(name) {
+            Some(model) => crate::preview::model(&model, SIZE, 35.0, -20.0),
+            // A blank rather than nothing, so a model that will not load is
+            // still something to click and still says its name.
+            None => crate::raster::Image::new(SIZE, SIZE, crate::preview::BACKGROUND),
+        };
+        let colour = egui::ColorImage {
+            size: [image.width, image.height],
+            pixels: image
+                .pixels
+                .iter()
+                .map(|p| egui::Color32::from_rgba_unmultiplied(p[0], p[1], p[2], p[3]))
+                .collect(),
+            source_size: egui::vec2(image.width as f32, image.height as f32),
+        };
+        let handle = ctx.load_texture(format!("mdl-{name}"), colour, egui::TextureOptions::LINEAR);
+        self.model_previews.insert(name.to_string(), handle.clone());
+        handle
+    }
+
+    /// Read a model out of the content tree.
+    fn load_model(&self, name: &str) -> Option<void_asset::Model> {
+        let bytes = self.vfs.read(&format!("models/{name}.voidmdl")).ok()?;
+        void_asset::Model::from_bytes(&bytes).ok()
+    }
+
     /// An egui texture for a material, built once.
     ///
-    /// From a mid mip rather than the top one: a 48-pixel thumbnail of a
-    /// 256-pixel texture is going to be scaled down anyway, and scaling down
-    /// something already filtered looks like the texture rather than like
-    /// aliasing.
+    /// From the smallest mip that is still bigger than the swatch, so it is
+    /// scaled down rather than up and reads as the texture rather than as
+    /// aliasing. Choosing by position in the mip chain instead is what made
+    /// every swatch a flat smudge: two from the end of a 256-pixel texture is
+    /// a 2x2 image, and no two materials looked any different.
     fn thumbnail(&mut self, ctx: &Context, material: &str) -> egui::TextureHandle {
         if let Some(handle) = self.thumbnails.get(material) { return handle.clone() }
 
         let image = match self.textures.get(&self.vfs, material) {
             Some(texture) => {
-                let level = texture.level(texture.mips.len().saturating_sub(2));
+                let level = texture.level_for_size(THUMBNAIL);
                 egui::ColorImage {
                     size: [level.width as usize, level.height as usize],
                     pixels: level
@@ -1347,8 +1625,12 @@ impl ChiselApp {
         let models = &self.models;
         let mut commit = false;
 
+        let mut browse: Option<(usize, String)> = None;
         for (index, row) in edit.rows.iter_mut().enumerate() {
             let response = property_widget(ui, index, row, materials, models);
+            if response.browse {
+                browse = Some((index, row.text().to_string()));
+            }
             if response.changed {
                 edit.dirty = true;
             }
@@ -1375,6 +1657,9 @@ impl ChiselApp {
             commit = true;
         }
 
+        if let Some((row, current)) = browse {
+            self.browsing = Some(Browsing::Model { row: Some(row), current });
+        }
         if commit { self.commit_properties(); }
     }
 
@@ -2557,6 +2842,8 @@ struct WidgetResult {
     /// The edit is complete and worth an undo step -- a discrete choice was
     /// made, or a text field was left.
     finished: bool,
+    /// The row asked for the asset browser to be opened on it.
+    browse: bool,
 }
 
 /// Draw one property, with a widget suited to what the schema says it holds.
@@ -2571,7 +2858,7 @@ fn property_widget(
     materials: &[String],
     models: &[String],
 ) -> WidgetResult {
-    let mut out = WidgetResult { changed: false, finished: false };
+    let mut out = WidgetResult { changed: false, finished: false, browse: false };
 
     ui.horizontal(|ui| {
         let label = ui.add(
@@ -2717,12 +3004,18 @@ fn property_widget(
             KeyKind::Material | KeyKind::Model => {
                 let options: &[String] = if row.kind == KeyKind::Material { materials } else { models };
                 let mut text = row.text().to_string();
-                let r = combo_or_text(ui, id, &mut text, options, 190.0);
+                let r = combo_or_text(ui, id, &mut text, options, 150.0);
                 if r.changed {
                     row.value = Some(text);
                     out.changed = true;
                 }
                 out.finished |= r.finished;
+                // A name is not a shape. Whether `crate_wood` is the one you
+                // want is a question a picture answers and a dropdown does
+                // not.
+                if ui.small_button("...").on_hover_text("Browse, with pictures").clicked() {
+                    out.browse = true;
+                }
             }
             KeyKind::String | KeyKind::TargetSource | KeyKind::TargetDestination => {
                 let mut text = row.text().to_string();
@@ -2763,7 +3056,7 @@ fn combo_or_text(
     options: &[String],
     width: f32,
 ) -> WidgetResult {
-    let mut out = WidgetResult { changed: false, finished: false };
+    let mut out = WidgetResult { changed: false, finished: false, browse: false };
     let text_width = (width - 30.0).max(60.0);
 
     let response = ui.add(egui::TextEdit::singleline(value).desired_width(text_width));

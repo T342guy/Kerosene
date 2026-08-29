@@ -80,6 +80,7 @@ bars between the panes to resize them.
 | Key | |
 |---|---|
 | `1` `2` `3` `4` `5` | select, block, entity, texture, shape tool |
+| `M` | the asset browser |
 | `[` `]` | finer / coarser grid |
 | `Ctrl+Z` / `Ctrl+Shift+Z` | undo / redo |
 | `Ctrl+S` | save (asks for a name the first time) |
@@ -103,6 +104,34 @@ bars between the panes to resize them.
 Keys only reach the pane the pointer is over, and none of them fire while a
 property field has the keyboard -- naming an entity `wasd_door` should not fly
 the camera across the level.
+
+**Seeing what things are.** Point entities are drawn as what they are: a lamp
+for a light, a figure for the player start, a speaker for a sound, a diamond
+for logic, a crate for a prop. A room full of identical squares tells you where
+things are and not what they are, and the label beside each one was a wall of
+text you had to read to navigate. The label now shows the entity's *name* when
+it has one, which is what the wiring refers to and what you are actually
+looking for. The 3D pane marks them in the same colours.
+
+Shapes are drawn rather than loaded from files: an icon set is a set of things
+to ship, scale, theme and keep in step with the class list, and a dozen lines
+of geometry is none of those. Classes are matched by prefix, so a game that
+adds `light_dynamic` gets the right icon without anything here changing.
+
+**The asset browser** (`M`, or `view → browse materials...`) is a resizable
+window with names, folders and a search that matches words in any order — so
+`wood crate` and `crate wood` both find `props/crate_wood`. Materials show
+what each one does on hover, read from Cleave's table; models show a rendered
+preview, because a name is not a shape and `crate_wood` tells you nothing
+about whether it is the crate you want.
+
+The old picker was a two-column strip of unlabelled 48-pixel swatches in a
+120-point panel, which is a keyhole rather than a browser. Worse, every swatch
+was drawn from a mip two from the end of the chain — a 2x2 image for a
+256-pixel texture — so every material in the list was the same grey smudge and
+the only way to tell two apart was to hover both. Swatches are now built from
+the smallest mip that is still bigger than the swatch, and a checkerboard
+looks like a checkerboard.
 
 **Resizing.** Something selected in a 2D pane wears eight grips: four corners
 and four edge midpoints. Drag a corner to scale both axes at once, an edge to

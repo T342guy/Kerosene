@@ -36,7 +36,9 @@ pub struct Image {
 }
 
 impl Image {
-    fn new(width: usize, height: usize, fill: [u8; 4]) -> Image {
+    /// A blank image. Public so a second rasteriser -- the model previewer
+    /// -- can produce the same kind of picture without a copy of this.
+    pub fn new(width: usize, height: usize, fill: [u8; 4]) -> Image {
         Image { width, height, pixels: vec![fill; width * height] }
     }
 
@@ -475,8 +477,15 @@ fn markers(
         let p = project(camera[0]);
         if !p[0].is_finite() || !p[1].is_finite() { continue }
 
+        // The same colour the 2D panes give this family of entity, so a
+        // light is amber in every pane and picking it out of the 3D view does
+        // not mean reading a label that is not there.
         let selected = document.selection.entities.contains(&entity.id);
-        let c = if selected { colors::SELECTED } else { colors::ENTITY };
+        let c = if selected {
+            colors::SELECTED
+        } else {
+            crate::icons::Kind::of(entity.classname()).colour()
+        };
         let color = [c.r(), c.g(), c.b(), 255];
 
         let (cx, cy) = (p[0] as i64, p[1] as i64);

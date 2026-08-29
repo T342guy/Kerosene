@@ -232,14 +232,39 @@ fn point_entities_are_marked_but_do_not_show_through_walls() {
     light.set_origin(Vec3::new(500.0, 0.0, 0.0));
     document.map.entities.push(light);
 
+    // Marked in its family's colour -- the same amber the 2D panes give a
+    // light -- so picking one out of the 3D view does not mean reading a
+    // label that is not there.
+    let c = crate::icons::Kind::of("light").colour();
+    let marker = [c.r(), c.g(), c.b(), 255];
+
     let image = render_at(&document, Vec3::ZERO, 0.0, 0.0);
-    let marker = [colors::ENTITY.r(), colors::ENTITY.g(), colors::ENTITY.b(), 255];
     assert!(!any_pixel(&image, marker), "a light behind a wall was drawn through it");
 
     // Move it in front and it appears.
     document.map.entities[0].set_origin(Vec3::new(150.0, 0.0, 0.0));
     let image = render_at(&document, Vec3::ZERO, 0.0, 0.0);
     assert!(any_pixel(&image, marker), "a light in plain view was not drawn");
+}
+
+#[test]
+fn two_kinds_of_entity_are_marked_in_two_different_colours() {
+    // The whole reason the marker takes its colour from the class: a wall of
+    // identical squares tells you where things are and not what they are.
+    let mut document = Document::new();
+    document.map.world.solids.clear();
+    for (i, class) in ["light", "info_player_start"].into_iter().enumerate() {
+        let id = document.map.next_id();
+        let mut entity = void_map::Entity::new(id, class);
+        entity.set_origin(Vec3::new(200.0, -60.0 + i as f32 * 120.0, 0.0));
+        document.map.entities.push(entity);
+    }
+
+    let image = render_at(&document, Vec3::ZERO, 0.0, 0.0);
+    for class in ["light", "info_player_start"] {
+        let c = crate::icons::Kind::of(class).colour();
+        assert!(any_pixel(&image, [c.r(), c.g(), c.b(), 255]), "{class} was not marked");
+    }
 }
 
 #[test]
