@@ -16,6 +16,7 @@
 //!     "name"     "My Mod"
 //!     "content"  "content"
 //!     "startmap" "mm_intro"
+//!     "game"     "my-mod"
 //! }
 //! ```
 //!
@@ -44,6 +45,12 @@ pub struct Project {
     /// that is a library of maps has no one answer, and inventing one would
     /// be worse than admitting it.
     pub start_map: Option<String>,
+    /// The Cargo package whose binary *is* the game, for `kiln --ship`.
+    ///
+    /// A project that only holds content has none, and ships the engine's own
+    /// runtime instead. Naming a package is what turns a content tree into a
+    /// game somebody can be handed.
+    pub game: Option<String>,
 }
 
 impl Project {
@@ -88,6 +95,11 @@ impl Project {
                 .get("startmap")
                 .map(str::trim)
                 .filter(|m| !m.is_empty())
+                .map(str::to_string),
+            game: block
+                .get("game")
+                .map(str::trim)
+                .filter(|g| !g.is_empty())
                 .map(str::to_string),
         })
     }

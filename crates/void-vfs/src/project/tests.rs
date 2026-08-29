@@ -152,3 +152,34 @@ fn a_project_file_that_will_not_parse_is_an_error_naming_the_file() {
     assert!(error.contains("bad.voidproj"), "{error}");
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+// ---- the game a project ships -----------------------------------------
+
+#[test]
+fn a_project_can_name_the_cargo_package_that_is_the_game() {
+    let dir = scratch("game-key");
+    let path = dir.join("p.voidproj");
+    std::fs::write(&path, r#"project { "name" "Thing" "game" "thing-game" }"#).unwrap();
+
+    assert_eq!(Project::read(&path).unwrap().game.as_deref(), Some("thing-game"));
+}
+
+#[test]
+fn a_project_with_no_game_key_names_no_game() {
+    // The common case, and it has to stay quiet: a content-only project is a
+    // perfectly ordinary thing, and it ships the engine's own runtime.
+    let dir = scratch("no-game-key");
+    let path = dir.join("p.voidproj");
+    std::fs::write(&path, r#"project { "name" "Thing" }"#).unwrap();
+
+    assert_eq!(Project::read(&path).unwrap().game, None);
+}
+
+#[test]
+fn a_blank_game_key_counts_as_absent() {
+    let dir = scratch("blank-game-key");
+    let path = dir.join("p.voidproj");
+    std::fs::write(&path, "project { \"game\" \"   \" }").unwrap();
+
+    assert_eq!(Project::read(&path).unwrap().game, None);
+}

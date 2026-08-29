@@ -19,7 +19,7 @@ fn touch(path: &Path) {
 
 #[test]
 fn every_stage_has_a_name_that_parses_back() {
-    for stage in Stage::ALL {
+    for stage in Stage::EVERY {
         assert_eq!(Stage::parse(stage.name()), Some(stage), "{}", stage.name());
     }
     assert_eq!(Stage::parse("  MAPS "), Some(Stage::Maps), "names are forgiving of typing");
@@ -35,6 +35,7 @@ fn the_archive_is_named_after_the_project_and_lives_in_the_content_tree() {
             name: "My Great Mod".into(),
             content: PathBuf::from("/game/content"),
             start_map: None,
+            game: None,
         }),
         ..Settings::default()
     };

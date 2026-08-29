@@ -188,11 +188,11 @@ impl KeyValues {
     /// Replace the first pair with this key, or append if there is none.
     pub fn set(&mut self, key: &str, value: impl Into<String>) -> &mut Self {
         for e in &mut self.entries {
-            if let Entry::Pair(k, v) = e {
-                if k == key {
-                    *v = value.into();
-                    return self;
-                }
+            if let Entry::Pair(k, v) = e
+                && k == key
+            {
+                *v = value.into();
+                return self;
             }
         }
         self.push(key.to_string(), value)

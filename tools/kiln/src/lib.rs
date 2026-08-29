@@ -26,6 +26,8 @@ use std::process::Stdio;
 use void_vfs::project::Project;
 use void_vfs::toolchain;
 
+pub mod ship;
+
 /// Which stages to run.
 ///
 /// All of them by default. The point of naming one is iteration: re-lighting
@@ -37,10 +39,22 @@ pub enum Stage {
     Models,
     Maps,
     Pack,
+    /// Assemble a distribution. See [`ship`].
+    Ship,
 }
 
 impl Stage {
+    /// The stages that build content, run when nobody names any.
+    ///
+    /// `Ship` is deliberately not among them. Building content is what you do
+    /// every few minutes; assembling something to hand out is not, and a
+    /// stage that writes a directory of licence files on every compile would
+    /// be a nuisance rather than a service.
     pub const ALL: [Stage; 4] = [Stage::Textures, Stage::Models, Stage::Maps, Stage::Pack];
+
+    /// Every stage that can be named on the command line.
+    pub const EVERY: [Stage; 5] =
+        [Stage::Textures, Stage::Models, Stage::Maps, Stage::Pack, Stage::Ship];
 
     pub fn name(self) -> &'static str {
         match self {
@@ -48,11 +62,12 @@ impl Stage {
             Stage::Models => "models",
             Stage::Maps => "maps",
             Stage::Pack => "pack",
+            Stage::Ship => "ship",
         }
     }
 
     pub fn parse(name: &str) -> Option<Stage> {
-        Stage::ALL.into_iter().find(|s| s.name() == name.trim().to_ascii_lowercase())
+        Stage::EVERY.into_iter().find(|s| s.name() == name.trim().to_ascii_lowercase())
     }
 }
 
@@ -77,6 +92,8 @@ pub struct Settings {
     /// a hundred times too small is the single most common thing to get wrong
     /// on the way in.
     pub models_in_metres: bool,
+    /// Where to assemble a distribution, when one was asked for.
+    pub ship_to: Option<PathBuf>,
 }
 
 impl Default for Settings {
@@ -89,6 +106,7 @@ impl Default for Settings {
             dry_run: false,
             ignore_leaks: false,
             models_in_metres: true,
+            ship_to: None,
         }
     }
 }
@@ -111,7 +129,7 @@ impl Settings {
 }
 
 /// Turn a project name into something safe to use as a filename.
-fn slug(name: &str) -> String {
+pub(crate) fn slug(name: &str) -> String {
     let mut out: String = name
         .chars()
         .map(|c| if c.is_ascii_alphanumeric() { c.to_ascii_lowercase() } else { '_' })
@@ -131,6 +149,7 @@ pub struct Report {
     /// Maps that compiled but do not seal the world.
     pub leaking: Vec<String>,
     pub packed: Option<PathBuf>,
+    pub shipped: Option<ship::Shipped>,
 }
 
 /// Build a project's content.
@@ -174,6 +193,14 @@ pub fn build(settings: &Settings) -> Result<Report> {
         let archive = settings.archive();
         pack(settings, &archive)?;
         report.packed = Some(archive);
+    }
+
+    if settings.runs(Stage::Ship) {
+        let Some(out) = settings.ship_to.clone() else {
+            bail!("the ship stage needs somewhere to put the result: pass --ship <dir>");
+        };
+        say("ship");
+        report.shipped = Some(ship::ship(settings, &out)?);
     }
 
     Ok(report)
