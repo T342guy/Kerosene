@@ -344,6 +344,7 @@ pub fn set() -> Vec<DevTexture> {
         },
         DevTexture { name: "tools/grate", shader: "lit", canvas: || tool([110, 116, 124], "GRATE") },
         DevTexture { name: "tools/water", shader: "lit", canvas: || tool([46, 110, 138], "WATER") },
+        DevTexture { name: "tools/ladder", shader: "unlit", canvas: || tool([58, 142, 104], "LADDER") },
     ]
 }
 

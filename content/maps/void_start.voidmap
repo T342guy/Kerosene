@@ -639,6 +639,76 @@ world
 			"smoothing_groups" "0"
 		}
 	}
+	solid
+	{
+		"id" "113"
+		side
+		{
+			"id" "114"
+			"plane" "(1040 0 128) (784 0 128) (784 512 128)"
+			"material" "dev/wall"
+			"uaxis" "[1 0 0 0] 0.25"
+			"vaxis" "[0 -1 0 0] 0.25"
+			"rotation" "0"
+			"lightmapscale" "16"
+			"smoothing_groups" "0"
+		}
+		side
+		{
+			"id" "115"
+			"plane" "(784 512 0) (784 0 0) (1040 0 0)"
+			"material" "dev/wall"
+			"uaxis" "[1 0 0 0] 0.25"
+			"vaxis" "[0 -1 0 0] 0.25"
+			"rotation" "0"
+			"lightmapscale" "16"
+			"smoothing_groups" "0"
+		}
+		side
+		{
+			"id" "116"
+			"plane" "(1040 512 0) (1040 0 0) (1040 0 128)"
+			"material" "dev/wall"
+			"uaxis" "[0 1 0 0] 0.25"
+			"vaxis" "[0 0 -1 0] 0.25"
+			"rotation" "0"
+			"lightmapscale" "16"
+			"smoothing_groups" "0"
+		}
+		side
+		{
+			"id" "117"
+			"plane" "(784 0 128) (784 0 0) (784 512 0)"
+			"material" "dev/wall"
+			"uaxis" "[0 1 0 0] 0.25"
+			"vaxis" "[0 0 -1 0] 0.25"
+			"rotation" "0"
+			"lightmapscale" "16"
+			"smoothing_groups" "0"
+		}
+		side
+		{
+			"id" "118"
+			"plane" "(784 512 128) (784 512 0) (1040 512 0)"
+			"material" "dev/wall"
+			"uaxis" "[1 0 0 0] 0.25"
+			"vaxis" "[0 0 -1 0] 0.25"
+			"rotation" "0"
+			"lightmapscale" "16"
+			"smoothing_groups" "0"
+		}
+		side
+		{
+			"id" "119"
+			"plane" "(1040 0 0) (784 0 0) (784 0 128)"
+			"material" "dev/wall"
+			"uaxis" "[1 0 0 0] 0.25"
+			"vaxis" "[0 0 -1 0] 0.25"
+			"rotation" "0"
+			"lightmapscale" "16"
+			"smoothing_groups" "0"
+		}
+	}
 }
 entity
 {
@@ -1103,7 +1173,83 @@ entity
 }
 entity
 {
-	"id" "113"
+	"id" "120"
+	"classname" "func_ladder"
+	"targetname" "ledge_ladder"
+	solid
+	{
+		"id" "121"
+		side
+		{
+			"id" "122"
+			"plane" "(784 224 176) (768 224 176) (768 288 176)"
+			"material" "tools/ladder"
+			"uaxis" "[1 0 0 0] 0.25"
+			"vaxis" "[0 -1 0 0] 0.25"
+			"rotation" "0"
+			"lightmapscale" "16"
+			"smoothing_groups" "0"
+		}
+		side
+		{
+			"id" "123"
+			"plane" "(768 288 0) (768 224 0) (784 224 0)"
+			"material" "tools/ladder"
+			"uaxis" "[1 0 0 0] 0.25"
+			"vaxis" "[0 -1 0 0] 0.25"
+			"rotation" "0"
+			"lightmapscale" "16"
+			"smoothing_groups" "0"
+		}
+		side
+		{
+			"id" "124"
+			"plane" "(784 288 0) (784 224 0) (784 224 176)"
+			"material" "tools/ladder"
+			"uaxis" "[0 1 0 0] 0.25"
+			"vaxis" "[0 0 -1 0] 0.25"
+			"rotation" "0"
+			"lightmapscale" "16"
+			"smoothing_groups" "0"
+		}
+		side
+		{
+			"id" "125"
+			"plane" "(768 224 176) (768 224 0) (768 288 0)"
+			"material" "tools/ladder"
+			"uaxis" "[0 1 0 0] 0.25"
+			"vaxis" "[0 0 -1 0] 0.25"
+			"rotation" "0"
+			"lightmapscale" "16"
+			"smoothing_groups" "0"
+		}
+		side
+		{
+			"id" "126"
+			"plane" "(768 288 176) (768 288 0) (784 288 0)"
+			"material" "tools/ladder"
+			"uaxis" "[1 0 0 0] 0.25"
+			"vaxis" "[0 0 -1 0] 0.25"
+			"rotation" "0"
+			"lightmapscale" "16"
+			"smoothing_groups" "0"
+		}
+		side
+		{
+			"id" "127"
+			"plane" "(784 224 0) (768 224 0) (768 224 176)"
+			"material" "tools/ladder"
+			"uaxis" "[1 0 0 0] 0.25"
+			"vaxis" "[0 0 -1 0] 0.25"
+			"rotation" "0"
+			"lightmapscale" "16"
+			"smoothing_groups" "0"
+		}
+	}
+}
+entity
+{
+	"id" "128"
 	"classname" "func_button"
 	"targetname" "shutter_switch"
 	"movedir" "0 -1 0"
@@ -1112,10 +1258,10 @@ entity
 	"wait" "1"
 	solid
 	{
-		"id" "114"
+		"id" "129"
 		side
 		{
-			"id" "115"
+			"id" "130"
 			"plane" "(256 0 88) (224 0 88) (224 4 88)"
 			"material" "dev/door"
 			"uaxis" "[1 0 0 0] 0.25"
@@ -1126,7 +1272,7 @@ entity
 		}
 		side
 		{
-			"id" "116"
+			"id" "131"
 			"plane" "(224 4 40) (224 0 40) (256 0 40)"
 			"material" "dev/door"
 			"uaxis" "[1 0 0 0] 0.25"
@@ -1137,7 +1283,7 @@ entity
 		}
 		side
 		{
-			"id" "117"
+			"id" "132"
 			"plane" "(256 4 40) (256 0 40) (256 0 88)"
 			"material" "dev/door"
 			"uaxis" "[0 1 0 0] 0.25"
@@ -1148,7 +1294,7 @@ entity
 		}
 		side
 		{
-			"id" "118"
+			"id" "133"
 			"plane" "(224 0 88) (224 0 40) (224 4 40)"
 			"material" "dev/door"
 			"uaxis" "[0 1 0 0] 0.25"
@@ -1159,7 +1305,7 @@ entity
 		}
 		side
 		{
-			"id" "119"
+			"id" "134"
 			"plane" "(224 4 88) (224 4 40) (256 4 40)"
 			"material" "dev/door"
 			"uaxis" "[1 0 0 0] 0.25"
@@ -1170,7 +1316,7 @@ entity
 		}
 		side
 		{
-			"id" "120"
+			"id" "135"
 			"plane" "(256 0 40) (224 0 40) (224 0 88)"
 			"material" "dev/door"
 			"uaxis" "[1 0 0 0] 0.25"
@@ -1187,16 +1333,16 @@ entity
 }
 entity
 {
-	"id" "121"
+	"id" "136"
 	"classname" "func_brush"
 	"targetname" "shutter"
 	solid
 	{
-		"id" "122"
+		"id" "137"
 		side
 		{
-			"id" "123"
-			"plane" "(272 128 64) (240 128 64) (240 384 64)"
+			"id" "138"
+			"plane" "(272 320 64) (240 320 64) (240 480 64)"
 			"material" "dev/wall"
 			"uaxis" "[1 0 0 0] 0.25"
 			"vaxis" "[0 -1 0 0] 0.25"
@@ -1206,8 +1352,8 @@ entity
 		}
 		side
 		{
-			"id" "124"
-			"plane" "(240 384 0) (240 128 0) (272 128 0)"
+			"id" "139"
+			"plane" "(240 480 0) (240 320 0) (272 320 0)"
 			"material" "dev/wall"
 			"uaxis" "[1 0 0 0] 0.25"
 			"vaxis" "[0 -1 0 0] 0.25"
@@ -1217,8 +1363,8 @@ entity
 		}
 		side
 		{
-			"id" "125"
-			"plane" "(272 384 0) (272 128 0) (272 128 64)"
+			"id" "140"
+			"plane" "(272 480 0) (272 320 0) (272 320 64)"
 			"material" "dev/wall"
 			"uaxis" "[0 1 0 0] 0.25"
 			"vaxis" "[0 0 -1 0] 0.25"
@@ -1228,8 +1374,8 @@ entity
 		}
 		side
 		{
-			"id" "126"
-			"plane" "(240 128 64) (240 128 0) (240 384 0)"
+			"id" "141"
+			"plane" "(240 320 64) (240 320 0) (240 480 0)"
 			"material" "dev/wall"
 			"uaxis" "[0 1 0 0] 0.25"
 			"vaxis" "[0 0 -1 0] 0.25"
@@ -1239,8 +1385,8 @@ entity
 		}
 		side
 		{
-			"id" "127"
-			"plane" "(240 384 64) (240 384 0) (272 384 0)"
+			"id" "142"
+			"plane" "(240 480 64) (240 480 0) (272 480 0)"
 			"material" "dev/wall"
 			"uaxis" "[1 0 0 0] 0.25"
 			"vaxis" "[0 0 -1 0] 0.25"
@@ -1250,8 +1396,8 @@ entity
 		}
 		side
 		{
-			"id" "128"
-			"plane" "(272 128 0) (240 128 0) (240 128 64)"
+			"id" "143"
+			"plane" "(272 320 0) (240 320 0) (240 320 64)"
 			"material" "dev/wall"
 			"uaxis" "[1 0 0 0] 0.25"
 			"vaxis" "[0 0 -1 0] 0.25"
@@ -1263,21 +1409,21 @@ entity
 }
 entity
 {
-	"id" "129"
+	"id" "144"
 	"classname" "light"
 	"origin" "256 256 192"
 	"_light" "255 240 214 320"
 }
 entity
 {
-	"id" "130"
+	"id" "145"
 	"classname" "light"
 	"origin" "784 256 192"
 	"_light" "214 230 255 320"
 }
 entity
 {
-	"id" "131"
+	"id" "146"
 	"classname" "light_environment"
 	"origin" "512 256 224"
 	"pitch" "-45"
@@ -1287,7 +1433,7 @@ entity
 }
 entity
 {
-	"id" "132"
+	"id" "147"
 	"classname" "info_player_start"
 	"origin" "128 256 16"
 	"angles" "0 0 0"

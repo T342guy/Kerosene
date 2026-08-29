@@ -36,6 +36,8 @@ pub mod contents {
     pub const MONSTER_CLIP: u32 = 1 << 17;
     /// A trigger volume: not solid, but traces can find it.
     pub const TRIGGER: u32 = 1 << 18;
+    /// A ladder volume: not solid, but a player standing in it climbs.
+    pub const LADDER: u32 = 1 << 19;
     /// Detail geometry, which does not split the world tree. See
     /// [`crate::Bsp`] docs for why that matters.
     pub const DETAIL: u32 = 1 << 27;
@@ -52,6 +54,12 @@ pub mod contents {
     pub const MASK_SOLID: u32 = SOLID | MOVEABLE | WINDOW | GRATE;
     /// Water and slime.
     pub const MASK_WATER: u32 = WATER | SLIME;
+    /// Everything that changes how a player moves without blocking them.
+    ///
+    /// Not solid, so it never appears in a movement trace -- these are found
+    /// by asking what is at a point, which is why they need a mask of their
+    /// own rather than riding along with [`MASK_PLAYER_SOLID`].
+    pub const MASK_VOLUMES: u32 = WATER | SLIME | LADDER;
 }
 
 /// How a surface behaves for rendering and compiling.
@@ -424,5 +432,13 @@ mod tests {
         assert!(contents::MASK_PLAYER_SOLID & contents::PLAYER_CLIP != 0);
         assert!(contents::MASK_SHOT & contents::PLAYER_CLIP == 0, "bullets pass player clips");
         assert!(contents::MASK_OPAQUE & contents::GRATE == 0, "you can see through a grate");
+
+        // A ladder changes how you move without ever stopping you, which is
+        // the whole distinction MASK_VOLUMES exists to draw.
+        let solid = contents::MASK_PLAYER_SOLID;
+        let volumes = contents::MASK_VOLUMES;
+        assert_eq!(solid & contents::LADDER, 0, "a ladder must never block movement");
+        assert_ne!(volumes & contents::LADDER, 0, "but it must be findable at a point");
+        assert_eq!(solid & volumes, 0, "the two masks are meant to be disjoint");
     }
 }

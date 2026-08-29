@@ -172,3 +172,18 @@ fn a_trigger_reports_itself_as_a_region_rather_than_a_wall() {
     assert_eq!(info.materials, vec!["tools/trigger"]);
     assert!(info.compiles_as.starts_with("a trigger volume"), "{}", info.compiles_as);
 }
+
+#[test]
+fn giving_a_brush_the_ladder_class_textures_it_as_one() {
+    // Same courtesy triggers get: the class implies the material, so a
+    // designer does not have to know which tool texture goes with it.
+    assert_eq!(material_for_class("func_ladder"), Some("tools/ladder"));
+    assert_eq!(material_for_class("FUNC_LADDER"), Some("tools/ladder"));
+}
+
+#[test]
+fn tools_ladder_is_a_material_the_compiler_recognises() {
+    // The failure this catches: adding a tool texture to Chisel and not to
+    // Cleave, so the editor offers something that compiles as a solid wall.
+    assert!(cleave::material::is_known_tool("tools/ladder"));
+}

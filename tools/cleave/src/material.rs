@@ -73,6 +73,8 @@ pub fn flags_for(material: &str) -> MaterialFlags {
         // Hint forces a BSP split along its plane and then vanishes; skip is
         // what the hint brush's other five faces wear so they do nothing.
         // Together they are how a designer hand-tunes visibility.
+        // Not solid: you walk into a ladder, and then you climb it.
+        "ladder" => MaterialFlags::new(contents::LADDER, surf::NODRAW, false),
         "hint" => MaterialFlags::new(contents::EMPTY, surf::HINT | surf::NODRAW, false),
         "skip" => MaterialFlags::new(contents::EMPTY, surf::SKIP | surf::NODRAW, false),
 
@@ -115,6 +117,7 @@ pub fn describe(material: &str) -> &'static str {
         "npcclip" | "monsterclip" => "blocks NPCs only",
         "trigger" => "not solid; touching it fires its entity's outputs",
         "skybox" | "sky" => "draws the sky, and lets the sun's light in",
+        "ladder" => "not solid; standing in it lets you climb",
         "hint" => "forces a BSP split along this face, then vanishes",
         "skip" => "does nothing at all -- the other faces of a hint brush",
         "blocklight" => "casts a shadow without being solid",
@@ -183,6 +186,7 @@ pub fn is_known_tool(material: &str) -> bool {
         tool,
         "nodraw" | "invisible" | "clip" | "playerclip" | "npcclip" | "monsterclip"
             | "trigger" | "skybox" | "sky" | "hint" | "skip" | "blocklight" | "grate" | "water"
+            | "ladder"
     )
 }
 
@@ -198,6 +202,7 @@ pub fn contents_for_classname(classname: &str) -> Option<u32> {
         "func_detail" => Some(contents::SOLID | contents::DETAIL),
         "func_water" | "func_liquid" => Some(contents::WATER | contents::TRANSLUCENT),
         "func_illusionary" => Some(contents::EMPTY),
+        "func_ladder" => Some(contents::LADDER),
         // A door or platform moves, so traces have to know it is not the world.
         "func_door" | "func_door_rotating" | "func_movelinear" | "func_platform"
         | "func_rotating" | "func_tracktrain" | "func_brush" => {
@@ -362,5 +367,25 @@ mod tests {
     #[test]
     fn contents_of_nothing_says_so_rather_than_showing_a_zero() {
         assert!(contents_words(0).contains("nothing"));
+    }
+
+    #[test]
+    fn a_ladder_is_not_solid_and_is_never_drawn() {
+        // Both halves matter. A solid ladder is a wall you cannot climb, and
+        // a drawn one puts a grey rectangle over whatever art is behind it.
+        let f = flags_for("tools/ladder");
+        assert_eq!(f.contents & contents::SOLID, 0, "a ladder must not block the player");
+        assert!(f.contents & contents::LADDER != 0);
+        assert!(f.surface & surf::NODRAW != 0);
+        assert!(!f.emits_face);
+    }
+
+    #[test]
+    fn a_func_ladder_is_a_ladder_whatever_its_faces_are_textured_with() {
+        // The same override triggers get: a designer should not have to
+        // texture every face of a ladder by hand to make the class work.
+        assert_eq!(contents_for_classname("func_ladder"), Some(contents::LADDER));
+        let described = describe_brush(&["dev/grid".to_string()], Some("func_ladder"));
+        assert!(described.to_lowercase().contains("ladder"), "{described}");
     }
 }

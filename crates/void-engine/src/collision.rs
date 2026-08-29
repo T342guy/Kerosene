@@ -94,7 +94,8 @@ impl CollisionWorld for LevelCollision<'_> {
     fn contents_at(&self, point: Vec3) -> u32 {
         let mut out = self.bsp.point_contents_brushes(point);
         // A point inside a mover picks up its contents too, so standing in a
-        // moving water brush still reads as water.
+        // moving water brush still reads as water -- and so a func_ladder,
+        // which is a brush entity that nothing collides with, is found at all.
         for mover in &self.movers {
             let local = point - mover.offset;
             let Some(model) = self.bsp.models.get(mover.model) else { continue };
@@ -105,7 +106,7 @@ impl CollisionWorld for LevelCollision<'_> {
                     local,
                     Vec3::ZERO,
                     Vec3::ZERO,
-                    contents::MASK_PLAYER_SOLID | contents::MASK_WATER,
+                    contents::MASK_PLAYER_SOLID | contents::MASK_VOLUMES,
                 );
                 if trace.start_solid { out |= trace.contents; }
             }

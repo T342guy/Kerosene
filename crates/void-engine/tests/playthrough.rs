@@ -1000,6 +1000,66 @@ fn a_button_can_switch_a_brush_out_of_the_world() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+// ---- ladders --------------------------------------------------------------
+
+#[test]
+fn a_func_ladder_can_be_climbed_in_a_compiled_map() {
+    // End to end because that is where this could break: Cleave has to give
+    // the brush ladder contents, the lump has to survive the round trip, and
+    // the collision world has to report a volume that nothing collides with.
+    let mut map = corridor_map(false, false);
+    let at = add_brush_entity(
+        &mut map,
+        "func_ladder",
+        Aabb::new(Vec3::new(16.0, 32.0, 0.0), Vec3::new(80.0, 96.0, 120.0)),
+        "dev/grid",
+    );
+    map.entities[at].set("targetname", "climb");
+
+    let (mut engine, dir) = engine_with(&map, "ladder");
+    let start = engine.player.movement.origin.z;
+
+    // Only a fifth of a second: the corridor ceiling is at 128 and the player
+    // is 72 tall, so there are 47 units of headroom and a full second of
+    // climbing would spend most of it pressed against the roof.
+    let climbing = InputState { jump: true, view_angles: Angles::ZERO, ..Default::default() };
+    for _ in 0..(0.2 / TICK) as usize { engine.tick(TICK, &climbing); }
+
+    assert!(engine.player.movement.on_ladder, "the player should be on the ladder");
+    let climbed = engine.player.movement.origin.z - start;
+    assert!(
+        climbed > 30.0,
+        "a fifth of a second at 200 vu/s should be about 40 units, climbed {climbed}"
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_ladder_does_not_block_the_player() {
+    // It is a volume, not a wall. If it were solid the corridor would be
+    // closed and nothing above would have caught it, because climbing works
+    // just as well inside a box.
+    let mut map = corridor_map(false, false);
+    let at = add_brush_entity(
+        &mut map,
+        "func_ladder",
+        Aabb::new(Vec3::new(96.0, 0.0, 0.0), Vec3::new(128.0, 128.0, 128.0)),
+        "dev/grid",
+    );
+    map.entities[at].set("targetname", "climb");
+
+    let (mut engine, dir) = engine_with(&map, "ladder-solid");
+    let walking = InputState { forward: 1.0, view_angles: Angles::ZERO, ..Default::default() };
+    for _ in 0..(3.0 / TICK) as usize { engine.tick(TICK, &walking); }
+
+    assert!(
+        engine.player.movement.origin.x > 200.0,
+        "walked into the ladder and stopped at {}",
+        engine.player.movement.origin.x
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 // ---- trigger_hurt ---------------------------------------------------------
 
 fn corridor_with_hurt(damage: &str) -> Map {

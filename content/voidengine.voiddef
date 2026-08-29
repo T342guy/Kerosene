@@ -163,6 +163,14 @@ class
 
 class
 {
+    "name" "func_ladder"
+    "kind" "brush"
+    "base" "Entity"
+    "help" "A volume the player climbs. Not solid -- you walk into it and then go up. Look up and hold forward, or hold jump. Texture the brush with anything; the class is what makes it a ladder."
+}
+
+class
+{
     "name" "func_door"
     "kind" "brush"
     "base" "Entity"

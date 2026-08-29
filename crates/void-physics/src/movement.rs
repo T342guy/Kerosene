@@ -52,6 +52,11 @@ pub struct MoveParams {
     pub duck_speed_scale: f32,
     /// Terminal velocity.
     pub max_velocity: f32,
+    /// How fast a player moves while on a ladder.
+    ///
+    /// Slower than running on purpose: a ladder is a place you are committed
+    /// to for a moment, and climbing one at full sprint reads as a bug.
+    pub ladder_speed: f32,
 }
 
 impl Default for MoveParams {
@@ -71,6 +76,7 @@ impl Default for MoveParams {
             air_speed_cap: 30.0,
             duck_speed_scale: 0.34,
             max_velocity: 3500.0,
+            ladder_speed: 200.0,
         }
     }
 }
@@ -107,6 +113,8 @@ pub struct MoveState {
     pub ground_normal: Vec3,
     pub ducked: bool,
     pub water_level: WaterLevel,
+    /// Whether the player is inside a ladder volume.
+    pub on_ladder: bool,
     /// True while the jump key is still held from a previous jump, so holding
     /// it does not auto-bounce.
     pub jump_held: bool,
@@ -124,6 +132,7 @@ impl Default for MoveState {
             ground_normal: Vec3::Z,
             ducked: false,
             water_level: WaterLevel::Dry,
+            on_ladder: false,
             jump_held: false,
             fall_speed: 0.0,
             noclip: false,
@@ -185,6 +194,7 @@ pub fn player_move(
     }
 
     update_water_level(state, world);
+    update_ladder(state, world);
 
     // Remember how fast the player was falling as the tick began. By the time
     // the move finishes, contact with the ground has already zeroed the
@@ -205,6 +215,16 @@ pub fn player_move(
         result.jumped = true;
     }
     if !input.jump { state.jump_held = false; }
+
+    // A ladder replaces the whole ground-or-air decision rather than
+    // modifying it: there is no gravity on a ladder, no friction worth
+    // modelling, and no acceleration curve -- you move at climbing speed or
+    // you do not move.
+    if state.on_ladder && !state.noclip {
+        ladder_move(state, input, params, world, dt);
+        categorize_position(state, world, params);
+        return result;
+    }
 
     if state.on_ground {
         apply_friction(state, params, dt);
@@ -247,9 +267,9 @@ fn wish_direction(state: &MoveState, input: &MoveInput, params: &MoveParams) -> 
     let basis = input.view_angles.vectors();
     let mut forward = basis.forward;
     let mut right = basis.right;
-    // Walking is horizontal even when looking up or down; only swimming and
-    // noclip follow the view into the vertical.
-    if state.water_level < WaterLevel::Waist {
+    // Walking is horizontal even when looking up or down; only swimming,
+    // climbing and noclip follow the view into the vertical.
+    if state.water_level < WaterLevel::Waist && !state.on_ladder {
         forward.z = 0.0;
         right.z = 0.0;
         forward = forward.normalize_or_zero();
@@ -615,6 +635,49 @@ fn apply_duck(state: &mut MoveState, world: &dyn CollisionWorld, input: &MoveInp
     if !trace.start_solid && !trace.all_solid {
         state.ducked = false;
     }
+}
+
+/// Move while on a ladder.
+///
+/// The view drives all three axes, exactly as it does underwater: look up and
+/// hold forward to climb, look down to descend. Holding jump climbs as well,
+/// so a player who has not worked the first part out still gets to the top.
+///
+/// Leaving is not a special case and does not need to be. Backing away moves
+/// the player out of the volume, and walking off the top puts them on the
+/// floor; both fall out of ordinary movement, and a dedicated dismount would
+/// be a rule to learn for no benefit.
+fn ladder_move(
+    state: &mut MoveState,
+    input: &MoveInput,
+    params: &MoveParams,
+    world: &dyn CollisionWorld,
+    dt: f32,
+) {
+    let basis = input.view_angles.vectors();
+    let vertical = input.up + if input.jump { 1.0 } else { 0.0 } - if input.duck { 1.0 } else { 0.0 };
+    let wish = basis.forward * input.forward + basis.right * input.side + Vec3::Z * vertical;
+
+    // Set rather than accelerated toward. A ladder is not a surface you build
+    // momentum on, and letting go of the keys should stop you where you are
+    // instead of sliding you down it.
+    state.velocity = wish.normalize_or_zero() * params.ladder_speed;
+    state.on_ground = false;
+
+    if state.velocity.length_squared() > 0.0 {
+        try_move(state, world, params, dt);
+    }
+}
+
+/// Whether the player is inside a ladder volume.
+///
+/// Tested at the waist rather than the feet, so that stepping off the top of
+/// a ladder onto a floor lets go of it instead of leaving the player climbing
+/// thin air one unit above the ground.
+fn update_ladder(state: &mut MoveState, world: &dyn CollisionWorld) {
+    let hull = state.hull();
+    let waist = state.origin + Vec3::Z * (hull.maxs.z * 0.5);
+    state.on_ladder = world.contents_at(waist) & contents::LADDER != 0;
 }
 
 fn update_water_level(state: &mut MoveState, world: &dyn CollisionWorld) {

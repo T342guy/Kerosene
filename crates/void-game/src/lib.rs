@@ -15,6 +15,8 @@
 //! | `func_door` | A brush that slides open and shut |
 //! | `func_brush` | A brush that can be turned on and off |
 //! | `func_detail` | Decoration; baked into the world at compile time |
+//! | `func_ladder` | A volume the player climbs |
+//! | `func_button` | A brush the player presses |
 //! | `trigger_multiple` | Fires when something enters its volume |
 //! | `trigger_once` | The same, once |
 //! | `logic_relay` | Passes a signal on, with a delay |
@@ -49,6 +51,10 @@ pub fn register(registry: &mut ClassRegistry) {
         "light_spot",
         "light_environment",
         "func_detail",
+        // A ladder is geometry, not behaviour: the compiler gives its brushes
+        // ladder contents and the movement solver does the rest, so there is
+        // nothing here for it to do but be a class a map may legally contain.
+        "func_ladder",
         "prop_static",
     ] {
         registry.register(ClassDef::new(inert));

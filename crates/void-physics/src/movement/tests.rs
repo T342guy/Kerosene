@@ -440,3 +440,129 @@ fn walking_off_a_ledge_drops_the_player() {
     assert!(state.origin.z < 1.0, "should have fallen back to the floor, z = {}", state.origin.z);
     assert!(state.on_ground);
 }
+
+// ---- ladders --------------------------------------------------------------
+
+/// A floor with a tall ladder volume standing on it.
+fn ladder_world() -> BoxWorld {
+    BoxWorld::new().with_floor().volume(
+        Vec3::new(-64.0, -64.0, 0.0),
+        Vec3::new(64.0, 64.0, 512.0),
+        contents::LADDER,
+    )
+}
+
+fn looking(pitch: f32) -> Angles {
+    Angles { pitch, yaw: 0.0, roll: 0.0 }
+}
+
+#[test]
+fn standing_in_a_ladder_volume_attaches_to_it() {
+    let world = ladder_world();
+    let mut state = MoveState { on_ground: true, ..Default::default() };
+    run(&mut state, &world, MoveInput::default(), 2);
+    assert!(state.on_ladder);
+}
+
+#[test]
+fn a_ladder_holds_the_player_up_against_gravity() {
+    // The point of the whole feature: on a ladder, letting go of the keys
+    // leaves you where you are instead of sliding to the bottom.
+    let world = ladder_world();
+    let mut state = MoveState { origin: Vec3::new(0.0, 0.0, 128.0), ..Default::default() };
+    run(&mut state, &world, MoveInput::default(), 64);
+
+    assert!(state.on_ladder);
+    assert!(
+        (state.origin.z - 128.0).abs() < 1.0,
+        "should have hung still, drifted to {}",
+        state.origin.z
+    );
+}
+
+#[test]
+fn looking_up_and_holding_forward_climbs() {
+    let world = ladder_world();
+    let mut state = MoveState { on_ground: true, ..Default::default() };
+    // Negative pitch is upward, as it is everywhere in this engine.
+    let input = MoveInput { forward: 1.0, view_angles: looking(-60.0), ..Default::default() };
+    run(&mut state, &world, input, 64);
+
+    assert!(state.origin.z > 100.0, "climbed only to {}", state.origin.z);
+}
+
+#[test]
+fn looking_down_and_holding_forward_descends() {
+    let world = ladder_world();
+    let mut state = MoveState { origin: Vec3::new(0.0, 0.0, 256.0), ..Default::default() };
+    let input = MoveInput { forward: 1.0, view_angles: looking(60.0), ..Default::default() };
+    run(&mut state, &world, input, 64);
+
+    assert!(state.origin.z < 200.0, "descended only to {}", state.origin.z);
+}
+
+#[test]
+fn holding_jump_climbs_without_having_to_look_up() {
+    // The discoverable way. A player who has not worked out that the view
+    // drives the climb should still be able to get up the ladder.
+    let world = ladder_world();
+    let mut state = MoveState { on_ground: true, ..Default::default() };
+    let input = MoveInput { jump: true, view_angles: Angles::ZERO, ..Default::default() };
+    run(&mut state, &world, input, 64);
+
+    assert!(state.origin.z > 100.0, "climbed only to {}", state.origin.z);
+}
+
+#[test]
+fn a_ladder_climbs_at_its_own_speed_not_running_speed() {
+    let world = ladder_world();
+    let mut state = MoveState { on_ground: true, ..Default::default() };
+    let input = MoveInput { jump: true, view_angles: Angles::ZERO, ..Default::default() };
+    run(&mut state, &world, input, 32);
+
+    let climbed = state.origin.z / 0.5;
+    assert!(
+        (climbed - params().ladder_speed).abs() < 20.0,
+        "half a second should climb about {} units, climbed {climbed}",
+        params().ladder_speed
+    );
+}
+
+#[test]
+fn leaving_the_volume_lets_go_and_gravity_returns() {
+    // No dismount rule: backing out of a ladder is just movement, and the
+    // player falls the moment they are no longer in it.
+    let world = ladder_world();
+    let mut state = MoveState { origin: Vec3::new(0.0, 0.0, 256.0), ..Default::default() };
+
+    // Walk out of the volume, which is 128 wide.
+    let out = MoveInput { forward: 1.0, view_angles: Angles::ZERO, ..Default::default() };
+    run(&mut state, &world, out, 32);
+    assert!(!state.on_ladder, "should have left the volume at x = {}", state.origin.x);
+
+    let height = state.origin.z;
+    run(&mut state, &world, MoveInput::default(), 16);
+    assert!(state.origin.z < height, "should be falling, still at {}", state.origin.z);
+}
+
+#[test]
+fn climbing_off_the_top_leaves_the_player_on_the_floor() {
+    // The ladder stops at 512 and there is nothing above it, so a player who
+    // climbs past the top should simply stop being on a ladder.
+    let world = ladder_world();
+    let mut state = MoveState { origin: Vec3::new(0.0, 0.0, 480.0), ..Default::default() };
+    let input = MoveInput { jump: true, view_angles: Angles::ZERO, ..Default::default() };
+    run(&mut state, &world, input, 64);
+
+    assert!(!state.on_ladder, "past the top at {}", state.origin.z);
+}
+
+#[test]
+fn noclip_ignores_a_ladder_entirely() {
+    let world = ladder_world();
+    let mut state = MoveState { noclip: true, ..Default::default() };
+    let input = MoveInput { forward: 1.0, view_angles: Angles::ZERO, ..Default::default() };
+    run(&mut state, &world, input, 16);
+
+    assert!(state.origin.x > 100.0, "noclip should fly straight through, reached {}", state.origin.x);
+}

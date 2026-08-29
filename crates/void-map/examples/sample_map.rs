@@ -94,6 +94,27 @@ fn main() -> std::io::Result<()> {
         },
     );
 
+    // A raised ledge across the back of the second room, and a ladder up its
+    // face. Somewhere to go that is not on the floor, which is the point of
+    // having a climb at all.
+    let ledge_x = ROOM * 1.5 + T;
+    map.add_world_solid(Solid::cube(
+        Aabb::new(Vec3::new(ledge_x, 0.0, 0.0), Vec3::new(total_x, ROOM, 128.0)),
+        "dev/wall",
+    ));
+    add_brush_entity(
+        &mut map,
+        "func_ladder",
+        // Standing proud of the ledge face, and reaching above its top so a
+        // climber is still holding on when they can step off.
+        Aabb::new(
+            Vec3::new(ledge_x - 16.0, ROOM * 0.5 - 32.0, 0.0),
+            Vec3::new(ledge_x, ROOM * 0.5 + 32.0, 176.0),
+        ),
+        "tools/ladder",
+        |e| { e.set("targetname", "ledge_ladder"); },
+    );
+
     // A button on the south wall of the first room, and the shutter it
     // controls. The gate opens by walking into a trigger; this is the other
     // half of the vocabulary -- something the player has to decide to do --
@@ -119,7 +140,9 @@ fn main() -> std::io::Result<()> {
     add_brush_entity(
         &mut map,
         "func_brush",
-        Aabb::new(Vec3::new(240.0, 128.0, 0.0), Vec3::new(272.0, 384.0, 64.0)),
+        // Off the main route rather than across it: the sample level should
+        // still be walkable by someone who has not found the switch.
+        Aabb::new(Vec3::new(240.0, 320.0, 0.0), Vec3::new(272.0, 480.0, 64.0)),
         "dev/wall",
         |e| { e.set("targetname", "shutter"); },
     );
