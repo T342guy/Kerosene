@@ -94,6 +94,36 @@ fn main() -> std::io::Result<()> {
         },
     );
 
+    // A button on the south wall of the first room, and the shutter it
+    // controls. The gate opens by walking into a trigger; this is the other
+    // half of the vocabulary -- something the player has to decide to do --
+    // and the sample level should demonstrate both.
+    add_brush_entity(
+        &mut map,
+        "func_button",
+        // Centred on eye height (64) and generous with it, so it is easy to
+        // hit whether the player is standing or halfway through a duck.
+        Aabb::new(Vec3::new(224.0, 0.0, 40.0), Vec3::new(256.0, 4.0, 88.0)),
+        "dev/door",
+        |e| {
+            e.set("targetname", "shutter_switch");
+            // Presses into the wall it sits on.
+            e.set("movedir", "0 -1 0");
+            e.set("speed", "20");
+            e.set("lip", "1");
+            e.set("wait", "1");
+            e.connect(Connection::new("OnPressed", "shutter", "Toggle"));
+        },
+    );
+
+    add_brush_entity(
+        &mut map,
+        "func_brush",
+        Aabb::new(Vec3::new(240.0, 128.0, 0.0), Vec3::new(272.0, 384.0, 64.0)),
+        "dev/wall",
+        |e| { e.set("targetname", "shutter"); },
+    );
+
     // Lighting: a lamp in each room, plus sun and sky.
     for (i, x) in [ROOM * 0.5, ROOM * 1.5 + T].iter().enumerate() {
         let id = map.next_id();

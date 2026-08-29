@@ -150,6 +150,11 @@ pub struct PlayerState {
     /// can interpolate between them instead of stuttering at the tick rate.
     pub previous_origin: Vec3,
     pub health: f32,
+    /// Whether the use key was down last tick.
+    ///
+    /// Using is an edge, not a state: holding the key against a door should
+    /// open it once, not toggle it sixty-four times a second.
+    pub use_held: bool,
 }
 
 impl Default for PlayerState {
@@ -160,6 +165,7 @@ impl Default for PlayerState {
             view_angles: Angles::ZERO,
             previous_origin: Vec3::ZERO,
             health: 100.0,
+            use_held: false,
         }
     }
 }
@@ -341,6 +347,10 @@ impl Engine {
             view_angles: angles.clamped_view(),
             previous_origin: origin,
             health: 100.0,
+            // Carried across a respawn rather than cleared: a player who died
+            // with the use key held should have to let go and press again,
+            // not immediately use whatever they spawn facing.
+            use_held: self.player.use_held,
         };
     }
 
@@ -421,7 +431,12 @@ impl Engine {
         self.audio.set_listener(self.player.movement.eye_position(), self.player.view_angles.vectors());
         self.audio.set_volume(self.console.float("volume"));
 
-        self.update_triggers();
+        if input.use_key && !self.player.use_held {
+            self.use_what_is_in_front();
+        }
+        self.player.use_held = input.use_key;
+
+        self.update_triggers(dt);
         self.entities.run(dt);
         self.take_entity_requests();
 
@@ -451,8 +466,9 @@ impl Engine {
         params
     }
 
-    /// Tell every trigger whether the player is inside it.
-    fn update_triggers(&mut self) {
+    /// Tell every trigger whether the player is inside it, and take the
+    /// damage the ones that deal it are dealing.
+    fn update_triggers(&mut self, dt: f32) {
         let Some(level) = &self.level else { return };
         let hull = self.player.movement.hull();
         let player_box = Aabb::new(
@@ -468,6 +484,7 @@ impl Engine {
             .collect();
 
         let player_entity = self.player.entity;
+        let mut hurt = 0.0;
         for (id, model_index, offset) in triggers {
             let Some(model) = level.bsp.models.get(model_index) else { continue };
             let bounds = model.bounds();
@@ -475,7 +492,22 @@ impl Engine {
             // A box overlap is enough: trigger brushes are convex volumes and
             // the exact brush test costs more than it is worth here.
             let inside = moved.intersects(&player_box);
+
+            // Gathered before the touch update, because a `trigger_once`
+            // removes itself in there and would otherwise deal nothing on the
+            // tick it fired.
+            if inside && !self.entities.get(id).is_some_and(|e| e.fields.bool("disabled", false)) {
+                hurt += void_game::triggers::hurt_per_second(&self.entities, id) * dt;
+            }
             void_game::triggers::update_touch(&mut self.entities, id, inside, player_entity);
+        }
+
+        // Applied once, after the loop: two overlapping hurt volumes should
+        // cost two lots of damage, but should not be able to kill and respawn
+        // the player halfway through a list they are still being iterated
+        // against.
+        if hurt > 0.0 {
+            self.hurt_player(hurt, "hurt");
         }
     }
 
@@ -485,14 +517,62 @@ impl Engine {
         let safe = self.console.float("sv_falldamage_safe");
         if speed <= safe { return; }
         let scale = self.console.float("sv_falldamage_scale");
-        let damage = (speed - safe) * scale;
-        self.player.health -= damage;
-        self.console.developer(format!("fall damage {damage:.0} at {speed:.0} vu/s"));
+        self.hurt_player((speed - safe) * scale, &format!("fall damage at {speed:.0} vu/s"));
+    }
+
+    /// Take health off the player, and respawn them if it runs out.
+    ///
+    /// One place rather than one per source of damage, because "what happens
+    /// at zero" is a rule about the player and not about the thing that hurt
+    /// them -- and because a second copy would be the one that forgot to
+    /// respawn.
+    pub fn hurt_player(&mut self, amount: f32, reason: &str) {
+        if amount <= 0.0 || self.player.health <= 0.0 { return }
+        self.player.health -= amount;
+        self.console.developer(format!("{reason}: -{amount:.0} hp ({:.0} left)", self.player.health.max(0.0)));
         if self.player.health <= 0.0 {
             self.console.print("you died");
             self.player.health = 100.0;
             self.spawn_player();
         }
+    }
+
+    /// Press whatever the player is looking at.
+    ///
+    /// A trace from the eye rather than a radius around the player: standing
+    /// between two buttons and pressing the one you are facing is the whole
+    /// expectation, and a proximity test cannot honour it.
+    fn use_what_is_in_front(&mut self) {
+        let Some(level) = &self.level else { return };
+        let range = self.console.float("sv_use_range").max(1.0);
+        let eye = self.player.movement.eye_position();
+        let end = eye + self.player.view_angles.forward() * range;
+
+        let world = LevelCollision::new(&level.bsp, &self.entities);
+        let trace = world.trace(eye, end, Vec3::ZERO, Vec3::ZERO, contents::MASK_PLAYER_SOLID);
+        // Model 0 is the world itself. Walls are not usable, and reporting a
+        // hit on one as a failed use would be noise on every missed press.
+        if !trace.hit() || trace.model == 0 { return }
+
+        let Some(target) = self
+            .entities
+            .iter()
+            .find(|e| e.brush_model == Some(trace.model))
+            .map(|e| e.id)
+        else {
+            return;
+        };
+
+        // Through the queue, so a use arrives the same way a wired output
+        // would: same ordering, same delays, same rules.
+        self.entities.queue_input(
+            void_entity::Target::Handle(target),
+            "Use",
+            "",
+            0.0,
+            self.player.entity,
+            self.player.entity,
+        );
     }
 
     /// Where the eye is, interpolated between the last two ticks.
@@ -544,6 +624,7 @@ fn register_cvars(console: &mut Console) {
     console.register_cvar("sv_falldamage_safe", "580", ConVarFlags::REPLICATED, "Landing speed below which falling is harmless.");
     console.register_cvar("sv_falldamage_scale", "0.25", ConVarFlags::REPLICATED, "Damage per unit/s of landing speed above the safe threshold.");
     console.register_cvar("sv_noclip", "0", ConVarFlags::CHEAT, "Fly through walls.");
+    console.register_cvar("sv_use_range", "80", ConVarFlags::REPLICATED, "How far the use key reaches, in void units.");
 
     console.register_cvar("cl_fov", "90", ConVarFlags::ARCHIVE, "Horizontal field of view at 4:3.");
     console.register_cvar_ranged("sensitivity", "3", Some(0.01), Some(100.0), ConVarFlags::ARCHIVE, "Mouse sensitivity.");

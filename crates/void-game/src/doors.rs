@@ -1,5 +1,12 @@
 // SPDX-License-Identifier: LGPL-3.0-or-later
-//! Moving brushes: doors and toggleable brush entities.
+//! Moving brushes: doors, buttons, and toggleable brush entities.
+//!
+//! A door and a button are the same machine. Both travel along an axis by
+//! their own size less a lip, both take a `speed` to do it, both come back
+//! after a `wait`, and both can be locked. What differs is only which outputs
+//! they fire on the way -- so the state machine is written once and the names
+//! it fires are chosen by class. Two copies of this would drift, and the one
+//! that drifted would be the one nobody was testing.
 
 use crate::{field_f32, set_field};
 use void_entity::io::InputEvent;
@@ -22,6 +29,53 @@ const MOVE_INTERVAL: f32 = 0.05;
 /// Spawnflag bits, matching the names Source gives them.
 pub const SF_START_OPEN: u32 = 1;
 
+/// The outputs one class of mover fires, and the input that sends it back.
+///
+/// A door opens and closes; a button presses in and pops out. Same movement,
+/// different vocabulary, and a designer wiring one should see the words that
+/// belong to the thing in front of them.
+struct MoverOutputs {
+    /// Fired when it starts travelling away from its resting position.
+    start_forward: &'static str,
+    /// Fired when it starts travelling back. Buttons announce nothing here:
+    /// popping back out is not an event anyone wires to.
+    start_back: Option<&'static str>,
+    /// Fired on arrival at the far end.
+    fully_forward: &'static str,
+    /// Fired on arrival back home.
+    fully_back: &'static str,
+    /// The input `wait` fires at itself to come back.
+    ret: &'static str,
+}
+
+const DOOR_OUTPUTS: MoverOutputs = MoverOutputs {
+    start_forward: "OnOpen",
+    start_back: Some("OnClose"),
+    fully_forward: "OnFullyOpen",
+    fully_back: "OnFullyClosed",
+    ret: "Close",
+};
+
+const BUTTON_OUTPUTS: MoverOutputs = MoverOutputs {
+    // Source fires OnPressed the moment the button is pressed rather than when
+    // it finishes moving, and that is the right choice: a designer wiring a
+    // button wants the door to start opening as the button goes in, not a
+    // quarter second later.
+    start_forward: "OnPressed",
+    start_back: None,
+    fully_forward: "OnIn",
+    fully_back: "OnOut",
+    ret: "Unpress",
+};
+
+fn outputs_for(classname: &str) -> &'static MoverOutputs {
+    if classname.eq_ignore_ascii_case("func_button") { &BUTTON_OUTPUTS } else { &DOOR_OUTPUTS }
+}
+
+fn outputs_of(world: &EntityWorld, id: EntityId) -> &'static MoverOutputs {
+    world.get(id).map_or(&DOOR_OUTPUTS, |e| outputs_for(&e.classname))
+}
+
 /// Which way a door is going.
 mod state {
     pub const CLOSED: i32 = 0;
@@ -33,11 +87,14 @@ mod state {
 pub fn register(registry: &mut ClassRegistry) {
     registry.register(
         ClassDef::new("func_door")
-            .on_spawn(spawn_door)
-            .on_think(think_door)
+            .on_spawn(spawn_mover)
+            .on_think(think_mover)
             .input("Open", |w, id, e| start(w, id, e, true))
             .input("Close", |w, id, e| start(w, id, e, false))
             .input("Toggle", input_toggle)
+            // Pressing a door is a toggle, which is what makes the use key
+            // work on it without the map wiring anything at all.
+            .input("Use", input_toggle)
             .input("Lock", |w, id, _| { set_field(w, id, "locked", Value::Bool(true)); true })
             .input("Unlock", |w, id, _| { set_field(w, id, "locked", Value::Bool(false)); true })
             .input("SetSpeed", |w, id, e| {
@@ -49,6 +106,23 @@ pub fn register(registry: &mut ClassRegistry) {
             .output("OnFullyOpen")
             .output("OnFullyClosed")
             .output("OnLockedUse"),
+    );
+
+    registry.register(
+        ClassDef::new("func_button")
+            .on_spawn(spawn_mover)
+            .on_think(think_mover)
+            // Press and Use are the same act from two directions: a player
+            // looking at it, or a map firing at it.
+            .input("Press", |w, id, e| start(w, id, e, true))
+            .input("Use", |w, id, e| start(w, id, e, true))
+            .input("Unpress", |w, id, e| start(w, id, e, false))
+            .input("Lock", |w, id, _| { set_field(w, id, "locked", Value::Bool(true)); true })
+            .input("Unlock", |w, id, _| { set_field(w, id, "locked", Value::Bool(false)); true })
+            .output("OnPressed")
+            .output("OnIn")
+            .output("OnOut")
+            .output("OnUseLocked"),
     );
 
     registry.register(
@@ -91,7 +165,7 @@ pub fn travel(size: Vec3, movedir: Vec3, lip: f32) -> (Vec3, f32) {
 /// The distance comes from the geometry, not from a keyvalue: a door moves by
 /// its own size along its movement axis, less the `lip` that stays visible.
 /// That is what lets a designer resize a door and have it still work.
-fn spawn_door(world: &mut EntityWorld, id: EntityId) {
+fn spawn_mover(world: &mut EntityWorld, id: EntityId) {
     let Some(entity) = world.get(id) else { return };
 
     let mins = entity.fields.vec3("model_mins", Vec3::ZERO);
@@ -133,9 +207,13 @@ fn start(world: &mut EntityWorld, id: EntityId, event: &InputEvent, opening: boo
     };
     if already { return true; }
 
+    let outputs = outputs_of(world, id);
     set_field(world, id, "door_state", Value::Int(if opening { state::OPENING } else { state::CLOSING }));
     set_field(world, id, "last_move", Value::Float(world.time));
-    world.fire_output(id, if opening { "OnOpen" } else { "OnClose" }, event.activator, None);
+    let announce = if opening { Some(outputs.start_forward) } else { outputs.start_back };
+    if let Some(name) = announce {
+        world.fire_output(id, name, event.activator, None);
+    }
     world.set_think_delay(id, 0.0);
     true
 }
@@ -146,7 +224,7 @@ fn input_toggle(world: &mut EntityWorld, id: EntityId, event: &InputEvent) -> bo
     start(world, id, event, opening)
 }
 
-fn think_door(world: &mut EntityWorld, id: EntityId) {
+fn think_mover(world: &mut EntityWorld, id: EntityId) {
     let Some(entity) = world.get(id) else { return };
     let door_state = entity.fields.i32("door_state", state::CLOSED);
     let travel = entity.fields.f32("travel", 64.0);
@@ -183,16 +261,17 @@ fn think_door(world: &mut EntityWorld, id: EntityId) {
     if let Some(e) = world.get_mut(id) { e.origin = dir * (travel * progress); }
 
     if next_state != door_state {
+        let outputs = outputs_of(world, id);
         set_field(world, id, "door_state", Value::Int(next_state));
         if next_state == state::OPEN {
-            world.fire_output(id, "OnFullyOpen", None, None);
-            // A positive `wait` closes the door again by itself; -1 leaves it
-            // open until something tells it otherwise.
+            world.fire_output(id, outputs.fully_forward, None, None);
+            // A positive `wait` sends it back by itself; -1 leaves it where it
+            // is until something tells it otherwise.
             let wait = field_f32(world, id, "wait", 4.0);
             if wait > 0.0 {
                 world.queue_input(
                     void_entity::Target::Myself,
-                    "Close",
+                    outputs.ret,
                     "",
                     wait,
                     None,
@@ -200,7 +279,7 @@ fn think_door(world: &mut EntityWorld, id: EntityId) {
                 );
             }
         } else {
-            world.fire_output(id, "OnFullyClosed", None, None);
+            world.fire_output(id, outputs.fully_back, None, None);
         }
         return;
     }

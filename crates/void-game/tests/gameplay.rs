@@ -577,3 +577,177 @@ fn setting_it_with_nothing_attached_means_yes() {
     run(&mut w, 0.1);
     assert_eq!(counts(&w), (1.0, 0.0));
 }
+
+// ---- buttons -------------------------------------------------------------
+
+const BUTTON_MAP: &str = r#"
+entity
+{
+    "classname" "func_button"
+    "targetname" "switch"
+    "model" "*1"
+    "movedir" "0 0 -1"
+    "speed" "40"
+    "lip" "4"
+    "wait" "1"
+    "model_mins" "0 0 0"
+    "model_maxs" "16 16 12"
+    connections { "OnPressed" "gate,Open,,0,-1" "OnPressed" "count,Add,1,0,-1" }
+}
+entity
+{
+    "classname" "math_counter"
+    "targetname" "count"
+    "startvalue" "0"
+}
+entity
+{
+    "classname" "func_door"
+    "targetname" "gate"
+    "model" "*2"
+    "movedir" "0 0 1"
+    "speed" "100"
+    "lip" "8"
+    "wait" "-1"
+    "model_mins" "0 0 0"
+    "model_maxs" "16 96 128"
+}
+"#;
+
+fn press(w: &mut EntityWorld, id: EntityId) {
+    w.accept_input(id, &InputEvent::new("Use"));
+}
+
+#[test]
+fn a_button_travels_by_its_own_size_like_a_door_does() {
+    // The same mover, so the same rule: 12 deep less a 4-unit lip.
+    let w = world_from(BUTTON_MAP);
+    let switch = named(&w, "switch");
+    assert_eq!(field(&w, switch, "travel"), 8.0);
+}
+
+#[test]
+fn pressing_a_button_fires_as_it_starts_moving_not_when_it_arrives() {
+    // The whole reason OnPressed exists separately from OnIn: a designer wires
+    // the door to OnPressed and it starts opening as the button goes in.
+    let mut w = world_from(BUTTON_MAP);
+    let switch = named(&w, "switch");
+    let gate = named(&w, "gate");
+
+    // The button takes 8/40 = 0.2s to go in; the door takes 120/100 = 1.2s to
+    // open. Halfway through the button's travel the door must already be
+    // moving, which is the claim OnPressed exists to make.
+    press(&mut w, switch);
+    run(&mut w, 0.1);
+
+    assert!(field(&w, gate, "progress") > 0.0, "the door should already be opening");
+    assert!(field(&w, switch, "progress") < 1.0, "while the button is still travelling in");
+}
+
+#[test]
+fn a_button_pops_back_out_after_its_wait() {
+    let mut w = world_from(BUTTON_MAP);
+    let switch = named(&w, "switch");
+
+    press(&mut w, switch);
+    run(&mut w, 0.5);
+    assert_eq!(field(&w, switch, "progress"), 1.0, "8 units at 40 vu/s is in by now");
+
+    // 1 second of wait, then 0.2s to travel back out.
+    run(&mut w, 1.5);
+    assert_eq!(field(&w, switch, "progress"), 0.0, "and back out again by itself");
+}
+
+#[test]
+fn a_button_held_in_stays_in() {
+    let mut w = world_from(BUTTON_MAP);
+    let switch = named(&w, "switch");
+    if let Some(e) = w.get_mut(switch) { e.fields.set("wait", Value::Float(-1.0)); }
+
+    press(&mut w, switch);
+    run(&mut w, 3.0);
+
+    assert_eq!(field(&w, switch, "progress"), 1.0, "a negative wait means stay put");
+}
+
+#[test]
+fn pressing_a_button_that_is_already_in_does_nothing() {
+    let mut w = world_from(BUTTON_MAP);
+    let switch = named(&w, "switch");
+    if let Some(e) = w.get_mut(switch) { e.fields.set("wait", Value::Float(-1.0)); }
+
+    press(&mut w, switch);
+    run(&mut w, 0.5);
+    press(&mut w, switch);
+    run(&mut w, 0.5);
+
+    assert_eq!(
+        field(&w, named(&w, "count"), "value"), 1.0,
+        "a second press while it is already in must not fire OnPressed again"
+    );
+}
+
+#[test]
+fn a_locked_button_says_so_instead_of_pressing() {
+    let mut w = world_from(BUTTON_MAP);
+    let switch = named(&w, "switch");
+    let gate = named(&w, "gate");
+    w.get_mut(switch).unwrap().connections.push(Connection::new("OnUseLocked", "gate", "Close"));
+    w.accept_input(switch, &InputEvent::new("Lock"));
+
+    press(&mut w, switch);
+    run(&mut w, 0.5);
+
+    assert_eq!(field(&w, switch, "progress"), 0.0, "a locked button does not move");
+    assert_eq!(field(&w, gate, "progress"), 0.0, "and does not fire what it is wired to");
+    assert_eq!(field(&w, named(&w, "count"), "value"), 0.0, "OnPressed must not fire either");
+}
+
+#[test]
+fn a_button_and_a_door_fire_different_words_for_the_same_movement() {
+    // The state machine is shared; the vocabulary is not. A designer wiring a
+    // button should never see OnFullyOpen.
+    let mut w = world_from(BUTTON_MAP);
+    let switch = named(&w, "switch");
+
+    // The button reaches the end of its travel in this time and announces it
+    // as OnIn. Anything listening for OnFullyOpen must hear nothing.
+    w.get_mut(switch).unwrap().connections.push(Connection::new("OnFullyOpen", "count", "Add"));
+    press(&mut w, switch);
+    run(&mut w, 0.5);
+
+    assert_eq!(
+        field(&w, named(&w, "count"), "value"), 1.0,
+        "only OnPressed should have counted: a button must not fire a door's outputs"
+    );
+}
+
+// ---- the use key ---------------------------------------------------------
+
+#[test]
+fn using_a_door_toggles_it() {
+    // What the player's use key sends. Without this a door can only be opened
+    // by something a designer wired up in advance.
+    let mut w = world_from(DOOR_MAP);
+    let gate = named(&w, "gate");
+
+    w.accept_input(gate, &InputEvent::new("Use"));
+    run(&mut w, 2.0);
+    assert_eq!(field(&w, gate, "progress"), 1.0);
+
+    w.accept_input(gate, &InputEvent::new("Use"));
+    run(&mut w, 2.0);
+    assert_eq!(field(&w, gate, "progress"), 0.0, "and again, to close it");
+}
+
+#[test]
+fn using_a_locked_door_reports_it_rather_than_opening() {
+    let mut w = world_from(DOOR_MAP);
+    let gate = named(&w, "gate");
+    w.accept_input(gate, &InputEvent::new("Lock"));
+
+    w.accept_input(gate, &InputEvent::new("Use"));
+    run(&mut w, 2.0);
+
+    assert_eq!(field(&w, gate, "progress"), 0.0);
+}

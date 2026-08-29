@@ -178,9 +178,12 @@ class
           "help" "How much of the door stays showing when it is open." }
     key { "name" "locked" "label" "Locked" "type" "bool" "default" "0"
           "help" "A locked door fires OnLockedUse instead of opening." }
+    key { "name" "wait" "label" "Wait before closing" "type" "float" "default" "4"
+          "help" "Seconds it stays open before closing itself. -1 to stay open until told otherwise." }
     input { "name" "Open" }
     input { "name" "Close" }
     input { "name" "Toggle" }
+    input { "name" "Use" "help" "What the player's use key sends. Toggles, like Toggle." }
     input { "name" "Lock" }
     input { "name" "Unlock" }
     input { "name" "SetSpeed" "parameter" "units per second" }
@@ -189,6 +192,36 @@ class
     output { "name" "OnFullyOpen"   "help" "Finished opening." }
     output { "name" "OnFullyClosed" "help" "Finished closing." }
     output { "name" "OnLockedUse"   "help" "Something tried to open it while locked." }
+}
+
+class
+{
+    "name" "func_button"
+    "kind" "brush"
+    "base" "Entity"
+    "help" "A brush the player presses. The same mover as a door -- it travels by its own size along the movement axis -- but it announces being pressed rather than being open, and pops back out after its wait."
+    key {
+        "name" "spawnflags" "label" "Flags" "type" "flags" "default" "0"
+        choice { "value" "1" "label" "Starts pressed in" }
+    }
+    key { "name" "movedir" "label" "Movement direction" "type" "vec3" "default" "0 0 -1"
+          "help" "Which way it travels when pressed. Into the wall it sits in." }
+    key { "name" "speed" "label" "Speed" "type" "float" "default" "40" "help" "Units per second." }
+    key { "name" "lip"   "label" "Lip"   "type" "float" "default" "4"
+          "help" "How much of the button still stands proud when fully pressed." }
+    key { "name" "locked" "label" "Locked" "type" "bool" "default" "0"
+          "help" "A locked button fires OnUseLocked instead of pressing." }
+    key { "name" "wait" "label" "Wait before returning" "type" "float" "default" "1"
+          "help" "Seconds it stays in before popping back out. -1 to stay in until told otherwise." }
+    input { "name" "Press" "help" "Press it, as though the player had." }
+    input { "name" "Use" "help" "What the player's use key sends." }
+    input { "name" "Unpress" "help" "Send it back out early." }
+    input { "name" "Lock" }
+    input { "name" "Unlock" }
+    output { "name" "OnPressed"    "help" "Pressed. Fires as it starts moving, not when it arrives -- wire the door here." }
+    output { "name" "OnIn"         "help" "Finished travelling in." }
+    output { "name" "OnOut"        "help" "Finished travelling back out." }
+    output { "name" "OnUseLocked"  "help" "Someone pressed it while locked." }
 }
 
 // -------------------------------------------------------------- triggers ---
@@ -224,7 +257,7 @@ class
     "kind" "brush"
     "base" "Entity" "base" "Switchable" "base" "Trigger"
     "help" "Damages whatever is standing in it."
-    key { "name" "damage" "label" "Damage per second" "type" "float" "default" "0" }
+    key { "name" "damage" "label" "Damage per second" "type" "float" "default" "10" }
 }
 
 // ----------------------------------------------------------------- logic ---

@@ -815,3 +815,253 @@ fn loading_a_map_silences_the_one_before_it() {
     assert_eq!(engine.audio.with_mixer(|m| m.voice_count()), 0, "the last level is still playing");
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+// ---- the use key ----------------------------------------------------------
+//
+// A player pressing a button is the one interaction that cannot be tested
+// anywhere below the engine: it needs the trace, the entity world and the map
+// geometry all agreeing about where things are.
+
+/// Add a brush entity to a map, with fresh ids for it and its solid.
+fn add_brush_entity(map: &mut Map, classname: &str, bounds: Aabb, material: &str) -> usize {
+    let id = map.next_id();
+    let solid_id = map.next_id();
+    let side_ids: Vec<u32> = (0..6).map(|_| map.next_id()).collect();
+    let mut solid = Solid::cube(bounds, material);
+    solid.id = solid_id;
+    for (s, sid) in solid.sides.iter_mut().zip(side_ids) { s.id = sid; }
+
+    let mut entity = Entity::new(id, classname);
+    entity.solids.push(solid);
+    map.entities.push(entity);
+    map.entities.len() - 1
+}
+
+/// The corridor, with a button on the player's eye line wired to the door.
+fn corridor_with_button() -> Map {
+    let mut map = corridor_map(true, false);
+    // 64 units in front of the spawn, which is inside the default 80-unit
+    // reach and outside anything the player is standing in.
+    let at = add_brush_entity(
+        &mut map,
+        "func_button",
+        Aabb::new(Vec3::new(96.0, 48.0, 32.0), Vec3::new(112.0, 80.0, 96.0)),
+        "dev/grid",
+    );
+    map.entities[at].set("targetname", "switch");
+    map.entities[at].set("movedir", "1 0 0");
+    map.entities[at].set("speed", "40");
+    map.entities[at].set("wait", "-1");
+    map.entities[at].connect(Connection::new("OnPressed", "gate", "Open"));
+    map
+}
+
+fn engine_with(map: &Map, name: &str) -> (void_engine::engine::Engine, std::path::PathBuf) {
+    use void_engine::engine::{Engine, EngineConfig};
+
+    let dir = std::env::temp_dir().join(format!(
+        "voidengine-use-{name}-{}-{:?}",
+        std::process::id(),
+        std::thread::current().id()
+    ));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(dir.join("maps")).unwrap();
+    std::fs::write(dir.join("maps/testmap.voidbsp"), build(map).to_bytes()).unwrap();
+
+    let mut engine = Engine::new(&EngineConfig {
+        content_paths: vec![dir.clone()],
+        ..Default::default()
+    });
+    engine.load_map("testmap").expect("the test map should load");
+    (engine, dir)
+}
+
+fn door_progress(engine: &void_engine::engine::Engine) -> f32 {
+    let id = *engine.entities.find_by_name("gate").first().expect("the map has a door");
+    void_game::doors::door_progress(&engine.entities, id)
+}
+
+/// Hold the use key down for a moment while facing `yaw`, then let go.
+fn press_use(engine: &mut void_engine::engine::Engine, yaw: f32, seconds: f32) {
+    let looking = Angles { pitch: 0.0, yaw, roll: 0.0 };
+    let held = InputState { use_key: true, view_angles: looking, ..Default::default() };
+    for _ in 0..(seconds / TICK).ceil() as usize {
+        engine.tick(TICK, &held);
+    }
+    engine.tick(TICK, &InputState { view_angles: looking, ..Default::default() });
+}
+
+#[test]
+fn pressing_use_while_looking_at_a_button_works_it() {
+    let (mut engine, dir) = engine_with(&corridor_with_button(), "button");
+    assert_eq!(door_progress(&engine), 0.0, "the door starts shut");
+
+    press_use(&mut engine, 0.0, 0.1);
+    for _ in 0..(1.0 / TICK) as usize {
+        engine.tick(TICK, &InputState { view_angles: Angles::ZERO, ..Default::default() });
+    }
+
+    assert!(
+        door_progress(&engine) > 0.0,
+        "the button should have fired OnPressed and opened the door"
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn holding_use_presses_once_rather_than_every_tick() {
+    // Using is an edge. Holding the key against a door has to open it, not
+    // toggle it sixty-four times a second -- which would leave the door in
+    // whichever state the last tick happened to land on.
+    let (mut engine, dir) = engine_with(&corridor_map(true, false), "held");
+
+    // Look at the door: it is 224 units away, well beyond reach, so nothing
+    // should happen at all from here.
+    press_use(&mut engine, 0.0, 0.5);
+    assert_eq!(door_progress(&engine), 0.0, "nothing is within reach");
+
+    // Walk up to it, then hold use for half a second.
+    let walking = InputState { forward: 1.0, view_angles: Angles::ZERO, ..Default::default() };
+    for _ in 0..(2.0 / TICK) as usize {
+        engine.tick(TICK, &walking);
+    }
+    press_use(&mut engine, 0.0, 0.5);
+    for _ in 0..(2.0 / TICK) as usize {
+        engine.tick(TICK, &InputState { view_angles: Angles::ZERO, ..Default::default() });
+    }
+
+    assert_eq!(
+        door_progress(&engine), 1.0,
+        "one press, so the door opened and stayed open"
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn using_a_wall_does_nothing_and_says_nothing() {
+    // The common case is a missed press. It has to be silent: a message on
+    // every use that hit geometry would bury everything else in the console.
+    let (mut engine, dir) = engine_with(&corridor_map(false, false), "wall");
+    let before = engine.console.log().count();
+
+    press_use(&mut engine, 0.0, 0.2);
+
+    assert_eq!(engine.console.log().count(), before, "a missed use must not chatter");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_button_can_switch_a_brush_out_of_the_world() {
+    // The wiring the sample level uses: press the switch, the shutter stops
+    // being there. Worth an end-to-end test rather than only a unit one,
+    // because "stops being solid" is a fact about the collision world, and
+    // the collision world is rebuilt from the entity world every tick.
+    let mut map = corridor_map(false, false);
+    // Set into the side wall beside the spawn, which is where a button
+    // actually goes: in the corridor proper it would be something to walk into.
+    let switch = add_brush_entity(
+        &mut map,
+        "func_button",
+        Aabb::new(Vec3::new(24.0, 112.0, 48.0), Vec3::new(40.0, 128.0, 96.0)),
+        "dev/grid",
+    );
+    map.entities[switch].set("targetname", "switch");
+    map.entities[switch].set("movedir", "0 1 0");
+    map.entities[switch].set("wait", "-1");
+    map.entities[switch].connect(Connection::new("OnPressed", "shutter", "Toggle"));
+
+    let shutter = add_brush_entity(
+        &mut map,
+        "func_brush",
+        Aabb::new(Vec3::new(300.0, 0.0, 0.0), Vec3::new(316.0, 128.0, 128.0)),
+        "dev/grid",
+    );
+    map.entities[shutter].set("targetname", "shutter");
+
+    let (mut engine, dir) = engine_with(&map, "shutter");
+    let walking = InputState { forward: 1.0, view_angles: Angles::ZERO, ..Default::default() };
+
+    // The shutter blocks the corridor, so walking runs into it.
+    for _ in 0..(4.0 / TICK) as usize { engine.tick(TICK, &walking); }
+    let stopped_at = engine.player.movement.origin.x;
+    assert!(stopped_at < 300.0, "the shutter should be in the way, stopped at {stopped_at}");
+
+    // Start again, press the switch from the spawn -- which is where it is,
+    // set into the wall beside it -- and walk the same corridor.
+    engine.load_map("testmap").expect("reloading the map should work");
+    press_use(&mut engine, 90.0, 0.1);
+    for _ in 0..(6.0 / TICK) as usize { engine.tick(TICK, &walking); }
+
+    assert!(
+        engine.player.movement.origin.x > 320.0,
+        "with the shutter switched off the corridor should be open, reached {}",
+        engine.player.movement.origin.x
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+// ---- trigger_hurt ---------------------------------------------------------
+
+fn corridor_with_hurt(damage: &str) -> Map {
+    let mut map = corridor_map(false, false);
+    // Across the corridor where the player spawns, so it applies at once.
+    let at = add_brush_entity(
+        &mut map,
+        "trigger_hurt",
+        Aabb::new(Vec3::new(0.0, 0.0, 0.0), Vec3::new(128.0, 128.0, 128.0)),
+        "tools/trigger",
+    );
+    map.entities[at].set("targetname", "burn");
+    map.entities[at].set("damage", damage);
+    map
+}
+
+#[test]
+fn standing_in_a_trigger_hurt_costs_health_over_time() {
+    // The class and its damage keyvalue both existed; nothing read them, so a
+    // trigger_hurt fired its outputs and did no harm at all.
+    let (mut engine, dir) = engine_with(&corridor_with_hurt("10"), "hurt");
+    assert_eq!(engine.player.health, 100.0);
+
+    let idle = InputState { view_angles: Angles::ZERO, ..Default::default() };
+    for _ in 0..(1.0 / TICK) as usize {
+        engine.tick(TICK, &idle);
+    }
+
+    let lost = 100.0 - engine.player.health;
+    assert!(
+        (lost - 10.0).abs() < 1.0,
+        "a second at 10 damage a second should cost about 10 health, lost {lost}"
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_trigger_hurt_that_kills_respawns_the_player_rather_than_leaving_them_dead() {
+    let (mut engine, dir) = engine_with(&corridor_with_hurt("400"), "kill");
+
+    let idle = InputState { view_angles: Angles::ZERO, ..Default::default() };
+    for _ in 0..(0.5 / TICK) as usize {
+        engine.tick(TICK, &idle);
+    }
+
+    assert!(engine.console.log().any(|l| l.text.contains("died")), "death should be reported");
+    assert!(engine.player.health > 0.0, "and the player should be alive again");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_disabled_trigger_hurt_does_no_damage() {
+    let mut map = corridor_with_hurt("50");
+    let at = map.entities.len() - 1;
+    map.entities[at].set("startdisabled", "1");
+    let (mut engine, dir) = engine_with(&map, "hurt-off");
+
+    let idle = InputState { view_angles: Angles::ZERO, ..Default::default() };
+    for _ in 0..(1.0 / TICK) as usize {
+        engine.tick(TICK, &idle);
+    }
+
+    assert_eq!(engine.player.health, 100.0, "a disabled trigger must not hurt");
+    let _ = std::fs::remove_dir_all(&dir);
+}

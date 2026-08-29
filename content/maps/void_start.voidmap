@@ -1104,20 +1104,180 @@ entity
 entity
 {
 	"id" "113"
+	"classname" "func_button"
+	"targetname" "shutter_switch"
+	"movedir" "0 -1 0"
+	"speed" "20"
+	"lip" "1"
+	"wait" "1"
+	solid
+	{
+		"id" "114"
+		side
+		{
+			"id" "115"
+			"plane" "(256 0 88) (224 0 88) (224 4 88)"
+			"material" "dev/door"
+			"uaxis" "[1 0 0 0] 0.25"
+			"vaxis" "[0 -1 0 0] 0.25"
+			"rotation" "0"
+			"lightmapscale" "16"
+			"smoothing_groups" "0"
+		}
+		side
+		{
+			"id" "116"
+			"plane" "(224 4 40) (224 0 40) (256 0 40)"
+			"material" "dev/door"
+			"uaxis" "[1 0 0 0] 0.25"
+			"vaxis" "[0 -1 0 0] 0.25"
+			"rotation" "0"
+			"lightmapscale" "16"
+			"smoothing_groups" "0"
+		}
+		side
+		{
+			"id" "117"
+			"plane" "(256 4 40) (256 0 40) (256 0 88)"
+			"material" "dev/door"
+			"uaxis" "[0 1 0 0] 0.25"
+			"vaxis" "[0 0 -1 0] 0.25"
+			"rotation" "0"
+			"lightmapscale" "16"
+			"smoothing_groups" "0"
+		}
+		side
+		{
+			"id" "118"
+			"plane" "(224 0 88) (224 0 40) (224 4 40)"
+			"material" "dev/door"
+			"uaxis" "[0 1 0 0] 0.25"
+			"vaxis" "[0 0 -1 0] 0.25"
+			"rotation" "0"
+			"lightmapscale" "16"
+			"smoothing_groups" "0"
+		}
+		side
+		{
+			"id" "119"
+			"plane" "(224 4 88) (224 4 40) (256 4 40)"
+			"material" "dev/door"
+			"uaxis" "[1 0 0 0] 0.25"
+			"vaxis" "[0 0 -1 0] 0.25"
+			"rotation" "0"
+			"lightmapscale" "16"
+			"smoothing_groups" "0"
+		}
+		side
+		{
+			"id" "120"
+			"plane" "(256 0 40) (224 0 40) (224 0 88)"
+			"material" "dev/door"
+			"uaxis" "[1 0 0 0] 0.25"
+			"vaxis" "[0 0 -1 0] 0.25"
+			"rotation" "0"
+			"lightmapscale" "16"
+			"smoothing_groups" "0"
+		}
+	}
+	connections
+	{
+		"OnPressed" "shutter,Toggle,,0,-1"
+	}
+}
+entity
+{
+	"id" "121"
+	"classname" "func_brush"
+	"targetname" "shutter"
+	solid
+	{
+		"id" "122"
+		side
+		{
+			"id" "123"
+			"plane" "(272 128 64) (240 128 64) (240 384 64)"
+			"material" "dev/wall"
+			"uaxis" "[1 0 0 0] 0.25"
+			"vaxis" "[0 -1 0 0] 0.25"
+			"rotation" "0"
+			"lightmapscale" "16"
+			"smoothing_groups" "0"
+		}
+		side
+		{
+			"id" "124"
+			"plane" "(240 384 0) (240 128 0) (272 128 0)"
+			"material" "dev/wall"
+			"uaxis" "[1 0 0 0] 0.25"
+			"vaxis" "[0 -1 0 0] 0.25"
+			"rotation" "0"
+			"lightmapscale" "16"
+			"smoothing_groups" "0"
+		}
+		side
+		{
+			"id" "125"
+			"plane" "(272 384 0) (272 128 0) (272 128 64)"
+			"material" "dev/wall"
+			"uaxis" "[0 1 0 0] 0.25"
+			"vaxis" "[0 0 -1 0] 0.25"
+			"rotation" "0"
+			"lightmapscale" "16"
+			"smoothing_groups" "0"
+		}
+		side
+		{
+			"id" "126"
+			"plane" "(240 128 64) (240 128 0) (240 384 0)"
+			"material" "dev/wall"
+			"uaxis" "[0 1 0 0] 0.25"
+			"vaxis" "[0 0 -1 0] 0.25"
+			"rotation" "0"
+			"lightmapscale" "16"
+			"smoothing_groups" "0"
+		}
+		side
+		{
+			"id" "127"
+			"plane" "(240 384 64) (240 384 0) (272 384 0)"
+			"material" "dev/wall"
+			"uaxis" "[1 0 0 0] 0.25"
+			"vaxis" "[0 0 -1 0] 0.25"
+			"rotation" "0"
+			"lightmapscale" "16"
+			"smoothing_groups" "0"
+		}
+		side
+		{
+			"id" "128"
+			"plane" "(272 128 0) (240 128 0) (240 128 64)"
+			"material" "dev/wall"
+			"uaxis" "[1 0 0 0] 0.25"
+			"vaxis" "[0 0 -1 0] 0.25"
+			"rotation" "0"
+			"lightmapscale" "16"
+			"smoothing_groups" "0"
+		}
+	}
+}
+entity
+{
+	"id" "129"
 	"classname" "light"
 	"origin" "256 256 192"
 	"_light" "255 240 214 320"
 }
 entity
 {
-	"id" "114"
+	"id" "130"
 	"classname" "light"
 	"origin" "784 256 192"
 	"_light" "214 230 255 320"
 }
 entity
 {
-	"id" "115"
+	"id" "131"
 	"classname" "light_environment"
 	"origin" "512 256 224"
 	"pitch" "-45"
@@ -1127,7 +1287,7 @@ entity
 }
 entity
 {
-	"id" "116"
+	"id" "132"
 	"classname" "info_player_start"
 	"origin" "128 256 16"
 	"angles" "0 0 0"
