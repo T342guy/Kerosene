@@ -151,8 +151,19 @@ fn main() -> std::io::Result<()> {
             e.set("lip", "1");
             e.set("wait", "1");
             e.connect(Connection::new("OnPressed", "shutter", "Toggle"));
+            e.connect(Connection::new("OnPressed", "switch_click", "Play"));
         },
     );
+
+    // A one-shot noise for the button, which is what point_sound is for: the
+    // room tone is a bed and this is an event, and making one entity do both
+    // is how a chime ends up looping forever.
+    let id = map.next_id();
+    let mut click = Entity::new(id, "point_sound");
+    click.set_origin(Vec3::new(240.0, 8.0, 64.0));
+    click.set("targetname", "switch_click");
+    click.set("sound", "ui/click");
+    map.entities.push(click);
 
     add_brush_entity(
         &mut map,

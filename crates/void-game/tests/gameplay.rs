@@ -876,3 +876,121 @@ fn a_fan_left_running_keeps_its_angle_in_range() {
     let angles = w.get(fan).unwrap().angles;
     assert!(angles.yaw >= -180.0 && angles.yaw < 180.0, "yaw ran away to {}", angles.yaw);
 }
+
+// ---- sounds --------------------------------------------------------------
+
+const SOUND_MAP: &str = r#"
+entity
+{
+    "classname" "ambient_generic"
+    "targetname" "hum"
+    "sound" "ambient/room_tone"
+    "spawnflags" "1"
+    "origin" "0 0 0"
+}
+entity
+{
+    "classname" "point_sound"
+    "targetname" "chime"
+    "sound" "ui/click"
+    "origin" "64 0 0"
+    connections { "OnPlay" "plays,Add,1,0,-1" }
+}
+entity
+{
+    "classname" "math_counter"
+    "targetname" "plays"
+    "startvalue" "0"
+}
+entity
+{
+    "classname" "point_sound"
+    "targetname" "legacy"
+    "message" "ui/click"
+    "origin" "128 0 0"
+}
+"#;
+
+fn requests_of(w: &mut EntityWorld) -> Vec<(String, String)> {
+    w.take_requests().into_iter().map(|r| (r.kind.to_string(), r.payload)).collect()
+}
+
+#[test]
+fn a_one_shot_sound_does_not_play_until_it_is_fired() {
+    // The whole difference from an ambience: it is an event, and an event
+    // that happened at map load is not an event anyone asked for.
+    let mut w = world_from(SOUND_MAP);
+    let _ = requests_of(&mut w);
+    run(&mut w, 1.0);
+    assert!(requests_of(&mut w).is_empty(), "nothing should have played on its own");
+
+    let chime = named(&w, "chime");
+    w.accept_input(chime, &InputEvent::new("Play"));
+    let played = requests_of(&mut w);
+    assert_eq!(played.len(), 1);
+    assert_eq!(played[0].1, "ui/click");
+}
+
+#[test]
+fn a_one_shot_sound_does_not_loop() {
+    // The engine reads this field to decide, and it defaults to looping --
+    // which is right for an ambience and wrong for a chime that would then
+    // never stop.
+    let w = world_from(SOUND_MAP);
+    let chime = named(&w, "chime");
+    assert!(!w.get(chime).unwrap().fields.bool("looping", true));
+}
+
+#[test]
+fn an_ambience_starts_with_the_map_unless_told_not_to() {
+    let mut w = world_from(
+        r#"entity { "classname" "ambient_generic" "targetname" "hum" "sound" "ambient/room_tone" }"#,
+    );
+    assert_eq!(requests_of(&mut w).len(), 1, "an ambience is a bed and beds start");
+}
+
+#[test]
+fn the_source_spelling_of_the_sound_key_still_works() {
+    // `message` is what Source calls it, for a reason that made sense in 1998.
+    // Anyone who wrote it, or copied a Source example, should not be left
+    // wondering why nothing plays.
+    let mut w = world_from(SOUND_MAP);
+    let _ = requests_of(&mut w);
+    let legacy = named(&w, "legacy");
+    w.accept_input(legacy, &InputEvent::new("Play"));
+
+    let played = requests_of(&mut w);
+    assert_eq!(played.len(), 1);
+    assert_eq!(played[0].1, "ui/click");
+}
+
+#[test]
+fn a_sound_entity_naming_nothing_says_so_rather_than_playing_silence() {
+    let mut w = world_from(r#"entity { "classname" "point_sound" "targetname" "quiet" }"#);
+    let quiet = named(&w, "quiet");
+    assert!(!w.accept_input(quiet, &InputEvent::new("Play")), "it should report failure");
+    assert!(requests_of(&mut w).is_empty());
+}
+
+#[test]
+fn firing_a_one_shot_twice_plays_it_twice() {
+    // An ambience is a switch and refuses a second start; an event is not.
+    let mut w = world_from(SOUND_MAP);
+    let _ = requests_of(&mut w);
+    let chime = named(&w, "chime");
+    w.accept_input(chime, &InputEvent::new("Play"));
+    w.accept_input(chime, &InputEvent::new("Play"));
+    assert_eq!(requests_of(&mut w).len(), 2);
+}
+
+#[test]
+fn a_one_shot_announces_itself_so_something_can_follow_it() {
+    // A door that plays its own noise wants to know when the noise started;
+    // so does anything sequencing one sound after another.
+    let mut w = world_from(SOUND_MAP);
+    let chime = named(&w, "chime");
+    w.accept_input(chime, &InputEvent::new("Play"));
+    run(&mut w, TICK * 2.0);
+
+    assert_eq!(field(&w, named(&w, "plays"), "value"), 1.0);
+}

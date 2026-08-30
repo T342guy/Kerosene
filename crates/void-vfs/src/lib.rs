@@ -153,6 +153,7 @@ impl Vfs {
     }
 
     fn read_normalized(&self, key: &str, id: Option<&str>) -> Result<Option<Vec<u8>>> {
+        let folded = key.to_lowercase();
         for sp in &self.paths {
             if id.is_some_and(|want| sp.id != want) { continue; }
             match &sp.layer {
@@ -160,7 +161,22 @@ impl Vfs {
                     let full = dir.join(key);
                     match std::fs::read(&full) {
                         Ok(bytes) => return Ok(Some(bytes)),
-                        Err(e) if e.kind() == std::io::ErrorKind::NotFound => continue,
+                        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                            // The name as written missed. Content paths are
+                            // case-insensitive by contract -- an archive gives
+                            // that for free -- so a loose tree has to agree,
+                            // or a game works from a checkout and breaks the
+                            // moment it is packed.
+                            match path::find_ignoring_case(dir, key) {
+                                Some(found) => return Ok(Some(std::fs::read(&found).map_err(
+                                    |source| VfsError::Io {
+                                        path: found.display().to_string(),
+                                        source,
+                                    },
+                                )?)),
+                                None => continue,
+                            }
+                        }
                         // A permissions error or a bad sector is worth
                         // surfacing; quietly falling through to a stale copy
                         // in a lower layer would be worse than failing.
@@ -170,7 +186,7 @@ impl Vfs {
                     }
                 }
                 Layer::Archive(a) => {
-                    if let Some(bytes) = a.read(key)? { return Ok(Some(bytes)); }
+                    if let Some(bytes) = a.read(&folded)? { return Ok(Some(bytes)); }
                 }
             }
         }
@@ -194,18 +210,28 @@ impl Vfs {
 
     pub fn exists(&self, vpath: &str) -> bool {
         let Some(key) = normalize(vpath) else { return false };
+        let folded = key.to_lowercase();
         self.paths.iter().any(|sp| match &sp.layer {
-            Layer::Directory(dir) => dir.join(&key).is_file(),
-            Layer::Archive(a) => a.contains(&key),
+            Layer::Directory(dir) => {
+                dir.join(&key).is_file() || path::find_ignoring_case(dir, &key).is_some()
+            }
+            Layer::Archive(a) => a.contains(&folded),
         })
     }
 
     /// Which layer would serve this path -- what a `whereis` command reports.
     pub fn locate(&self, vpath: &str) -> Option<String> {
         let key = normalize(vpath)?;
+        let folded = key.to_lowercase();
         self.paths.iter().find_map(|sp| match &sp.layer {
-            Layer::Directory(dir) => dir.join(&key).is_file().then(|| dir.join(&key).display().to_string()),
-            Layer::Archive(a) => a.contains(&key).then(|| format!("{}:{key}", a.source())),
+            Layer::Directory(dir) => {
+                let exact = dir.join(&key);
+                if exact.is_file() {
+                    return Some(exact.display().to_string());
+                }
+                path::find_ignoring_case(dir, &key).map(|p| p.display().to_string())
+            }
+            Layer::Archive(a) => a.contains(&folded).then(|| format!("{}:{folded}", a.source())),
         })
     }
 

@@ -19,7 +19,7 @@
 //! genuinely common failure -- a truncated download, a bad copy -- and it is
 //! far better caught here than as a garbled texture three subsystems later.
 
-use crate::path::normalize;
+use crate::path::key;
 use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::{BufWriter, Read, Seek, SeekFrom, Write};
@@ -221,7 +221,7 @@ impl ArchiveBuilder {
 
     /// Stage a file. A repeated path replaces the earlier content.
     pub fn add(&mut self, vpath: &str, data: Vec<u8>) -> Result<()> {
-        let key = normalize(vpath).ok_or_else(|| ArchiveError::BadPath(vpath.to_string()))?;
+        let key = key(vpath).ok_or_else(|| ArchiveError::BadPath(vpath.to_string()))?;
         self.files.insert(key, data);
         Ok(())
     }

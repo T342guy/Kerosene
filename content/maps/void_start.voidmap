@@ -1407,19 +1407,28 @@ entity
 	connections
 	{
 		"OnPressed" "shutter,Toggle,,0,-1"
+		"OnPressed" "switch_click,Play,,0,-1"
 	}
 }
 entity
 {
 	"id" "144"
+	"classname" "point_sound"
+	"origin" "240 8 64"
+	"targetname" "switch_click"
+	"sound" "ui/click"
+}
+entity
+{
+	"id" "145"
 	"classname" "func_brush"
 	"targetname" "shutter"
 	solid
 	{
-		"id" "145"
+		"id" "146"
 		side
 		{
-			"id" "146"
+			"id" "147"
 			"plane" "(272 320 64) (240 320 64) (240 480 64)"
 			"material" "dev/wall"
 			"uaxis" "[1 0 0 0] 0.25"
@@ -1430,7 +1439,7 @@ entity
 		}
 		side
 		{
-			"id" "147"
+			"id" "148"
 			"plane" "(240 480 0) (240 320 0) (272 320 0)"
 			"material" "dev/wall"
 			"uaxis" "[1 0 0 0] 0.25"
@@ -1441,7 +1450,7 @@ entity
 		}
 		side
 		{
-			"id" "148"
+			"id" "149"
 			"plane" "(272 480 0) (272 320 0) (272 320 64)"
 			"material" "dev/wall"
 			"uaxis" "[0 1 0 0] 0.25"
@@ -1452,7 +1461,7 @@ entity
 		}
 		side
 		{
-			"id" "149"
+			"id" "150"
 			"plane" "(240 320 64) (240 320 0) (240 480 0)"
 			"material" "dev/wall"
 			"uaxis" "[0 1 0 0] 0.25"
@@ -1463,7 +1472,7 @@ entity
 		}
 		side
 		{
-			"id" "150"
+			"id" "151"
 			"plane" "(240 480 64) (240 480 0) (272 480 0)"
 			"material" "dev/wall"
 			"uaxis" "[1 0 0 0] 0.25"
@@ -1474,7 +1483,7 @@ entity
 		}
 		side
 		{
-			"id" "151"
+			"id" "152"
 			"plane" "(272 320 0) (240 320 0) (240 320 64)"
 			"material" "dev/wall"
 			"uaxis" "[1 0 0 0] 0.25"
@@ -1487,21 +1496,21 @@ entity
 }
 entity
 {
-	"id" "152"
+	"id" "153"
 	"classname" "light"
 	"origin" "256 256 192"
 	"_light" "255 240 214 320"
 }
 entity
 {
-	"id" "153"
+	"id" "154"
 	"classname" "light"
 	"origin" "784 256 192"
 	"_light" "214 230 255 320"
 }
 entity
 {
-	"id" "154"
+	"id" "155"
 	"classname" "light_environment"
 	"origin" "512 256 224"
 	"pitch" "-45"
@@ -1511,7 +1520,7 @@ entity
 }
 entity
 {
-	"id" "155"
+	"id" "156"
 	"classname" "info_player_start"
 	"origin" "128 256 16"
 	"angles" "0 0 0"

@@ -38,6 +38,21 @@ pub use wav::Sound;
 /// The extension a sound script uses.
 pub const SCRIPT_EXTENSION: &str = "voidsnd";
 
+/// Extensions the *engine* can decode, best first.
+///
+/// Compiled audio first because it is smaller and carries loop points; a
+/// source `.wav` after it, so a designer mid-edit hears a file they have just
+/// dropped in without running a build to find out whether it is the right one.
+pub const READABLE: &[&str] = &[compiled::EXTENSION, "wav"];
+
+/// Extensions the *tools* read and the engine does not.
+///
+/// Not a gap: a FLAC decoder in the engine would ship in every game to read
+/// files no shipped game contains, because Timbre compiles them first. But a
+/// name that resolves to one of these has to say *that* rather than "not
+/// found", or the answer to "my file is right there" is a path nobody wrote.
+pub const COMPILE_ONLY: &[&str] = &["flac", "mp3"];
+
 #[derive(Debug, thiserror::Error)]
 pub enum AudioError {
     #[error("{0}")]
@@ -114,6 +129,21 @@ impl SoundBank {
         }
     }
 
+    /// Every file this name might be, best first.
+    ///
+    /// More than one, because a sound has a compiled form and a source form
+    /// and may have arrived in any of several containers. Resolving to a
+    /// single guessed path is what made `play ambient/track` report
+    /// `sound/ambient/track.wav` missing when the file on disk was a `.flac`
+    /// -- a path nobody had written, about a file that was right there.
+    pub fn candidates(&self, name: &str) -> Vec<String> {
+        let stated = self.script.get(name).map(|d| d.file.clone());
+        match stated {
+            Some(file) => siblings(&file),
+            None => siblings(&default_path(name)),
+        }
+    }
+
     pub fn forget_all(&mut self) {
         self.loaded.clear();
         self.missing.clear();
@@ -121,13 +151,46 @@ impl SoundBank {
 }
 
 /// Where a sound file lives, given a bare name.
+///
+/// A name with no extension gets the compiled one, which is what a shipped
+/// game holds. [`SoundBank::candidates`] is what tries the rest.
 pub fn default_path(name: &str) -> String {
     let name = name.trim_start_matches('/');
     if name.contains('.') {
         if name.starts_with("sound/") { name.to_string() } else { format!("sound/{name}") }
     } else {
-        format!("sound/{name}.wav")
+        format!("sound/{name}.{}", compiled::EXTENSION)
     }
+}
+
+/// The same path in every extension worth trying, compiled form first.
+pub fn siblings(path: &str) -> Vec<String> {
+    let stem = match path.rsplit_once('.') {
+        Some((stem, tail)) if !tail.contains('/') => stem,
+        _ => path,
+    };
+    let mut out: Vec<String> = READABLE.iter().map(|e| format!("{stem}.{e}")).collect();
+    // The path as written last, so a name that already points at something
+    // readable is still tried even if it is not one of the extensions above.
+    if !out.iter().any(|p| p == path) {
+        out.push(path.to_string());
+    }
+    out
+}
+
+/// A source this name might be that the engine cannot decode.
+///
+/// For the message, not for loading: knowing the file exists and needs
+/// compiling is the difference between a two-minute fix and an afternoon.
+pub fn uncompiled_source(path: &str, exists: impl Fn(&str) -> bool) -> Option<String> {
+    let stem = match path.rsplit_once('.') {
+        Some((stem, tail)) if !tail.contains('/') => stem,
+        _ => path,
+    };
+    COMPILE_ONLY
+        .iter()
+        .map(|e| format!("{stem}.{e}"))
+        .find(|candidate| exists(candidate))
 }
 
 #[cfg(test)]

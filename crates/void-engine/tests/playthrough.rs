@@ -1458,3 +1458,54 @@ fn a_broken_compiled_sound_is_reported_rather_than_silently_skipped() {
     assert!(engine.audio.sound(&engine.vfs.clone(), "test/beep").is_none());
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn a_sound_that_is_there_but_uncompiled_says_so_rather_than_missing() {
+    // The report this fixes: "the engine cannot find the audio files, even
+    // though the path is correct." It was -- the engine guessed `.wav`, and
+    // then reported the path it had guessed as missing.
+    let (mut engine, dir) = engine_with_sound();
+    std::fs::remove_file(dir.join("sound/test/beep.wav")).unwrap();
+    std::fs::write(dir.join("sound/test/beep.flac"), b"fLaC not really").unwrap();
+    engine.load_map("testmap").unwrap();
+
+    assert!(engine.audio.sound(&engine.vfs.clone(), "test/beep").is_none());
+
+    // Asserted on the message itself: it reaches the console through the log
+    // relay, which a test does not install.
+    let candidates = engine.audio.bank.candidates("test/beep");
+    let said = void_engine::audio::explain_missing(&engine.vfs, &candidates);
+    assert!(said.contains("beep.flac"), "the file that is there should be named: {said}");
+    assert!(said.contains("timbre build"), "and what to do about it: {said}");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_sound_named_with_capitals_is_found_on_a_case_sensitive_filesystem() {
+    // The other half of the same report. Every VFS path was folded to lower
+    // case, so an asset named `FINALSmusic.flac` was invisible on Linux --
+    // and not only to audio: any texture, model or map with a capital in its
+    // name had the same problem.
+    let (mut engine, dir) = engine_with_sound();
+    std::fs::rename(dir.join("sound/test/beep.wav"), dir.join("sound/test/BeepLOUD.wav")).unwrap();
+    engine.load_map("testmap").unwrap();
+
+    assert!(
+        engine.audio.sound(&engine.vfs.clone(), "test/BeepLOUD").is_some(),
+        "a name with capitals must resolve to the file that has them"
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_name_in_the_wrong_case_still_finds_the_file() {
+    // Content paths are case-insensitive by contract, because an archive
+    // makes them so for free. A loose tree has to agree, or a game works from
+    // a checkout and breaks the moment it is packed.
+    let (mut engine, dir) = engine_with_sound();
+    std::fs::rename(dir.join("sound/test/beep.wav"), dir.join("sound/test/BeepLOUD.wav")).unwrap();
+    engine.load_map("testmap").unwrap();
+
+    assert!(engine.audio.sound(&engine.vfs.clone(), "test/beeploud").is_some());
+    let _ = std::fs::remove_dir_all(&dir);
+}

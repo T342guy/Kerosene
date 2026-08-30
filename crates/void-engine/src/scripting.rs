@@ -255,8 +255,12 @@ impl Engine {
         let Some(entity) = self.entities.get(id) else { return };
         let everywhere = entity.has_spawnflag(void_game::sound::SF_EVERYWHERE);
         let origin = entity.origin;
-        // `health` carries the per-entity volume, as Source spells it.
-        let volume = entity.fields.f32("health", 1.0).clamp(0.0, 1.0);
+        // `volume` is what it is called. `health` is what Source calls it, and
+        // is still read so a map that says so is not silently ignored.
+        let volume = entity
+            .fields
+            .f32("volume", entity.fields.f32("health", 1.0))
+            .clamp(0.0, 1.0);
         let radius = entity.fields.f32("radius", 0.0);
         let pitch = entity.fields.f32("pitch", 1.0).max(0.01);
         let looping = entity.fields.bool("looping", true);

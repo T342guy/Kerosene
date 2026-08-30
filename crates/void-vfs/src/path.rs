@@ -26,7 +26,46 @@ pub fn normalize(path: &str) -> Option<String> {
         }
     }
     if out.is_empty() { return None; }
-    Some(out.join("/").to_lowercase())
+    Some(out.join("/"))
+}
+
+/// The case-folded form, for looking a path up in an archive.
+///
+/// Archives store their entries folded, so a name is found however it was
+/// typed -- which is the behaviour content wants, since a map written on
+/// Windows routinely disagrees with the file on disk about capitals.
+///
+/// Directories cannot do the same by string alone: on Linux the filesystem is
+/// case-sensitive, so folding a path is how `FINALSmusic.flac` becomes a file
+/// that does not exist. [`crate::Vfs`] resolves those by looking, not by
+/// lowercasing.
+pub fn key(path: &str) -> Option<String> {
+    normalize(path).map(|p| p.to_lowercase())
+}
+
+/// Find a file in `dir` whose path matches `relative` ignoring case.
+///
+/// Walked rather than folded, and only after the exact name has already
+/// missed, so the cost falls on the lookup that was going to fail anyway.
+/// Content paths are case-insensitive by contract -- an archive makes them so
+/// for free -- and a loose tree has to agree, or a game works from a checkout
+/// and breaks the moment it is packed.
+pub fn find_ignoring_case(dir: &std::path::Path, relative: &str) -> Option<std::path::PathBuf> {
+    let mut at = dir.to_path_buf();
+    let mut parts = relative.split('/').peekable();
+
+    while let Some(part) = parts.next() {
+        let wanted = part.to_lowercase();
+        let matched = std::fs::read_dir(&at).ok()?.flatten().find(|entry| {
+            entry.file_name().to_string_lossy().to_lowercase() == wanted
+        })?;
+        at = matched.path();
+        // Every part but the last has to be a directory to keep walking.
+        if parts.peek().is_some() && !at.is_dir() {
+            return None;
+        }
+    }
+    at.is_file().then_some(at)
 }
 
 /// Lowercase extension without the dot, if any.
@@ -58,16 +97,72 @@ mod tests {
     use super::*;
 
     #[test]
-    fn spellings_collapse_to_one_key() {
+    fn spellings_collapse_to_one_shape() {
+        // Separators, leading slashes and `.` parts all go; capitals stay,
+        // because a directory on Linux is case-sensitive and a folded path is
+        // how `FINALSmusic.flac` becomes a file that does not exist.
         let want = Some("materials/dev/grid.voidmat".to_string());
         for src in [
-            r"Materials\Dev\Grid.voidmat",
+            r"materials\dev\grid.voidmat",
             "materials/dev/grid.voidmat",
             "./materials//dev/grid.voidmat",
             "/materials/dev/grid.voidmat",
         ] {
             assert_eq!(normalize(src), want, "{src}");
         }
+    }
+
+    #[test]
+    fn normalize_keeps_case_and_key_folds_it() {
+        // Two jobs, and conflating them is what broke lookups: an archive
+        // stores folded keys and can be asked in any case, while a directory
+        // has to be asked for the name the filesystem actually holds.
+        assert_eq!(normalize("Sound/Ambient/Track.WAV").as_deref(), Some("Sound/Ambient/Track.WAV"));
+        assert_eq!(key("Sound/Ambient/Track.WAV").as_deref(), Some("sound/ambient/track.wav"));
+        assert_eq!(key(r"Materials\Dev\Grid.voidmat").as_deref(), Some("materials/dev/grid.voidmat"));
+    }
+
+    #[test]
+    fn a_file_is_found_by_a_name_in_the_wrong_case() {
+        // The bug this exists for: an asset named with capitals was invisible
+        // to the engine on a case-sensitive filesystem, and the error named a
+        // lowercased path nobody had written.
+        let dir = std::env::temp_dir().join(format!(
+            "voidvfs-case-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("Sound/Ambient")).unwrap();
+        std::fs::write(dir.join("Sound/Ambient/FINALSmusic.flac"), b"x").unwrap();
+
+        for spelling in [
+            "Sound/Ambient/FINALSmusic.flac",
+            "sound/ambient/finalsmusic.flac",
+            "SOUND/AMBIENT/FINALSMUSIC.FLAC",
+        ] {
+            assert!(
+                find_ignoring_case(&dir, spelling).is_some(),
+                "{spelling} should have been found"
+            );
+        }
+        assert!(find_ignoring_case(&dir, "sound/ambient/nothing.flac").is_none());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_directory_in_the_path_is_not_mistaken_for_the_file() {
+        let dir = std::env::temp_dir().join(format!(
+            "voidvfs-casedir-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("Sound/Ambient")).unwrap();
+
+        // The path exists as a directory, and a directory is not a file.
+        assert!(find_ignoring_case(&dir, "sound/ambient").is_none());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
