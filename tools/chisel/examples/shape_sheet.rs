@@ -11,7 +11,7 @@
 //! solid. Only a picture can tell you they are an arch.
 use chisel::raster::{Settings, Shading, render_with};
 use chisel::shapes::{Options, Shape};
-use void_math::{Aabb, Vec3};
+use kerosene_math::{Aabb, Vec3};
 
 fn main() -> anyhow::Result<()> {
     let out = std::env::args().nth(1).unwrap_or_else(|| "shapes.png".into());
@@ -47,7 +47,7 @@ fn main() -> anyhow::Result<()> {
     let middle = Vec3::new((x - 340.0 + 256.0) * 0.5, 440.0, 90.0);
     let back = x * 0.85;
     let eye = Vec3::new(middle.x, middle.y - back, middle.z + back * 0.60);
-    let angles = void_math::Angles::from_direction(middle - eye);
+    let angles = kerosene_math::Angles::from_direction(middle - eye);
 
     let mut settings = Settings { shading: Shading::Flat, resolve: None };
     let image = render_with(&document, eye, angles.vectors(), 75.0, 1400, 600, &mut settings);

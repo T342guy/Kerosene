@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: LGPL-3.0-or-later
-//! Reading the `.voidprt` portal graph Cleave writes.
+//! Reading the `.keroprt` portal graph Cleave writes.
 //!
 //! ```text
 //! VPRT1
@@ -16,7 +16,7 @@
 //! looks.
 
 use thiserror::Error;
-use void_math::{Plane, Vec3, Winding};
+use kerosene_math::{Plane, Vec3, Winding};
 
 #[derive(Debug, Error)]
 pub enum PrtError {

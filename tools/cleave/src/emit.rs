@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: LGPL-3.0-or-later
-//! Turning the compiled tree into `.voidbsp` lumps.
+//! Turning the compiled tree into `.kerobsp` lumps.
 //!
 //! Three jobs happen here, in order:
 //!
@@ -18,11 +18,11 @@
 use crate::brush::BrushWork;
 use crate::tree::Tree;
 use std::collections::HashMap;
-use void_bsp::{
+use kerosene_bsp::{
     Brush, BrushSide, Bsp, ColorRgbExp32, Edge, Face, Leaf, Model, Node, TexData, TexInfo,
     contents, encode_leaf, surf,
 };
-use void_math::{Aabb, ON_EPSILON, Plane, PlaneSet, PlaneSide, Vec3, Winding};
+use kerosene_math::{Aabb, ON_EPSILON, Plane, PlaneSet, PlaneSide, Vec3, Winding};
 
 /// Largest lightmap a single face may claim, in luxels per side.
 ///
@@ -200,7 +200,7 @@ pub struct BrushModel {
     pub origin: Vec3,
 }
 
-/// Assemble the final `.voidbsp`.
+/// Assemble the final `.kerobsp`.
 pub fn emit(
     tree: &Tree,
     planes: &PlaneSet,
@@ -212,7 +212,7 @@ pub fn emit(
     let mut bsp = Bsp::new();
     bsp.revision = revision;
     bsp.entities = entities_text;
-    bsp.planes = planes.planes().iter().map(void_bsp::BspPlane::from_plane).collect();
+    bsp.planes = planes.planes().iter().map(kerosene_bsp::BspPlane::from_plane).collect();
 
     let mut tex = TexBuilder::default();
     let mut welder = VertexWelder::default();

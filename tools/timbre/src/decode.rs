@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: LGPL-3.0-or-later
 //! Reading source audio, whatever it arrived as.
 //!
-//! WAV is decoded by [`void_audio::wav`] -- the engine's own decoder, written
+//! WAV is decoded by [`kerosene_audio::wav`] -- the engine's own decoder, written
 //! out rather than pulled in, and the one that also reads the `smpl` chunk
 //! loop points. FLAC and MP3 go through Symphonia.
 //!
 //! ## Why a dependency is allowed here and not in the engine
 //!
-//! `void-audio` decodes what a *player's machine* loads, which is why it is a
+//! `kerosene-audio` decodes what a *player's machine* loads, which is why it is a
 //! few hundred lines of hand-written RIFF parsing: it is a place an unexpected
 //! file should produce an error rather than a panic, and every byte of it
 //! ships in the game.
@@ -19,7 +19,7 @@
 //! thousand lines of someone else's solved problem.
 //!
 //! Alchemy already made this call: it pulls in `image` for PNG and JPEG, and
-//! the engine reads only `.voidtex`. This is the same split.
+//! the engine reads only `.kerotex`. This is the same split.
 //!
 //! ## On lossy sources
 //!
@@ -30,8 +30,8 @@
 
 use anyhow::{Context, Result, bail};
 use std::path::Path;
-use void_audio::compiled::Loop;
-use void_audio::wav::Sound;
+use kerosene_audio::compiled::Loop;
+use kerosene_audio::wav::Sound;
 
 /// The formats Timbre will read.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -108,7 +108,7 @@ pub fn any(path: &Path, bytes: &[u8]) -> Result<Decoded> {
 
     match format {
         Format::Wav => {
-            let sound = void_audio::wav::decode(bytes)
+            let sound = kerosene_audio::wav::decode(bytes)
                 .with_context(|| format!("decoding {}", path.display()))?;
             let looping = crate::loop_from_wav(bytes, sound.frames() as u32);
             Ok(Decoded { sound, format, looping })

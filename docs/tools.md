@@ -7,16 +7,16 @@ Nine programs. None of them is the engine, and none of them depends on it.
 ## Chisel — the world editor
 
 ```sh
-chisel [map.voidmap] [--content <dir>] [--no-build]
+chisel [map.keromap] [--content <dir>] [--no-build]
 ```
 
 **Finding the content.** Chisel needs the content root -- the tree holding
-`maps/`, `materials/` and the `.voiddef` class definitions -- to show entity
-classes and materials at all. The search lives in `void-vfs` and every tool
+`maps/`, `materials/` and the `.kerodef` class definitions -- to show entity
+classes and materials at all. The search lives in `kerosene-vfs` and every tool
 and the engine share it, so they cannot disagree about which tree is in use.
 
-The reliable way to settle it is a **project file**: a `.voidproj` at the top
-of a project naming its content directory. See [formats](formats.md#voidproj).
+The reliable way to settle it is a **project file**: a `.keroproj` at the top
+of a project naming its content directory. See [formats](formats.md#keroproj).
 Without one, the tree is inferred, which works and is why a fresh clone needs
 no setup -- but inference is a guess, and a project file is how you overrule
 it. Three places are searched, nearest first: the tree the map lives in, the
@@ -28,7 +28,7 @@ by a project on the far side of the disk.
 Failing a project file, each place is searched like this: `--content` if given,
 then beside the map being opened, then the working directory, then beside its
 own executable, climbing up to six levels from each looking for a directory
-holding `voidengine.voiddef` (or, failing that, both `maps/` and `materials/`).
+holding `kerosene.kerodef` (or, failing that, both `maps/` and `materials/`).
 Opening a map from anywhere in a project therefore just works, and the map's
 own tree wins over the working directory on purpose -- editing another
 project's map should not show this project's entities.
@@ -52,15 +52,15 @@ tell. `--no-build` turns it off; `F9` does it again before compiling the map,
 so a texture added during a session is compiled before the map that uses it.
 
 **Files.** `ctrl-S` saves. A map that has never been saved is asked for a name
-first rather than being written to `untitled.voidmap` somewhere -- the name is
-what `void +map <name>` loads, so an editor that picks one for you is an editor
+first rather than being written to `untitled.keromap` somewhere -- the name is
+what `kerosene +map <name>` loads, so an editor that picks one for you is an editor
 whose output you have to go looking for. `ctrl-shift-S` and `file → save as…`
 ask for a name outright. A bare name means a map in this project: typing
-`arena` writes `<content>/maps/arena.voidmap`. An absolute path is taken as
+`arena` writes `<content>/maps/arena.keromap`. An absolute path is taken as
 given.
 
 `file → rename…` moves the map *and* the artefacts compiled from it -- the
-`.voidbsp`, `.voidprt` and `.voidleak`. Leaving a `.voidbsp` behind under the
+`.kerobsp`, `.keroprt` and `.keroleak`. Leaving a `.kerobsp` behind under the
 old name is worse than clutter: the game still loads it, so a renamed map
 appears to work under a name that no longer exists and to be missing under the
 one that does. Renaming onto a map that already exists is refused.
@@ -202,7 +202,7 @@ are called out on the spot:
 
 **Where a door goes.** Select a brush entity that moves and the 2D panes draw
 its travel: an arrow along `movedir`, an outline where it ends up, and a label
-saying how far and which way. The distance comes from `void_game`'s own
+saying how far and which way. The distance comes from `kerosene_game`'s own
 formula, so the picture and the door agree by construction rather than by
 luck. Anything with `angles` gets a facing arrow the same way.
 
@@ -212,7 +212,7 @@ material from the left panel — picking one with something selected applies it.
 Place entities with the entity tool. Give brushes a type in the right panel to
 make them a door or a trigger. Wire outputs to inputs in the same panel.
 
-**Wiring, as a sequence.** A `.voidmap` stores wiring as a flat list of
+**Wiring, as a sequence.** A `.keromap` stores wiring as a flat list of
 connections, which is the right thing to store and the wrong thing to show:
 what a designer is building is *when this happens, do these things, in this
 order*, and a column of rows with delays in them makes the order something you
@@ -231,7 +231,7 @@ with nothing on `OnFalse` does nothing half the time, which is a bug you find
 by playing rather than by reading.
 
 Dragging a selection shows a ghost of it at the destination, in every pane at
-once including the 3D one, with the offset written out in void units. The
+once including the 3D one, with the offset written out in kerosene units. The
 rubber band a drag sweeps out is not where anything ends up, so it is not what
 gets drawn.
 
@@ -239,7 +239,7 @@ Clicking a brush that belongs to an entity selects the entity, not the brush:
 that is what a designer means by "the door".
 
 **Entity properties.** The inspector is driven by the game's class definitions
--- the `.voiddef` files Chisel finds under the content root. For a selected
+-- the `.kerodef` files Chisel finds under the content root. For a selected
 entity it lists *every* key its class reads, whether or not the entity has been
 given a value for one, with the type, the game's default and a line of help.
 Keys are edited with a widget suited to what they hold: a colour picker for a
@@ -247,7 +247,7 @@ light's colour, checkboxes for a spawnflag field, a menu of the map's entity
 names when wiring an output. A key the definitions do not describe is still
 shown -- that is how a typo becomes visible rather than silent.
 
-Without a `.voiddef` the inspector can only show the keys an entity already
+Without a `.kerodef` the inspector can only show the keys an entity already
 carries, which for a freshly placed entity is none. Chisel says so in the
 status bar rather than looking like a game with no settings.
 
@@ -267,7 +267,7 @@ the exception -- those *are* walls, just ones nobody sees, so they stay opaque.
 A volume does not claim the depth buffer either, so two overlapping ones both
 show and neither erases what is behind it.
 
-It reads the **compiled** `.voidtex`, through the same VFS the engine uses, so
+It reads the **compiled** `.kerotex`, through the same VFS the engine uses, so
 what it shows is what the engine will draw -- including from inside a `.vault`
 archive. The consequence is worth stating plainly: **the content has to be
 built**. A material Alchemy has not compiled yet shows as a flat colour derived
@@ -297,7 +297,7 @@ editor's own texture cache is reloaded when the compile finishes -- a new
 texture shows up in the pane without a restart. Uncheck *build materials* to
 skip that stage when the art has not moved.
 
-When a map is not sealed, Cleave writes a `.voidleak` trace beside it and
+When a map is not sealed, Cleave writes a `.keroleak` trace beside it and
 Chisel loads it and draws the route out in red, through every pane. Follow the
 line to the wall it goes through. `map → clear the leak trace` puts it away.
 
@@ -307,14 +307,14 @@ found.
 
 **Developer textures.** `alchemy dev-textures` writes the standard set, and
 `scripts/build-content.sh` runs it: `dev/` measurement checkerboards where one
-cell is 16 vu at the default texture scale, and the full `tools/` set --
+cell is 16 ku at the default texture scale, and the full `tools/` set --
 `nodraw`, `clip`, `playerclip`, `trigger`, `hint`, `skip`, `skybox` and the
 rest -- each a flat colour with its own name written across it. The compiler
 already understood every one of those; until now none of them had a texture, so
 picking one in the editor showed nothing.
 
-**Units.** Distances are void units (`vu`); one is an inch. A player is 72 vu
-tall and runs at 320 vu/s, which is the scale a room is judged against. The
+**Units.** Distances are kerosene units (`ku`); one is an inch. A player is 72 ku
+tall and runs at 320 ku/s, which is the scale a room is judged against. The
 status bar carries the unit on every number, with metres and a player-height
 comparison on hover.
 
@@ -323,21 +323,21 @@ comparison on hover.
 ## Cleave — the BSP compiler
 
 ```sh
-cleave map.voidmap [-o out.voidbsp] [--ignore-leaks] [--no-fill] [--dry-run] [-v]
+cleave map.keromap [-o out.kerobsp] [--ignore-leaks] [--no-fill] [--dry-run] [-v]
 ```
 
-`.voidmap` → `.voidbsp` plus a `.voidprt` portal graph for Umbra.
+`.keromap` → `.kerobsp` plus a `.keroprt` portal graph for Umbra.
 
 Reports every brush and entity problem in one pass rather than stopping at the
 first, because a designer would rather fix five brushes in one cycle than five.
 
 **Leaks.** If the flood fill escapes to the void, the map is not sealed and
 Cleave refuses to build it — visibility would be nearly useless and the compile
-would take far longer. `--ignore-leaks` builds it anyway and writes a `.voidleak`
+would take far longer. `--ignore-leaks` builds it anyway and writes a `.keroleak`
 trace naming the route out, which is the only practical way to find a one-unit
 gap in a large map.
 
-A compile that seals the map **deletes** any `.voidleak` left beside it by an
+A compile that seals the map **deletes** any `.keroleak` left beside it by an
 earlier one. A stale trace is worse than none: Chisel loads whatever is on
 disk, so a map that leaked once would go on reporting a leak through every
 successful compile after it.
@@ -373,7 +373,7 @@ designer has over compile time.
 ## Umbra — the visibility compiler
 
 ```sh
-umbra map.voidbsp [--portals map.voidprt] [--fast] [--dry-run]
+umbra map.kerobsp [--portals map.keroprt] [--fast] [--dry-run]
 ```
 
 Computes which clusters can see which, and writes the PVS back into the map.
@@ -389,7 +389,7 @@ visible, and exactly what you want while a layout is still moving.
 ## Radiance — the lighting compiler
 
 ```sh
-radiance map.voidbsp [--samples 1-8] [--bounces 0-8] [--scale N]
+radiance map.kerobsp [--samples 1-8] [--bounces 0-8] [--scale N]
                   [--ambient-scale N] [--fast] [--dry-run]
 ```
 
@@ -420,14 +420,14 @@ broken renderer — so Radiance says so.
 ## Alchemy — textures and materials
 
 ```sh
-alchemy compile art/grid.png -o materials/dev/grid.voidtex [--normal] [--clamp] [--ui]
+alchemy compile art/grid.png -o materials/dev/grid.kerotex [--normal] [--clamp] [--ui]
 alchemy material dev/grid --basetexture dev/grid --shader lit
 alchemy batch art -o materials --make-materials
 alchemy build content
-alchemy info materials/dev/grid.voidtex
+alchemy info materials/dev/grid.kerotex
 ```
 
-Compiles PNG/JPEG/TGA into `.voidtex` and authors `.voidmat` materials.
+Compiles PNG/JPEG/TGA into `.kerotex` and authors `.keromat` materials.
 
 `build` is the whole texture half of a content build for one project: the
 developer set is generated into `art/`, then everything under `art/` is
@@ -439,7 +439,7 @@ build script insisted everything was fine. Alchemy is a library as well as a
 command so the editor can call it rather than shell out to a sibling binary
 that may not be on the path.
 
-`batch` and `build` skip an image whose `.voidtex` is already newer than it, so
+`batch` and `build` skip an image whose `.kerotex` is already newer than it, so
 a build with nothing to do costs a directory walk.
 
 Alpha is dropped when an image does not use it, which saves a quarter of the
@@ -452,17 +452,17 @@ unattended.
 ## Forge — the model compiler
 
 ```sh
-forge compile art/crate.obj -o models/props/crate.voidmdl
+forge compile art/crate.obj -o models/props/crate.keromdl
                             [--scale-metres] [--z-up] [--scale N]
                             [--material old=new] [--recompute-normals]
-forge info models/props/crate.voidmdl
+forge info models/props/crate.keromdl
 ```
 
-OBJ → `.voidmdl`, splitting by material and welding vertices.
+OBJ → `.keromdl`, splitting by material and welding vertices.
 
 Two conversions happen on the way in, and getting either wrong produces a model
 that is subtly rotated or a hundred times too small. OBJ is Y-up with -Z
-forward; VoidEngine is Z-up with +X forward. And modelling packages usually
+forward; Kerosene is Z-up with +X forward. And modelling packages usually
 work in metres — `--scale-metres` converts.
 
 Welding is by the full corner tuple, not by position: two faces meeting at a
@@ -499,8 +499,8 @@ the texture build is a library call, because Chisel makes the same one and the
 two must not be able to disagree.
 
 Sources decide what gets built: every `.obj` under `art/` becomes a
-`.voidmdl` at the matching path under `models/`, and every `.voidmap` under
-`maps/` becomes a `.voidbsp`. Nothing has a list to keep up to date.
+`.keromdl` at the matching path under `models/`, and every `.keromap` under
+`maps/` becomes a `.kerobsp`. Nothing has a list to keep up to date.
 
 A map that leaks still compiles, and is reported at the end rather than
 stopping the build — finding out on the first of forty maps that the run is
@@ -516,10 +516,10 @@ it, then calls Kiln. Neither of those two belongs in a shipped tool.
 ## Vault — content archives
 
 ```sh
-vault pack content -o content/void_content.vault [--ext voidtex] [--exclude tmp]
-vault list content/void_content.vault [--long]
-vault verify content/void_content.vault
-vault unpack content/void_content.vault -o extracted
+vault pack content -o content/kerosene_content.vault [--ext kerotex] [--exclude tmp]
+vault list content/kerosene_content.vault [--long]
+vault verify content/kerosene_content.vault
+vault unpack content/kerosene_content.vault -o extracted
 ```
 
 The archive belongs *inside* the content tree, which is where a shipped game
@@ -534,20 +534,20 @@ drop a file next to a shipped archive without repacking.
 
 ---
 
-## void — the runtime
+## kerosene — the runtime
 
 ```sh
-void [+command ...] [--content <dir>] [--vault <file>] [--headless <ticks>]
+kerosene [+command ...] [--content <dir>] [--vault <file>] [--headless <ticks>]
 ```
 
 Arguments beginning with `+` are console commands, so any convar is settable
 from the command line with no flag needing to exist for it:
 
 ```sh
-void +map void_start
-void +map void_start +sv_gravity 200 +developer 1
-void --headless 640 +map void_start
-void --content path/to/content --vault extra.vault +map void_start
+kerosene +map kero_start
+kerosene +map kero_start +sv_gravity 200 +developer 1
+kerosene --headless 640 +map kero_start
+kerosene --content path/to/content --vault extra.vault +map kero_start
 ```
 
 `--headless` runs the simulation with no window at all — which is what a
@@ -560,8 +560,8 @@ without being told about its own archives. Loose files still win over packed
 ones, which is what makes dropping a file beside a shipped archive work.
 
 A map that will not load says why rather than saying "not found in any search
-path". The usual reason is that it has never been compiled — the `.voidmap` is
-right there and nothing turned it into a `.voidbsp` — so that is what it says,
+path". The usual reason is that it has never been compiled — the `.keromap` is
+right there and nothing turned it into a `.kerobsp` — so that is what it says,
 along with the command to run and the list of paths it searched.
 
 ### The console
@@ -583,7 +583,7 @@ It introduces itself the first time it opens, because an empty box with a
 blinking cursor reads as "this accepts nothing":
 
 ```
-VoidEngine console -- 52 commands and convars. `find <text>` searches them,
+Kerosene console -- 52 commands and convars. `find <text>` searches them,
 `help <name>` explains one, `cvarlist` lists the lot. Tab completes, up walks
 back, ` or escape closes.
 ```
@@ -616,7 +616,7 @@ game.
 
 # Timbre — the sound compiler
 
-Turns `.wav`, `.flac` and `.mp3` into `.voidaud`. It is the one tool with no
+Turns `.wav`, `.flac` and `.mp3` into `.keroaud`. It is the one tool with no
 Source counterpart,
 because Source shipped `.wav` and paid for it in download size; this pays a
 compile step instead.
@@ -625,7 +625,7 @@ compile step instead.
 timbre                          # open the window
 timbre build                    # compile a project's sounds
 timbre compile a.wav --gain 0.8 --mono
-timbre info a.voidaud
+timbre info a.keroaud
 ```
 
 ## What it reads
@@ -684,14 +684,14 @@ under it and the clipped samples marked in red means something at a glance.
 - Play through the same mixer the engine uses.
 - Gain in decibels, encoding, mono, and the loop region shaded on the wave.
 
-Settings are written to `sound/timbre.voidbuild` and read back by `timbre
+Settings are written to `sound/timbre.kerobuild` and read back by `timbre
 build`, so the window and the command line cannot disagree about what a build
 is — the same discipline that makes the texture build a library call rather
 than a second implementation.
 
 ## Where the window comes from
 
-`void-ui` is a window with egui in it and nothing else: winit's application
+`kerosene-ui` is a window with egui in it and nothing else: winit's application
 handler, a wgpu surface, an egui integration and the frame loop that drives
 them. Implement `App`, call `run`. It exists because that is three hundred
 lines with nothing to do with any particular tool, and a second copy of them

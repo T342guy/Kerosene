@@ -7,9 +7,9 @@ license.workspace = true
 authors.workspace = true
 
 [dependencies]
-void-asset.workspace = true
-void-kv.workspace = true
-void-math.workspace = true
+kerosene-asset.workspace = true
+kerosene-kv.workspace = true
+kerosene-math.workspace = true
 anyhow.workspace = true
 clap.workspace = true
 log.workspace = true

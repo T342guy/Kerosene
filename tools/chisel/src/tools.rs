@@ -7,7 +7,7 @@
 
 use crate::document::Document;
 use crate::viewport::{Viewport, ray_box};
-use void_math::{Aabb, Vec3, Winding};
+use kerosene_math::{Aabb, Vec3, Winding};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub enum ToolKind {
@@ -852,8 +852,8 @@ mod tests {
 #[cfg(test)]
 mod face_picking_tests {
     use super::*;
-    use void_map::Solid;
-    use void_math::Aabb;
+    use kerosene_map::Solid;
+    use kerosene_math::Aabb;
 
     fn room() -> (Document, u32) {
         let mut document = Document::new();

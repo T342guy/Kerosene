@@ -2,36 +2,36 @@
 
 | Extension | What | Text or binary | Written by | Source analogue |
 |---|---|---|---|---|
-| `.voidmap` | Editable map source | text (KeyValues) | Chisel | `.vmf` |
-| `.voidbsp` | Compiled map | binary, lump directory | Cleave / Umbra / Radiance | `.bsp` |
-| `.voidprt` | Portal graph | text | Cleave | `.prt` |
-| `.voidleak` | Leak trace | text | Cleave | `.lin` |
-| `.voidtex` | Texture | binary | Alchemy | `.vtf` |
-| `.voidmat` | Material | text (KeyValues) | Alchemy, by hand | `.vmt` |
-| `.voidmdl` | Model | binary | Forge | `.mdl` |
-| `.voiddef` | Entity class definitions | text (KeyValues) | the game, by hand | `.fgd` |
-| `.voidscript` | Level script | text (Rhai) | by hand | `.nut` (VScript) |
-| `.voidsnd` | Sound script | text (KeyValues) | by hand | `game_sounds.txt` |
-| `.voidaud` | Compiled sound | binary | Timbre | `.wav` (ADPCM) |
+| `.keromap` | Editable map source | text (KeyValues) | Chisel | `.vmf` |
+| `.kerobsp` | Compiled map | binary, lump directory | Cleave / Umbra / Radiance | `.bsp` |
+| `.keroprt` | Portal graph | text | Cleave | `.prt` |
+| `.keroleak` | Leak trace | text | Cleave | `.lin` |
+| `.kerotex` | Texture | binary | Alchemy | `.vtf` |
+| `.keromat` | Material | text (KeyValues) | Alchemy, by hand | `.vmt` |
+| `.keromdl` | Model | binary | Forge | `.mdl` |
+| `.kerodef` | Entity class definitions | text (KeyValues) | the game, by hand | `.fgd` |
+| `.keroscript` | Level script | text (Rhai) | by hand | `.nut` (VScript) |
+| `.kerosnd` | Sound script | text (KeyValues) | by hand | `game_sounds.txt` |
+| `.keroaud` | Compiled sound | binary | Timbre | `.wav` (ADPCM) |
 | `.wav` `.flac` `.mp3` | Sound sources | binary | any audio tool | `.wav` |
 | `.vault` | Content archive | binary | Vault | `.vpk` |
 
 Text where a person edits or reviews it; binary where the engine loads it.
 
-Every coordinate in every one of them is in **void units** -- one void unit is
+Every coordinate in every one of them is in **kerosene units** -- one kerosene unit is
 one inch, a player is 72 of them tall. Angles are degrees, times are seconds,
 and Z is up.
 
 ## KeyValues
 
-The text format `.voidmap`, `.voidmat`, `.voiddef` and the compiled entity lump
+The text format `.keromap`, `.keromat`, `.kerodef` and the compiled entity lump
 all use.
 
 ```
 world
 {
     "classname" "worldspawn"
-    "skyname"   "sky_void"
+    "skyname"   "sky_kero"
     solid
     {
         "id" "1"
@@ -48,7 +48,7 @@ through the editor does not reshuffle it and produce a noisy diff.
 Backslashes are literal, so `materials\dev\grid` survives intact. Only the
 escapes the writer emits (`\"`, `\\`, `\n`, `\t`) are resolved on read.
 
-## `.voidmap` — editable maps
+## `.keromap` — editable maps
 
 ```
 versioninfo { "formatversion" "1" }
@@ -86,9 +86,9 @@ Faces carry no UVs. They carry two *texture axes* — world vectors a point is
 projected onto — which is what makes texturing feel the way it does in a brush
 editor: drag a brush and the texture stays locked to world space.
 
-## `.voidbsp` — compiled maps
+## `.kerobsp` — compiled maps
 
-A header (`VOID`, a version, a 20-slot lump directory) followed by flat arrays
+A header (`KROS`, a version, a 20-slot lump directory) followed by flat arrays
 of `#[repr(C)]` records. Every record is padding-free, so loading a lump is a
 bounds check and a cast rather than a parse.
 
@@ -124,7 +124,7 @@ lighting can be tone-mapped at runtime rather than clipped at bake time.
 Every index in the file is validated at load. A dangling one becomes an
 out-of-bounds read deep inside the renderer, where the cause is invisible.
 
-## `.voidprt` — the portal graph
+## `.keroprt` — the portal graph
 
 Written by Cleave, read by Umbra.
 
@@ -139,7 +139,7 @@ The winding's own plane normal points toward the first cluster listed. Only
 portals between two non-solid leaves appear: sight does not travel through
 rock, so a portal with a solid side is not a portal.
 
-## `.voidtex` — textures
+## `.kerotex` — textures
 
 A 48-byte header (dimensions, format, flags, average colour) then the mip
 chain, largest first. Uncompressed RGBA8, RGB8 or R8.
@@ -148,7 +148,7 @@ Mipmaps, the average colour Radiance needs for bounce lighting, and sampling
 intent are all resolved at build time. Doing them at load costs startup on
 every run, and doing them *well* is not something to redo per launch.
 
-## `.voidmat` — materials
+## `.keromat` — materials
 
 ```
 lit
@@ -168,7 +168,7 @@ making every metal surface reflective is one file change. Unknown parameters
 round-trip rather than being dropped: a game will invent keys the engine has
 never heard of.
 
-## `.voidmdl` — models
+## `.keromdl` — models
 
 A 64-byte header, then vertices, indices, meshes, bones and a string table.
 
@@ -187,12 +187,12 @@ transforms with no recursion and no sorting.
 
 Not a format, but content worth knowing the provenance of: `alchemy
 dev-textures` writes `content/art/dev/` and `content/art/tools/` along with
-their materials. The PNGs and `.voidmat` files it writes are committed; only
-the compiled `.voidtex` is not, because that is a build artefact.
+their materials. The PNGs and `.keromat` files it writes are committed; only
+the compiled `.kerotex` is not, because that is a build artefact.
 
 `dev/` are 256x256 checkerboards. At the default texture scale of 0.25 world
-units per texel that covers 64 vu, so the 4x4 grid on them reads as **16 vu
-cells** -- the size most brushwork is done at -- with a fainter 4 vu
+units per texel that covers 64 ku, so the 4x4 grid on them reads as **16 ku
+cells** -- the size most brushwork is done at -- with a fainter 4 ku
 subdivision over it. The checker is what makes a stretched texture obvious: a
 square that is not square is visible from across a room, where a stretched grid
 line is not. Only `dev/measure` carries numbers, because a world-aligned
@@ -212,14 +212,14 @@ already correct, so re-running it on an unchanged tree is a no-op and a diff
 against it is meaningful.
 
 Chisel runs the generator, and the batch compile after it, before it finishes
-loading. So a clone with the `.voidtex` files missing -- which is every clone,
+loading. So a clone with the `.kerotex` files missing -- which is every clone,
 since they are build artefacts -- still opens an editor with textures in it.
 
 A test checks the set against the compiler's tool-material table in both
 directions: offering a tool material the compiler treats as world geometry
 would silently wall off a doorway.
 
-## `.voidproj` — the project file
+## `.keroproj` — the project file
 
 Where a project says, rather than implies, where its content is.
 
@@ -237,7 +237,7 @@ anywhere and still be right. Every key is optional -- an empty `project { }`
 block still marks a directory as a project, with `content` defaulting to a
 `content/` directory beside it and then to the directory the file is in, which
 is the shape of a shipped game where the project file sits in the folder it
-describes. `startmap` is what `void` loads when nothing else says which; a
+describes. `startmap` is what `kerosene` loads when nothing else says which; a
 project that is a library of maps simply omits it rather than having one
 invented.
 
@@ -252,7 +252,7 @@ found closer down: a stated answer that loses to a guess is not an answer.
 Between places, nearness still decides. The full order is in
 [tools.md](tools.md#chisel--the-world-editor).
 
-## `.voiddef` — entity class definitions
+## `.kerodef` — entity class definitions
 
 What an editor needs to know about the game's entities: for each class, the
 keys it reads, the inputs it answers to and the outputs it fires. The engine
@@ -300,15 +300,15 @@ Files are merged in sorted path order and a later definition of a class
 replaces an earlier one, so a mod can drop its own file beside the game's.
 
 A `default` is what the *game* assumes when a key is absent. Chisel shows it
-greyed rather than writing it into the map, so a `.voidmap` only carries the
+greyed rather than writing it into the map, so a `.keromap` only carries the
 keys someone chose — which is what makes a diff between two saves readable.
 
-`content/voidengine.voiddef` describes the sample game, and a test in
-`void-game` checks it against the class registry in both directions: an input
+`content/kerosene.kerodef` describes the sample game, and a test in
+`kerosene-game` checks it against the class registry in both directions: an input
 the game handles and the file does not offer is a build failure, and so is an
 input the file offers that nothing handles.
 
-## `.voidscript` — level scripts
+## `.keroscript` — level scripts
 
 A map's script, loaded automatically when the level starts if it is named
 after the map. The language is [Rhai](https://rhai.rs); the API, the hooks and
@@ -326,7 +326,7 @@ Nothing about the format is special — it is source text the engine hands to a
 VM. It is listed here because it is content the engine loads by name and packs
 into a `.vault` with everything else.
 
-## `.voidsnd` — sound scripts
+## `.kerosnd` — sound scripts
 
 What a sound name means: which file, how loud, how far it carries. The format
 and the model behind it are in [`audio.md`](audio.md).

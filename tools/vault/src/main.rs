@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: LGPL-3.0-or-later
-//! Vault -- the VoidEngine content archive tool.
+//! Vault -- the Kerosene content archive tool.
 //!
 //! Packs a content tree into a single `.vault` file, the VPK analogue. A mod
 //! ships as a handful of archives instead of tens of thousands of loose files,
@@ -20,10 +20,10 @@
 use anyhow::{Context, Result, bail};
 use clap::{Parser, Subcommand};
 use std::path::{Path, PathBuf};
-use void_vfs::{Archive, ArchiveBuilder};
+use kerosene_vfs::{Archive, ArchiveBuilder};
 
 #[derive(Parser, Debug)]
-#[command(name = "vault", version, about = "Pack and inspect VoidEngine content archives")]
+#[command(name = "vault", version, about = "Pack and inspect Kerosene content archives")]
 struct Args {
     #[command(subcommand)]
     command: Command,

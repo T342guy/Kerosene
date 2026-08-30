@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: LGPL-3.0-or-later
 use super::*;
-use void_asset::model::Vertex;
-use void_math::Aabb;
+use kerosene_asset::model::Vertex;
+use kerosene_math::Aabb;
 
 /// A unit cube, centred on the origin.
 fn cube() -> Model {
@@ -14,7 +14,7 @@ fn cube() -> Model {
     for c in corners {
         model.vertices.push(Vertex::rigid(c, c.normalize(), [0.0, 0.0]));
     }
-    // Wound the way `.voidmdl` stores triangles: clockwise seen from the
+    // Wound the way `.keromdl` stores triangles: clockwise seen from the
     // front, so the raw cross product of two edges points *into* the model.
     // A fixture wound the other way is a fixture that cannot tell a correct
     // renderer from one showing the inside of everything.
@@ -123,7 +123,7 @@ fn the_shipped_model_renders() {
     // The real thing, not a fixture: a format change that broke previews
     // should fail here rather than in a screenshot nobody takes.
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../content/models/props/crate.voidmdl");
+        .join("../../content/models/props/crate.keromdl");
     let Ok(bytes) = std::fs::read(&path) else { return };
     let crate_model = Model::from_bytes(&bytes).expect("the shipped model loads");
 
@@ -173,7 +173,7 @@ fn the_fixture_is_wound_the_way_the_real_format_is() {
     // right or inside out, which is how the crate came to be rendered from
     // within for as long as it was.
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../content/models/props/crate.voidmdl");
+        .join("../../content/models/props/crate.keromdl");
     let Ok(bytes) = std::fs::read(&path) else { return };
     let real = Model::from_bytes(&bytes).unwrap();
 

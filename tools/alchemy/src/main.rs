@@ -2,17 +2,17 @@
 //! `alchemy` -- the command-line front end to the texture tool.
 //!
 //! Turns source art into the formats the engine loads: `.png` and friends into
-//! `.voidtex`, and material definitions into `.voidmat`. This is the VTFEdit/vtex
+//! `.kerotex`, and material definitions into `.keromat`. This is the VTFEdit/vtex
 //! analogue, and it exists for the same reason: the engine should load
 //! textures, not decode and mipmap them.
 //!
 //! ```text
-//! alchemy compile art/grid.png -o materials/dev/grid.voidtex
-//! alchemy compile art/grid_n.png --normal -o materials/dev/grid_normal.voidtex
-//! alchemy material dev/grid --basetexture dev/grid -o materials/dev/grid.voidmat
+//! alchemy compile art/grid.png -o materials/dev/grid.kerotex
+//! alchemy compile art/grid_n.png --normal -o materials/dev/grid_normal.kerotex
+//! alchemy material dev/grid --basetexture dev/grid -o materials/dev/grid.keromat
 //! alchemy batch art -o materials --make-materials
 //! alchemy build content              # the whole texture set for a project
-//! alchemy info materials/dev/grid.voidtex
+//! alchemy info materials/dev/grid.kerotex
 //! ```
 
 use alchemy::{batch, build_flags, compile_image, devtex, info, write_material};
@@ -38,7 +38,7 @@ enum Command {
         #[arg(long)]
         materials: Option<PathBuf>,
     },
-    /// Compile an image into a .voidtex.
+    /// Compile an image into a .kerotex.
     Compile {
         image: PathBuf,
         #[arg(short, long)]
@@ -59,7 +59,7 @@ enum Command {
         #[arg(long)]
         opaque: bool,
     },
-    /// Write a .voidmat material definition.
+    /// Write a .keromat material definition.
     Material {
         /// Material name, as geometry refers to it (e.g. `dev/grid`).
         name: String,
@@ -84,7 +84,7 @@ enum Command {
         directory: PathBuf,
         #[arg(short, long)]
         output: PathBuf,
-        /// Also write a matching .voidmat next to each texture.
+        /// Also write a matching .keromat next to each texture.
         #[arg(long)]
         make_materials: bool,
     },
@@ -97,7 +97,7 @@ enum Command {
         #[arg(default_value = "content")]
         content: PathBuf,
     },
-    /// Describe a compiled .voidtex or .voidmat.
+    /// Describe a compiled .kerotex or .keromat.
     Info { file: PathBuf },
 }
 
@@ -108,14 +108,14 @@ fn main() -> Result<()> {
 
     match Args::parse().command {
         Command::Compile { image, output, normal, clamp, point, ui, opaque } => {
-            let out = output.unwrap_or_else(|| image.with_extension("voidtex"));
+            let out = output.unwrap_or_else(|| image.with_extension("kerotex"));
             let flags = build_flags(normal, clamp, point, ui);
             let size = compile_image(&image, &out, flags, opaque)?;
             println!("  wrote {} ({:.1} KiB)", out.display(), size as f64 / 1024.0);
             Ok(())
         }
         Command::Material { name, output, shader, basetexture, bumpmap, surfaceprop, translucent, extra } => {
-            let out = output.unwrap_or_else(|| PathBuf::from(void_asset::material_path(&name)));
+            let out = output.unwrap_or_else(|| PathBuf::from(kerosene_asset::material_path(&name)));
             write_material(&name, &out, &shader, basetexture, bumpmap, &surfaceprop, translucent, &extra)
         }
         Command::Batch { directory, output, make_materials } => {

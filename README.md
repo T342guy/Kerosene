@@ -1,4 +1,4 @@
-# VoidEngine
+# Kerosene
 
 A brush-based 3D game engine in Rust, built the way Valve's Source engine is
 built: levels are convex solids carved into a BSP tree, visibility and lighting
@@ -9,20 +9,20 @@ monolithic application.
 That last part is the point. Source's real design achievement was never its
 renderer — it was that Hammer, `vbsp`, `vvis`, `vrad`, `studiomdl` and VTFEdit
 are *separate programs* sharing file formats. You can script them, run them on
-a build server, replace one, or write your own. VoidEngine keeps that shape.
+a build server, replace one, or write your own. Kerosene keeps that shape.
 
 ```
-   art/*.png ──alchemy──► materials/*.voidtex + *.voidmat ──────────────┐
-   art/*.obj ──forge────► models/*.voidmdl ─────────────────────────────┤
-   sound/*.{wav,flac,mp3} ─timbre─► sound/*.voidaud ───────────────────┤
-   maps/*.voidmap ─cleave─► *.voidbsp ─umbra─► +vis ─radiance─► +light ─┤
-                                                                        └─vault─► content.vault ─► void
+   art/*.png ──alchemy──► materials/*.kerotex + *.keromat ─────────────┐
+   art/*.obj ──forge────► models/*.keromdl ────────────────────────────┤
+   sound/*.{wav,flac,mp3} ──timbre──► sound/*.keroaud ─────────────────┤
+   maps/*.keromap ─cleave─► *.kerobsp ─umbra─► +vis ─radiance─► +light ┤
+                                                                       └─vault─► content.vault ─► kerosene
 
-   chisel drives all of it: edits the map, runs the compilers, launches void.
+   chisel drives all of it: edits the map, runs the compilers, launches kerosene.
    kiln   runs the same pipeline over a whole project, with no editor.
 ```
 
-> **Not a Valve product.** VoidEngine is an independent reimplementation. It is
+> **Not a Valve product.** Kerosene is an independent reimplementation. It is
 > not affiliated with, endorsed by, or sponsored by Valve Corporation or id
 > Software, and it contains none of their source code, assets or data files. It
 > cannot open Source or Quake content and does not try to — every format it
@@ -36,15 +36,15 @@ a build server, replace one, or write your own. VoidEngine keeps that shape.
 
 ## Units
 
-Distances are **void units** (`vu`); one is an inch. A player is 72 vu tall and
-runs at 320 vu/s, so a comfortable corridor is about 128 vu and a room worth
-standing in is 256 vu to the ceiling. Speeds are `vu/s`, angles are degrees,
+Distances are **kerosene units** (`ku`); one is an inch. A player is 72 ku tall and
+runs at 320 ku/s, so a comfortable corridor is about 128 ku and a room worth
+standing in is 256 ku to the ceiling. Speeds are `ku/s`, angles are degrees,
 and Z is up.
 
 The scale is inherited from Quake and Source, and the reason to keep it is that
-powers of two land on architectural sizes: a 16 vu grid gives stair risers and
+powers of two land on architectural sizes: a 16 ku grid gives stair risers and
 door frames that are already right. See
-[`void_math::units`](crates/void-math/src/units.rs).
+[`kerosene_math::units`](crates/kerosene-math/src/units.rs).
 
 ## The tools
 
@@ -53,7 +53,7 @@ Nine programs, each with its own name, none of them the engine.
 | Tool | Does | Source analogue |
 |---|---|---|
 | **Chisel** | The world editor. Four viewports, brush editing, entity I/O wiring, compile-and-run. | Hammer |
-| **Cleave** | `.voidmap` → `.voidbsp`. CSG, BSP tree, portals, leak detection. | `vbsp` |
+| **Cleave** | `.keromap` → `.kerobsp`. CSG, BSP tree, portals, leak detection. | `vbsp` |
 | **Umbra** | Computes the PVS — which parts of a level can see which. | `vvis` |
 | **Radiance** | Bakes static lighting into lightmaps. | `vrad` |
 | **Alchemy** | Compiles textures and authors materials. | VTFEdit / `vtex` |
@@ -62,7 +62,7 @@ Nine programs, each with its own name, none of them the engine.
 | **Vault** | Packs a content tree into one archive. | `vpk` |
 | **Kiln** | Runs the whole pipeline over a project. | the batch file everyone writes |
 
-The engine itself is `void`.
+The engine itself is `kerosene`.
 
 ---
 
@@ -73,12 +73,12 @@ Requires a Rust toolchain (edition 2024; developed against 1.94).
 ```sh
 cargo build --release              # engine and all nine tools
 ./scripts/build-content.sh         # compile the sample content and map
-cargo run --release -p void-runtime
+cargo run --release -p kerosene-runtime
 ```
 
 **The map compile is not optional.** Art and maps are committed as sources —
-`.png`, `.obj`, `.wav`, `.voidmap` — and the engine loads only compiled
-`.voidtex`, `.voidmdl` and `.voidbsp`. Skip the script and the game will tell
+`.png`, `.obj`, `.wav`, `.keromap` — and the engine loads only compiled
+`.kerotex`, `.keromdl` and `.kerobsp`. Skip the script and the game will tell
 you which map has never been compiled and what to run; textures it now handles
 itself, because Chisel builds them on the way to opening its window and again
 before every compile. On Linux the audio backend also needs ALSA headers
@@ -87,21 +87,21 @@ before every compile. On Linux the audio backend also needs ALSA headers
 
 Nothing has to be run from the repository root. Every tool and the engine find
 the content tree the same way, with the same code, and each says which answer
-it took. The reliable way to settle it is a **project file** — a `.voidproj`
+it took. The reliable way to settle it is a **project file** — a `.keroproj`
 naming the content directory, like the one at the top of this repository:
 
 ```
 project
 {
-    "name"     "VoidEngine"
+    "name"     "Kerosene"
     "content"  "content"
-    "startmap" "void_start"
+    "startmap" "kero_start"
 }
 ```
 
 Without one the tree is inferred by climbing for a directory that looks like a
 content root, which works and is why a fresh clone needs no setup. A project
-file is how you overrule the guess, and `startmap` is why `void` above needs
+file is how you overrule the guess, and `startmap` is why `kerosene` above needs
 no `+map`.
 
 Once the tools are built, **`kiln`** builds a project's content — textures,
@@ -114,7 +114,7 @@ regenerates the sample map, then calls it.
 To open the sample level in the editor:
 
 ```sh
-cargo run --release -p chisel -- content/maps/void_start.voidmap
+cargo run --release -p chisel -- content/maps/kero_start.keromap
 ```
 
 Chisel builds the content tree's textures before it finishes loading, so the
@@ -149,7 +149,7 @@ which way it stands.
 `ctrl-S` saves; a map that has never been saved is asked for a name rather
 than being written somewhere you would have to go looking for.
 `file → rename…` moves a map and takes what was compiled from it along, so a
-renamed map is not shadowed by a `.voidbsp` under its old name. The title bar
+renamed map is not shadowed by a `.kerobsp` under its old name. The title bar
 and the status bar both name the file, with a `*` when it has unsaved changes.
 
 `` ` `` opens the developer console, `` ` `` or escape closes it. It says what
@@ -160,7 +160,7 @@ No display? The engine runs headless — which is what a dedicated server is,
 not a testing mode bolted on the side:
 
 ```sh
-cargo run -p void-runtime -- --headless 640 +map void_start
+cargo run -p kerosene-runtime -- --headless 640 +map kero_start
 ```
 
 ---
@@ -172,9 +172,9 @@ can stop after any of them, run them from a Makefile, or parallelise them
 across a build farm.
 
 ```sh
-cleave   content/maps/void_start.voidmap    # → .voidbsp and .voidprt
-umbra    content/maps/void_start.voidbsp    # → adds visibility
-radiance content/maps/void_start.voidbsp    # → adds lighting
+cleave   content/maps/kero_start.keromap    # → .kerobsp and .keroprt
+umbra    content/maps/kero_start.kerobsp    # → adds visibility
+radiance content/maps/kero_start.kerobsp    # → adds lighting
 ```
 
 An unvised, unlit map still loads and plays; it just draws everything and looks
@@ -191,7 +191,7 @@ is still moving.
 These are the properties that actually shape the engine, not surface
 resemblance:
 
-**Void units, Z up.** One void unit is one inch; a player is 72 vu tall and 32
+**Kerosene units, Z up.** One kerosene unit is one inch; a player is 72 ku tall and 32
 wide. Angles are pitch/yaw/roll with pitch positive *downward*, a Quake
 inheritance Source never corrected and neither does this.
 
@@ -221,23 +221,23 @@ removing it would change the game.
 
 ```
 crates/
-  void-math       vectors, planes, convex windings with exact clipping
-  void-kv         KeyValues, the text format .voidmap and materials use
-  void-console    convars, concommands, the command buffer
-  void-vfs        layered search paths and the .vault archive format
-  void-asset      .voidtex textures, .voidmat materials, .voidmdl models
-  void-map        .voidmap — the editable map format
-  void-bsp        .voidbsp — the compiled map, plus tracing and PVS
-  void-physics    player movement and collision response
-  void-entity     entities, their fields, and the I/O event queue
-  void-render     the wgpu renderer, lightmap atlas, PVS culling
-  void-engine     the host: ties it together, with and without a window
-  void-game       entity classes — the game DLL analogue
+  kerosene-math       vectors, planes, convex windings with exact clipping
+  kerosene-kv         KeyValues, the text format .keromap and materials use
+  kerosene-console    convars, concommands, the command buffer
+  kerosene-vfs        layered search paths and the .vault archive format
+  kerosene-asset      .kerotex textures, .keromat materials, .keromdl models
+  kerosene-map        .keromap — the editable map format
+  kerosene-bsp        .kerobsp — the compiled map, plus tracing and PVS
+  kerosene-physics    player movement and collision response
+  kerosene-entity     entities, their fields, and the I/O event queue
+  kerosene-render     the wgpu renderer, lightmap atlas, PVS culling
+  kerosene-engine     the host: ties it together, with and without a window
+  kerosene-game       entity classes — the game DLL analogue
 tools/
   chisel cleave umbra radiance alchemy forge vault kiln
 apps/
-  void            the runtime
-voidengine.voidproj  the project file: what content tree this is, and where
+  kerosene        the runtime
+kerosene.keroproj  the project file: what content tree this is, and where
 content/          sample art, models, materials, the sample level, and the
                   archive packed from them -- a content tree, the thing every
                   tool and the engine go looking for
@@ -266,14 +266,14 @@ Known limits, stated plainly:
 - **No networking yet.** The engine is structured for a client/server split —
   the simulation runs without a display, which is the hard part — but the
   wire protocol and prediction are not written.
-- **No skeletal animation.** `.voidmdl` carries bones and per-vertex weights, and
+- **No skeletal animation.** `.keromdl` carries bones and per-vertex weights, and
   Forge preserves them, but nothing animates them yet.
 - **Chisel's 3D view is software-rasterised, not GPU-rendered.** Occlusion is
   correct — it has a real depth buffer — and it draws materials, mipped and
   perspective-correct. There is no lighting and there are no shadows, and it
   reads the *compiled* textures, so the content has to be built first. The
   compiled map in the engine is one keystroke away.
-- **No block compression for textures.** `.voidtex` is uncompressed. A bad BC
+- **No block compression for textures.** `.kerotex` is uncompressed. A bad BC
   encoder is worse than none.
 - **Sound is stereo, and does not know about walls.** Falloff and panning are
   there; occlusion, reverb and doppler are not, so a sound through a wall is
@@ -285,13 +285,13 @@ Known limits, stated plainly:
 builds on) and `COPYING.LESSER` (LGPL-3.0); every source file carries an
 `SPDX-License-Identifier` line.
 
-In practice: changes *to VoidEngine itself* must be published under the same
+In practice: changes *to Kerosene itself* must be published under the same
 licence, but a game built on it can be whatever you like. That is the whole
 point of choosing the Lesser GPL over the GPL.
 
 One thing to know before you ship a binary: the LGPL's mechanism assumes a
 user can swap in their own build of the library, and Rust links statically. If
-you distribute a closed-source game linked against VoidEngine, LGPL §4 asks you
+you distribute a closed-source game linked against Kerosene, LGPL §4 asks you
 to make relinking possible — ship object files, or link the engine as a shared
 library. [`docs/licensing.md`](docs/licensing.md) explains this properly, along
 with the full dependency audit and the provenance of the algorithms.

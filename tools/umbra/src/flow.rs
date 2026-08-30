@@ -22,7 +22,7 @@
 
 use crate::bitset::BitSet;
 use crate::prt::PortalGraph;
-use void_math::{ON_EPSILON, Plane, Vec3, Winding};
+use kerosene_math::{ON_EPSILON, Plane, Vec3, Winding};
 
 /// Recursion cap. A degenerate portal graph could otherwise chain forever;
 /// stopping early is conservative (it leaves extra clusters visible) rather

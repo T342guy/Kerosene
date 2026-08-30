@@ -2,7 +2,7 @@
 //! What Chisel sees when it starts, without opening a window.
 //!
 //! ```text
-//! cargo run -p chisel --example diagnose -- [map.voidmap] [--content <dir>] [--build]
+//! cargo run -p chisel --example diagnose -- [map.keromap] [--content <dir>] [--build]
 //! ```
 //!
 //! For the one question a level editor cannot answer for itself: *why is there
@@ -33,8 +33,8 @@ fn main() {
         i += 1;
     }
 
-    let found = void_vfs::root::find(explicit.as_deref(), map.as_deref());
-    println!("discovery    : {}", void_vfs::root::describe(&found));
+    let found = kerosene_vfs::root::find(explicit.as_deref(), map.as_deref());
+    println!("discovery    : {}", kerosene_vfs::root::describe(&found));
     let root = found.map(|f| f.root).unwrap_or_default();
     println!("content root : {}", root.display());
 
@@ -69,14 +69,14 @@ fn main() {
     );
 
     // Which maps exist, and which of them the game could actually load. A
-    // `.voidmap` is a source file; only a `.voidbsp` is a level.
+    // `.keromap` is a source file; only a `.kerobsp` is a level.
     let maps = chisel::files::maps_in(&root);
     println!("maps         : {}", maps.len());
     for map in &maps {
         println!(
             "  {}{}",
             chisel::files::label(map, &root),
-            if map.with_extension("voidbsp").is_file() {
+            if map.with_extension("kerobsp").is_file() {
                 " -- compiled"
             } else {
                 " -- never compiled; the game cannot load this one"

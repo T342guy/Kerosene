@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: LGPL-3.0-or-later
-//! Chisel -- the VoidEngine world editor.
+//! Chisel -- the Kerosene world editor.
 //!
 //! ```text
 //! chisel                          # start with a sample room
-//! chisel content/maps/void_start.voidmap
+//! chisel content/maps/kero_start.keromap
 //! chisel --content content        # where to look for materials
 //! chisel --no-build               # skip the texture build on the way in
 //! ```
@@ -38,7 +38,7 @@ fn main() -> Result<()> {
             }
             "--no-build" => build = false,
             "--help" | "-h" => {
-                println!("chisel [map.voidmap] [--content <dir>] [--no-build]");
+                println!("chisel [map.keromap] [--content <dir>] [--no-build]");
                 println!();
                 println!("With no --content, the content tree is found: beside the map,");
                 println!("then from the working directory, then beside the executable.");
@@ -57,8 +57,8 @@ fn main() -> Result<()> {
     // repository root and silently found nothing anywhere else, which left
     // the editor with no entity classes and no materials -- looking broken
     // rather than misconfigured.
-    let found = void_vfs::root::find(content.as_deref(), map.as_deref());
-    log::info!("{}", void_vfs::root::describe(&found));
+    let found = kerosene_vfs::root::find(content.as_deref(), map.as_deref());
+    log::info!("{}", kerosene_vfs::root::describe(&found));
     let root = found.as_ref().map(|f| f.root.clone()).unwrap_or_default();
 
     // Before the editor is built, not after: `ChiselApp::new` scans the
@@ -68,7 +68,7 @@ fn main() -> Result<()> {
     let build_note = if build { build_content(&found) } else { None };
 
     let mut app = ChiselApp::new(root);
-    app.content_note = void_vfs::root::describe(&found);
+    app.content_note = kerosene_vfs::root::describe(&found);
     if found.is_none() {
         app.status = app.content_note.clone();
     } else if let Some(note) = build_note {
@@ -94,7 +94,7 @@ fn main() -> Result<()> {
 /// say. A failure here is reported and then ignored: a texture that will not
 /// compile is a reason to show the editor and say so, not a reason to refuse
 /// to open at all.
-fn build_content(found: &Option<void_vfs::root::Found>) -> Option<String> {
+fn build_content(found: &Option<kerosene_vfs::root::Found>) -> Option<String> {
     let root = &found.as_ref()?.root;
     match alchemy::build_textures(root) {
         Ok(build) => {
@@ -254,7 +254,7 @@ impl Host {
 
 async fn create_gfx(event_loop: &ActiveEventLoop) -> Result<Gfx> {
     let attributes = Window::default_attributes()
-        .with_title("Chisel -- VoidEngine world editor")
+        .with_title("Chisel -- Kerosene world editor")
         .with_inner_size(winit::dpi::LogicalSize::new(1600, 950));
     let window = Arc::new(event_loop.create_window(attributes)?);
 

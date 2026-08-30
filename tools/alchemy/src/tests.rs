@@ -29,8 +29,8 @@ fn a_batch_compiles_what_is_there_and_writes_a_material_for_it() {
     assert_eq!(report.compiled, 1);
     assert_eq!(report.skipped, 0);
     assert_eq!(report.materials, 1);
-    assert!(dir.join("materials/dev/thing.voidtex").is_file());
-    assert!(dir.join("materials/dev/thing.voidmat").is_file());
+    assert!(dir.join("materials/dev/thing.kerotex").is_file());
+    assert!(dir.join("materials/dev/thing.keromat").is_file());
 
     let _ = std::fs::remove_dir_all(&dir);
 }
@@ -85,7 +85,7 @@ fn a_missing_output_is_out_of_date() {
     let dir = scratch("uptodate");
     let source = dir.join("thing.png");
     png(&source, 8);
-    assert!(!is_up_to_date(&source, &dir.join("nothing-here.voidtex")));
+    assert!(!is_up_to_date(&source, &dir.join("nothing-here.kerotex")));
     let _ = std::fs::remove_dir_all(&dir);
 }
 
@@ -100,7 +100,7 @@ fn a_texture_build_populates_an_empty_content_tree() {
 
     // The generator's own materials must survive the batch that follows it:
     // the sky is not a lit surface, and only the generator knows that.
-    let sky = std::fs::read_to_string(dir.join("materials/dev/sky_void.voidmat")).unwrap();
+    let sky = std::fs::read_to_string(dir.join("materials/dev/sky_kero.keromat")).unwrap();
     assert!(sky.starts_with("sky"), "expected the sky shader, got {sky:?}");
 
     let _ = std::fs::remove_dir_all(&dir);

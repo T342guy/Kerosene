@@ -20,8 +20,8 @@
 //!   sloped surface is not foreshortened.
 //! * **Justify** -- push the texture to an edge or the middle of the face.
 
-use void_map::{Side, Solid, TextureAxis};
-use void_math::{Plane, Vec3, Winding};
+use kerosene_map::{Side, Solid, TextureAxis};
+use kerosene_math::{Plane, Vec3, Winding};
 
 /// Which edge to push a texture towards.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -108,7 +108,7 @@ pub fn rotate_by(side: &mut Side, plane: &Plane, winding: &Winding, degrees: f32
         pivot.dot(side.vaxis.axis) / side.vaxis.safe_scale() + side.vaxis.offset,
     );
 
-    let (u, v) = void_map::texture::rotate_axes(plane, side.uaxis, side.vaxis, degrees);
+    let (u, v) = kerosene_map::texture::rotate_axes(plane, side.uaxis, side.vaxis, degrees);
     side.uaxis = u;
     side.vaxis = v;
     side.rotation = (side.rotation + degrees).rem_euclid(360.0);
@@ -124,7 +124,7 @@ pub fn rotate_by(side: &mut Side, plane: &Plane, winding: &Winding, degrees: f32
 /// a continuous texture rather than each starting over.
 pub fn align_to_world(side: &mut Side, plane: &Plane) {
     let scale = (side.uaxis.scale.abs().max(1e-4), side.vaxis.scale.abs().max(1e-4));
-    let (mut u, mut v) = void_map::texture::default_axes_for_plane(plane, 0.25);
+    let (mut u, mut v) = kerosene_map::texture::default_axes_for_plane(plane, 0.25);
     u.scale = scale.0;
     v.scale = scale.1;
     side.uaxis = u;

@@ -1,0 +1,18 @@
+// A Kerosene project. Every tool reads this to find the content tree, so
+// there is one answer rather than one guess per tool: Chisel, the compilers,
+// Kiln and the engine all start here.
+//
+// Without it they infer the content root by climbing for a directory that
+// looks like one, which works and is why a fresh clone needs no setup. But
+// inference is a guess, and this is how you overrule it -- point `content`
+// somewhere else and everything follows.
+project
+{
+	"name" "Kerosene"
+
+	// Relative to this file, so the project can live anywhere.
+	"content" "content"
+
+	// What `kerosene` loads when nothing says otherwise.
+	"startmap" "kero_start"
+}

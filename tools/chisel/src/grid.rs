@@ -8,7 +8,7 @@
 //! width apart. A level built off-grid produces a worse BSP, a slower compile,
 //! and visible cracks.
 
-use void_math::Vec3;
+use kerosene_math::Vec3;
 
 /// Grid sizes, in inches. Powers of two from a sixteenth of an inch up to 512.
 pub const SIZES: [f32; 14] = [

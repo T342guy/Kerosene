@@ -25,7 +25,7 @@ use crate::document::Document;
 use crate::draw::{self, colors};
 use crate::textures::{Texture, TextureCache};
 use std::sync::Arc;
-use void_math::{Basis, Vec3};
+use kerosene_math::{Basis, Vec3};
 
 /// An RGBA image, ready to hand to egui.
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -178,7 +178,7 @@ pub fn render_with(
     let mut face_at = vec![0u32; image.pixels.len()];
 
     let aspect = width as f32 / height as f32;
-    let half_y = (void_render::vertical_fov(fov, aspect) * 0.5).tan().max(1e-4);
+    let half_y = (kerosene_render::vertical_fov(fov, aspect) * 0.5).tan().max(1e-4);
     let half_x = half_y * aspect;
 
     let project = |camera: Vec3| -> [f32; 3] {

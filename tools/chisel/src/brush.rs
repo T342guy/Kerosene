@@ -13,8 +13,8 @@
 //! tool that acts on them would be worse than one that did not explain them.
 
 use crate::document::Document;
-use void_map::Solid;
-use void_math::Aabb;
+use kerosene_map::Solid;
+use kerosene_math::Aabb;
 
 /// Everything the inspector shows for a brush selection.
 #[derive(Clone, Debug, PartialEq)]

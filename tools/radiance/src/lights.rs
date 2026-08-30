@@ -6,9 +6,9 @@
 //! the map. That means a level designer changes the lighting by moving things
 //! in the editor, not by editing a separate file.
 
-use void_bsp::Bsp;
-use void_kv::{FromKvValue, KeyValues, Vec3Value};
-use void_math::{Angles, Vec3};
+use kerosene_bsp::Bsp;
+use kerosene_kv::{FromKvValue, KeyValues, Vec3Value};
+use kerosene_math::{Angles, Vec3};
 
 /// Distance at which a light's `_linear_attn` and `_quadratic_attn` are
 /// normalised to 1. Matches Source: a light of brightness 200 with the default
@@ -261,7 +261,7 @@ impl Light {
     pub fn shadow_target(&self, point: Vec3) -> Vec3 {
         match self.kind {
             // The sun is outside the map, so aim far enough to leave it.
-            LightKind::Sun { direction } => point - direction * void_math::MAX_MAP_RANGE,
+            LightKind::Sun { direction } => point - direction * kerosene_math::MAX_MAP_RANGE,
             _ => self.origin,
         }
     }
@@ -388,7 +388,7 @@ mod tests {
     fn a_shadow_ray_to_the_sun_aims_out_of_the_map() {
         let set = parse(r#"entity { "classname" "light_environment" "pitch" "-90" "_light" "255 255 255 300" }"#);
         let target = set.lights[0].shadow_target(Vec3::ZERO);
-        assert!(target.z > void_math::MAX_MAP_COORD, "must reach past the sky, got {target:?}");
+        assert!(target.z > kerosene_math::MAX_MAP_COORD, "must reach past the sky, got {target:?}");
     }
 
     #[test]

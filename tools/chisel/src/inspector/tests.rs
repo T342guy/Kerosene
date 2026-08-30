@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: LGPL-3.0-or-later
 use super::*;
-use void_map::Connection;
+use kerosene_map::Connection;
 
 fn schema() -> Schema {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content");

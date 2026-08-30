@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: LGPL-3.0-or-later
 use super::*;
-use void_math::Vec3;
+use kerosene_math::Vec3;
 
 /// A document with one box in it, selected.
 fn one_brush(material: &str) -> Document {

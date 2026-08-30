@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: LGPL-3.0-or-later
-//! Cleave -- the VoidEngine BSP compiler.
+//! Cleave -- the Kerosene BSP compiler.
 //!
-//! Takes a `.voidmap` and produces a `.voidbsp` the engine can load, plus a `.voidprt`
-//! portal graph for Umbra and, when the world is not sealed, a `.voidleak` leak
+//! Takes a `.keromap` and produces a `.kerobsp` the engine can load, plus a `.keroprt`
+//! portal graph for Umbra and, when the world is not sealed, a `.keroleak` leak
 //! trace Chisel can draw.
 //!
 //! This is the first of the three compile stages, mirroring Source's
 //! vbsp/vvis/vrad split:
 //!
 //! ```text
-//! cleave map.voidmap     ->  map.voidbsp + map.voidprt
-//! umbra  map.voidbsp     ->  map.voidbsp with visibility
-//! radiance map.voidbsp   ->  map.voidbsp with lighting
+//! cleave map.keromap     ->  map.kerobsp + map.keroprt
+//! umbra  map.kerobsp     ->  map.kerobsp with visibility
+//! radiance map.kerobsp   ->  map.kerobsp with lighting
 //! ```
 
 use anyhow::{Context, Result};
@@ -21,12 +21,12 @@ use std::path::PathBuf;
 use std::time::Instant;
 
 #[derive(Parser, Debug)]
-#[command(name = "cleave", version, about = "Compile a .voidmap into a .voidbsp")]
+#[command(name = "cleave", version, about = "Compile a .keromap into a .kerobsp")]
 struct Args {
-    /// The .voidmap file to compile.
+    /// The .keromap file to compile.
     map: PathBuf,
 
-    /// Where to write the .voidbsp. Defaults to the input path with the extension changed.
+    /// Where to write the .kerobsp. Defaults to the input path with the extension changed.
     #[arg(short, long)]
     output: Option<PathBuf>,
 
@@ -57,7 +57,7 @@ fn main() -> Result<()> {
 
     let text = std::fs::read_to_string(&args.map)
         .with_context(|| format!("reading {}", args.map.display()))?;
-    let map = void_map::Map::parse(&text)
+    let map = kerosene_map::Map::parse(&text)
         .with_context(|| format!("parsing {}", args.map.display()))?;
 
     println!("cleave: {} ({} brushes, {} entities)",
@@ -115,11 +115,11 @@ fn main() -> Result<()> {
         return Ok(());
     }
 
-    let out_path = args.output.unwrap_or_else(|| args.map.with_extension("voidbsp"));
-    let size = void_bsp::write_bsp(&output.bsp, &out_path)
+    let out_path = args.output.unwrap_or_else(|| args.map.with_extension("kerobsp"));
+    let size = kerosene_bsp::write_bsp(&output.bsp, &out_path)
         .with_context(|| format!("writing {}", out_path.display()))?;
 
-    let prt_path = out_path.with_extension("voidprt");
+    let prt_path = out_path.with_extension("keroprt");
     std::fs::write(&prt_path, &output.prt)
         .with_context(|| format!("writing {}", prt_path.display()))?;
 
@@ -127,7 +127,7 @@ fn main() -> Result<()> {
     // left by an earlier broken build, or every later compile looks like it
     // leaked -- the editor loads the file, not the result, and has no way to
     // tell a stale trace from a fresh one.
-    let leak_path = out_path.with_extension("voidleak");
+    let leak_path = out_path.with_extension("keroleak");
     match &output.leak {
         Some(leak) => {
             std::fs::write(&leak_path, leak.to_lin())?;

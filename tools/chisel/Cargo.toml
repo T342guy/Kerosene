@@ -17,15 +17,15 @@ cleave = { path = "../cleave" }
 # And for one more: how far a door travels. The editor draws where a door
 # ends up, and a second copy of that formula would agree with the game only
 # by luck.
-void-game.workspace = true
-void-math.workspace = true
-void-map.workspace = true
-void-kv.workspace = true
-void-bsp.workspace = true
-void-asset.workspace = true
-void-vfs.workspace = true
-void-render.workspace = true
-void-entity.workspace = true
+kerosene-game.workspace = true
+kerosene-math.workspace = true
+kerosene-map.workspace = true
+kerosene-kv.workspace = true
+kerosene-bsp.workspace = true
+kerosene-asset.workspace = true
+kerosene-vfs.workspace = true
+kerosene-render.workspace = true
+kerosene-entity.workspace = true
 anyhow.workspace = true
 log.workspace = true
 env_logger.workspace = true

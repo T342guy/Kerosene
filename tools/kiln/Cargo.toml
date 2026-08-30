@@ -13,7 +13,7 @@ alchemy = { path = "../alchemy" }
 # Same reasoning: Timbre's window and this build must not be able to
 # disagree about what compiling a sound means.
 timbre = { path = "../timbre" }
-void-vfs.workspace = true
+kerosene-vfs.workspace = true
 anyhow.workspace = true
 clap.workspace = true
 log.workspace = true

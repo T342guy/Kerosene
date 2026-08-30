@@ -122,7 +122,7 @@ pub struct CompileJob {
 }
 
 impl CompileJob {
-    /// Start compiling a saved `.voidmap`.
+    /// Start compiling a saved `.keromap`.
     ///
     /// The map must already be on disk: the compilers read files, and writing
     /// the editor's buffer somewhere else first would mean compiling something
@@ -181,7 +181,7 @@ fn run_compile(
     settings: &CompileSettings,
     sender: &Sender<CompileMessage>,
 ) -> Result<(), ()> {
-    let compiled = map.with_extension("voidbsp");
+    let compiled = map.with_extension("kerobsp");
 
     // Alchemy first, and in-process rather than as a stage. The compilers are
     // separate programs on purpose; the texture build is not, because the
@@ -235,7 +235,7 @@ fn run_compile(
             // from a working directory it inherited from the editor, which
             // inherited it from a shell -- is how a map compiled here comes
             // to be launched against a content tree somewhere else.
-            let _ = tool_command("void")
+            let _ = tool_command("kerosene")
                 .arg("--content")
                 .arg(&settings.content_root)
                 .arg("+map")
@@ -319,7 +319,7 @@ pub fn tool_path(name: &str) -> Option<PathBuf> {
 /// Reported in the compile dialog, because "nothing happened when I pressed
 /// compile" is otherwise a mystery.
 pub fn available_tools() -> Vec<(&'static str, bool)> {
-    ["cleave", "umbra", "radiance", "void"]
+    ["cleave", "umbra", "radiance", "kerosene"]
         .iter()
         .map(|&name| {
             let found = tool_path(name).is_some()
@@ -379,7 +379,7 @@ mod tests {
     #[test]
     fn ignoring_leaks_reaches_the_command_line() {
         // The checkbox is only meaningful if the flag arrives at cleave.
-        let mut args = vec!["map.voidmap".to_string()];
+        let mut args = vec!["map.keromap".to_string()];
         let settings = CompileSettings { ignore_leaks: true, ..Default::default() };
         if settings.ignore_leaks { args.push("--ignore-leaks".into()); }
         assert!(args.iter().any(|a| a == "--ignore-leaks"));
@@ -416,7 +416,7 @@ mod tests {
             log: vec![
                 CompileMessage::Stage("cleave".into()),
                 CompileMessage::Line("68 faces".into()),
-                CompileMessage::Finished(PathBuf::from("maps/x.voidbsp")),
+                CompileMessage::Finished(PathBuf::from("maps/x.kerobsp")),
             ],
             finished: true,
             failed: false,
@@ -425,7 +425,7 @@ mod tests {
         let text = job.text();
         assert!(text.contains("--- cleave ---"), "{text}");
         assert!(text.contains("68 faces"));
-        assert_eq!(job.output(), Some(Path::new("maps/x.voidbsp")));
+        assert_eq!(job.output(), Some(Path::new("maps/x.kerobsp")));
     }
 
     #[test]

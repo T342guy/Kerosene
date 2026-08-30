@@ -19,8 +19,8 @@
 
 use crate::lights::LightSet;
 use rayon::prelude::*;
-use void_bsp::{Bsp, ColorRgbExp32, contents, surf};
-use void_math::{Mat3, Vec3};
+use kerosene_bsp::{Bsp, ColorRgbExp32, contents, surf};
+use kerosene_math::{Mat3, Vec3};
 
 #[derive(Clone, Debug)]
 pub struct BakeOptions {

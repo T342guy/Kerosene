@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: LGPL-3.0-or-later
-//! Alchemy -- the VoidEngine texture and material tool.
+//! Alchemy -- the Kerosene texture and material tool.
 //!
 //! Turns source art into the formats the engine loads: `.png` and friends into
-//! `.voidtex`, and material definitions into `.voidmat`. This is the
+//! `.kerotex`, and material definitions into `.keromat`. This is the
 //! VTFEdit/vtex analogue, and it exists for the same reason: the engine should
 //! load textures, not decode and mipmap them.
 //!
@@ -17,8 +17,8 @@ pub mod font;
 
 use anyhow::{Context, Result, bail};
 use std::path::{Path, PathBuf};
-use void_asset::texture::PixelFormat;
-use void_asset::{Material, Shader, Texture, TextureFlags, material::MaterialError};
+use kerosene_asset::texture::PixelFormat;
+use kerosene_asset::{Material, Shader, Texture, TextureFlags, material::MaterialError};
 
 pub fn build_flags(normal: bool, clamp: bool, point: bool, ui: bool) -> TextureFlags {
     let mut flags = TextureFlags::NONE;
@@ -101,9 +101,9 @@ pub fn write_material(
 /// What a batch compile did, so a caller can say so without reading stdout.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Batch {
-    /// Images compiled into a `.voidtex`.
+    /// Images compiled into a `.kerotex`.
     pub compiled: usize,
-    /// Images whose `.voidtex` was already newer than the source.
+    /// Images whose `.kerotex` was already newer than the source.
     pub skipped: usize,
     /// Materials left alone because one was already authored.
     pub kept: usize,
@@ -139,7 +139,7 @@ pub fn batch(dir: &Path, out_root: &Path, make_materials: bool) -> Result<Batch>
         let is_normal = name.ends_with("_normal") || name.ends_with("_n");
         let flags = build_flags(is_normal, false, false, false);
 
-        let out = out_root.join(format!("{name}.voidtex"));
+        let out = out_root.join(format!("{name}.kerotex"));
         if is_up_to_date(path, &out) {
             report.skipped += 1;
         } else {
@@ -148,7 +148,7 @@ pub fn batch(dir: &Path, out_root: &Path, make_materials: bool) -> Result<Batch>
         }
 
         if make_materials && !is_normal {
-            let mat_path = out_root.join(format!("{name}.voidmat"));
+            let mat_path = out_root.join(format!("{name}.keromat"));
             // Never overwrite a material that already exists. Materials are
             // authored -- a designer sets the surface property, the shader,
             // the blend mode -- and this only generates a starting point.
@@ -265,7 +265,7 @@ pub fn info(path: &Path) -> Result<()> {
     let bytes = std::fs::read(path).with_context(|| format!("reading {}", path.display()))?;
 
     match path.extension().and_then(|e| e.to_str()) {
-        Some("voidtex") => {
+        Some("kerotex") => {
             let tex = Texture::from_bytes(&bytes)?;
             println!("{}", path.display());
             println!("  {}x{}, {:?}", tex.width(), tex.height(), tex.format);
@@ -284,7 +284,7 @@ pub fn info(path: &Path) -> Result<()> {
             }
             println!("  flags: {}", if flags.is_empty() { "none".into() } else { flags.join(", ") });
         }
-        Some("voidmat") => {
+        Some("keromat") => {
             let text = String::from_utf8(bytes).context("material is not UTF-8")?;
             let material = Material::parse(&text).map_err(|e: MaterialError| anyhow::anyhow!(e))?;
             println!("{}", path.display());
@@ -295,7 +295,7 @@ pub fn info(path: &Path) -> Result<()> {
                 println!("    {k} = {v}");
             }
         }
-        _ => bail!("{} is not a .voidtex or .voidmat", path.display()),
+        _ => bail!("{} is not a .kerotex or .keromat", path.display()),
     }
     Ok(())
 }

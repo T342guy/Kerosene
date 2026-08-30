@@ -1,20 +1,20 @@
 /target
 
 # Build outputs, reproducible with scripts/build-content.sh from the sources
-# committed beside them (.voidmap, .png, .obj, .voidmat, .wav).
+# committed beside them (.keromap, .png, .obj, .keromat, .wav).
 #
 # The developer texture set under art/dev and art/tools is *not* here, even
 # though `alchemy dev-textures` writes it. Having a generator is a reason to
 # keep one, not a reason to leave the output out of the repository: a clone
 # has to work, and the generator being deterministic means a change to it
 # shows up as a reviewable diff rather than as nothing at all.
-*.voidtex
-*.voidmdl
-*.voidaud
+*.kerotex
+*.keromdl
+*.keroaud
 *.vault
-*.voidprt
-*.voidleak
-content/maps/*.voidbsp
+*.keroprt
+*.keroleak
+content/maps/*.kerobsp
 
 
 **/*.rs.bk

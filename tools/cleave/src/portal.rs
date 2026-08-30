@@ -12,7 +12,7 @@
 //!   sealed world. Turning them solid deletes the entire outer surface of the
 //!   map from the compile.
 //! * **Visibility.** Umbra computes the PVS by asking which portals can see
-//!   through which others, so Cleave writes the portal graph out as a `.voidprt`.
+//!   through which others, so Cleave writes the portal graph out as a `.keroprt`.
 //!
 //! The construction is Quake's: start with six portals on the world box, then
 //! walk down the tree. At each node, build a new portal on the node's plane
@@ -23,8 +23,8 @@
 use crate::tree::Tree;
 use std::collections::VecDeque;
 use std::fmt::Write as _;
-use void_bsp::contents;
-use void_math::{Aabb, ON_EPSILON, Plane, PlaneSet, Vec3, Winding};
+use kerosene_bsp::contents;
+use kerosene_math::{Aabb, ON_EPSILON, Plane, PlaneSet, Vec3, Winding};
 
 /// The polygon where two leaves meet.
 #[derive(Clone, Debug)]
@@ -274,7 +274,7 @@ pub struct LeakPath {
 }
 
 impl LeakPath {
-    /// The `.voidleak` point-file format Chisel loads to draw the leak.
+    /// The `.keroleak` point-file format Chisel loads to draw the leak.
     ///
     /// One `x y z` per line. Deliberately trivial: a leak file is read by a
     /// person as often as by a program, and being able to eyeball the
@@ -440,7 +440,7 @@ pub fn write_prt(tree: &Tree, set: &PortalSet, clusters: usize) -> String {
 mod tests {
     use super::*;
     use crate::brush::{BrushWork, Warning};
-    use void_map::Solid;
+    use kerosene_map::Solid;
 
     fn build(boxes: &[Aabb]) -> (Tree, PortalSet, PlaneSet) {
         let mut planes = PlaneSet::new();

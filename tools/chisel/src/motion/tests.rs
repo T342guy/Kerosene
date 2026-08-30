@@ -42,7 +42,7 @@ fn the_travel_is_the_one_the_game_will_use() {
     let document = door_document(&[("movedir", "1 0 0"), ("lip", "4")]);
     let motion = of_selection(&document).unwrap();
 
-    let (dir, distance) = void_game::doors::travel(Vec3::new(16.0, 96.0, 128.0), Vec3::X, 4.0);
+    let (dir, distance) = kerosene_game::doors::travel(Vec3::new(16.0, 96.0, 128.0), Vec3::X, 4.0);
     assert_eq!(motion.arrow.1 - motion.arrow.0, dir * distance);
 }
 

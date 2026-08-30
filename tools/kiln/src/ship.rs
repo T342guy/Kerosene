@@ -28,7 +28,7 @@
 //! ```text
 //! dist/
 //!   my_game            the game, or the engine runtime when a project has none
-//!   my_game.voidproj   content = "content", so the game finds its own archive
+//!   my_game.keroproj   content = "content", so the game finds its own archive
 //!   content/
 //!     my_game.vault
 //!   COPYING            GPL-3.0, which the LGPL builds on
@@ -107,7 +107,7 @@ pub(crate) fn ship_from(settings: &Settings, out: &Path, source: &Path) -> Resul
 
     let name = match &settings.project {
         Some(project) => slug(&project.name),
-        None => "void".to_string(),
+        None => "kerosene".to_string(),
     };
     let exe = if cfg!(windows) { format!("{name}.exe") } else { name.clone() };
 
@@ -140,7 +140,7 @@ pub(crate) fn ship_from(settings: &Settings, out: &Path, source: &Path) -> Resul
         copy(from, to)?;
     }
 
-    write_project(settings, &out.join(format!("{name}.voidproj")), &name)?;
+    write_project(settings, &out.join(format!("{name}.keroproj")), &name)?;
     std::fs::write(out.join("COPYING"), GPL)?;
     std::fs::write(out.join("COPYING.LESSER"), LGPL)?;
     std::fs::write(out.join("README.txt"), readme(settings, &name, &shipped))?;
@@ -217,9 +217,9 @@ fn collect_newer(dir: &Path, skip: &Path, when: SystemTime, out: &mut Vec<PathBu
 /// runtime -- which is already built and sitting beside `kiln`.
 fn game_binary(settings: &Settings) -> Result<PathBuf> {
     let Some(package) = settings.project.as_ref().and_then(|p| p.game.as_deref()) else {
-        return void_vfs::toolchain::path("void").context(
-            "no `game` key in the project and no `void` beside kiln, so there is \
-             nothing to ship. Add `\"game\" \"<cargo package>\"` to the .voidproj, \
+        return kerosene_vfs::toolchain::path("kerosene").context(
+            "no `game` key in the project and no `kerosene` beside kiln, so there is \
+             nothing to ship. Add `\"game\" \"<cargo package>\"` to the .keroproj, \
              or run kiln from beside the engine.",
         );
     };
@@ -277,11 +277,11 @@ fn built_binary(from: &Path, package: &str) -> Option<PathBuf> {
 fn engine_library_beside(binary: &Path) -> Option<PathBuf> {
     let dir = binary.parent()?;
     let names = if cfg!(windows) {
-        ["void_engine.dll", "libvoid_engine.dll"]
+        ["kerosene_engine.dll", "libkerosene_engine.dll"]
     } else if cfg!(target_os = "macos") {
-        ["libvoid_engine.dylib", "void_engine.dylib"]
+        ["libkerosene_engine.dylib", "kerosene_engine.dylib"]
     } else {
-        ["libvoid_engine.so", "void_engine.so"]
+        ["libkerosene_engine.so", "kerosene_engine.so"]
     };
     names.iter().map(|n| dir.join(n)).find(|p| p.is_file())
 }
@@ -320,21 +320,21 @@ fn readme(settings: &Settings, name: &str, shipped: &Shipped) -> String {
     out.push_str(title);
     out.push('\n');
     out.push_str(&"=".repeat(title.len()));
-    out.push_str("\n\nBuilt with VoidEngine.\n\n");
+    out.push_str("\n\nBuilt with Kerosene.\n\n");
 
     out.push_str(
-        "VoidEngine is free software: you can redistribute it and modify it under\n\
+        "Kerosene is free software: you can redistribute it and modify it under\n\
          the terms of the GNU Lesser General Public License, version 3 or (at your\n\
          option) any later version. The full terms are in COPYING.LESSER, and in\n\
          COPYING, which holds the GNU General Public License that the Lesser GPL\n\
-         builds on. VoidEngine comes with ABSOLUTELY NO WARRANTY.\n\n",
+         builds on. Kerosene comes with ABSOLUTELY NO WARRANTY.\n\n",
     );
 
     out.push_str("Replacing the engine\n--------------------\n\n");
     if shipped.engine_is_replaceable() {
         out.push_str(&format!(
             "The engine is the shared library shipped alongside this program, not part\n\
-             of the executable. To run this program against your own build of VoidEngine,\n\
+             of the executable. To run this program against your own build of Kerosene,\n\
              compile the engine and replace that file. Both must be built with the same\n\
              Rust compiler -- this program was built with {TOOLCHAIN}.\n\n"
         ));
@@ -343,14 +343,14 @@ fn readme(settings: &Settings, name: &str, shipped: &Shipped) -> String {
             "The engine is linked statically into this executable, so it cannot be\n\
              replaced by swapping a file. If you received this program without source,\n\
              you are entitled under section 4 of the Lesser GPL to what you need in\n\
-             order to relink it against your own build of VoidEngine; ask whoever\n\
+             order to relink it against your own build of Kerosene; ask whoever\n\
              distributed it. Any such rebuild uses Rust {TOOLCHAIN}.\n\n"
         ));
     }
 
     out.push_str("Engine source\n-------------\n\n");
     out.push_str(
-        "The corresponding source for VoidEngine must be available to everyone who\n\
+        "The corresponding source for Kerosene must be available to everyone who\n\
          receives this program. If you are redistributing this build, say here where\n\
          to obtain it.\n\n",
     );

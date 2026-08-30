@@ -21,7 +21,7 @@
 //!   It is an interior seam that nothing can ever see.
 
 use crate::brush::BrushWork;
-use void_math::{ON_EPSILON, PlaneSet, Winding};
+use kerosene_math::{ON_EPSILON, PlaneSet, Winding};
 
 /// Run CSG over every brush, filling in each side's surviving fragments.
 ///
@@ -80,7 +80,7 @@ fn should_cut(victim: &BrushWork, cutter: &BrushWork) -> bool {
 
 /// How thoroughly a contents type buries what is inside it.
 fn priority(contents: u32) -> u8 {
-    use void_bsp::contents as c;
+    use kerosene_bsp::contents as c;
     if contents & c::SOLID != 0 { 4 }
     else if contents & c::WINDOW != 0 { 3 }
     else if contents & c::GRATE != 0 { 2 }
@@ -138,8 +138,8 @@ fn subtract_brush(
 mod tests {
     use super::*;
     use crate::brush::{BrushWork, Warning};
-    use void_map::Solid;
-    use void_math::{Aabb, Vec3};
+    use kerosene_map::Solid;
+    use kerosene_math::{Aabb, Vec3};
 
     fn make(boxes: &[(Aabb, &str, &str)]) -> (Vec<BrushWork>, PlaneSet) {
         let mut planes = PlaneSet::new();

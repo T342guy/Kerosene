@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: LGPL-3.0-or-later
-//! `timbre` -- the VoidEngine sound compiler.
+//! `timbre` -- the Kerosene sound compiler.
 //!
 //! ```text
 //! timbre                                  # open the window
@@ -7,7 +7,7 @@
 //! timbre build --content path/to/content --force
 //! timbre compile sound/door/move.wav --gain 0.8 --mono
 //! timbre compile sound/music/theme.flac --encoding pcm16
-//! timbre info sound/door/move.voidaud
+//! timbre info sound/door/move.keroaud
 //! ```
 //!
 //! Run with no arguments it opens a window, because the useful things to know
@@ -21,10 +21,10 @@ use anyhow::{Result, bail};
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 use timbre::Options;
-use void_audio::compiled::{self, Encoding};
+use kerosene_audio::compiled::{self, Encoding};
 
 #[derive(Parser, Debug)]
-#[command(name = "timbre", version, about = "Compile sounds into .voidaud")]
+#[command(name = "timbre", version, about = "Compile sounds into .keroaud")]
 struct Args {
     #[command(subcommand)]
     command: Option<Command>,
@@ -112,8 +112,8 @@ fn main() -> Result<()> {
 }
 
 fn content_root(explicit: Option<PathBuf>) -> Result<PathBuf> {
-    let found = void_vfs::root::find(explicit.as_deref(), None);
-    println!("{}", void_vfs::root::describe(&found));
+    let found = kerosene_vfs::root::find(explicit.as_deref(), None);
+    println!("{}", kerosene_vfs::root::describe(&found));
     match found {
         Some(found) => Ok(found.root),
         None => bail!("no content tree found. Run timbre from a project, or pass --content"),
@@ -147,5 +147,5 @@ fn build(content: Option<PathBuf>, force: bool) -> Result<()> {
 fn edit(content: Option<PathBuf>) -> Result<()> {
     let root = content_root(content)?;
     let app = gui::Timbre::open(&root)?;
-    void_ui::run("Timbre -- VoidEngine sound compiler", (1180, 760), app)
+    kerosene_ui::run("Timbre -- Kerosene sound compiler", (1180, 760), app)
 }

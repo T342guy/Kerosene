@@ -4,14 +4,14 @@ Five layers, separable on purpose.
 
 | | |
 |---|---|
-| `void-audio::wav` | Source `.wav` files to samples |
-| `void-audio::compiled` | `.voidaud` files to samples — what a shipped game reads |
-| `void-audio::adpcm` | Four bits a sample, for the above |
-| `void-audio::mixer` | Voices to a stereo buffer — no device, so it is testable |
-| `void-audio::device` | That buffer to the sound card, behind a feature flag |
+| `kerosene-audio::wav` | Source `.wav` files to samples |
+| `kerosene-audio::compiled` | `.keroaud` files to samples — what a shipped game reads |
+| `kerosene-audio::adpcm` | Four bits a sample, for the above |
+| `kerosene-audio::mixer` | Voices to a stereo buffer — no device, so it is testable |
+| `kerosene-audio::device` | That buffer to the sound card, behind a feature flag |
 
 Sound has a compiled form as well as a source one. `timbre` turns `.wav` into
-`.voidaud`, which is a quarter the size, carries loop points and a peak, and
+`.keroaud`, which is a quarter the size, carries loop points and a peak, and
 records whether the sound may be positioned at all. The engine prefers it and
 falls back to the `.wav` when there is no compiled form — so a designer who has
 just dropped a file in hears it without running a build first, and a shipped
@@ -47,7 +47,7 @@ play_sound("door/move", find_by_name("gate").origin, 0.5);
 stop_sounds();
 ```
 
-## `.voidsnd` — sound scripts
+## `.kerosnd` — sound scripts
 
 A level fires `door/move`, and what that *is* lives in a script rather than on
 the entity. The same indirection materials have, for the same reason: making
@@ -67,7 +67,7 @@ sound
 }
 ```
 
-Every `.voidsnd` under `scripts/` loads at startup, later files overriding
+Every `.kerosnd` under `scripts/` loads at startup, later files overriding
 earlier ones so a mod can change one sound without copying a file. A name
 nothing defines is taken as a path under `sound/`, so `play ui/click.wav`
 works before anyone has written a script.
@@ -124,7 +124,7 @@ takes what is there.
 available:
 
 ```
-cargo build --no-default-features -p void-runtime
+cargo build --no-default-features -p kerosene-runtime
 ```
 
 Everything except the last hop to the speakers still builds, and the whole

@@ -18,17 +18,17 @@ use crate::textures::TextureCache;
 use crate::{classes, draw, files, raster};
 use egui::{Context, Key, Modifiers, RichText};
 use std::path::PathBuf;
-use void_entity::{ClassKind, KeyKind, Schema};
-use void_map::Connection;
-use void_math::Vec3;
+use kerosene_entity::{ClassKind, KeyKind, Schema};
+use kerosene_map::Connection;
+use kerosene_math::Vec3;
 
 /// Entity classes offered when the content tree has no definitions in it.
 ///
 /// A bare minimum so the entity tool is not simply broken without content;
-/// the real list comes from the game's `.voiddef`.
+/// the real list comes from the game's `.kerodef`.
 const FALLBACK_CLASSES: &[&str] = &["info_player_start", "light", "logic_relay"];
 
-/// How fast the 3D camera flies by default, in void units per second.
+/// How fast the 3D camera flies by default, in kerosene units per second.
 ///
 /// A shade above a player's running speed, so moving through a level in the
 /// editor feels like the pace it will be played at. Shift doubles it, Alt
@@ -91,7 +91,7 @@ pub enum Browsing {
 /// A file operation waiting for a name.
 ///
 /// Naming a map is a decision, so it gets a field to type into rather than a
-/// menu item with the answer baked in. "save as maps/untitled.voidmap" was
+/// menu item with the answer baked in. "save as maps/untitled.keromap" was
 /// the whole of the editor's file handling, and it is not a way to name
 /// anything: the second map you make overwrites the first.
 pub struct NamePrompt {
@@ -166,7 +166,7 @@ pub struct ChiselApp {
     /// Thumbnails handed to egui, one per material, built on demand.
     thumbnails: std::collections::HashMap<String, egui::TextureHandle>,
     /// The content tree, for reading textures the way the engine does.
-    pub vfs: void_vfs::Vfs,
+    pub vfs: kerosene_vfs::Vfs,
     /// How the 3D panes draw.
     pub shading: Shading,
     /// Substring filter on the material browser.
@@ -179,7 +179,7 @@ pub struct ChiselApp {
     pub leak: crate::leak::LeakTrace,
     /// Where the four panes divide, as fractions of the area. Dragged.
     pub split: egui::Vec2,
-    /// How fast the 3D camera flies, in void units per second.
+    /// How fast the 3D camera flies, in kerosene units per second.
     pub fly_speed: f32,
     /// The rasterised 3D panes, kept until something they depend on moves.
     previews: [Option<Preview>; 4],
@@ -232,7 +232,7 @@ impl ChiselApp {
         let models = scan_models(&content_root);
         let loaded = classes::load(&content_root);
         let status = loaded.summary();
-        let mut vfs = void_vfs::Vfs::new();
+        let mut vfs = kerosene_vfs::Vfs::new();
         vfs.add_directory(&content_root, "GAME");
         // Archives too, so a packed content tree previews like a loose one.
         for archive in std::fs::read_dir(&content_root)
@@ -612,7 +612,7 @@ impl ChiselApp {
         let map = job
             .output()
             .map(|p| p.to_path_buf())
-            .or_else(|| self.document.path.clone().map(|p| p.with_extension("voidbsp")));
+            .or_else(|| self.document.path.clone().map(|p| p.with_extension("kerobsp")));
 
         // Cleared first, and unconditionally. A trace is about one compile,
         // and keeping the last one around because this compile wrote none is
@@ -637,9 +637,9 @@ impl ChiselApp {
         } else if let Some(at) = self.leak.origin() {
             format!(
                 "compiled, but the map LEAKS -- follow the red line from {} {} {}",
-                void_math::format_float(at.x),
-                void_math::format_float(at.y),
-                void_math::format_float(at.z),
+                kerosene_math::format_float(at.x),
+                kerosene_math::format_float(at.y),
+                kerosene_math::format_float(at.z),
             )
         } else {
             "compile finished".into()
@@ -907,8 +907,8 @@ impl ChiselApp {
             ui.label(RichText::new("grid").strong());
             ui.horizontal(|ui| {
                 if ui.small_button("[").clicked() { self.document.grid.finer(); }
-                ui.label(RichText::new(void_math::units::length_short(self.document.grid.size)).monospace())
-                    .on_hover_text(void_math::units::length(self.document.grid.size));
+                ui.label(RichText::new(kerosene_math::units::length_short(self.document.grid.size)).monospace())
+                    .on_hover_text(kerosene_math::units::length(self.document.grid.size));
                 if ui.small_button("]").clicked() { self.document.grid.coarser(); }
             });
 
@@ -994,7 +994,7 @@ impl ChiselApp {
         }
         if shape.uses_wall() {
             ui.add(egui::Slider::new(&mut options.wall, 4.0..=256.0).text("wall"))
-                .on_hover_text("How thick the arch is, in void units.");
+                .on_hover_text("How thick the arch is, in kerosene units.");
         }
 
         ui.label(
@@ -1286,9 +1286,9 @@ impl ChiselApp {
     }
 
     /// Read a model out of the content tree.
-    fn load_model(&self, name: &str) -> Option<void_asset::Model> {
-        let bytes = self.vfs.read(&format!("models/{name}.voidmdl")).ok()?;
-        void_asset::Model::from_bytes(&bytes).ok()
+    fn load_model(&self, name: &str) -> Option<kerosene_asset::Model> {
+        let bytes = self.vfs.read(&format!("models/{name}.keromdl")).ok()?;
+        kerosene_asset::Model::from_bytes(&bytes).ok()
     }
 
     /// An egui texture for a material, built once.
@@ -1423,7 +1423,7 @@ impl ChiselApp {
                 if spec.is_none() {
                     ui.label(RichText::new("(no definition)").color(egui::Color32::from_rgb(220, 160, 90)))
                         .on_hover_text(
-                            "No .voiddef describes this class, so only the keys it \
+                            "No .kerodef describes this class, so only the keys it \
                              already carries can be shown.",
                         );
                 }
@@ -1503,9 +1503,9 @@ impl ChiselApp {
                 info.brushes,
                 if info.brushes == 1 { "brush" } else { "brushes" },
                 info.faces,
-                void_math::units::length_short(size.x),
-                void_math::units::length_short(size.y),
-                void_math::units::length_short(size.z),
+                kerosene_math::units::length_short(size.x),
+                kerosene_math::units::length_short(size.y),
+                kerosene_math::units::length_short(size.z),
             ));
 
             // The type, first, because it decides everything below it.
@@ -1670,7 +1670,7 @@ impl ChiselApp {
     /// building. What a designer means is "when this happens, do these things,
     /// in this order" -- and a column of rows with delays in them makes the
     /// order something you work out in your head.
-    fn outputs_section(&mut self, ui: &mut egui::Ui, _id: u32, spec: Option<&void_entity::ClassSpec>) {
+    fn outputs_section(&mut self, ui: &mut egui::Ui, _id: u32, spec: Option<&kerosene_entity::ClassSpec>) {
         use crate::wiring;
 
         ui.separator();
@@ -1843,7 +1843,7 @@ impl ChiselApp {
     }
 
     fn status_bar(&mut self, ctx: &Context) {
-        use void_math::units;
+        use kerosene_math::units;
 
         egui::TopBottomPanel::bottom("status").show(ctx, |ui| {
             ui.horizontal(|ui| {
@@ -1852,7 +1852,7 @@ impl ChiselApp {
                 // Where the map lives, always visible. "Did that save?" is
                 // not a question an editor should make anyone guess at, and
                 // an unnamed map is worth saying outright rather than showing
-                // as `untitled.voidmap` as though it were a file.
+                // as `untitled.keromap` as though it were a file.
                 ui.separator();
                 let (file, colour) = match self.document.path.as_deref() {
                     Some(path) => {
@@ -1890,8 +1890,8 @@ impl ChiselApp {
                 ui.separator();
                 ui.label(RichText::new(format!("grid {}", units::length_short(self.document.grid.size))).monospace().size(11.0))
                     .on_hover_text(format!(
-                        "One grid square is {}.\nDistances in VoidEngine are void units: \
-                         1 vu is one inch, a player is {} tall and runs at {}.",
+                        "One grid square is {}.\nDistances in Kerosene are kerosene units: \
+                         1 ku is one inch, a player is {} tall and runs at {}.",
                         units::length(self.document.grid.size),
                         units::length(units::PLAYER_HEIGHT),
                         units::speed(units::PLAYER_SPEED),
@@ -1937,21 +1937,21 @@ impl ChiselApp {
                     ui.separator();
                     ui.label(
                         RichText::new(format!(
-                            "selection {} x {} x {} vu",
-                            void_math::format_float(size.x),
-                            void_math::format_float(size.y),
-                            void_math::format_float(size.z),
+                            "selection {} x {} x {} ku",
+                            kerosene_math::format_float(size.x),
+                            kerosene_math::format_float(size.y),
+                            kerosene_math::format_float(size.z),
                         ))
                         .monospace()
                         .size(11.0),
                     )
                     .on_hover_text(format!(
-                        "{}\nheight {}\ncentred at {} {} {} vu",
+                        "{}\nheight {}\ncentred at {} {} {} ku",
                         units::size(size.x, size.y, size.z),
                         units::in_players(size.z),
-                        void_math::format_float(centre.x),
-                        void_math::format_float(centre.y),
-                        void_math::format_float(centre.z),
+                        kerosene_math::format_float(centre.x),
+                        kerosene_math::format_float(centre.y),
+                        kerosene_math::format_float(centre.z),
                     ));
                 }
 
@@ -1982,7 +1982,7 @@ impl ChiselApp {
                     );
                 }
                 ui.separator();
-                ui.label("Build them with: cargo build -p cleave -p umbra -p radiance -p void-runtime");
+                ui.label("Build them with: cargo build -p cleave -p umbra -p radiance -p kerosene-runtime");
             });
             self.show_tools_check = open;
         }
@@ -2018,7 +2018,7 @@ impl ChiselApp {
                         "A map that leaks has no sealed inside, so visibility is near \
                          useless and light bleeds through walls. Cleave normally \
                          refuses to build one. With this it builds anyway and writes a \
-                         .voidleak trace beside the map showing the way out.",
+                         .keroleak trace beside the map showing the way out.",
                     );
 
                 ui.separator();
@@ -2096,7 +2096,7 @@ impl ChiselApp {
         // genuinely confusing bug to chase.
         // A map with no name is named before it is compiled, rather than
         // being saved as `untitled` behind your back. The name is not
-        // cosmetic: it is what `void +map <name>` loads, so a compile that
+        // cosmetic: it is what `kerosene +map <name>` loads, so a compile that
         // picks one for you is a compile whose output you have to go looking
         // for.
         let Some(path) = self.document.path.clone() else {
@@ -2395,7 +2395,7 @@ impl ChiselApp {
         ui.separator();
         ui.horizontal(|ui| {
             ui.label(RichText::new("lightmap").size(11.0).weak());
-            if let Some(value) = number(ui, "vu/luxel", shared(|f| f.side.lightmap_scale), 0.5) {
+            if let Some(value) = number(ui, "ku/luxel", shared(|f| f.side.lightmap_scale), 0.5) {
                 edit = Some(("lightmap scale", FaceEdit::Lightmap(value)));
             }
         });
@@ -2626,7 +2626,7 @@ impl ChiselApp {
         let viewport = &self.viewports[index];
         let basis = viewport.angles.vectors();
         let aspect = rect.width() / rect.height().max(1.0);
-        let half_y = (void_render::vertical_fov(viewport.fov, aspect) * 0.5).tan().max(1e-4);
+        let half_y = (kerosene_render::vertical_fov(viewport.fov, aspect) * 0.5).tan().max(1e-4);
         let half_x = half_y * aspect;
 
         let camera = draw::to_camera_space(&self.leak.points, viewport.eye, basis);
@@ -2664,7 +2664,7 @@ impl ChiselApp {
         let viewport = &self.viewports[index];
         let basis = viewport.angles.vectors();
         let aspect = rect.width() / rect.height().max(1.0);
-        let half_y = (void_render::vertical_fov(viewport.fov, aspect) * 0.5).tan().max(1e-4);
+        let half_y = (kerosene_render::vertical_fov(viewport.fov, aspect) * 0.5).tan().max(1e-4);
         let half_x = half_y * aspect;
         let project = |camera: Vec3| -> egui::Pos2 {
             egui::pos2(
@@ -2717,12 +2717,12 @@ impl ChiselApp {
                     // Ctrl-wheel sets how fast the camera flies, the way it
                     // does in every 3D application.
                     self.fly_speed = (self.fly_speed * (1.0 + scroll * 0.004)).clamp(16.0, 8192.0);
-                    self.status = format!("fly speed {}", void_math::units::speed(self.fly_speed));
+                    self.status = format!("fly speed {}", kerosene_math::units::speed(self.fly_speed));
                 } else if ui.input(|i| i.modifiers.ctrl) {
                     // Ctrl-wheel sets how fast the camera flies, as it does in
                     // every other 3D application.
                     self.fly_speed = (self.fly_speed * (1.0 + scroll * 0.004)).clamp(16.0, 8192.0);
-                    self.status = format!("fly speed {}", void_math::units::speed(self.fly_speed));
+                    self.status = format!("fly speed {}", kerosene_math::units::speed(self.fly_speed));
                 } else {
                     let forward = self.viewports[index].angles.forward();
                     self.viewports[index].eye += forward * scroll * 2.0;
@@ -2915,7 +2915,7 @@ fn property_widget(
                 let mut v: f64 = row.text().trim().parse().unwrap_or(0.0);
                 let r = ui.add(egui::DragValue::new(&mut v).speed(0.5));
                 if r.changed() {
-                    row.value = Some(void_kv::format_float(v as f32));
+                    row.value = Some(kerosene_kv::format_float(v as f32));
                     out.changed = true;
                 }
                 out.finished |= r.drag_stopped() || r.lost_focus();
@@ -3085,7 +3085,7 @@ fn combo_or_text(
 fn scan_models(root: &std::path::Path) -> Vec<String> {
     let mut out = Vec::new();
     let models = root.join("models");
-    collect_by_extension(&models, &models, "voidmdl", &mut out);
+    collect_by_extension(&models, &models, "keromdl", &mut out);
     out.sort();
     out.dedup();
     out
@@ -3094,7 +3094,7 @@ fn scan_models(root: &std::path::Path) -> Vec<String> {
 fn scan_materials(root: &std::path::Path) -> Vec<String> {
     let mut out = Vec::new();
     let materials = root.join("materials");
-    collect_by_extension(&materials, &materials, "voidmat", &mut out);
+    collect_by_extension(&materials, &materials, "keromat", &mut out);
     out.sort();
     out.dedup();
     if out.is_empty() {
@@ -3126,7 +3126,7 @@ fn collect_by_extension(
 /// A starter map, so a fresh editor has something to look at rather than an
 /// empty void with no sense of scale.
 pub fn starter_document() -> Document {
-    use void_math::Aabb;
+    use kerosene_math::Aabb;
     let mut document = Document::new();
     let t = 16.0;
     let (lo, hi, tall) = (0.0f32, 512.0f32, 256.0f32);
@@ -3173,7 +3173,7 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("chisel-mats-{}", std::process::id()));
         let materials = dir.join("materials/dev");
         std::fs::create_dir_all(&materials).unwrap();
-        std::fs::write(materials.join("grid.voidmat"), "lit { }").unwrap();
+        std::fs::write(materials.join("grid.keromat"), "lit { }").unwrap();
         std::fs::write(materials.join("notes.txt"), "ignored").unwrap();
 
         let found = scan_materials(&dir);
@@ -3209,7 +3209,7 @@ mod tests {
         assert!(app.schema.is_empty());
         assert!(!app.point_classes().is_empty(), "the entity tool must not be dead");
         assert!(!app.brush_classes().is_empty());
-        assert!(app.status.contains("no .voiddef"), "and it says so: {}", app.status);
+        assert!(app.status.contains("no .kerodef"), "and it says so: {}", app.status);
     }
 
     #[test]
@@ -3217,7 +3217,7 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("chisel-models-{}", std::process::id()));
         let models = dir.join("models/props");
         std::fs::create_dir_all(&models).unwrap();
-        std::fs::write(models.join("crate.voidmdl"), "").unwrap();
+        std::fs::write(models.join("crate.keromdl"), "").unwrap();
         std::fs::write(models.join("crate.obj"), "").unwrap();
         assert_eq!(scan_models(&dir), vec!["props/crate"]);
         let _ = std::fs::remove_dir_all(&dir);
@@ -3267,12 +3267,12 @@ mod tests {
         app.prompt.as_mut().unwrap().name = "arena".into();
         assert!(app.confirm_prompt());
 
-        let expected = root.join("maps/arena.voidmap");
+        let expected = root.join("maps/arena.keromap");
         assert_eq!(app.document.path.as_deref(), Some(expected.as_path()));
         assert!(expected.is_file(), "the map is on disk");
         assert!(!app.document.is_modified(), "and no longer counts as unsaved");
         assert!(app.prompt.is_none());
-        assert!(app.status.contains("maps/arena.voidmap"), "{}", app.status);
+        assert!(app.status.contains("maps/arena.keromap"), "{}", app.status);
 
         // And it is a map, not an empty file.
         let text = std::fs::read_to_string(&expected).unwrap();
@@ -3298,7 +3298,7 @@ mod tests {
     #[test]
     fn saving_again_writes_the_same_file_without_asking() {
         let (mut app, root) = app_in("save-again");
-        app.save(Some(root.join("maps/arena.voidmap")));
+        app.save(Some(root.join("maps/arena.keromap")));
         app.document.create_block(Vec3::ZERO, Vec3::splat(64.0));
         assert!(app.document.is_modified());
 
@@ -3312,17 +3312,17 @@ mod tests {
     #[test]
     fn renaming_moves_the_map_and_what_was_compiled_from_it() {
         let (mut app, root) = app_in("rename");
-        app.save(Some(root.join("maps/old.voidmap")));
-        std::fs::write(root.join("maps/old.voidbsp"), b"compiled").unwrap();
+        app.save(Some(root.join("maps/old.keromap")));
+        std::fs::write(root.join("maps/old.kerobsp"), b"compiled").unwrap();
 
         app.begin_prompt(PromptKind::Rename);
-        assert_eq!(app.prompt.as_ref().unwrap().name, "old.voidmap", "filled in with the current name");
+        assert_eq!(app.prompt.as_ref().unwrap().name, "old.keromap", "filled in with the current name");
         app.prompt.as_mut().unwrap().name = "new".into();
         assert!(app.confirm_prompt());
 
-        assert_eq!(app.document.path.as_deref(), Some(root.join("maps/new.voidmap").as_path()));
-        assert!(!root.join("maps/old.voidmap").exists());
-        assert!(root.join("maps/new.voidbsp").is_file(), "the compiled map came too");
+        assert_eq!(app.document.path.as_deref(), Some(root.join("maps/new.keromap").as_path()));
+        assert!(!root.join("maps/old.keromap").exists());
+        assert!(root.join("maps/new.kerobsp").is_file(), "the compiled map came too");
         assert!(app.status.contains("renamed"), "{}", app.status);
 
         let _ = std::fs::remove_dir_all(&root);
@@ -3331,8 +3331,8 @@ mod tests {
     #[test]
     fn renaming_over_an_existing_map_is_refused() {
         let (mut app, root) = app_in("rename-clash");
-        app.save(Some(root.join("maps/old.voidmap")));
-        std::fs::write(root.join("maps/taken.voidmap"), "someone else's work").unwrap();
+        app.save(Some(root.join("maps/old.keromap")));
+        std::fs::write(root.join("maps/taken.keromap"), "someone else's work").unwrap();
 
         app.begin_prompt(PromptKind::Rename);
         app.prompt.as_mut().unwrap().name = "taken".into();
@@ -3340,11 +3340,11 @@ mod tests {
 
         assert!(app.prompt.as_ref().unwrap().error.as_ref().unwrap().contains("already exists"));
         assert_eq!(
-            std::fs::read_to_string(root.join("maps/taken.voidmap")).unwrap(),
+            std::fs::read_to_string(root.join("maps/taken.keromap")).unwrap(),
             "someone else's work",
             "and the map that was there is untouched"
         );
-        assert!(root.join("maps/old.voidmap").is_file());
+        assert!(root.join("maps/old.keromap").is_file());
 
         let _ = std::fs::remove_dir_all(&root);
     }
@@ -3356,7 +3356,7 @@ mod tests {
         app.prompt.as_mut().unwrap().name = "first".into();
         assert!(app.confirm_prompt());
 
-        assert!(root.join("maps/first.voidmap").is_file());
+        assert!(root.join("maps/first.keromap").is_file());
         assert!(!app.document.is_modified());
 
         let _ = std::fs::remove_dir_all(&root);
@@ -3365,15 +3365,15 @@ mod tests {
     #[test]
     fn renaming_carries_unsaved_changes_to_the_new_name() {
         let (mut app, root) = app_in("rename-dirty");
-        app.save(Some(root.join("maps/old.voidmap")));
-        let before = std::fs::read_to_string(root.join("maps/old.voidmap")).unwrap();
+        app.save(Some(root.join("maps/old.keromap")));
+        let before = std::fs::read_to_string(root.join("maps/old.keromap")).unwrap();
         app.document.create_block(Vec3::ZERO, Vec3::splat(64.0));
 
         app.begin_prompt(PromptKind::Rename);
         app.prompt.as_mut().unwrap().name = "new".into();
         assert!(app.confirm_prompt());
 
-        let after = std::fs::read_to_string(root.join("maps/new.voidmap")).unwrap();
+        let after = std::fs::read_to_string(root.join("maps/new.keromap")).unwrap();
         assert_ne!(after, before, "the file under the new name is the map as it stands");
         assert!(!app.document.is_modified());
 
@@ -3383,14 +3383,14 @@ mod tests {
     #[test]
     fn opening_a_map_with_unsaved_changes_asks_first() {
         let (mut app, root) = app_in("discard");
-        app.save(Some(root.join("maps/arena.voidmap")));
-        let other = root.join("maps/other.voidmap");
-        std::fs::copy(root.join("maps/arena.voidmap"), &other).unwrap();
+        app.save(Some(root.join("maps/arena.keromap")));
+        let other = root.join("maps/other.keromap");
+        std::fs::copy(root.join("maps/arena.keromap"), &other).unwrap();
         app.document.create_block(Vec3::ZERO, Vec3::splat(64.0));
 
         app.discard_or_ask(Discarding::Open(other.clone()));
         assert_eq!(app.discarding, Some(Discarding::Open(other.clone())));
-        assert_eq!(app.document.path.as_deref(), Some(root.join("maps/arena.voidmap").as_path()));
+        assert_eq!(app.document.path.as_deref(), Some(root.join("maps/arena.keromap").as_path()));
 
         // Answering the question goes through with it.
         app.discarding = None;
@@ -3403,7 +3403,7 @@ mod tests {
     #[test]
     fn a_saved_map_is_replaced_without_a_question() {
         let (mut app, root) = app_in("no-question");
-        app.save(Some(root.join("maps/arena.voidmap")));
+        app.save(Some(root.join("maps/arena.keromap")));
 
         app.discard_or_ask(Discarding::New);
         assert!(app.discarding.is_none(), "nothing would be lost, so nothing is asked");
@@ -3419,7 +3419,7 @@ mod tests {
 
         assert!(app.compile.is_none(), "nothing is compiled yet");
         assert_eq!(app.prompt.as_ref().map(|p| p.kind), Some(PromptKind::SaveAs));
-        assert!(!root.join("maps/untitled.voidmap").exists(), "and no `untitled` is left behind");
+        assert!(!root.join("maps/untitled.keromap").exists(), "and no `untitled` is left behind");
 
         let _ = std::fs::remove_dir_all(&root);
     }
@@ -3427,14 +3427,14 @@ mod tests {
     #[test]
     fn the_maps_offered_to_open_are_the_ones_in_the_project() {
         let (mut app, root) = app_in("map-list");
-        app.save(Some(root.join("maps/arena.voidmap")));
-        app.save(Some(root.join("maps/lobby.voidmap")));
+        app.save(Some(root.join("maps/arena.keromap")));
+        app.save(Some(root.join("maps/lobby.keromap")));
 
         let names: Vec<String> = files::maps_in(&root)
             .iter()
             .map(|p| files::label(p, &root))
             .collect();
-        assert_eq!(names, vec!["maps/arena.voidmap", "maps/lobby.voidmap"]);
+        assert_eq!(names, vec!["maps/arena.keromap", "maps/lobby.keromap"]);
 
         let _ = std::fs::remove_dir_all(&root);
     }
@@ -3491,11 +3491,11 @@ mod tests {
         let (mut app, root) = app_in("title");
         assert_eq!(app.window_title(), "untitled -- Chisel");
 
-        app.save(Some(root.join("maps/arena.voidmap")));
-        assert_eq!(app.window_title(), "arena.voidmap -- Chisel");
+        app.save(Some(root.join("maps/arena.keromap")));
+        assert_eq!(app.window_title(), "arena.keromap -- Chisel");
 
         app.document.create_block(Vec3::ZERO, Vec3::splat(64.0));
-        assert_eq!(app.window_title(), "arena.voidmap * -- Chisel");
+        assert_eq!(app.window_title(), "arena.keromap * -- Chisel");
 
         let _ = std::fs::remove_dir_all(&root);
     }
@@ -3503,7 +3503,7 @@ mod tests {
     #[test]
     fn a_modal_takes_the_keyboard_from_the_shortcuts_behind_it() {
         let (mut app, root) = app_in("modal-keys");
-        app.save(Some(root.join("maps/arena.voidmap")));
+        app.save(Some(root.join("maps/arena.keromap")));
         app.begin_prompt(PromptKind::SaveAs);
 
         // Ctrl-S with the dialog open must not save under the old name --
@@ -3593,7 +3593,7 @@ mod tests {
         let (mut app, root) = app_in("panel-branch");
         let id = app.document.create_entity("logic_branch", Vec3::ZERO);
         if let Some(e) = app.document.find_entity_mut(id) {
-            e.connections.push(void_map::Connection::new("OnTrue", "gate", "Lock"));
+            e.connections.push(kerosene_map::Connection::new("OnTrue", "gate", "Lock"));
         }
         app.document.selection.clear();
         app.document.selection.entities.insert(id);

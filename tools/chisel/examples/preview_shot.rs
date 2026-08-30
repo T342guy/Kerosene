@@ -2,7 +2,7 @@
 //! Render a map through Chisel's 3D pane and write it out as a PNG.
 //!
 //! ```text
-//! cargo run -p chisel --example preview_shot -- <map.voidmap> <out.png> [x y z yaw pitch]
+//! cargo run -p chisel --example preview_shot -- <map.keromap> <out.png> [x y z yaw pitch]
 //! ```
 //!
 //! The 3D pane is software-rasterised, which means it can be run without a
@@ -12,11 +12,11 @@
 use anyhow::Result;
 use chisel::raster::{Settings, Shading};
 use chisel::textures::TextureCache;
-use void_math::{Angles, Vec3};
+use kerosene_math::{Angles, Vec3};
 
 fn main() -> Result<()> {
     let args: Vec<String> = std::env::args().skip(1).collect();
-    let map = args.first().map(String::as_str).unwrap_or("content/maps/void_start.voidmap");
+    let map = args.first().map(String::as_str).unwrap_or("content/maps/kero_start.keromap");
     let out = args.get(1).map(String::as_str).unwrap_or("preview.png");
     let number = |i: usize, fallback: f32| -> f32 {
         args.get(i).and_then(|v| v.parse().ok()).unwrap_or(fallback)
@@ -28,9 +28,9 @@ fn main() -> Result<()> {
 
     // The same search the editor does, so a shot taken from anywhere shows
     // the same textures the editor would.
-    let found = void_vfs::root::find(None, Some(&map_path));
-    eprintln!("{}", void_vfs::root::describe(&found));
-    let mut vfs = void_vfs::Vfs::new();
+    let found = kerosene_vfs::root::find(None, Some(&map_path));
+    eprintln!("{}", kerosene_vfs::root::describe(&found));
+    let mut vfs = kerosene_vfs::Vfs::new();
     if let Some(found) = &found {
         vfs.add_directory(&found.root, "GAME");
     }

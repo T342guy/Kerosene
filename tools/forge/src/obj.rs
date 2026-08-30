@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: LGPL-3.0-or-later
 //! Reading Wavefront OBJ, Forge's source mesh format.
 //!
-//! OBJ is chosen for the same reason `.voidmap` is text: it is what every
+//! OBJ is chosen for the same reason `.keromap` is text: it is what every
 //! modelling package can export, it is readable, and it diffs. It carries
 //! positions, normals, texture coordinates and material groups, which is
 //! everything a static model needs.
@@ -9,21 +9,21 @@
 //! Two conversions happen on the way in, and getting either wrong produces a
 //! model that is subtly rotated or a hundred times too small:
 //!
-//! * **Axes.** OBJ is Y-up with -Z forward. VoidEngine is Z-up with +X
+//! * **Axes.** OBJ is Y-up with -Z forward. Kerosene is Z-up with +X
 //!   forward and +Y left. The remap preserves handedness, so faces do not end
 //!   up inside out.
-//! * **Scale.** Modelling packages usually work in metres; VoidEngine works in
+//! * **Scale.** Modelling packages usually work in metres; Kerosene works in
 //!   inches. A crate exported at 1.0 units is 1 inch here unless scaled.
 
 use std::collections::HashMap;
 use thiserror::Error;
-use void_math::Vec3;
+use kerosene_math::Vec3;
 
-/// Void units per metre, for the common case of a metric source file.
+/// Kerosene units per metre, for the common case of a metric source file.
 ///
-/// Re-exported from `void-math` rather than written out again: the scale of
+/// Re-exported from `kerosene-math` rather than written out again: the scale of
 /// the world is one fact, and two copies of it is one copy too many.
-pub use void_math::units::VU_PER_METRE;
+pub use kerosene_math::units::VU_PER_METRE;
 
 #[derive(Debug, Error)]
 pub enum ObjError {
@@ -39,7 +39,7 @@ pub enum UpAxis {
     /// The usual export convention.
     #[default]
     Y,
-    /// Already in VoidEngine's orientation.
+    /// Already in Kerosene's orientation.
     Z,
 }
 
@@ -149,11 +149,11 @@ fn parse3(parts: &[&str], line: usize) -> Result<Vec3, ObjError> {
     Ok(Vec3::from_array(out))
 }
 
-/// Remap a vector from the source file's axes into VoidEngine's.
+/// Remap a vector from the source file's axes into Kerosene's.
 fn convert(v: Vec3, up: UpAxis) -> Vec3 {
     match up {
         // OBJ: +X right, +Y up, -Z forward.
-        // Void: +X forward, +Y left, +Z up.
+        // Kerosene: +X forward, +Y left, +Z up.
         UpAxis::Y => Vec3::new(-v.z, -v.x, v.y),
         UpAxis::Z => v,
     }

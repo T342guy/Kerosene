@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: LGPL-3.0-or-later
 //! Loading and showing a leak trace.
 //!
-//! When a map is not sealed, Cleave writes a `.voidleak` beside it: the route
+//! When a map is not sealed, Cleave writes a `.keroleak` beside it: the route
 //! a flood fill took from an entity out into the void. One `x y z` per line,
 //! and the trace is only useful if something draws it -- a coordinate list
 //! does not tell you which wall has the gap, and finding a one-unit hole in a
@@ -11,7 +11,7 @@
 //! the line to the wall it passes through.
 
 use std::path::Path;
-use void_math::Vec3;
+use kerosene_math::Vec3;
 
 /// A loaded leak trace.
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -41,7 +41,7 @@ impl LeakTrace {
     /// Returns `None` both when the map is sealed and when the file cannot be
     /// read, because those are the same thing from here: nothing to draw.
     pub fn beside(map: &Path) -> Option<LeakTrace> {
-        let text = std::fs::read_to_string(map.with_extension("voidleak")).ok()?;
+        let text = std::fs::read_to_string(map.with_extension("keroleak")).ok()?;
         let trace = LeakTrace::parse(&text);
         (trace.points.len() >= 2).then_some(trace)
     }
@@ -94,11 +94,11 @@ mod tests {
     fn a_sealed_map_has_no_trace_beside_it() {
         let dir = std::env::temp_dir().join(format!("chisel-leak-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
-        let map = dir.join("sealed.voidbsp");
+        let map = dir.join("sealed.kerobsp");
         std::fs::write(&map, "").unwrap();
         assert_eq!(LeakTrace::beside(&map), None);
 
-        std::fs::write(map.with_extension("voidleak"), "0 0 0\n64 0 0\n").unwrap();
+        std::fs::write(map.with_extension("keroleak"), "0 0 0\n64 0 0\n").unwrap();
         assert!(LeakTrace::beside(&map).is_some());
         let _ = std::fs::remove_dir_all(&dir);
     }

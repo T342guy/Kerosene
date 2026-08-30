@@ -3,7 +3,7 @@
 //!
 //! Source encodes compile-time intent in the texture applied to a face. A
 //! brush textured `tools/toolsclip` blocks players but never renders; one
-//! textured `tools/toolshint` exists only to force a BSP split. VoidEngine
+//! textured `tools/toolshint` exists only to force a BSP split. Kerosene
 //! keeps the convention, with shorter names, because it is genuinely good
 //! design: the level designer expresses intent with the same tool they use for
 //! everything else, and it is visible in the 3D view.
@@ -11,7 +11,7 @@
 //! Everything under `tools/` is a tool material. Everything else is ordinary
 //! world geometry that draws and blocks.
 
-use void_bsp::{contents, surf};
+use kerosene_bsp::{contents, surf};
 
 /// What a material means to the compiler.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

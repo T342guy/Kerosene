@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: LGPL-3.0-or-later
 //! Loading the game's entity class definitions.
 //!
-//! Chisel does not link the game. It reads the game's `.voiddef` files out of
+//! Chisel does not link the game. It reads the game's `.kerodef` files out of
 //! the content tree, exactly as Hammer reads an FGD -- which is what lets the
 //! editor stay a separate program from the engine while still knowing that a
 //! `func_door` has a `speed` and answers to `Open`.
@@ -11,10 +11,10 @@
 //! degraded mode worth being quiet about, so [`load`] reports what it found.
 
 use std::path::{Path, PathBuf};
-use void_entity::Schema;
+use kerosene_entity::Schema;
 
 /// The extension a class definition file uses.
-pub const EXTENSION: &str = "voiddef";
+pub const EXTENSION: &str = "kerodef";
 
 /// What a scan of the content tree turned up.
 pub struct Loaded {
@@ -45,7 +45,7 @@ fn display(path: &Path) -> String {
     path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default()
 }
 
-/// Load and merge every `.voiddef` under a content root.
+/// Load and merge every `.kerodef` under a content root.
 ///
 /// Files are merged in sorted path order and a later definition of a class
 /// replaces an earlier one, so a mod can drop its own file in beside the
@@ -119,26 +119,26 @@ mod tests {
         let dir = scratch("empty");
         let loaded = load(&dir);
         assert!(loaded.schema.is_empty());
-        assert!(loaded.summary().contains("no .voiddef"), "{}", loaded.summary());
+        assert!(loaded.summary().contains("no .kerodef"), "{}", loaded.summary());
         std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]
     fn a_broken_file_names_itself() {
         let dir = scratch("broken");
-        std::fs::write(dir.join("bad.voiddef"), r#"class { "name" "c" "base" "Nope" }"#).unwrap();
+        std::fs::write(dir.join("bad.kerodef"), r#"class { "name" "c" "base" "Nope" }"#).unwrap();
         let loaded = load(&dir);
         assert_eq!(loaded.errors.len(), 1);
-        assert!(loaded.errors[0].starts_with("bad.voiddef:"), "{:?}", loaded.errors);
-        assert!(loaded.summary().contains("bad.voiddef"));
+        assert!(loaded.errors[0].starts_with("bad.kerodef:"), "{:?}", loaded.errors);
+        assert!(loaded.summary().contains("bad.kerodef"));
         std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]
     fn a_later_file_overrides_an_earlier_one() {
         let dir = scratch("override");
-        std::fs::write(dir.join("a-game.voiddef"), r#"class { "name" "func_x" "help" "first" }"#).unwrap();
-        std::fs::write(dir.join("b-mod.voiddef"), r#"class { "name" "func_x" "help" "second" }"#).unwrap();
+        std::fs::write(dir.join("a-game.kerodef"), r#"class { "name" "func_x" "help" "first" }"#).unwrap();
+        std::fs::write(dir.join("b-mod.kerodef"), r#"class { "name" "func_x" "help" "second" }"#).unwrap();
         let loaded = load(&dir);
         assert_eq!(loaded.files.len(), 2);
         assert_eq!(loaded.schema.len(), 1);
@@ -150,7 +150,7 @@ mod tests {
     fn definitions_in_a_subdirectory_are_found() {
         let dir = scratch("nested");
         std::fs::create_dir_all(dir.join("cfg")).unwrap();
-        std::fs::write(dir.join("cfg/game.voiddef"), r#"class { "name" "func_y" }"#).unwrap();
+        std::fs::write(dir.join("cfg/game.kerodef"), r#"class { "name" "func_y" }"#).unwrap();
         let loaded = load(&dir);
         assert_eq!(loaded.schema.len(), 1, "{:?}", loaded.errors);
         std::fs::remove_dir_all(&dir).ok();

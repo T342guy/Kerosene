@@ -2,7 +2,7 @@
 //! Naming, finding and moving map files.
 //!
 //! The editor used to have exactly one thing it could do with a file: write
-//! it to `maps/untitled.voidmap`. There was no way to name a map, no way to
+//! it to `maps/untitled.keromap`. There was no way to name a map, no way to
 //! rename one, and a new document -- which is what the editor opens with --
 //! had no path at all, so ctrl-S put "no path to save to" in the status bar
 //! and did nothing else. From the outside that is an editor that cannot save.
@@ -15,19 +15,19 @@
 use std::path::{Path, PathBuf};
 
 /// The extension every map carries.
-pub const MAP_EXTENSION: &str = "voidmap";
+pub const MAP_EXTENSION: &str = "keromap";
 
 /// Build artefacts that belong to a map and follow it when it moves.
 ///
-/// A `.voidbsp` left behind under the old name is worse than clutter: the
+/// A `.kerobsp` left behind under the old name is worse than clutter: the
 /// game still loads it, so a renamed map appears to work under a name that no
 /// longer exists and to be missing under the one that does.
-pub const ARTEFACTS: &[&str] = &["voidbsp", "voidprt", "voidleak"];
+pub const ARTEFACTS: &[&str] = &["kerobsp", "keroprt", "keroleak"];
 
 /// Turn what someone typed into the path of a map.
 ///
 /// A bare name means a map in this project: `arena` is
-/// `<content>/maps/arena.voidmap`, which is where the compilers and the game
+/// `<content>/maps/arena.keromap`, which is where the compilers and the game
 /// will look for it. An absolute path is taken at its word, for the case
 /// where a map genuinely lives somewhere else.
 pub fn resolve(typed: &str, content_root: &Path) -> Result<PathBuf, String> {
@@ -52,10 +52,10 @@ pub fn resolve(typed: &str, content_root: &Path) -> Result<PathBuf, String> {
     Ok(with_map_extension(&base))
 }
 
-/// The same path, ending in `.voidmap`.
+/// The same path, ending in `.keromap`.
 ///
 /// Appended rather than replaced: `arena.v2` is a name someone chose, and
-/// turning it into `arena.voidmap` would silently save over a different map.
+/// turning it into `arena.keromap` would silently save over a different map.
 pub fn with_map_extension(path: &Path) -> PathBuf {
     if path.extension().is_some_and(|e| e.eq_ignore_ascii_case(MAP_EXTENSION)) {
         return path.to_path_buf();
@@ -68,7 +68,7 @@ pub fn with_map_extension(path: &Path) -> PathBuf {
 
 /// The name to show for a map path, relative to the project when it is in it.
 ///
-/// `maps/arena.voidmap` rather than the full path, because the full path is
+/// `maps/arena.keromap` rather than the full path, because the full path is
 /// mostly the same forty characters on every map and the name is the part
 /// being read.
 pub fn label(path: &Path, content_root: &Path) -> String {

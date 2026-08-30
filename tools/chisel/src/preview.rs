@@ -13,8 +13,8 @@
 //! designer is flying -- a different problem with different answers.
 
 use crate::raster::Image;
-use void_asset::Model;
-use void_math::{Angles, Vec3};
+use kerosene_asset::Model;
+use kerosene_math::{Angles, Vec3};
 
 /// The background a preview is drawn on.
 ///
@@ -62,8 +62,8 @@ pub fn model(model: &Model, size: usize, yaw: f32, pitch: f32) -> Image {
         // preview wants the shape read clearly, and per-vertex smoothing on a
         // 60-pixel image mostly reads as mud.
         //
-        // Negated because `.voidmdl` stores triangles clockwise as seen from
-        // the front, the same way `.voidmap` faces are. Taking the cross
+        // Negated because `.keromdl` stores triangles clockwise as seen from
+        // the front, the same way `.keromap` faces are. Taking the cross
         // product at face value points every normal into the model, which
         // renders its inside: a crate came out as a shapeless lump, because
         // what you were looking at was the far wall of the inside of it.

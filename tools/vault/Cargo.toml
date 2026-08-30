@@ -7,7 +7,7 @@ license.workspace = true
 authors.workspace = true
 
 [dependencies]
-void-vfs.workspace = true
+kerosene-vfs.workspace = true
 anyhow.workspace = true
 clap.workspace = true
 log.workspace = true

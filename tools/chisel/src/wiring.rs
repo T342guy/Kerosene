@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: LGPL-3.0-or-later
 //! Reading a list of connections as the sequence a designer meant.
 //!
-//! A `.voidmap` stores wiring as a flat list of connections, each one an
+//! A `.keromap` stores wiring as a flat list of connections, each one an
 //! output, a target, an input and a delay. That is the right thing to store
 //! and the wrong thing to show: what a designer is building is *when this
 //! happens, do these things, in this order*, and a flat list makes that
@@ -17,7 +17,7 @@
 //! entity that can make it. That is `logic_branch`, whose `OnTrue` and
 //! `OnFalse` show up as two events on the same entity.
 
-use void_map::Connection;
+use kerosene_map::Connection;
 
 /// How much later a "then" step fires than the one before it, by default.
 ///

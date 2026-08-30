@@ -15,10 +15,10 @@ use anyhow::{Result, bail};
 use clap::Parser;
 use kiln::{Settings, Stage};
 use std::path::PathBuf;
-use void_vfs::toolchain;
+use kerosene_vfs::toolchain;
 
 #[derive(Parser, Debug)]
-#[command(name = "kiln", version, about = "Build a VoidEngine project's content")]
+#[command(name = "kiln", version, about = "Build a Kerosene project's content")]
 struct Args {
     /// The content tree. With none, the project is found the way every other
     /// tool finds it.
@@ -41,7 +41,7 @@ struct Args {
     #[arg(long)]
     ignore_leaks: bool,
 
-    /// Treat `.obj` sources as void units rather than metres.
+    /// Treat `.obj` sources as kerosene units rather than metres.
     #[arg(long)]
     model_units: bool,
 
@@ -72,8 +72,8 @@ fn main() -> Result<()> {
         return Ok(());
     }
 
-    let found = void_vfs::root::find(args.content.as_deref(), None);
-    println!("{}", void_vfs::root::describe(&found));
+    let found = kerosene_vfs::root::find(args.content.as_deref(), None);
+    println!("{}", kerosene_vfs::root::describe(&found));
     let Some(found) = found else {
         bail!("nothing to build. Run kiln from a project, or pass --content");
     };

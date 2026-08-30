@@ -17,11 +17,11 @@ path = "src/main.rs"
 [dependencies]
 # The compile is a library call as well as a program, so Kiln drives the same
 # code the window does and the two cannot disagree about what a build is.
-void-audio = { workspace = true, features = ["device"] }
-void-kv.workspace = true
+kerosene-audio = { workspace = true, features = ["device"] }
+kerosene-kv.workspace = true
 symphonia.workspace = true
-void-vfs.workspace = true
-void-ui.workspace = true
+kerosene-vfs.workspace = true
+kerosene-ui.workspace = true
 egui.workspace = true
 anyhow.workspace = true
 clap.workspace = true

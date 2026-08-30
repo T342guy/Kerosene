@@ -1,0 +1,23 @@
+[package]
+name = "kerosene-render"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+kerosene-math.workspace = true
+kerosene-bsp.workspace = true
+kerosene-asset.workspace = true
+kerosene-vfs.workspace = true
+kerosene-console.workspace = true
+glam.workspace = true
+wgpu.workspace = true
+bytemuck.workspace = true
+anyhow.workspace = true
+log.workspace = true
+pollster.workspace = true
+
+[dev-dependencies]
+naga = { version = "25", features = ["wgsl-in"] }

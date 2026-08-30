@@ -10,8 +10,8 @@
 use super::*;
 use crate::app::starter_document;
 use std::collections::HashSet;
-use void_map::Solid;
-use void_math::{Aabb, Angles};
+use kerosene_map::Solid;
+use kerosene_math::{Aabb, Angles};
 
 const W: usize = 160;
 const H: usize = 120;
@@ -228,7 +228,7 @@ fn point_entities_are_marked_but_do_not_show_through_walls() {
     // A wall at x = 300, and a light hidden behind it at x = 500.
     brush(&mut document, Vec3::new(300.0, -200.0, -200.0), Vec3::new(320.0, 200.0, 200.0));
     let id = document.map.next_id();
-    let mut light = void_map::Entity::new(id, "light");
+    let mut light = kerosene_map::Entity::new(id, "light");
     light.set_origin(Vec3::new(500.0, 0.0, 0.0));
     document.map.entities.push(light);
 
@@ -255,7 +255,7 @@ fn two_kinds_of_entity_are_marked_in_two_different_colours() {
     document.map.world.solids.clear();
     for (i, class) in ["light", "info_player_start"].into_iter().enumerate() {
         let id = document.map.next_id();
-        let mut entity = void_map::Entity::new(id, class);
+        let mut entity = kerosene_map::Entity::new(id, class);
         entity.set_origin(Vec3::new(200.0, -60.0 + i as f32 * 120.0, 0.0));
         document.map.entities.push(entity);
     }

@@ -1,4 +1,4 @@
-VoidEngine
+Kerosene
 Copyright (C) 2026 T342guy
 
 This program is free software: you can redistribute it and/or modify it
@@ -15,10 +15,16 @@ You should have received a copy of the GNU Lesser General Public License
 along with this program, in COPYING.LESSER and COPYING. If not, see
 <https://www.gnu.org/licenses/>.
 
-VoidEngine is an independent reimplementation. It is not affiliated with,
+Kerosene is an independent reimplementation. It is not affiliated with,
 endorsed by, or sponsored by Valve Corporation or id Software LLC, and it
 contains no source code, assets, or data files from the Source engine, the
 Source SDK, Hammer, Quake, or any other product of either company.
+
+The project was called VoidEngine until August 2026. It was renamed because
+an unrelated engine built on id Tech 6 already uses that name; there is no
+relationship between the two, and no code, assets or formats are shared with
+it. Kerosene is likewise unaffiliated with Kerosene Games, a game publisher
+of that name.
 
 It is not a *clean-room* reimplementation, and does not claim to be: it
 was written with knowledge of how id's published compilers work, so the
@@ -27,19 +33,19 @@ structure. Everything here was written from scratch in Rust.
 
 "Valve", "Source", "Source 2", "Hammer", "Half-Life", "Portal", "Steam"
 and "Quake" are trademarks of their respective owners. Where those names
-appear in VoidEngine's documentation and source comments, they are used
+appear in Kerosene's documentation and source comments, they are used
 nominatively -- to say what a piece of this project is analogous to, or
 which published technique it follows -- and no claim of affiliation is
 made or implied.
 
-VoidEngine defines its own file formats. They are deliberately named and
+Kerosene defines its own file formats. They are deliberately named and
 byte-tagged so they cannot be confused with anyone else's:
 
-    .voidmap  .voidbsp  .voidprt  .voidleak
-    .voidtex  .voidmat  .voidmdl  .vault
+    .keromap  .kerobsp  .keroprt  .keroleak
+    .kerotex  .keromat  .keromdl  .vault
 
 None of them is compatible with, readable by, or produced from any Valve
-or id format. VoidEngine cannot open Source or Quake content and does not
+or id format. Kerosene cannot open Source or Quake content and does not
 attempt to.
 
 --------------------------------------------------------------------------

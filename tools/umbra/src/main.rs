@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: LGPL-3.0-or-later
-//! Umbra -- the VoidEngine visibility compiler.
+//! Umbra -- the Kerosene visibility compiler.
 //!
-//! Reads a compiled `.voidbsp` and the `.voidprt` portal graph Cleave wrote beside
+//! Reads a compiled `.kerobsp` and the `.keroprt` portal graph Cleave wrote beside
 //! it, works out which clusters can see which, and writes the result back into
 //! the map's visibility lump.
 //!
 //! This is the second of the three compile stages, mirroring Source's `vvis`:
 //!
 //! ```text
-//! cleave   map.voidmap   ->  map.voidbsp + map.voidprt
-//! umbra    map.voidbsp   ->  map.voidbsp with visibility     <- you are here
-//! radiance map.voidbsp   ->  map.voidbsp with lighting
+//! cleave   map.keromap   ->  map.kerobsp + map.keroprt
+//! umbra    map.kerobsp   ->  map.kerobsp with visibility     <- you are here
+//! radiance map.kerobsp   ->  map.kerobsp with lighting
 //! ```
 //!
 //! Vis is the slowest stage of any BSP compile and the one that matters most
@@ -26,15 +26,15 @@ use anyhow::{Context, Result};
 use clap::Parser;
 use std::path::PathBuf;
 use std::time::Instant;
-use void_bsp::{Bsp, VisBuilder};
+use kerosene_bsp::{Bsp, VisBuilder};
 
 #[derive(Parser, Debug)]
-#[command(name = "umbra", version, about = "Compute the PVS for a compiled .voidbsp")]
+#[command(name = "umbra", version, about = "Compute the PVS for a compiled .kerobsp")]
 struct Args {
-    /// The .voidbsp to add visibility to, modified in place.
+    /// The .kerobsp to add visibility to, modified in place.
     map: PathBuf,
 
-    /// The portal file. Defaults to the map path with a .voidprt extension.
+    /// The portal file. Defaults to the map path with a .keroprt extension.
     #[arg(long)]
     portals: Option<PathBuf>,
 
@@ -59,7 +59,7 @@ fn main() -> Result<()> {
     let mut bsp = Bsp::load(&args.map)
         .with_context(|| format!("loading {}", args.map.display()))?;
 
-    let prt_path = args.portals.unwrap_or_else(|| args.map.with_extension("voidprt"));
+    let prt_path = args.portals.unwrap_or_else(|| args.map.with_extension("keroprt"));
     let prt_text = std::fs::read_to_string(&prt_path).with_context(|| {
         format!(
             "reading {}. Umbra needs the portal file Cleave writes next to the map.",

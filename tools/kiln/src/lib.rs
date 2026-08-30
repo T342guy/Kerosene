@@ -2,8 +2,8 @@
 //! Kiln -- building a project's content.
 //!
 //! Everything a project ships has a source that is not what the engine loads:
-//! `.png` becomes `.voidtex`, `.obj` becomes `.voidmdl`, `.voidmap` becomes a
-//! `.voidbsp` with visibility and lighting baked into it, and the lot is
+//! `.png` becomes `.kerotex`, `.obj` becomes `.keromdl`, `.keromap` becomes a
+//! `.kerobsp` with visibility and lighting baked into it, and the lot is
 //! packed into a `.vault`. Running those in the right order over a whole tree
 //! is a job, and it used to be a shell script in the repository.
 //!
@@ -23,8 +23,8 @@
 use anyhow::{Context, Result, bail};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
-use void_vfs::project::Project;
-use void_vfs::toolchain;
+use kerosene_vfs::project::Project;
+use kerosene_vfs::toolchain;
 
 pub mod ship;
 
@@ -95,7 +95,7 @@ pub struct Settings {
     pub dry_run: bool,
     /// Compile a map even if it leaks.
     pub ignore_leaks: bool,
-    /// Treat `.obj` source as metres rather than void units.
+    /// Treat `.obj` source as metres rather than kerosene units.
     ///
     /// True by default because modelling packages work in metres and a model
     /// a hundred times too small is the single most common thing to get wrong
@@ -217,8 +217,8 @@ pub fn build(settings: &Settings) -> Result<Report> {
 
     if settings.runs(Stage::Maps) {
         say("maps");
-        let maps = sources(&settings.content.join("maps"), "voidmap");
-        if maps.is_empty() { println!("  no .voidmap sources under maps/") }
+        let maps = sources(&settings.content.join("maps"), "keromap");
+        if maps.is_empty() { println!("  no .keromap sources under maps/") }
         for map in &maps {
             build_map(settings, map, &mut report)?;
         }
@@ -254,11 +254,11 @@ fn build_models(settings: &Settings) -> Result<usize> {
     let mut built = 0;
 
     for source in &sources {
-        // `art/props/crate.obj` becomes `models/props/crate.voidmdl`: the
+        // `art/props/crate.obj` becomes `models/props/crate.keromdl`: the
         // path under `art` is the path under `models`, so a model's name is
         // decided by where its source is rather than by a list somebody has
         // to remember to update.
-        let relative = source.strip_prefix(&art).unwrap_or(source).with_extension("voidmdl");
+        let relative = source.strip_prefix(&art).unwrap_or(source).with_extension("keromdl");
         let out = settings.content.join("models").join(&relative);
 
         let mut args = vec![
@@ -279,7 +279,7 @@ fn build_map(settings: &Settings, map: &Path, report: &mut Report) -> Result<()>
     let name = map.file_stem().unwrap_or_default().to_string_lossy().into_owned();
     println!("--- {name}");
 
-    let compiled = map.with_extension("voidbsp");
+    let compiled = map.with_extension("kerobsp");
     let mut args = vec![map.display().to_string()];
     if settings.ignore_leaks { args.push("--ignore-leaks".into()) }
     run("cleave", &args, settings)?;
@@ -287,7 +287,7 @@ fn build_map(settings: &Settings, map: &Path, report: &mut Report) -> Result<()>
     // A leak is reported rather than fatal: the map still compiles, it just
     // will not light or cull correctly, and finding out at the end of a build
     // of forty maps beats finding out on the first one.
-    if !settings.dry_run && map.with_extension("voidleak").is_file() {
+    if !settings.dry_run && map.with_extension("keroleak").is_file() {
         report.leaking.push(name);
     }
 
@@ -304,11 +304,11 @@ fn build_map(settings: &Settings, map: &Path, report: &mut Report) -> Result<()>
 /// What goes into the archive.
 ///
 /// Compiled formats and the loose data the engine reads directly. Sources --
-/// `.png`, `.obj`, `.wav`, `.voidmap` -- are deliberately left out: shipping
+/// `.png`, `.obj`, `.wav`, `.keromap` -- are deliberately left out: shipping
 /// them doubles the download to deliver files the engine can read a smaller
 /// version of.
 const PACKED: &[&str] = &[
-    "voidtex", "voidmat", "voidmdl", "voidbsp", "voidscript", "voidsnd", "voidaud", "voiddef",
+    "kerotex", "keromat", "keromdl", "kerobsp", "keroscript", "kerosnd", "keroaud", "kerodef",
 ];
 
 fn pack(settings: &Settings, archive: &Path) -> Result<()> {

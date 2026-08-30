@@ -1,0 +1,456 @@
+// Kerosene entity class definitions.
+//
+// This is what Chisel shows in its property inspector: for every class the
+// game implements, which keys it reads, which inputs it answers to, and which
+// outputs it fires. The engine ignores this file entirely -- it reads whatever
+// keys a map carries. The schema exists so a designer does not have to know
+// them by heart.
+//
+// It is checked against the game's class registry by a test in kerosene-game, so
+// it cannot quietly drift out of date.
+
+// ---------------------------------------------------------------- bases ----
+
+base
+{
+    "name" "Entity"
+    key {
+        "name" "targetname" "label" "Name" "type" "target_source"
+        "help" "What other entities call this one when wiring an output to it."
+    }
+    input  { "name" "Kill" "help" "Remove this entity from the map." }
+    input  {
+        "name" "AddOutput" "parameter" "<output> <target>,<input>,<param>,<delay>,<times>"
+        "help" "Wire up a new output at runtime."
+    }
+    input  { "name" "FireUser1" "help" "Fire OnUser1. Means whatever you wire it to." }
+    input  { "name" "FireUser2" "help" "Fire OnUser2." }
+    output { "name" "OnUser1" "help" "Fired by the FireUser1 input." }
+    output { "name" "OnUser2" "help" "Fired by the FireUser2 input." }
+}
+
+base
+{
+    "name" "Point"
+    key { "name" "origin" "label" "Position" "type" "vec3" "default" "0 0 0" }
+}
+
+base
+{
+    "name" "Angles"
+    key {
+        "name" "angles" "label" "Angles (pitch yaw roll)" "type" "angles" "default" "0 0 0"
+        "help" "Degrees. Pitch is positive downward, as it is everywhere in this engine."
+    }
+}
+
+base
+{
+    "name" "Switchable"
+    key {
+        "name" "startdisabled" "label" "Start disabled" "type" "bool" "default" "0"
+        "help" "Begin switched off, waiting for an Enable input."
+    }
+    input { "name" "Enable" }
+    input { "name" "Disable" }
+    input { "name" "Toggle" }
+}
+
+// -------------------------------------------------------------- the world --
+
+class
+{
+    "name" "worldspawn"
+    "kind" "any"
+    "base" "Entity"
+    "help" "The world itself. One per map, holding settings that apply to all of it."
+    key {
+        "name" "skyname" "label" "Sky material" "type" "material" "default" "dev/sky_kero"
+        "help" "Material drawn on faces textured with a sky material, and used by Radiance as the sky light source."
+    }
+    key { "name" "message" "label" "Level title" "type" "string" }
+}
+
+// ------------------------------------------------------------ placement ----
+
+class
+{
+    "name" "info_player_start"
+    "base" "Entity" "base" "Point" "base" "Angles"
+    "help" "Where the player appears. A map needs exactly one."
+}
+
+class
+{
+    "name" "info_target"
+    "base" "Entity" "base" "Point" "base" "Angles"
+    "help" "A named position with no behaviour, for other entities to point at."
+}
+
+class
+{
+    "name" "prop_static"
+    "base" "Entity" "base" "Point" "base" "Angles"
+    "help" "A model placed in the world. Baked in at compile time; it cannot move."
+    key { "name" "model" "label" "Model" "type" "model" }
+}
+
+// --------------------------------------------------------------- lights ----
+//
+// Lights are read by Radiance at compile time and do not exist at runtime,
+// which is why a lit map needs no light entities in the engine at all.
+
+class
+{
+    "name" "light"
+    "base" "Entity" "base" "Point"
+    "help" "An omnidirectional light. Compile-time only."
+    key {
+        "name" "_light" "label" "Colour and brightness" "type" "color" "default" "255 255 255 200"
+        "help" "Red green blue, then brightness."
+    }
+    key { "name" "_constant_attn"  "label" "Constant falloff"  "type" "float" "default" "0" }
+    key { "name" "_linear_attn"    "label" "Linear falloff"    "type" "float" "default" "0" }
+    key { "name" "_quadratic_attn" "label" "Quadratic falloff" "type" "float" "default" "1"
+          "help" "The physical default. Leave the three at 0 0 1 unless you want a light that carries further than it should." }
+}
+
+class
+{
+    "name" "light_spot"
+    "base" "Entity" "base" "Point" "base" "Angles"
+    "help" "A cone of light. Compile-time only."
+    key { "name" "_light" "label" "Colour and brightness" "type" "color" "default" "255 255 255 200" }
+    key { "name" "pitch" "label" "Pitch override" "type" "float" "default" "0"
+          "help" "Overrides the pitch in Angles when non-zero, as Source does it." }
+    key { "name" "_cone"       "label" "Outer cone angle" "type" "float" "default" "45" }
+    key { "name" "_inner_cone" "label" "Inner cone angle" "type" "float" "default" "30" }
+    key { "name" "_exponent"   "label" "Edge falloff"     "type" "float" "default" "1" }
+    key { "name" "_constant_attn"  "type" "float" "default" "0" }
+    key { "name" "_linear_attn"    "type" "float" "default" "0" }
+    key { "name" "_quadratic_attn" "type" "float" "default" "1" }
+}
+
+class
+{
+    "name" "light_environment"
+    "base" "Entity" "base" "Point" "base" "Angles"
+    "help" "The sun and the sky. One per map. Compile-time only."
+    key { "name" "_light"   "label" "Sun colour"  "type" "color" "default" "255 255 255 200" }
+    key { "name" "_ambient" "label" "Sky ambient" "type" "color" "default" "60 70 90 20"
+          "help" "Fills shadows. Without it, anything the sun cannot reach is black." }
+    key { "name" "pitch" "label" "Sun pitch" "type" "float" "default" "-45"
+          "help" "Negative points downward. Overrides the pitch in Angles when non-zero." }
+}
+
+// ------------------------------------------------------------- brushwork ---
+
+class
+{
+    "name" "func_detail"
+    "kind" "brush"
+    "base" "Entity"
+    "help" "Brushes that decorate without shaping the level. Merged into the world at compile time and never split the BSP tree, which is what keeps a detailed map fast."
+}
+
+class
+{
+    "name" "func_brush"
+    "kind" "brush"
+    "base" "Entity" "base" "Switchable"
+    "help" "A brush that can be switched on and off. Off means neither drawn nor solid."
+}
+
+class
+{
+    "name" "func_rotating"
+    "kind" "brush"
+    "base" "Entity"
+    "help" "A brush that spins in place -- a fan, a turntable, a rotating door. It turns about the centre of its own geometry, so no origin brush is needed."
+    key {
+        "name" "spawnflags" "label" "Flags" "type" "flags" "default" "0"
+        choice { "value" "1" "label" "Start turning" }
+        choice { "value" "2" "label" "Turn about the forward axis" }
+        choice { "value" "4" "label" "Turn about the left axis" }
+    }
+    key { "name" "maxspeed" "label" "Speed" "type" "float" "default" "100"
+          "help" "Degrees per second. Negative turns the other way." }
+    input { "name" "Start" }
+    input { "name" "Stop" }
+    input { "name" "Toggle" }
+    input { "name" "Reverse" "help" "Turn the other way, at the same speed." }
+    input { "name" "SetSpeed" "parameter" "degrees per second" }
+}
+
+class
+{
+    "name" "func_ladder"
+    "kind" "brush"
+    "base" "Entity"
+    "help" "A volume the player climbs. Not solid -- you walk into it and then go up. Look up and hold forward, or hold jump. Texture the brush with anything; the class is what makes it a ladder."
+}
+
+class
+{
+    "name" "func_door"
+    "kind" "brush"
+    "base" "Entity"
+    "help" "A brush that slides open and shut. It moves by its own size along the movement axis, so resizing a door keeps it working."
+    key {
+        "name" "spawnflags" "label" "Flags" "type" "flags" "default" "0"
+        choice { "value" "1" "label" "Starts open" }
+    }
+    key { "name" "movedir" "label" "Movement direction" "type" "vec3" "default" "0 0 1"
+          "help" "Which way it opens. Normalised; 0 0 1 is straight up." }
+    key { "name" "speed" "label" "Speed" "type" "float" "default" "100" "help" "Units per second." }
+    key { "name" "lip"   "label" "Lip"   "type" "float" "default" "8"
+          "help" "How much of the door stays showing when it is open." }
+    key { "name" "locked" "label" "Locked" "type" "bool" "default" "0"
+          "help" "A locked door fires OnLockedUse instead of opening." }
+    key { "name" "wait" "label" "Wait before closing" "type" "float" "default" "4"
+          "help" "Seconds it stays open before closing itself. -1 to stay open until told otherwise." }
+    input { "name" "Open" }
+    input { "name" "Close" }
+    input { "name" "Toggle" }
+    input { "name" "Use" "help" "What the player's use key sends. Toggles, like Toggle." }
+    input { "name" "Lock" }
+    input { "name" "Unlock" }
+    input { "name" "SetSpeed" "parameter" "units per second" }
+    output { "name" "OnOpen"        "help" "Starts opening." }
+    output { "name" "OnClose"       "help" "Starts closing." }
+    output { "name" "OnFullyOpen"   "help" "Finished opening." }
+    output { "name" "OnFullyClosed" "help" "Finished closing." }
+    output { "name" "OnLockedUse"   "help" "Something tried to open it while locked." }
+}
+
+class
+{
+    "name" "func_button"
+    "kind" "brush"
+    "base" "Entity"
+    "help" "A brush the player presses. The same mover as a door -- it travels by its own size along the movement axis -- but it announces being pressed rather than being open, and pops back out after its wait."
+    key {
+        "name" "spawnflags" "label" "Flags" "type" "flags" "default" "0"
+        choice { "value" "1" "label" "Starts pressed in" }
+    }
+    key { "name" "movedir" "label" "Movement direction" "type" "vec3" "default" "0 0 -1"
+          "help" "Which way it travels when pressed. Into the wall it sits in." }
+    key { "name" "speed" "label" "Speed" "type" "float" "default" "40" "help" "Units per second." }
+    key { "name" "lip"   "label" "Lip"   "type" "float" "default" "4"
+          "help" "How much of the button still stands proud when fully pressed." }
+    key { "name" "locked" "label" "Locked" "type" "bool" "default" "0"
+          "help" "A locked button fires OnUseLocked instead of pressing." }
+    key { "name" "wait" "label" "Wait before returning" "type" "float" "default" "1"
+          "help" "Seconds it stays in before popping back out. -1 to stay in until told otherwise." }
+    input { "name" "Press" "help" "Press it, as though the player had." }
+    input { "name" "Use" "help" "What the player's use key sends." }
+    input { "name" "Unpress" "help" "Send it back out early." }
+    input { "name" "Lock" }
+    input { "name" "Unlock" }
+    output { "name" "OnPressed"    "help" "Pressed. Fires as it starts moving, not when it arrives -- wire the door here." }
+    output { "name" "OnIn"         "help" "Finished travelling in." }
+    output { "name" "OnOut"        "help" "Finished travelling back out." }
+    output { "name" "OnUseLocked"  "help" "Someone pressed it while locked." }
+}
+
+// -------------------------------------------------------------- triggers ---
+
+base
+{
+    "name" "Trigger"
+    "kind" "brush"
+    output { "name" "OnStartTouch" "help" "Something entered the volume." }
+    output { "name" "OnEndTouch"   "help" "The last thing left it." }
+    output { "name" "OnTrigger"    "help" "Fired alongside OnStartTouch." }
+}
+
+class
+{
+    "name" "trigger_multiple"
+    "kind" "brush"
+    "base" "Entity" "base" "Switchable" "base" "Trigger"
+    "help" "Fires every time something enters it."
+}
+
+class
+{
+    "name" "trigger_once"
+    "kind" "brush"
+    "base" "Entity" "base" "Switchable" "base" "Trigger"
+    "help" "Fires the first time something enters it, then removes itself."
+}
+
+class
+{
+    "name" "trigger_hurt"
+    "kind" "brush"
+    "base" "Entity" "base" "Switchable" "base" "Trigger"
+    "help" "Damages whatever is standing in it."
+    key { "name" "damage" "label" "Damage per second" "type" "float" "default" "10" }
+}
+
+class
+{
+    "name" "trigger_push"
+    "kind" "brush"
+    "base" "Entity" "base" "Switchable" "base" "Trigger"
+    "help" "Shoves whatever enters it. An impulse on the way in, not a force while inside, so a launch pad throws you and a player can still walk back out of one."
+    key { "name" "pushdir" "label" "Push direction" "type" "vec3" "default" "0 0 1"
+          "help" "Normalised. 0 0 1 throws straight up." }
+    key { "name" "speed" "label" "Speed" "type" "float" "default" "400"
+          "help" "Units per second added along the push direction." }
+}
+
+class
+{
+    "name" "trigger_teleport"
+    "kind" "brush"
+    "base" "Entity" "base" "Switchable" "base" "Trigger"
+    "help" "Moves whatever enters it to the entity it targets. The view is left alone -- you arrive facing the way you were going."
+    key { "name" "target" "label" "Destination" "type" "target_destination"
+          "help" "The targetname of an info_target, or anything else with a position." }
+}
+
+// ----------------------------------------------------------------- logic ---
+
+class
+{
+    "name" "logic_relay"
+    "base" "Entity" "base" "Point" "base" "Switchable"
+    "help" "Passes a signal on. The joint that lets one output drive many things, and the place to put a delay."
+    key {
+        "name" "spawnflags" "label" "Flags" "type" "flags" "default" "0"
+        choice { "value" "1" "label" "Remove itself after firing once" }
+    }
+    input  { "name" "Trigger" "help" "Fire OnTrigger, passing the activator along." }
+    output { "name" "OnTrigger" }
+}
+
+class
+{
+    "name" "logic_branch"
+    "base" "Entity" "base" "Point"
+    "help" "Remembers a yes or no, and fires one of two outputs depending on which it is. The way a map says \"otherwise\": everything else here fires a list, this one chooses."
+    key { "name" "initialvalue" "label" "Starts true" "type" "bool" "default" "0"
+          "help" "What it remembers before anything sets it." }
+    input  { "name" "SetValue" "parameter" "0 or 1"
+             "help" "Remember this, without testing it yet." }
+    input  { "name" "SetValueTest" "parameter" "0 or 1"
+             "help" "Remember this and immediately fire the matching output." }
+    input  { "name" "Toggle" "help" "Flip it, without testing." }
+    input  { "name" "ToggleTest" "help" "Flip it and fire the matching output." }
+    input  { "name" "Test" "help" "Fire OnTrue or OnFalse for what it currently holds." }
+    output { "name" "OnTrue"  "help" "Fired by a test while it holds true." }
+    output { "name" "OnFalse" "help" "Fired by a test while it holds false." }
+}
+
+class
+{
+    "name" "logic_auto"
+    "base" "Entity" "base" "Point"
+    "help" "Fires once when the map starts, then removes itself. How a level does anything before the player touches something."
+    output { "name" "OnMapSpawn" }
+}
+
+class
+{
+    "name" "logic_timer"
+    "base" "Entity" "base" "Point" "base" "Switchable"
+    "help" "Fires on a repeating interval."
+    key { "name" "refiretime" "label" "Interval" "type" "float" "default" "1"
+          "help" "Seconds between firings." }
+    output { "name" "OnTimer" }
+}
+
+class
+{
+    "name" "math_counter"
+    "base" "Entity" "base" "Point"
+    "help" "Counts, clamps, and fires when it reaches a limit. The usual way to build 'do this after three of those'."
+    key { "name" "startvalue" "label" "Starting value" "type" "float" "default" "0" }
+    key { "name" "min" "label" "Minimum" "type" "float" "help" "Left blank, there is no minimum." }
+    key { "name" "max" "label" "Maximum" "type" "float" "help" "Left blank, there is no maximum." }
+    input  { "name" "Add"      "parameter" "amount (default 1)" }
+    input  { "name" "Subtract" "parameter" "amount (default 1)" }
+    input  { "name" "SetValue" "parameter" "new value" }
+    input  { "name" "GetValue" "help" "Fire OutValue with the current value." }
+    output { "name" "OutValue" "help" "The value, whenever it changes." }
+    output { "name" "OnHitMax" "help" "Reached the maximum. Fires on the transition only." }
+    output { "name" "OnHitMin" "help" "Reached the minimum." }
+}
+
+class
+{
+    "name" "ambient_generic"
+    "base" "Entity" "base" "Point"
+    "help" "A sound placed in the world. A hum in a generator room, a drip in a cave. Positioned by default, so it gets quieter and pans as you move around it."
+    key { "name" "sound" "label" "Sound" "type" "string"
+          "help" "The name of a sound, as a .kerosnd script defines it -- or a path under sound/ if nothing does. Source spells this `message`, which is still read." }
+    key { "name" "volume" "label" "Volume" "type" "float" "default" "1"
+          "help" "0 to 1. Source spells this `health`, which is still read." }
+    key { "name" "pitch" "label" "Pitch" "type" "float" "default" "1"
+          "help" "Playback rate. 2 is an octave up and half the length." }
+    key { "name" "radius" "label" "Audible radius" "type" "float" "default" "0"
+          "help" "How far it carries, in kerosene units. 0 uses whatever the sound script says." }
+    key { "name" "looping" "label" "Loops" "type" "bool" "default" "1" }
+    key {
+        "name" "spawnflags" "label" "Flags" "type" "flags" "default" "0"
+        choice { "value" "1" "label" "Starts silent" }
+        choice { "value" "2" "label" "Heard everywhere (not positioned)" }
+    }
+    input  { "name" "PlaySound" }
+    input  { "name" "StopSound" }
+    input  { "name" "Toggle" }
+    input  { "name" "Volume" "parameter" "0 to 1" }
+    output { "name" "OnPlay" }
+}
+
+class
+{
+    "name" "point_sound"
+    "base" "Entity" "base" "Point"
+    "help" "Plays a sound once, when something fires it. The counterpart to ambient_generic: that one is the bed a room sits in, this one is the noise an event makes. It keeps no state and never loops, so there is nothing to configure wrong."
+    key { "name" "sound" "label" "Sound" "type" "string"
+          "help" "The name of a sound, as a .kerosnd script defines it -- or a path under sound/ if nothing does." }
+    key { "name" "volume" "label" "Volume" "type" "float" "default" "1" "help" "0 to 1." }
+    key { "name" "pitch" "label" "Pitch" "type" "float" "default" "1"
+          "help" "Playback rate. 2 is an octave up and half the length." }
+    key { "name" "radius" "label" "Audible radius" "type" "float" "default" "0"
+          "help" "How far it carries, in kerosene units. 0 uses whatever the sound script says." }
+    key {
+        "name" "spawnflags" "label" "Flags" "type" "flags" "default" "0"
+        choice { "value" "2" "label" "Heard everywhere (not positioned)" }
+    }
+    input  { "name" "Play" "help" "Play it, once." }
+    input  { "name" "PlaySound" "help" "The same, spelt as ambient_generic spells it." }
+    input  { "name" "Volume" "parameter" "0 to 1" }
+    output { "name" "OnPlay" }
+}
+
+class
+{
+    "name" "logic_script"
+    "base" "Entity" "base" "Point"
+    "help" "Runs a script. The seam between entity wiring, which is a graph, and the things that are not graphs -- arithmetic, conditions, anything that has to remember more than a counter."
+    key { "name" "scriptfile" "label" "Script file" "type" "string"
+          "help" "Loaded from scripts/<name>.keroscript when the map starts. A function in it can then be called by name." }
+    key { "name" "function" "label" "Default function" "type" "string"
+          "help" "What CallScriptFunction runs when the input carries no parameter of its own." }
+    key { "name" "code" "label" "Inline code" "type" "string"
+          "help" "What RunScriptCode runs when the input carries no parameter. For one-liners not worth a file." }
+    input  { "name" "RunScriptCode" "parameter" "script source" }
+    input  { "name" "CallScriptFunction" "parameter" "function name" }
+    input  { "name" "RunScriptFile" "parameter" "file name" }
+    output { "name" "OnScriptRun" "help" "Fired whenever this entity runs something." }
+}
+
+class
+{
+    "name" "point_message"
+    "base" "Entity" "base" "Point"
+    "help" "Prints to the console. Useful while building a level and wiring it up."
+    key { "name" "message" "label" "Text" "type" "string" }
+    input  { "name" "Show" }
+    input  { "name" "Display" "help" "The same as Show." }
+    output { "name" "OnShowMessage" }
+}

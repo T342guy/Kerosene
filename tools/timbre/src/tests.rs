@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: LGPL-3.0-or-later
 use super::*;
-use void_audio::wav::Sound;
+use kerosene_audio::wav::Sound;
 
 fn scratch(name: &str) -> PathBuf {
     let dir = std::env::temp_dir().join(format!(
@@ -147,18 +147,18 @@ fn a_file_that_is_not_a_wav_yields_no_loop_rather_than_reading_rubbish() {
 // ---- compiling ------------------------------------------------------------
 
 #[test]
-fn compiling_writes_a_readable_voidaud_beside_the_source() {
+fn compiling_writes_a_readable_keroaud_beside_the_source() {
     let dir = scratch("compile");
     let source = write_wav(&dir, "door/move.wav", &tone(4410, 1, 0.7));
     let output = output_for(&source);
-    assert_eq!(output.extension().unwrap(), "voidaud");
+    assert_eq!(output.extension().unwrap(), "keroaud");
 
     let done = compile(&source, &output, &Options::default()).unwrap();
     assert!(output.is_file());
     assert_eq!(done.info.frames, 4410);
     assert_eq!(done.info.channels, 1);
 
-    let (back, _) = void_audio::compiled::decode(&std::fs::read(&output).unwrap()).unwrap();
+    let (back, _) = kerosene_audio::compiled::decode(&std::fs::read(&output).unwrap()).unwrap();
     assert_eq!(back.frames(), 4410);
 }
 
@@ -231,7 +231,7 @@ fn a_loop_set_by_hand_beats_the_one_in_the_file() {
     std::fs::write(&path, wav_bytes(&tone(1000, 1, 0.5), Some((100, 899)))).unwrap();
 
     let options = Options {
-        looping: Some(void_audio::compiled::Loop { start: 400, end: 600 }),
+        looping: Some(kerosene_audio::compiled::Loop { start: 400, end: 600 }),
         ..Options::default()
     };
     let done = compile(&path, &output_for(&path), &options).unwrap();
@@ -263,8 +263,8 @@ fn a_build_compiles_every_sound_under_the_tree() {
     let batch = build_sounds(&dir, false).unwrap();
     assert_eq!(batch.compiled.len(), 3);
     assert!(batch.failed.is_empty());
-    assert!(sound.join("ui/click.voidaud").is_file());
-    assert!(sound.join("door/move.voidaud").is_file());
+    assert!(sound.join("ui/click.keroaud").is_file());
+    assert!(sound.join("door/move.keroaud").is_file());
 }
 
 #[test]
@@ -338,7 +338,7 @@ fn a_project_with_no_sound_directory_at_all_is_not_an_error() {
 
 #[test]
 fn two_sources_with_the_same_name_are_refused_rather_than_racing() {
-    // `click.wav` and `click.flac` compile to the same `click.voidaud`, so one
+    // `click.wav` and `click.flac` compile to the same `click.keroaud`, so one
     // silently wins and which one depends on the sort order. Only the person
     // who put both there knows which they meant.
     let dir = scratch("collision");
@@ -368,7 +368,7 @@ fn a_flac_source_compiles_like_any_other() {
 
     let batch = build_sounds(&dir, false).unwrap();
     assert_eq!(batch.compiled.len(), 1);
-    assert!(sound.join("chime.voidaud").is_file());
+    assert!(sound.join("chime.keroaud").is_file());
     assert!(batch.compiled[0].warnings.is_empty(), "{:?}", batch.compiled[0].warnings);
 }
 

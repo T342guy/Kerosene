@@ -22,31 +22,31 @@ fn a_bare_name_becomes_a_map_in_the_project() {
     let root = Path::new("/projects/game/content");
     assert_eq!(
         resolve("arena", root).unwrap(),
-        PathBuf::from("/projects/game/content/maps/arena.voidmap")
+        PathBuf::from("/projects/game/content/maps/arena.keromap")
     );
 }
 
 #[test]
-fn a_name_that_already_says_voidmap_is_not_said_twice() {
+fn a_name_that_already_says_keromap_is_not_said_twice() {
     let root = Path::new("/projects/game/content");
     assert_eq!(
-        resolve("arena.voidmap", root).unwrap(),
-        PathBuf::from("/projects/game/content/maps/arena.voidmap")
+        resolve("arena.keromap", root).unwrap(),
+        PathBuf::from("/projects/game/content/maps/arena.keromap")
     );
     assert_eq!(
-        resolve("arena.VOIDMAP", root).unwrap(),
-        PathBuf::from("/projects/game/content/maps/arena.VOIDMAP")
+        resolve("arena.KEROMAP", root).unwrap(),
+        PathBuf::from("/projects/game/content/maps/arena.KEROMAP")
     );
 }
 
 #[test]
 fn a_name_with_a_dot_in_it_keeps_the_dot() {
     // `arena.v2` is a name, not an extension to be replaced: saving it as
-    // `arena.voidmap` would write over a different map.
+    // `arena.keromap` would write over a different map.
     let root = Path::new("/projects/game/content");
     assert_eq!(
         resolve("arena.v2", root).unwrap(),
-        PathBuf::from("/projects/game/content/maps/arena.v2.voidmap")
+        PathBuf::from("/projects/game/content/maps/arena.v2.keromap")
     );
 }
 
@@ -55,7 +55,7 @@ fn a_subdirectory_under_maps_is_allowed() {
     let root = Path::new("/projects/game/content");
     assert_eq!(
         resolve("chapter1/arena", root).unwrap(),
-        PathBuf::from("/projects/game/content/maps/chapter1/arena.voidmap")
+        PathBuf::from("/projects/game/content/maps/chapter1/arena.keromap")
     );
 }
 
@@ -64,7 +64,7 @@ fn an_absolute_path_is_taken_at_its_word() {
     let root = Path::new("/projects/game/content");
     assert_eq!(
         resolve("/elsewhere/mine", root).unwrap(),
-        PathBuf::from("/elsewhere/mine.voidmap")
+        PathBuf::from("/elsewhere/mine.keromap")
     );
 }
 
@@ -82,31 +82,31 @@ fn a_name_cannot_climb_out_of_the_project() {
 #[test]
 fn surrounding_space_is_not_part_of_a_name() {
     let root = Path::new("/content");
-    assert_eq!(resolve("  arena \t", root).unwrap(), root.join("maps/arena.voidmap"));
+    assert_eq!(resolve("  arena \t", root).unwrap(), root.join("maps/arena.keromap"));
 }
 
 #[test]
 fn a_map_in_the_project_is_labelled_by_its_place_in_it() {
     let root = Path::new("/projects/game/content");
-    assert_eq!(label(&root.join("maps/arena.voidmap"), root), "maps/arena.voidmap");
+    assert_eq!(label(&root.join("maps/arena.keromap"), root), "maps/arena.keromap");
 }
 
 #[test]
 fn a_map_outside_the_project_is_labelled_in_full() {
     let root = Path::new("/projects/game/content");
-    assert_eq!(label(Path::new("/elsewhere/mine.voidmap"), root), "/elsewhere/mine.voidmap");
+    assert_eq!(label(Path::new("/elsewhere/mine.keromap"), root), "/elsewhere/mine.keromap");
 }
 
 #[test]
 fn maps_are_listed_from_the_project_including_subdirectories() {
     let root = scratch("list");
-    touch(&root.join("maps/arena.voidmap"));
-    touch(&root.join("maps/chapter1/start.voidmap"));
-    touch(&root.join("maps/arena.voidbsp"));
+    touch(&root.join("maps/arena.keromap"));
+    touch(&root.join("maps/chapter1/start.keromap"));
+    touch(&root.join("maps/arena.kerobsp"));
     touch(&root.join("maps/notes.txt"));
 
     let found = maps_in(&root);
-    assert_eq!(found, vec![root.join("maps/arena.voidmap"), root.join("maps/chapter1/start.voidmap")]);
+    assert_eq!(found, vec![root.join("maps/arena.keromap"), root.join("maps/chapter1/start.keromap")]);
 
     let _ = std::fs::remove_dir_all(&root);
 }
@@ -121,18 +121,18 @@ fn listing_a_project_with_no_maps_directory_is_empty_rather_than_an_error() {
 #[test]
 fn renaming_takes_the_compiled_map_with_it() {
     let root = scratch("rename");
-    let from = root.join("maps/old.voidmap");
+    let from = root.join("maps/old.keromap");
     touch(&from);
-    touch(&root.join("maps/old.voidbsp"));
-    touch(&root.join("maps/old.voidleak"));
+    touch(&root.join("maps/old.kerobsp"));
+    touch(&root.join("maps/old.keroleak"));
 
-    let to = root.join("maps/new.voidmap");
+    let to = root.join("maps/new.keromap");
     let moved = move_map(&from, &to).unwrap();
 
     assert!(to.is_file());
     assert!(!from.exists());
-    assert!(root.join("maps/new.voidbsp").is_file(), "the compiled map follows its source");
-    assert!(!root.join("maps/old.voidbsp").exists(), "and does not stay behind under the old name");
+    assert!(root.join("maps/new.kerobsp").is_file(), "the compiled map follows its source");
+    assert!(!root.join("maps/old.kerobsp").exists(), "and does not stay behind under the old name");
     assert_eq!(moved.len(), 2);
 
     let _ = std::fs::remove_dir_all(&root);
@@ -141,12 +141,12 @@ fn renaming_takes_the_compiled_map_with_it() {
 #[test]
 fn renaming_a_map_nobody_has_compiled_moves_only_the_map() {
     let root = scratch("rename-uncompiled");
-    let from = root.join("maps/old.voidmap");
+    let from = root.join("maps/old.keromap");
     touch(&from);
 
-    let moved = move_map(&from, &root.join("maps/new.voidmap")).unwrap();
+    let moved = move_map(&from, &root.join("maps/new.keromap")).unwrap();
     assert!(moved.is_empty());
-    assert!(root.join("maps/new.voidmap").is_file());
+    assert!(root.join("maps/new.keromap").is_file());
 
     let _ = std::fs::remove_dir_all(&root);
 }
@@ -154,11 +154,11 @@ fn renaming_a_map_nobody_has_compiled_moves_only_the_map() {
 #[test]
 fn renaming_into_a_directory_that_does_not_exist_yet_creates_it() {
     let root = scratch("rename-mkdir");
-    let from = root.join("maps/old.voidmap");
+    let from = root.join("maps/old.keromap");
     touch(&from);
 
-    move_map(&from, &root.join("maps/chapter2/new.voidmap")).unwrap();
-    assert!(root.join("maps/chapter2/new.voidmap").is_file());
+    move_map(&from, &root.join("maps/chapter2/new.keromap")).unwrap();
+    assert!(root.join("maps/chapter2/new.keromap").is_file());
 
     let _ = std::fs::remove_dir_all(&root);
 }

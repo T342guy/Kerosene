@@ -25,10 +25,10 @@ cargo build --quiet $CARGO_FLAGS \
 echo "==> regenerating the sample map from its source"
 # The sample level is defined in code so that a change to the map format shows
 # up as a compile error rather than as a level that silently stops loading.
-cargo run --quiet $CARGO_FLAGS -p void-map --example sample_map
+cargo run --quiet $CARGO_FLAGS -p kerosene-map --example sample_map
 
 "$BIN/kiln" "$@"
 
 echo
 echo "Run the engine with:"
-echo "    cargo run $CARGO_FLAGS -p void-runtime"
+echo "    cargo run $CARGO_FLAGS -p kerosene-runtime"

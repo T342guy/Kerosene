@@ -17,11 +17,11 @@ Three ways in, all equivalent underneath:
 
 ```
 script find_by_name("gate").fire("Open")     # at the console (cheat-protected)
-script_execute mymap                          # load scripts/mymap.voidscript
+script_execute mymap                          # load scripts/mymap.keroscript
 script_reload                                 # forget everything and load it again
 ```
 
-A map called `atrium` automatically loads `scripts/atrium.voidscript` when it
+A map called `atrium` automatically loads `scripts/atrium.keroscript` when it
 starts. That is where a level's script belongs.
 
 From inside a level, a `logic_script` entity is the seam: an output fires
@@ -117,7 +117,7 @@ print(`${distance(a, b)}`);
 ```
 
 `+` `-` `*`, `.x` `.y` `.z`, `length`, `distance`, `dot`, `normalize`,
-`to_string`. Distances are void units; see the units section of the README.
+`to_string`. Distances are kerosene units; see the units section of the README.
 
 ## What a script cannot do
 
@@ -154,5 +154,5 @@ shipping its script.
 
 ## An example
 
-`content/scripts/void_start.voidscript` is the sample map's, written to be
+`content/scripts/kero_start.keroscript` is the sample map's, written to be
 read.

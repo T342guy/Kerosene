@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: LGPL-3.0-or-later
-//! Forge -- the VoidEngine model compiler.
+//! Forge -- the Kerosene model compiler.
 //!
-//! Turns a source mesh into a `.voidmdl` the engine can load, the studiomdl
+//! Turns a source mesh into a `.keromdl` the engine can load, the studiomdl
 //! analogue. It does the work that should happen once at build time rather
 //! than on every load: welding vertices, splitting by material, computing
 //! normals where the source has none, and converting axes and units.
 //!
 //! ```text
-//! forge compile art/crate.obj -o models/props/crate.voidmdl --scale-metres
-//! forge info models/props/crate.voidmdl
+//! forge compile art/crate.obj -o models/props/crate.keromdl --scale-metres
+//! forge info models/props/crate.keromdl
 //! ```
 
 mod obj;
@@ -18,11 +18,11 @@ use clap::{Parser, Subcommand};
 use obj::{ObjMesh, UpAxis, VU_PER_METRE};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use void_asset::{Mesh, Model, Vertex};
-use void_math::Vec3;
+use kerosene_asset::{Mesh, Model, Vertex};
+use kerosene_math::Vec3;
 
 #[derive(Parser, Debug)]
-#[command(name = "forge", version, about = "Compile source meshes into .voidmdl models")]
+#[command(name = "forge", version, about = "Compile source meshes into .keromdl models")]
 struct Args {
     #[command(subcommand)]
     command: Command,
@@ -30,7 +30,7 @@ struct Args {
 
 #[derive(Subcommand, Debug)]
 enum Command {
-    /// Compile an OBJ into a .voidmdl.
+    /// Compile an OBJ into a .keromdl.
     Compile {
         source: PathBuf,
         #[arg(short, long)]
@@ -48,7 +48,7 @@ enum Command {
         #[arg(long, default_value_t = 1.0)]
         scale: f32,
 
-        /// Treat the source as metres and convert to void units.
+        /// Treat the source as metres and convert to kerosene units.
         #[arg(long)]
         scale_metres: bool,
 
@@ -74,7 +74,7 @@ fn main() -> Result<()> {
             source, output, default_material, materials, scale, scale_metres, z_up,
             recompute_normals,
         } => {
-            let out = output.unwrap_or_else(|| source.with_extension("voidmdl"));
+            let out = output.unwrap_or_else(|| source.with_extension("keromdl"));
             let scale = scale * if scale_metres { VU_PER_METRE } else { 1.0 };
             let up = if z_up { UpAxis::Z } else { UpAxis::Y };
             compile(&source, &out, &default_material, &materials, scale, up, recompute_normals)

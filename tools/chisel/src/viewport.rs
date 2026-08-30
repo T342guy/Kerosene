@@ -19,7 +19,7 @@
 //! makes it worth being explicit about -- it just quietly mirrors half the
 //! editor.
 
-use void_math::{Aabb, Angles, Vec3};
+use kerosene_math::{Aabb, Angles, Vec3};
 
 /// Which view a pane is showing.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -194,15 +194,15 @@ impl Viewport {
         let (h, v, d) = self.kind.axes();
         let half_h = self.size.0 * 0.5 / self.zoom;
         let half_v = self.size.1 * 0.5 / self.zoom;
-        let mut min = Vec3::splat(-void_math::MAX_MAP_COORD);
-        let mut max = Vec3::splat(void_math::MAX_MAP_COORD);
+        let mut min = Vec3::splat(-kerosene_math::MAX_MAP_COORD);
+        let mut max = Vec3::splat(kerosene_math::MAX_MAP_COORD);
         min[h] = self.center[h] - half_h;
         max[h] = self.center[h] + half_h;
         min[v] = self.center[v] - half_v;
         max[v] = self.center[v] + half_v;
         // The depth axis is unbounded: a 2D view sees all the way through.
-        min[d] = -void_math::MAX_MAP_COORD;
-        max[d] = void_math::MAX_MAP_COORD;
+        min[d] = -kerosene_math::MAX_MAP_COORD;
+        max[d] = kerosene_math::MAX_MAP_COORD;
         Aabb::new(min, max)
     }
 
@@ -266,7 +266,7 @@ impl Viewport {
     pub fn pick_ray(&self, x: f32, y: f32) -> (Vec3, Vec3) {
         let basis = self.angles.vectors();
         let aspect = self.size.0 / self.size.1.max(1.0);
-        let half_y = (void_render::vertical_fov(self.fov, aspect) * 0.5).tan();
+        let half_y = (kerosene_render::vertical_fov(self.fov, aspect) * 0.5).tan();
         let half_x = half_y * aspect;
 
         // Normalised device coordinates, with Y flipped for screen space.

@@ -31,11 +31,11 @@ use crate::Options;
 use anyhow::{Context, Result};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
-use void_audio::compiled::{Encoding, Loop};
-use void_kv::KeyValues;
+use kerosene_audio::compiled::{Encoding, Loop};
+use kerosene_kv::KeyValues;
 
 /// What the settings file is called, inside the sound directory.
-pub const FILE_NAME: &str = "timbre.voidbuild";
+pub const FILE_NAME: &str = "timbre.kerobuild";
 
 /// Settings for a sound tree.
 #[derive(Clone, Debug, Default)]

@@ -6,7 +6,7 @@
 //!
 //! **`dev/`** are measurement textures. A grey and orange grid at a known
 //! scale, so that a room's size can be read off its walls: at the default
-//! texture scale one cell is 16 void units and one tile is 64. Building a
+//! texture scale one cell is 16 kerosene units and one tile is 64. Building a
 //! level in flat colours means guessing at proportion for as long as it takes
 //! to make art, and guessing wrong is expensive to undo.
 //!
@@ -27,7 +27,7 @@ use std::path::Path;
 /// Side length of a `dev/` texture, in texels.
 ///
 /// At the default texture scale of 0.25 world units per texel this covers 64
-/// void units, so the 4x4 grid drawn on it reads as 16-unit cells -- the grid
+/// kerosene units, so the 4x4 grid drawn on it reads as 16-unit cells -- the grid
 /// size most brushwork is actually done at.
 pub const DEV_SIZE: u32 = 256;
 
@@ -292,7 +292,7 @@ pub fn set() -> Vec<DevTexture> {
         DevTexture {
             name: "dev/measure",
             shader: "lit",
-            canvas: || measure([214, 122, 48], [138, 78, 32], Some("16 VU")),
+            canvas: || measure([214, 122, 48], [138, 78, 32], Some("16 KU")),
         },
         DevTexture {
             name: "dev/wall",
@@ -318,7 +318,7 @@ pub fn set() -> Vec<DevTexture> {
             canvas: || measure([170, 138, 92], [112, 90, 60], None),
         },
         DevTexture {
-            name: "dev/sky_void",
+            name: "dev/sky_kero",
             shader: "sky",
             canvas: || sky([56, 68, 96], [122, 134, 158]),
         },
@@ -384,7 +384,7 @@ pub fn write_all(art_root: &Path) -> Result<Written> {
     Ok(written)
 }
 
-/// Write a `.voidmat` for every texture in the set.
+/// Write a `.keromat` for every texture in the set.
 ///
 /// The set knows which shader each wants -- a sky is not lit, a tool texture
 /// is not shaded -- and that is not something `batch --make-materials` can
@@ -392,7 +392,7 @@ pub fn write_all(art_root: &Path) -> Result<Written> {
 pub fn write_materials(materials_root: &Path) -> Result<Written> {
     let mut written = Written::default();
     for texture in set() {
-        let path = materials_root.join(format!("{}.voidmat", texture.name));
+        let path = materials_root.join(format!("{}.keromat", texture.name));
         if let Some(parent) = path.parent() { std::fs::create_dir_all(parent)?; }
         let body = format!(
             "{}\n{{\n\t\"$basetexture\" \"{}\"\n}}\n",

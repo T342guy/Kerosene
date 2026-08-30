@@ -7,9 +7,9 @@
 //! map together.
 
 use crate::pipeline::{CompileOptions, compile};
-use void_bsp::contents;
-use void_map::{Connection, Map, Solid};
-use void_math::{Aabb, Vec3};
+use kerosene_bsp::contents;
+use kerosene_map::{Connection, Map, Solid};
+use kerosene_math::{Aabb, Vec3};
 
 /// A sealed room: six slabs enclosing a 256-unit cube of air.
 ///
@@ -33,7 +33,7 @@ fn room_map(hole: bool) -> Map {
     }
 
     let id = map.next_id();
-    let mut spawn = void_map::Entity::new(id, "info_player_start");
+    let mut spawn = kerosene_map::Entity::new(id, "info_player_start");
     spawn.set_origin(Vec3::new(128.0, 128.0, 32.0));
     map.entities.push(spawn);
 
@@ -59,7 +59,7 @@ fn a_sealed_room_compiles_to_a_valid_map() {
 fn the_compiled_map_survives_a_file_round_trip() {
     let out = compile_ok(&room_map(false));
     let bytes = out.bsp.to_bytes();
-    let back = void_bsp::Bsp::from_bytes(&bytes, "room.voidbsp").expect("should reload");
+    let back = kerosene_bsp::Bsp::from_bytes(&bytes, "room.kerobsp").expect("should reload");
     assert_eq!(back.faces.len(), out.bsp.faces.len());
     assert_eq!(back.leaves.len(), out.bsp.leaves.len());
     assert_eq!(back.to_bytes(), bytes, "writing must be stable");
@@ -156,7 +156,7 @@ fn the_entity_lump_carries_every_entity() {
 fn brush_entities_become_numbered_models() {
     let mut map = room_map(false);
     let id = map.next_id();
-    let mut door = void_map::Entity::new(id, "func_door");
+    let mut door = kerosene_map::Entity::new(id, "func_door");
     door.set("targetname", "door1");
     let mut solid = Solid::cube(Aabb::new(Vec3::new(64.0, 120.0, 0.0), Vec3::new(96.0, 128.0, 96.0)), "dev/grid");
     solid.id = map.next_id();
@@ -196,7 +196,7 @@ fn a_moving_brush_entity_does_not_carve_the_world() {
     let plain_faces = compile_ok(&plain).bsp.faces.len();
 
     let id = plain.next_id();
-    let mut door = void_map::Entity::new(id, "func_door");
+    let mut door = kerosene_map::Entity::new(id, "func_door");
     let mut solid = Solid::cube(Aabb::new(Vec3::new(64.0, 64.0, 0.0), Vec3::new(96.0, 96.0, 96.0)), "dev/grid");
     solid.id = plain.next_id();
     for s in &mut solid.sides { s.id = plain.next_id(); }
@@ -225,7 +225,7 @@ fn nodraw_faces_never_reach_the_face_lump() {
         map.add_world_solid(Solid::cube(slab, "tools/nodraw"));
     }
     let id = map.next_id();
-    let mut spawn = void_map::Entity::new(id, "info_player_start");
+    let mut spawn = kerosene_map::Entity::new(id, "info_player_start");
     spawn.set_origin(Vec3::splat(128.0));
     map.entities.push(spawn);
 
@@ -289,7 +289,7 @@ fn detail_brushes_do_not_split_the_world_tree() {
     for i in 0..6 {
         let x = 32.0 + i as f32 * 32.0;
         let id = with_detail.next_id();
-        let mut e = void_map::Entity::new(id, "func_detail");
+        let mut e = kerosene_map::Entity::new(id, "func_detail");
         let mut s = Solid::cube(Aabb::new(Vec3::new(x, 32.0, 0.0), Vec3::new(x + 8.0, 40.0, 256.0)), "dev/grid");
         s.id = with_detail.next_id();
         for side in &mut s.sides { side.id = with_detail.next_id(); }
@@ -362,7 +362,7 @@ fn an_empty_map_is_refused_rather_than_producing_a_broken_file() {
 fn an_entity_buried_in_a_wall_is_warned_about() {
     let mut map = room_map(false);
     let id = map.next_id();
-    let mut e = void_map::Entity::new(id, "light");
+    let mut e = kerosene_map::Entity::new(id, "light");
     e.set_origin(Vec3::new(128.0, 128.0, -8.0)); // inside the floor
     map.entities.push(e);
     let out = compile_ok(&map);

@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: LGPL-3.0-or-later
 //! The compiler's working representation of a brush.
 //!
-//! A `.voidmap` solid is a list of planes. Cleave needs more: interned plane
+//! A `.keromap` solid is a list of planes. Cleave needs more: interned plane
 //! indices, computed face polygons, resolved contents and surface flags, and
 //! the ability to be cut in half by an arbitrary plane while staying convex.
 
 use crate::material;
-use void_map::{Solid, TextureAxis};
-use void_math::{Aabb, ON_EPSILON, Plane, PlaneSet, PlaneSide, Vec3, Winding};
+use kerosene_map::{Solid, TextureAxis};
+use kerosene_math::{Aabb, ON_EPSILON, Plane, PlaneSet, PlaneSide, Vec3, Winding};
 
 /// One face of a working brush.
 #[derive(Clone, Debug)]
@@ -199,7 +199,7 @@ impl BrushWork {
     }
 
     pub fn is_detail(&self) -> bool {
-        self.contents & void_bsp::contents::DETAIL != 0
+        self.contents & kerosene_bsp::contents::DETAIL != 0
     }
 
     /// Whether this brush splits the world tree.
@@ -210,7 +210,7 @@ impl BrushWork {
     /// room into thirty slivers, each of which the vis compile then has to
     /// consider.
     pub fn is_structural(&self) -> bool {
-        use void_bsp::contents as c;
+        use kerosene_bsp::contents as c;
         if self.is_detail() { return false; }
         self.contents & (c::SOLID | c::WINDOW | c::GRATE | c::OPAQUE) != 0
     }
@@ -276,11 +276,11 @@ impl BrushWork {
                 plane: extra_plane,
                 material: "tools/nodraw".to_string(),
                 winding: None,
-                surface: void_bsp::surf::NODRAW,
+                surface: kerosene_bsp::surf::NODRAW,
                 emits_face: false,
                 uaxis: TextureAxis::default(),
                 vaxis: TextureAxis::default(),
-                lightmap_scale: void_map::DEFAULT_LIGHTMAP_SCALE,
+                lightmap_scale: kerosene_map::DEFAULT_LIGHTMAP_SCALE,
                 smoothing_groups: 0,
                 map_side_id: 0,
                 fragments: Vec::new(),
@@ -304,7 +304,7 @@ impl BrushWork {
 /// is what the designer was reaching for; painting one face of a block with
 /// `tools/clip` is how you say "this whole block is a clip brush".
 pub fn resolve_contents(face_contents: &[u32]) -> u32 {
-    use void_bsp::contents as c;
+    use kerosene_bsp::contents as c;
     let mut combined = 0u32;
     for &f in face_contents {
         if f != c::SOLID { combined |= f; }
@@ -315,7 +315,7 @@ pub fn resolve_contents(face_contents: &[u32]) -> u32 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use void_map::Solid;
+    use kerosene_map::Solid;
 
     fn cube(min: f32, max: f32, material: &str) -> Solid {
         Solid::cube(Aabb::new(Vec3::splat(min), Vec3::splat(max)), material)
@@ -334,7 +334,7 @@ mod tests {
         let (b, _, warnings) = build(&cube(0.0, 64.0, "dev/grid"));
         assert_eq!(b.face_count(), 6);
         assert!(warnings.is_empty());
-        assert_eq!(b.contents, void_bsp::contents::SOLID);
+        assert_eq!(b.contents, kerosene_bsp::contents::SOLID);
         assert_eq!(b.bounds.min, Vec3::ZERO);
         assert_eq!(b.bounds.max, Vec3::splat(64.0));
     }
@@ -424,7 +424,7 @@ mod tests {
     #[test]
     fn clip_material_makes_the_whole_brush_a_clip() {
         let (b, _, _) = build(&cube(0.0, 64.0, "tools/clip"));
-        assert_eq!(b.contents, void_bsp::contents::PLAYER_CLIP);
+        assert_eq!(b.contents, kerosene_bsp::contents::PLAYER_CLIP);
         assert!(!b.is_structural(), "a clip brush must not split the world tree");
     }
 
@@ -433,7 +433,7 @@ mod tests {
         let mut solid = cube(0.0, 64.0, "dev/grid");
         solid.sides[0].material = "tools/clip".to_string();
         let (b, _, _) = build(&solid);
-        assert!(b.contents & void_bsp::contents::PLAYER_CLIP != 0);
+        assert!(b.contents & kerosene_bsp::contents::PLAYER_CLIP != 0);
     }
 
     #[test]

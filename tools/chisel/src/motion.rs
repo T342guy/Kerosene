@@ -8,11 +8,11 @@
 //! `angles`: an entity's facing is a number in a text field and a mystery
 //! everywhere else.
 //!
-//! The travel comes from `void_game` rather than from a copy of the formula,
+//! The travel comes from `kerosene_game` rather than from a copy of the formula,
 //! so the arrow and the door agree by construction.
 
 use crate::document::Document;
-use void_math::{Aabb, Vec3};
+use kerosene_math::{Aabb, Vec3};
 
 /// What to draw over a selected entity.
 #[derive(Clone, Debug, PartialEq)]
@@ -25,7 +25,7 @@ pub struct Motion {
     pub label: String,
 }
 
-/// How long a facing arrow is drawn, in void units.
+/// How long a facing arrow is drawn, in kerosene units.
 ///
 /// A fixed length, because a facing has no distance: it is a direction, and
 /// scaling the arrow by the entity's size would imply a reach it does not
@@ -44,7 +44,7 @@ pub fn of_selection(document: &Document) -> Option<Motion> {
 }
 
 /// A brush entity that travels: a door, a platform.
-fn moving_brushes(document: &Document, entity: &void_map::Entity) -> Option<Motion> {
+fn moving_brushes(document: &Document, entity: &kerosene_map::Entity) -> Option<Motion> {
     let movedir = entity.get_vec3("movedir")?;
 
     let mut bounds = Aabb::EMPTY;
@@ -59,7 +59,7 @@ fn moving_brushes(document: &Document, entity: &void_map::Entity) -> Option<Moti
         .get("lip")
         .and_then(|v| v.trim().parse::<f32>().ok())
         .unwrap_or(8.0);
-    let (dir, distance) = void_game::doors::travel(bounds.size(), movedir, lip);
+    let (dir, distance) = kerosene_game::doors::travel(bounds.size(), movedir, lip);
     let offset = dir * distance;
 
     let centre = bounds.center();
@@ -68,18 +68,18 @@ fn moving_brushes(document: &Document, entity: &void_map::Entity) -> Option<Moti
         arrow: (centre, centre + offset),
         label: format!(
             "opens {} along {}",
-            void_math::units::length_short(distance),
+            kerosene_math::units::length_short(distance),
             axis_words(dir),
         ),
     })
 }
 
 /// A point entity that faces somewhere.
-fn facing(entity: &void_map::Entity) -> Option<Motion> {
+fn facing(entity: &kerosene_map::Entity) -> Option<Motion> {
     let angles = entity.get_vec3("angles")?;
     // Stored as pitch, yaw, roll -- the order the file writes them, which is
     // not the order a vector reads in.
-    let a = void_math::Angles::new(angles.x, angles.y, angles.z);
+    let a = kerosene_math::Angles::new(angles.x, angles.y, angles.z);
     if a.pitch == 0.0 && a.yaw == 0.0 && a.roll == 0.0 { return None }
 
     let at = entity.origin();
@@ -111,9 +111,9 @@ pub fn axis_words(dir: Vec3) -> String {
     }
     format!(
         "{} {} {}",
-        void_math::format_float(dir.x),
-        void_math::format_float(dir.y),
-        void_math::format_float(dir.z),
+        kerosene_math::format_float(dir.x),
+        kerosene_math::format_float(dir.y),
+        kerosene_math::format_float(dir.z),
     )
 }
 

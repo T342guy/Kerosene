@@ -16,8 +16,8 @@
 //! Everything here is a pure function of a bounding box: no document, no
 //! viewport, no undo. What a cylinder *is* should be answerable in a test.
 
-use void_map::Solid;
-use void_math::{Aabb, Vec3};
+use kerosene_map::Solid;
+use kerosene_math::{Aabb, Vec3};
 
 /// What the shape tool draws.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
@@ -85,7 +85,7 @@ pub struct Options {
     pub sides: u32,
     /// How much of a full turn an arch covers, in degrees.
     pub arc: f32,
-    /// How thick an arch's wall is, in void units.
+    /// How thick an arch's wall is, in kerosene units.
     pub wall: f32,
 }
 

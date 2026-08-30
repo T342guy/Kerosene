@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: LGPL-3.0-or-later
-//! Chisel -- the VoidEngine world editor.
+//! Chisel -- the Kerosene world editor.
 //!
 //! The Hammer analogue, and the flagship of the tool suite. A level is built
 //! by drawing convex brushes, texturing their faces, placing entities and

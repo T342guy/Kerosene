@@ -9,13 +9,13 @@ How the pieces fit, and why they are arranged this way.
    source content   │             build-time tools             │   runtime
                     └──────────────────────────────────────────┘
 
-   art/*.png ──────────────► alchemy ──────► materials/*.voidtex
-                                                    *.voidmat  ──┐
-   art/*.obj ──────────────► forge ──────► models/*.voidmdl ─────┤
+   art/*.png ──────────────► alchemy ──────► materials/*.kerotex
+                                                    *.keromat  ──┐
+   art/*.obj ──────────────► forge ──────► models/*.keromdl ─────┤
                                                               │
-   maps/*.voidmap ────────────► cleave ──────► maps/*.voidbsp       ├──► void
+   maps/*.keromap ────────────► cleave ──────► maps/*.kerobsp       ├──► kerosene
         ▲                       │                │            │
-        │                       └── *.voidprt ──► umbra ──► +vis   │
+        │                       └── *.keroprt ──► umbra ──► +vis   │
      chisel                                          │        │
         │                                        radiance     │
         └────────────────────────────────────────► +light ────┘
@@ -32,26 +32,26 @@ and nothing at all to sample. Neither belongs in the engine.
 ## Crate dependencies
 
 ```
-        void-math ──────────────────────────────┐
+        kerosene-math ──────────────────────────────┐
             │                                   │
-            ├── void-kv ── void-map ── cleave   │
+            ├── kerosene-kv ── kerosene-map ── cleave   │
             │       │          │        │       │
-            │       └── void-bsp ◄──────┘       │
+            │       └── kerosene-bsp ◄──────┘       │
             │              │  ▲                 │
             │              │  └── umbra         │
             │              │  └── radiance      │
             │              ▼                    │
-            ├── void-physics                    │
-            ├── void-entity ── void-game        │
-            ├── void-vfs ── void-asset ─────────┤
+            ├── kerosene-physics                    │
+            ├── kerosene-entity ── kerosene-game        │
+            ├── kerosene-vfs ── kerosene-asset ─────────┤
             │                   │               │
-            └── void-render ◄───┘               │
+            └── kerosene-render ◄───┘               │
                     │                           │
-                void-engine ── void (runtime) ──┘
+                kerosene-engine ── kerosene (runtime) ┘
                                 chisel
 ```
 
-Nothing points upward. `void-math` knows about nothing; `void-engine` knows
+Nothing points upward. `kerosene-math` knows about nothing; `kerosene-engine` knows
 about everything. The tools sit off to the side, depending on the format crates
 but never on the engine.
 
@@ -59,8 +59,8 @@ Two edges in that picture are there for a reason worth stating. `chisel`
 depends on `alchemy`, because the editor builds the content tree's textures
 itself rather than shelling out to a sibling binary that may not be beside it.
 And everything -- the editor, the compilers, the runtime -- finds the content
-tree through `void_vfs::root`, one function they all call, and finds its
-sibling binaries through `void_vfs::toolchain`, likewise. Each of them working
+tree through `kerosene_vfs::root`, one function they all call, and finds its
+sibling binaries through `kerosene_vfs::toolchain`, likewise. Each of them working
 either out separately is not a hypothetical: they did, they disagreed, and a
 tool looking in the wrong directory is indistinguishable from a tool that is
 broken. A shared answer that explains itself is the whole of the fix.
@@ -71,9 +71,9 @@ pipeline being one program leaks into the compilers being separate ones.
 
 ## The map pipeline in detail
 
-### Cleave: `.voidmap` → `.voidbsp`
+### Cleave: `.keromap` → `.kerobsp`
 
-1. **Brushes.** Each `.voidmap` solid becomes a set of interned half-space planes.
+1. **Brushes.** Each `.keromap` solid becomes a set of interned half-space planes.
    Plane interning matters more than it sounds: two faces meant to be coplanar
    must end up sharing *one* plane index, or the tree splits along a hair's
    width between them and the compile explodes.
@@ -196,7 +196,7 @@ materials rather than one per face.
 Entities are a bag of named fields rather than typed structs, because the
 meaningful fields belong to the *game*, not the engine. Classes are registered
 handlers — the same split Source draws between its engine and its game DLL.
-`void-entity` knows how to route an input; `void-game` decides what `Open`
+`kerosene-entity` knows how to route an input; `kerosene-game` decides what `Open`
 means.
 
 Outputs become queued events even at zero delay, so an entity firing at itself
@@ -213,7 +213,7 @@ Where a subsystem can be tested without a GPU or a window, it is:
   map bug.
 - **Shaders** are validated through `naga`, the same compiler wgpu uses, so a
   typo fails in CI rather than at pipeline creation on a machine with a display.
-- **The whole pipeline** is exercised by tests that build a `.voidmap` in memory,
+- **The whole pipeline** is exercised by tests that build a `.keromap` in memory,
   compile it through Cleave, load the result and play it. Every crate can pass
   its own tests and still not add up to a level you can walk around; that suite
   is where the seams show.

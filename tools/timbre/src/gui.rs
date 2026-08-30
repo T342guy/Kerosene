@@ -20,9 +20,9 @@ use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use timbre::build::Script;
 use timbre::Options;
-use void_audio::compiled::{Encoding, Loop};
-use void_audio::wav::Sound;
-use void_audio::{Mixer, SoundHandle, SoundParams};
+use kerosene_audio::compiled::{Encoding, Loop};
+use kerosene_audio::wav::Sound;
+use kerosene_audio::{Mixer, SoundHandle, SoundParams};
 
 /// How many columns the waveform is reduced to before drawing.
 ///
@@ -77,7 +77,7 @@ pub struct Timbre {
     status: String,
     mixer: Option<Arc<Mutex<Mixer>>>,
     /// Kept alive for as long as the window is: dropping it stops the stream.
-    _device: Option<void_audio::device::AudioDevice>,
+    _device: Option<kerosene_audio::device::AudioDevice>,
     audio_status: String,
     playing: Option<Playing>,
 }
@@ -87,7 +87,7 @@ impl Timbre {
         let sound_root = content.join("sound");
         let script = Script::load_beside(&sound_root)?;
 
-        let (mixer, device, audio_status) = match void_audio::device::AudioDevice::open() {
+        let (mixer, device, audio_status) = match kerosene_audio::device::AudioDevice::open() {
             Ok(device) => {
                 let mixer = Arc::clone(device.mixer());
                 let status = format!("{} at {} Hz", device.name(), device.sample_rate());
@@ -303,11 +303,11 @@ fn envelope_of(sound: &Sound, columns: usize) -> Vec<(f32, f32)> {
         .collect()
 }
 
-impl void_ui::App for Timbre {
+impl kerosene_ui::App for Timbre {
     fn window_title(&self) -> String {
         match self.selected.and_then(|i| self.entries.get(i)) {
             Some(entry) => format!("{} -- Timbre", entry.name),
-            None => "Timbre -- VoidEngine sound compiler".into(),
+            None => "Timbre -- Kerosene sound compiler".into(),
         }
     }
 

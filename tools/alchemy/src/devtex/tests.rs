@@ -43,7 +43,7 @@ fn names_are_unique() {
 fn a_sky_is_not_lit_and_a_tool_texture_is_not_shaded() {
     for texture in set() {
         let expected = match texture.name {
-            "dev/sky_void" | "tools/skybox" => "sky",
+            "dev/sky_kero" | "tools/skybox" => "sky",
             n if n.starts_with("tools/") && n != "tools/grate" && n != "tools/water" => "unlit",
             _ => "lit",
         };
@@ -90,7 +90,7 @@ fn only_the_measurement_texture_carries_a_label() {
     // tiling texture reads backwards on half a room. Worth it on the one
     // texture that exists to be counted; litter on the four you build with.
     let plain = measure([200, 200, 200], [100, 100, 100], None);
-    let labelled = measure([200, 200, 200], [100, 100, 100], Some("16 VU"));
+    let labelled = measure([200, 200, 200], [100, 100, 100], Some("16 KU"));
     assert_ne!(plain.pixels, labelled.pixels, "the label was not drawn");
 
     let bright = |c: &Canvas| c.pixels.chunks(3).filter(|p| p[0] > 240 && p[1] > 240).count();
@@ -169,7 +169,7 @@ fn the_whole_set_writes_and_reads_back() {
     let materials = dir.join("materials");
     let written = write_materials(&materials).expect("the materials write");
     assert_eq!(written.changed, set().len());
-    let text = std::fs::read_to_string(materials.join("tools/nodraw.voidmat")).unwrap();
+    let text = std::fs::read_to_string(materials.join("tools/nodraw.keromat")).unwrap();
     assert!(text.contains("unlit"), "{text}");
     assert!(text.contains("tools/nodraw"), "{text}");
 

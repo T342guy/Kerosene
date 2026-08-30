@@ -7,15 +7,15 @@
 //!
 //! Undo is implemented by snapshotting the map. That is the unglamorous
 //! choice -- a command pattern with inverse operations is more elegant and
-//! uses far less memory -- but a `.voidmap` for a large level is a few megabytes,
+//! uses far less memory -- but a `.keromap` for a large level is a few megabytes,
 //! and correctness here is worth more than the memory. An inverse operation
 //! that is subtly wrong corrupts the level silently.
 
 use crate::grid::Grid;
 use std::collections::HashSet;
 use std::path::PathBuf;
-use void_map::{Entity, Map, Side, Solid};
-use void_math::{Aabb, Plane, Vec3, Winding};
+use kerosene_map::{Entity, Map, Side, Solid};
+use kerosene_math::{Aabb, Plane, Vec3, Winding};
 
 /// How many undo steps to keep.
 pub const MAX_UNDO: usize = 128;
@@ -645,7 +645,7 @@ impl Document {
 
     /// A one-line summary for the title bar.
     ///
-    /// A map with no path is "untitled", not "untitled.voidmap": the second
+    /// A map with no path is "untitled", not "untitled.keromap": the second
     /// looks like a file, and a name that looks like a file is why saving
     /// appeared to have already happened.
     pub fn title(&self) -> String {

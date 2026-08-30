@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: LGPL-3.0-or-later
 //! Textures, for the 3D pane and the material browser.
 //!
-//! Chisel reads the *compiled* `.voidtex`, not the source PNG, and does it
+//! Chisel reads the *compiled* `.kerotex`, not the source PNG, and does it
 //! through the same VFS the engine uses. Two reasons. A preview that decoded
 //! the artist's file could show something the engine will never draw -- a
 //! different size after mip generation, a different colour space -- and an
@@ -16,7 +16,7 @@
 
 use std::collections::HashMap;
 use std::sync::Arc;
-use void_vfs::Vfs;
+use kerosene_vfs::Vfs;
 
 /// One mip level: RGBA8, tightly packed.
 pub struct Level {
@@ -167,11 +167,11 @@ fn key(material: &str) -> String {
 
 /// Read a material and the texture it names.
 fn load(vfs: &Vfs, material: &str) -> Result<Texture, String> {
-    let material_path = void_asset::material_path(material);
+    let material_path = kerosene_asset::material_path(material);
     let text = vfs
         .read_string(&material_path)
         .map_err(|e| format!("{material_path}: {e}"))?;
-    let parsed = void_asset::Material::parse(&text).map_err(|e| format!("{material_path}: {e}"))?;
+    let parsed = kerosene_asset::Material::parse(&text).map_err(|e| format!("{material_path}: {e}"))?;
 
     // A material with no `$basetexture` is legitimate -- a sky shader, a
     // colour-only surface -- so it is not an error, just nothing to draw.
@@ -179,12 +179,12 @@ fn load(vfs: &Vfs, material: &str) -> Result<Texture, String> {
         .base_texture()
         .ok_or_else(|| format!("{material_path} names no $basetexture"))?;
 
-    let texture_path = void_asset::texture_path(base);
+    let texture_path = kerosene_asset::texture_path(base);
     let bytes = vfs
         .read(&texture_path)
         .map_err(|e| format!("{texture_path}: {e}. Has the content been built?"))?;
     let texture =
-        void_asset::Texture::from_bytes(&bytes).map_err(|e| format!("{texture_path}: {e}"))?;
+        kerosene_asset::Texture::from_bytes(&bytes).map_err(|e| format!("{texture_path}: {e}"))?;
 
     let mut mips = Vec::with_capacity(texture.mip_count());
     for level in 0..texture.mip_count() {

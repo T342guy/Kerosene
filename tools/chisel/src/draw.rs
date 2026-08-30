@@ -18,8 +18,8 @@ use crate::document::Document;
 use crate::tools::{Tool, ToolAction, ToolKind};
 use crate::viewport::Viewport;
 use egui::{Color32, Painter, Pos2, Rect, Stroke, Vec2};
-use void_map::Solid;
-use void_math::{Aabb, Vec3};
+use kerosene_map::Solid;
+use kerosene_math::{Aabb, Vec3};
 
 /// The editor's colours, in one place so the panes agree.
 pub mod colors {
@@ -60,7 +60,7 @@ const MAJOR_EVERY: i64 = 4;
 /// be when it has opened.
 pub fn transformed_outline_of(
     _document: &Document,
-    solids: &[void_map::Solid],
+    solids: &[kerosene_map::Solid],
     transform: impl Fn(Vec3) -> Vec3,
 ) -> Vec<Vec<Vec3>> {
     solids
@@ -405,8 +405,8 @@ fn draw_tool_preview(
             egui::Align2::LEFT_TOP,
             format!(
                 "{} x {}",
-                void_math::units::length_short(size[h].abs()),
-                void_math::units::length_short(size[v].abs()),
+                kerosene_math::units::length_short(size[h].abs()),
+                kerosene_math::units::length_short(size[v].abs()),
             ),
             egui::FontId::monospace(11.0),
             colors::TOOL_PREVIEW,
@@ -431,9 +431,9 @@ fn draw_tool_preview(
             format!(
                 "{} {}, {} {}",
                 axis_name(h),
-                void_math::units::length_short(delta[h]),
+                kerosene_math::units::length_short(delta[h]),
                 axis_name(v),
-                void_math::units::length_short(delta[v]),
+                kerosene_math::units::length_short(delta[v]),
             ),
             egui::FontId::monospace(11.0),
             colors::TOOL_PREVIEW,
@@ -468,8 +468,8 @@ fn draw_tool_preview(
             egui::Align2::LEFT_TOP,
             format!(
                 "{} x {}  {} {}",
-                void_math::units::length_short(size[h]),
-                void_math::units::length_short(size[v]),
+                kerosene_math::units::length_short(size[h]),
+                kerosene_math::units::length_short(size[v]),
                 solids.len(),
                 if solids.len() == 1 { "brush" } else { "brushes" },
             ),
@@ -495,7 +495,7 @@ fn draw_tool_preview(
         egui::StrokeKind::Middle,
     );
 
-    // The size in void units, which is what a designer is actually reading
+    // The size in kerosene units, which is what a designer is actually reading
     // off the screen while dragging. Without a unit on it the number is just
     // a number.
     let size = bounds.size();
@@ -503,9 +503,9 @@ fn draw_tool_preview(
         preview.right_bottom() + Vec2::new(4.0, 4.0),
         egui::Align2::LEFT_TOP,
         format!(
-            "{} x {} vu",
-            void_math::format_float(size[h]),
-            void_math::format_float(size[v])
+            "{} x {} ku",
+            kerosene_math::format_float(size[h]),
+            kerosene_math::format_float(size[v])
         ),
         egui::FontId::monospace(11.0),
         colors::TOOL_PREVIEW,
@@ -552,7 +552,7 @@ pub fn axis_name(axis: usize) -> &'static str {
 pub const NEAR: f32 = 1.0;
 
 /// Convert world points into camera space: `x` right, `y` up, `z` forward.
-pub fn to_camera_space(points: &[Vec3], eye: Vec3, basis: void_math::Basis) -> Vec<Vec3> {
+pub fn to_camera_space(points: &[Vec3], eye: Vec3, basis: kerosene_math::Basis) -> Vec<Vec3> {
     points
         .iter()
         .map(|p| {
@@ -600,7 +600,7 @@ impl FaceVertex {
 /// reads, so what Chisel shows and what the compiled map shows are the same
 /// thing. A preview that computed this differently would be a preview that
 /// lies about texture alignment, which is the one thing it is for.
-pub fn texel_for(side: &void_map::Side, point: Vec3) -> (f32, f32) {
+pub fn texel_for(side: &kerosene_map::Side, point: Vec3) -> (f32, f32) {
     let u = &side.uaxis;
     let v = &side.vaxis;
     (
@@ -692,7 +692,7 @@ pub struct VisibleFace {
 /// with a testable answer. Both of the bugs this function replaced were
 /// invisible to every other test in the editor and obvious the moment you
 /// turned the camera.
-pub fn visible_faces(document: &Document, eye: Vec3, basis: void_math::Basis) -> Vec<VisibleFace> {
+pub fn visible_faces(document: &Document, eye: Vec3, basis: kerosene_math::Basis) -> Vec<VisibleFace> {
     let mut faces = Vec::new();
 
     for (entity, solid) in document.map.all_solids() {
@@ -1236,9 +1236,9 @@ mod view_tests {
     use super::*;
     use crate::app::starter_document;
     use crate::viewport::ViewportKind;
-    use void_math::{Aabb, Angles};
+    use kerosene_math::{Aabb, Angles};
 
-    fn basis_for(yaw: f32, pitch: f32) -> void_math::Basis {
+    fn basis_for(yaw: f32, pitch: f32) -> kerosene_math::Basis {
         Angles::new(pitch, yaw, 0.0).vectors()
     }
 

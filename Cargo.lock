@@ -57,10 +57,10 @@ dependencies = [
  "env_logger",
  "glam",
  "image",
+ "kerosene-asset",
+ "kerosene-kv",
+ "kerosene-math",
  "log",
- "void-asset",
- "void-kv",
- "void-math",
 ]
 
 [[package]]
@@ -370,17 +370,17 @@ dependencies = [
  "env_logger",
  "glam",
  "image",
+ "kerosene-asset",
+ "kerosene-bsp",
+ "kerosene-entity",
+ "kerosene-game",
+ "kerosene-kv",
+ "kerosene-map",
+ "kerosene-math",
+ "kerosene-render",
+ "kerosene-vfs",
  "log",
  "pollster",
- "void-asset",
- "void-bsp",
- "void-entity",
- "void-game",
- "void-kv",
- "void-map",
- "void-math",
- "void-render",
- "void-vfs",
  "wgpu",
  "winit",
 ]
@@ -433,13 +433,13 @@ dependencies = [
  "clap",
  "env_logger",
  "glam",
+ "kerosene-bsp",
+ "kerosene-kv",
+ "kerosene-map",
+ "kerosene-math",
  "log",
  "rayon",
  "thiserror 2.0.20",
- "void-bsp",
- "void-kv",
- "void-map",
- "void-math",
 ]
 
 [[package]]
@@ -929,11 +929,11 @@ dependencies = [
  "clap",
  "env_logger",
  "glam",
+ "kerosene-asset",
+ "kerosene-kv",
+ "kerosene-math",
  "log",
  "thiserror 2.0.20",
- "void-asset",
- "void-kv",
- "void-math",
 ]
 
 [[package]]
@@ -1401,6 +1401,218 @@ dependencies = [
 ]
 
 [[package]]
+name = "kerosene-asset"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bytemuck",
+ "glam",
+ "kerosene-kv",
+ "kerosene-math",
+ "log",
+ "thiserror 2.0.20",
+]
+
+[[package]]
+name = "kerosene-audio"
+version = "0.1.0"
+dependencies = [
+ "cpal",
+ "kerosene-kv",
+ "kerosene-math",
+ "log",
+ "thiserror 2.0.20",
+]
+
+[[package]]
+name = "kerosene-bsp"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bytemuck",
+ "glam",
+ "kerosene-kv",
+ "kerosene-math",
+ "log",
+ "thiserror 2.0.20",
+]
+
+[[package]]
+name = "kerosene-console"
+version = "0.1.0"
+dependencies = [
+ "log",
+ "thiserror 2.0.20",
+]
+
+[[package]]
+name = "kerosene-engine"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "cleave",
+ "egui",
+ "egui-wgpu",
+ "egui-winit",
+ "env_logger",
+ "glam",
+ "kerosene-asset",
+ "kerosene-audio",
+ "kerosene-bsp",
+ "kerosene-console",
+ "kerosene-entity",
+ "kerosene-game",
+ "kerosene-kv",
+ "kerosene-map",
+ "kerosene-math",
+ "kerosene-physics",
+ "kerosene-render",
+ "kerosene-script",
+ "kerosene-vfs",
+ "log",
+ "pollster",
+ "rhai",
+ "wgpu",
+ "winit",
+]
+
+[[package]]
+name = "kerosene-entity"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "glam",
+ "kerosene-bsp",
+ "kerosene-console",
+ "kerosene-kv",
+ "kerosene-map",
+ "kerosene-math",
+ "kerosene-physics",
+ "log",
+ "thiserror 2.0.20",
+]
+
+[[package]]
+name = "kerosene-game"
+version = "0.1.0"
+dependencies = [
+ "glam",
+ "kerosene-bsp",
+ "kerosene-console",
+ "kerosene-entity",
+ "kerosene-kv",
+ "kerosene-map",
+ "kerosene-math",
+ "kerosene-physics",
+ "log",
+]
+
+[[package]]
+name = "kerosene-kv"
+version = "0.1.0"
+dependencies = [
+ "kerosene-math",
+ "thiserror 2.0.20",
+]
+
+[[package]]
+name = "kerosene-map"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "glam",
+ "kerosene-kv",
+ "kerosene-math",
+ "log",
+ "thiserror 2.0.20",
+]
+
+[[package]]
+name = "kerosene-math"
+version = "0.1.0"
+dependencies = [
+ "bytemuck",
+ "glam",
+]
+
+[[package]]
+name = "kerosene-physics"
+version = "0.1.0"
+dependencies = [
+ "glam",
+ "kerosene-bsp",
+ "kerosene-math",
+ "log",
+]
+
+[[package]]
+name = "kerosene-render"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bytemuck",
+ "glam",
+ "kerosene-asset",
+ "kerosene-bsp",
+ "kerosene-console",
+ "kerosene-math",
+ "kerosene-vfs",
+ "log",
+ "naga",
+ "pollster",
+ "wgpu",
+]
+
+[[package]]
+name = "kerosene-runtime"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "env_logger",
+ "kerosene-console",
+ "kerosene-engine",
+ "kerosene-game",
+ "kerosene-math",
+ "kerosene-vfs",
+ "log",
+]
+
+[[package]]
+name = "kerosene-script"
+version = "0.1.0"
+dependencies = [
+ "kerosene-math",
+ "log",
+ "rhai",
+ "thiserror 2.0.20",
+]
+
+[[package]]
+name = "kerosene-ui"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "egui",
+ "egui-wgpu",
+ "egui-winit",
+ "log",
+ "pollster",
+ "wgpu",
+ "winit",
+]
+
+[[package]]
+name = "kerosene-vfs"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "kerosene-kv",
+ "log",
+ "thiserror 2.0.20",
+]
+
+[[package]]
 name = "khronos-egl"
 version = "6.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1425,9 +1637,9 @@ dependencies = [
  "anyhow",
  "clap",
  "env_logger",
+ "kerosene-vfs",
  "log",
  "timbre",
- "void-vfs",
 ]
 
 [[package]]
@@ -2250,11 +2462,11 @@ dependencies = [
  "clap",
  "env_logger",
  "glam",
+ "kerosene-bsp",
+ "kerosene-kv",
+ "kerosene-math",
  "log",
  "rayon",
- "void-bsp",
- "void-kv",
- "void-math",
 ]
 
 [[package]]
@@ -2827,12 +3039,12 @@ dependencies = [
  "clap",
  "egui",
  "env_logger",
+ "kerosene-audio",
+ "kerosene-kv",
+ "kerosene-ui",
+ "kerosene-vfs",
  "log",
  "symphonia",
- "void-audio",
- "void-kv",
- "void-ui",
- "void-vfs",
 ]
 
 [[package]]
@@ -2948,11 +3160,11 @@ dependencies = [
  "clap",
  "env_logger",
  "glam",
+ "kerosene-bsp",
+ "kerosene-math",
  "log",
  "rayon",
  "thiserror 2.0.20",
- "void-bsp",
- "void-math",
 ]
 
 [[package]]
@@ -3004,8 +3216,8 @@ dependencies = [
  "anyhow",
  "clap",
  "env_logger",
+ "kerosene-vfs",
  "log",
- "void-vfs",
 ]
 
 [[package]]
@@ -3013,218 +3225,6 @@ name = "version_check"
 version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
-
-[[package]]
-name = "void-asset"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "bytemuck",
- "glam",
- "log",
- "thiserror 2.0.20",
- "void-kv",
- "void-math",
-]
-
-[[package]]
-name = "void-audio"
-version = "0.1.0"
-dependencies = [
- "cpal",
- "log",
- "thiserror 2.0.20",
- "void-kv",
- "void-math",
-]
-
-[[package]]
-name = "void-bsp"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "bytemuck",
- "glam",
- "log",
- "thiserror 2.0.20",
- "void-kv",
- "void-math",
-]
-
-[[package]]
-name = "void-console"
-version = "0.1.0"
-dependencies = [
- "log",
- "thiserror 2.0.20",
-]
-
-[[package]]
-name = "void-engine"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "cleave",
- "egui",
- "egui-wgpu",
- "egui-winit",
- "env_logger",
- "glam",
- "log",
- "pollster",
- "rhai",
- "void-asset",
- "void-audio",
- "void-bsp",
- "void-console",
- "void-entity",
- "void-game",
- "void-kv",
- "void-map",
- "void-math",
- "void-physics",
- "void-render",
- "void-script",
- "void-vfs",
- "wgpu",
- "winit",
-]
-
-[[package]]
-name = "void-entity"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "glam",
- "log",
- "thiserror 2.0.20",
- "void-bsp",
- "void-console",
- "void-kv",
- "void-map",
- "void-math",
- "void-physics",
-]
-
-[[package]]
-name = "void-game"
-version = "0.1.0"
-dependencies = [
- "glam",
- "log",
- "void-bsp",
- "void-console",
- "void-entity",
- "void-kv",
- "void-map",
- "void-math",
- "void-physics",
-]
-
-[[package]]
-name = "void-kv"
-version = "0.1.0"
-dependencies = [
- "thiserror 2.0.20",
- "void-math",
-]
-
-[[package]]
-name = "void-map"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "glam",
- "log",
- "thiserror 2.0.20",
- "void-kv",
- "void-math",
-]
-
-[[package]]
-name = "void-math"
-version = "0.1.0"
-dependencies = [
- "bytemuck",
- "glam",
-]
-
-[[package]]
-name = "void-physics"
-version = "0.1.0"
-dependencies = [
- "glam",
- "log",
- "void-bsp",
- "void-math",
-]
-
-[[package]]
-name = "void-render"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "bytemuck",
- "glam",
- "log",
- "naga",
- "pollster",
- "void-asset",
- "void-bsp",
- "void-console",
- "void-math",
- "void-vfs",
- "wgpu",
-]
-
-[[package]]
-name = "void-runtime"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "env_logger",
- "log",
- "void-console",
- "void-engine",
- "void-game",
- "void-math",
- "void-vfs",
-]
-
-[[package]]
-name = "void-script"
-version = "0.1.0"
-dependencies = [
- "log",
- "rhai",
- "thiserror 2.0.20",
- "void-math",
-]
-
-[[package]]
-name = "void-ui"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "egui",
- "egui-wgpu",
- "egui-winit",
- "log",
- "pollster",
- "wgpu",
- "winit",
-]
-
-[[package]]
-name = "void-vfs"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "log",
- "thiserror 2.0.20",
- "void-kv",
-]
 
 [[package]]
 name = "walkdir"

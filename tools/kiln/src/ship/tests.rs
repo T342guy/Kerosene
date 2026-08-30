@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: LGPL-3.0-or-later
 use super::*;
 use crate::Stage;
-use void_vfs::project::Project;
+use kerosene_vfs::project::Project;
 
 fn scratch(name: &str) -> PathBuf {
     let dir = std::env::temp_dir().join(format!(
@@ -14,7 +14,7 @@ fn scratch(name: &str) -> PathBuf {
     dir
 }
 
-/// A project with content, an archive, and a `void` binary standing in for the
+/// A project with content, an archive, and a `kerosene` binary standing in for the
 /// engine runtime, arranged the way a real build leaves them.
 struct Fixture {
     root: PathBuf,
@@ -26,9 +26,9 @@ impl Fixture {
         let root = scratch(name);
         let content = root.join("content");
         std::fs::create_dir_all(content.join("maps")).unwrap();
-        std::fs::write(content.join("maps/a.voidbsp"), b"map").unwrap();
+        std::fs::write(content.join("maps/a.kerobsp"), b"map").unwrap();
 
-        let path = root.join("game.voidproj");
+        let path = root.join("game.keroproj");
         std::fs::write(
             &path,
             "project { \"name\" \"Test Game\" \"content\" \"content\" \"startmap\" \"tg_intro\" }",
@@ -52,7 +52,7 @@ impl Fixture {
     fn ship_with_binary(&self, library: Option<&str>) -> Result<Shipped> {
         let bin_dir = self.root.join("bin");
         std::fs::create_dir_all(&bin_dir).unwrap();
-        let binary = bin_dir.join("void");
+        let binary = bin_dir.join("kerosene");
         std::fs::write(&binary, b"ELF").unwrap();
         if let Some(library) = library {
             std::fs::write(bin_dir.join(library), b"SO").unwrap();
@@ -89,8 +89,8 @@ fn a_project_file_is_written_pointing_at_the_shipped_content() {
     let f = Fixture::new("project");
     f.ship_with_binary(None).unwrap();
 
-    let written = std::fs::read_to_string(f.dist().join("test_game.voidproj")).unwrap();
-    let project = Project::parse(&written, &f.dist().join("test_game.voidproj")).unwrap();
+    let written = std::fs::read_to_string(f.dist().join("test_game.keroproj")).unwrap();
+    let project = Project::parse(&written, &f.dist().join("test_game.keroproj")).unwrap();
 
     assert_eq!(project.content, f.dist().join("content"), "content must be relative to the game");
     assert_eq!(project.start_map.as_deref(), Some("tg_intro"), "the start map has to survive");
@@ -146,7 +146,7 @@ fn no_tool_is_ever_shipped_with_a_game() {
 fn nothing_is_written_on_a_dry_run() {
     let f = Fixture::new("dry");
     let settings = Settings { dry_run: true, ..f.settings.clone() };
-    let binary = f.root.join("bin/void");
+    let binary = f.root.join("bin/kerosene");
     std::fs::create_dir_all(binary.parent().unwrap()).unwrap();
     std::fs::write(&binary, b"ELF").unwrap();
 
@@ -176,11 +176,11 @@ fn shipping_a_stale_archive_is_refused_and_names_what_changed() {
     // reports a problem.
     let f = Fixture::new("stale");
     std::thread::sleep(std::time::Duration::from_millis(20));
-    std::fs::write(f.settings.content.join("maps/a.voidbsp"), b"edited").unwrap();
+    std::fs::write(f.settings.content.join("maps/a.kerobsp"), b"edited").unwrap();
 
     let err = f.ship_with_binary(None).unwrap_err().to_string();
     assert!(err.contains("older than"), "{err}");
-    assert!(err.contains("a.voidbsp"), "the stale file must be named: {err}");
+    assert!(err.contains("a.kerobsp"), "the stale file must be named: {err}");
 }
 
 // ---- the licence notice tracks how the engine was linked ---------------
@@ -188,11 +188,11 @@ fn shipping_a_stale_archive_is_refused_and_names_what_changed() {
 #[test]
 fn a_shared_engine_is_shipped_and_reported_as_replaceable() {
     let library = if cfg!(windows) {
-        "void_engine.dll"
+        "kerosene_engine.dll"
     } else if cfg!(target_os = "macos") {
-        "libvoid_engine.dylib"
+        "libkerosene_engine.dylib"
     } else {
-        "libvoid_engine.so"
+        "libkerosene_engine.so"
     };
     let f = Fixture::new("dynamic");
     let shipped = f.ship_with_binary(Some(library)).unwrap();
@@ -226,7 +226,7 @@ fn the_notice_names_the_engine_and_disclaims_warranty() {
     f.ship_with_binary(None).unwrap();
 
     let readme = std::fs::read_to_string(f.dist().join("README.txt")).unwrap();
-    assert!(readme.contains("Built with VoidEngine"));
+    assert!(readme.contains("Built with Kerosene"));
     assert!(readme.contains("Lesser General Public License"));
     assert!(readme.contains("NO WARRANTY"));
     assert!(readme.contains("Test Game"), "the game's own name belongs at the top: {readme}");

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: LGPL-3.0-or-later
 use super::*;
-use void_math::Aabb;
+use kerosene_math::Aabb;
 
 /// A 64-unit cube, and the side of it facing the given direction.
 fn cube_face(normal: Vec3) -> (Solid, u32, Plane, Winding) {
@@ -148,7 +148,7 @@ fn aligning_to_the_world_restores_the_default_projection() {
     shift_by(side_mut(&mut solid, id), 40.0, 12.0);
     align_to_world(side_mut(&mut solid, id), &plane);
 
-    let (expected_u, expected_v) = void_map::texture::default_axes_for_plane(&plane, 0.25);
+    let (expected_u, expected_v) = kerosene_map::texture::default_axes_for_plane(&plane, 0.25);
     let side = side_mut(&mut solid, id);
     assert!((side.uaxis.axis - expected_u.axis).length() < 1e-4);
     assert!((side.vaxis.axis - expected_v.axis).length() < 1e-4);

@@ -1,0 +1,22 @@
+[package]
+name = "kerosene-runtime"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+kerosene-engine.workspace = true
+kerosene-vfs.workspace = true
+kerosene-game.workspace = true
+kerosene-console.workspace = true
+kerosene-math.workspace = true
+anyhow.workspace = true
+log.workspace = true
+env_logger.workspace = true
+clap.workspace = true
+
+[[bin]]
+name = "kerosene"
+path = "src/main.rs"

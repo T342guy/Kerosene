@@ -287,7 +287,7 @@ fn a_document_round_trips_through_a_file() {
     block(&mut d, 0.0, 64.0);
     d.create_entity("info_player_start", Vec3::new(32.0, 32.0, 16.0));
 
-    let path = std::env::temp_dir().join(format!("chisel-test-{}.voidmap", std::process::id()));
+    let path = std::env::temp_dir().join(format!("chisel-test-{}.keromap", std::process::id()));
     d.save(Some(path.clone())).unwrap();
     assert!(!d.is_modified(), "saving should clear the modified flag");
 
@@ -301,7 +301,7 @@ fn a_document_round_trips_through_a_file() {
 #[test]
 fn the_title_shows_unsaved_changes() {
     let mut d = doc();
-    // Not "untitled.voidmap": a map that has never been saved has no file,
+    // Not "untitled.keromap": a map that has never been saved has no file,
     // and showing one is how saving came to look as though it had happened.
     assert_eq!(d.title(), "untitled");
     block(&mut d, 0.0, 64.0);
@@ -496,7 +496,7 @@ fn changing_the_class_keeps_the_name_and_the_wiring() {
     let id = d.selected_brush_class().unwrap().0;
     if let Some(e) = d.find_entity_mut(id) {
         e.set("targetname", "gate_trigger");
-        e.connections.push(void_map::Connection::new("OnStartTouch", "gate", "Open"));
+        e.connections.push(kerosene_map::Connection::new("OnStartTouch", "gate", "Open"));
     }
 
     d.set_brush_class(Some("func_door"));

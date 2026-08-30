@@ -10,7 +10,7 @@ fn content() -> Vfs {
 }
 
 fn built() -> bool {
-    content().exists(&void_asset::texture_path("dev/grid"))
+    content().exists(&kerosene_asset::texture_path("dev/grid"))
 }
 
 #[test]

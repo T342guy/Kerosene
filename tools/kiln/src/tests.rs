@@ -31,7 +31,7 @@ fn the_archive_is_named_after_the_project_and_lives_in_the_content_tree() {
     let settings = Settings {
         content: PathBuf::from("/game/content"),
         project: Some(Project {
-            path: PathBuf::from("/game/thing.voidproj"),
+            path: PathBuf::from("/game/thing.keroproj"),
             name: "My Great Mod".into(),
             content: PathBuf::from("/game/content"),
             start_map: None,
@@ -82,7 +82,7 @@ fn a_missing_directory_yields_no_sources_rather_than_an_error() {
 fn a_dry_run_touches_nothing_and_says_what_it_would_do() {
     let dir = scratch("dry");
     touch(&dir.join("art/props/crate.obj"));
-    touch(&dir.join("maps/arena.voidmap"));
+    touch(&dir.join("maps/arena.keromap"));
 
     let settings = Settings { content: dir.clone(), dry_run: true, ..Settings::default() };
     let report = build(&settings).unwrap();
@@ -91,7 +91,7 @@ fn a_dry_run_touches_nothing_and_says_what_it_would_do() {
     assert_eq!(report.maps, 1);
     assert_eq!(report.textures, 0, "and compiled nothing");
     assert!(!dir.join("models").exists(), "a dry run writes nothing");
-    assert!(!dir.join("arena.voidbsp").exists());
+    assert!(!dir.join("arena.kerobsp").exists());
 
     let _ = std::fs::remove_dir_all(&dir);
 }
@@ -100,7 +100,7 @@ fn a_dry_run_touches_nothing_and_says_what_it_would_do() {
 fn naming_a_stage_runs_only_that_one() {
     let dir = scratch("only");
     touch(&dir.join("art/props/crate.obj"));
-    touch(&dir.join("maps/arena.voidmap"));
+    touch(&dir.join("maps/arena.keromap"));
 
     let settings = Settings {
         content: dir.clone(),
@@ -140,7 +140,7 @@ fn the_texture_stage_builds_a_real_tree() {
     let report = build(&settings).unwrap();
 
     assert!(report.textures > 0);
-    assert!(dir.join("materials/dev/grid.voidtex").is_file());
+    assert!(dir.join("materials/dev/grid.kerotex").is_file());
     assert!(dir.join("art/dev/grid.png").is_file());
 
     // And again does nothing, which is what makes it cheap to run always.
@@ -153,12 +153,12 @@ fn the_texture_stage_builds_a_real_tree() {
 
 #[test]
 fn sources_are_never_packed() {
-    // Shipping the .png next to the .voidtex doubles the download to deliver
+    // Shipping the .png next to the .kerotex doubles the download to deliver
     // a file the engine cannot read.
-    for source in ["png", "obj", "voidmap", "voidprt", "voidleak"] {
+    for source in ["png", "obj", "keromap", "keroprt", "keroleak"] {
         assert!(!PACKED.contains(&source), "{source} should not be packed");
     }
-    for compiled in ["voidtex", "voidmdl", "voidbsp"] {
+    for compiled in ["kerotex", "keromdl", "kerobsp"] {
         assert!(PACKED.contains(&compiled), "{compiled} should be packed");
     }
 }

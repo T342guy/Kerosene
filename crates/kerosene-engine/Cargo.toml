@@ -1,0 +1,44 @@
+[package]
+name = "kerosene-engine"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[features]
+# Audio output needs ALSA headers on Linux. The mixer and everything that
+# decides how a sound sounds is on regardless; this is only the last hop.
+default = ["audio"]
+audio = ["kerosene-audio/device"]
+
+[dependencies]
+kerosene-math.workspace = true
+kerosene-bsp.workspace = true
+kerosene-asset.workspace = true
+kerosene-vfs.workspace = true
+kerosene-console.workspace = true
+kerosene-entity.workspace = true
+kerosene-physics.workspace = true
+kerosene-render.workspace = true
+glam.workspace = true
+anyhow.workspace = true
+log.workspace = true
+winit.workspace = true
+wgpu.workspace = true
+pollster.workspace = true
+env_logger.workspace = true
+kerosene-game.workspace = true
+kerosene-script.workspace = true
+kerosene-audio.workspace = true
+rhai.workspace = true
+kerosene-kv.workspace = true
+kerosene-map.workspace = true
+egui.workspace = true
+egui-wgpu.workspace = true
+egui-winit.workspace = true
+
+[dev-dependencies]
+cleave = { path = "../../tools/cleave" }
+kerosene-map.workspace = true
+kerosene-bsp.workspace = true

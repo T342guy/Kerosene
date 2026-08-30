@@ -1,22 +1,22 @@
 [workspace]
 resolver = "3"
 members = [
-    "crates/void-math",
-    "crates/void-kv",
-    "crates/void-console",
-    "crates/void-vfs",
-    "crates/void-asset",
-    "crates/void-map",
-    "crates/void-bsp",
-    "crates/void-physics",
-    "crates/void-entity",
-    "crates/void-render",
-    "crates/void-engine",
-    "crates/void-game",
-    "crates/void-script",
-    "crates/void-audio",
-    "crates/void-ui",
-    "apps/void",
+    "crates/kerosene-math",
+    "crates/kerosene-kv",
+    "crates/kerosene-console",
+    "crates/kerosene-vfs",
+    "crates/kerosene-asset",
+    "crates/kerosene-map",
+    "crates/kerosene-bsp",
+    "crates/kerosene-physics",
+    "crates/kerosene-entity",
+    "crates/kerosene-render",
+    "crates/kerosene-engine",
+    "crates/kerosene-game",
+    "crates/kerosene-script",
+    "crates/kerosene-audio",
+    "crates/kerosene-ui",
+    "apps/kerosene",
     "tools/chisel",
     "tools/cleave",
     "tools/umbra",
@@ -34,24 +34,24 @@ edition = "2024"
 rust-version = "1.94"
 license = "LGPL-3.0-or-later"
 authors = ["T342guy"]
-repository = "https://github.com/t342guy/voidengine"
+repository = "https://github.com/t342guy/kerosene"
 
 [workspace.dependencies]
-void-math    = { path = "crates/void-math" }
-void-kv      = { path = "crates/void-kv" }
-void-console = { path = "crates/void-console" }
-void-vfs     = { path = "crates/void-vfs" }
-void-asset   = { path = "crates/void-asset" }
-void-map     = { path = "crates/void-map" }
-void-bsp     = { path = "crates/void-bsp" }
-void-physics = { path = "crates/void-physics" }
-void-entity  = { path = "crates/void-entity" }
-void-render  = { path = "crates/void-render" }
-void-engine  = { path = "crates/void-engine" }
-void-game    = { path = "crates/void-game" }
-void-script  = { path = "crates/void-script" }
-void-audio   = { path = "crates/void-audio", default-features = false }
-void-ui      = { path = "crates/void-ui" }
+kerosene-math    = { path = "crates/kerosene-math" }
+kerosene-kv      = { path = "crates/kerosene-kv" }
+kerosene-console = { path = "crates/kerosene-console" }
+kerosene-vfs     = { path = "crates/kerosene-vfs" }
+kerosene-asset   = { path = "crates/kerosene-asset" }
+kerosene-map     = { path = "crates/kerosene-map" }
+kerosene-bsp     = { path = "crates/kerosene-bsp" }
+kerosene-physics = { path = "crates/kerosene-physics" }
+kerosene-entity  = { path = "crates/kerosene-entity" }
+kerosene-render  = { path = "crates/kerosene-render" }
+kerosene-engine  = { path = "crates/kerosene-engine" }
+kerosene-game    = { path = "crates/kerosene-game" }
+kerosene-script  = { path = "crates/kerosene-script" }
+kerosene-audio   = { path = "crates/kerosene-audio", default-features = false }
+kerosene-ui      = { path = "crates/kerosene-ui" }
 
 anyhow      = "1"
 thiserror   = "2"

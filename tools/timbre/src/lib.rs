@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: LGPL-3.0-or-later
-//! Timbre -- the VoidEngine sound compiler.
+//! Timbre -- the Kerosene sound compiler.
 //!
-//! Turns `.wav` into `.voidaud`, the studiomdl of audio. It exists for the
+//! Turns `.wav` into `.keroaud`, the studiomdl of audio. It exists for the
 //! same reason Alchemy does: the engine should load sounds, not decode and
 //! decide about them.
 //!
@@ -28,8 +28,8 @@ pub mod decode;
 
 use anyhow::{Context, Result};
 use std::path::{Path, PathBuf};
-use void_audio::compiled::{self, Encoding, Loop};
-use void_audio::wav::Sound;
+use kerosene_audio::compiled::{self, Encoding, Loop};
+use kerosene_audio::wav::Sound;
 
 /// Every source extension Timbre reads. See [`decode`].
 pub use decode::EXTENSIONS as SOURCE_EXTENSIONS;
@@ -134,7 +134,7 @@ pub fn peak_of(sound: &Sound) -> f32 {
     sound.samples.iter().fold(0.0f32, |a, s| a.max(s.abs()))
 }
 
-/// Compile one `.wav` into a `.voidaud`.
+/// Compile one `.wav` into a `.keroaud`.
 pub fn compile(source: &Path, output: &Path, options: &Options) -> Result<Compiled> {
     let bytes = std::fs::read(source)
         .with_context(|| format!("reading {}", source.display()))?;
@@ -244,7 +244,7 @@ fn find_chunk<'a>(bytes: &'a [u8], id: &[u8; 4]) -> Option<&'a [u8]> {
 
 /// Where a source sound's compiled form goes.
 ///
-/// `sound/door/move.wav` becomes `sound/door/move.voidaud`: beside it, so the
+/// `sound/door/move.wav` becomes `sound/door/move.keroaud`: beside it, so the
 /// path a script names is the path either form is found at.
 pub fn output_for(source: &Path) -> PathBuf {
     source.with_extension(compiled::EXTENSION)

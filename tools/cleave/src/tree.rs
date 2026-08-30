@@ -23,7 +23,7 @@
 
 use crate::brush::BrushWork;
 use std::collections::HashSet;
-use void_math::{Aabb, PlaneSide, PlaneSet, Vec3};
+use kerosene_math::{Aabb, PlaneSide, PlaneSet, Vec3};
 
 /// One node or leaf. Interior nodes have a `plane`; leaves do not.
 #[derive(Clone, Debug, Default)]
@@ -99,7 +99,7 @@ impl Tree {
         // leak by reaching it, and a solid node is impassable, so marking it
         // solid would make every map look sealed.
         tree.outside = tree.alloc(TreeNode {
-            contents: void_bsp::contents::EMPTY,
+            contents: kerosene_bsp::contents::EMPTY,
             bounds: Aabb::WORLD,
             ..Default::default()
         });
@@ -158,7 +158,7 @@ impl Tree {
 
     /// Turn a node into a leaf and work out what it is made of.
     fn make_leaf(&mut self, node: usize, brushes: Vec<BrushWork>) {
-        use void_bsp::contents as c;
+        use kerosene_bsp::contents as c;
         let mut contents = 0u32;
 
         for b in &brushes {
@@ -287,7 +287,7 @@ fn select_split(brushes: &[BrushWork], planes: &PlaneSet, used: &HashSet<u32>) -
 mod tests {
     use super::*;
     use crate::brush::Warning;
-    use void_map::Solid;
+    use kerosene_map::Solid;
 
     fn brushes_from(boxes: &[(Aabb, &str)]) -> (Vec<BrushWork>, PlaneSet) {
         let mut planes = PlaneSet::new();
@@ -330,13 +330,13 @@ mod tests {
 
         let inside = tree.point_leaf(Vec3::splat(32.0), &planes);
         assert!(
-            tree.nodes[inside].contents & void_bsp::contents::SOLID != 0,
+            tree.nodes[inside].contents & kerosene_bsp::contents::SOLID != 0,
             "the middle of a solid brush must be a solid leaf"
         );
         for p in [Vec3::splat(-32.0), Vec3::new(100.0, 32.0, 32.0), Vec3::splat(200.0)] {
             let leaf = tree.point_leaf(p, &planes);
             assert_eq!(
-                tree.nodes[leaf].contents & void_bsp::contents::SOLID,
+                tree.nodes[leaf].contents & kerosene_bsp::contents::SOLID,
                 0,
                 "{p:?} is outside the brush and must be empty"
             );
@@ -349,7 +349,7 @@ mod tests {
         let tree = Tree::build(brushes, &planes);
 
         let air = tree.point_leaf(Vec3::splat(128.0), &planes);
-        assert_eq!(tree.nodes[air].contents, void_bsp::contents::EMPTY, "the room's air");
+        assert_eq!(tree.nodes[air].contents, kerosene_bsp::contents::EMPTY, "the room's air");
 
         // A point inside each wall slab.
         for p in [
@@ -360,7 +360,7 @@ mod tests {
         ] {
             let leaf = tree.point_leaf(p, &planes);
             assert!(
-                tree.nodes[leaf].contents & void_bsp::contents::SOLID != 0,
+                tree.nodes[leaf].contents & kerosene_bsp::contents::SOLID != 0,
                 "{p:?} should be inside a wall"
             );
         }
@@ -391,9 +391,9 @@ mod tests {
         let mut planes = PlaneSet::new();
         let mut warnings = Vec::new();
         let mut solid = Solid::cube(Aabb::new(Vec3::ZERO, Vec3::splat(64.0)), "dev/grid");
-        solid.sides.push(void_map::Side::from_plane(
+        solid.sides.push(kerosene_map::Side::from_plane(
             99,
-            void_math::Plane::from_point_normal(
+            kerosene_math::Plane::from_point_normal(
                 Vec3::new(48.0, 48.0, 0.0),
                 Vec3::new(1.0, 1.0, 0.0).normalize(),
             ),

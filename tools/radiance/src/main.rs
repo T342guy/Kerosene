@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: LGPL-3.0-or-later
-//! Radiance -- the VoidEngine lighting compiler.
+//! Radiance -- the Kerosene lighting compiler.
 //!
-//! Reads a compiled `.voidbsp`, bakes static lighting into every face, and writes
+//! Reads a compiled `.kerobsp`, bakes static lighting into every face, and writes
 //! the result back. This is the third and last compile stage, mirroring
 //! Source's `vrad`:
 //!
 //! ```text
-//! cleave   map.voidmap   ->  map.voidbsp + map.voidprt
-//! umbra    map.voidbsp   ->  map.voidbsp with visibility
-//! radiance map.voidbsp   ->  map.voidbsp with lighting        <- you are here
+//! cleave   map.keromap   ->  map.kerobsp + map.keroprt
+//! umbra    map.kerobsp   ->  map.kerobsp with visibility
+//! radiance map.kerobsp   ->  map.kerobsp with lighting        <- you are here
 //! ```
 //!
 //! Lighting is authored as entities in the map -- `light`, `light_spot`,
@@ -24,12 +24,12 @@ use clap::Parser;
 use lights::LightSet;
 use std::path::PathBuf;
 use std::time::Instant;
-use void_bsp::Bsp;
+use kerosene_bsp::Bsp;
 
 #[derive(Parser, Debug)]
-#[command(name = "radiance", version, about = "Bake static lighting into a compiled .voidbsp")]
+#[command(name = "radiance", version, about = "Bake static lighting into a compiled .kerobsp")]
 struct Args {
-    /// The .voidbsp to light, modified in place.
+    /// The .kerobsp to light, modified in place.
     map: PathBuf,
 
     /// Samples per luxel per axis. Higher softens shadow edges at a

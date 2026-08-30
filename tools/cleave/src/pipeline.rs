@@ -2,11 +2,11 @@
 //! The compile, start to finish.
 //!
 //! ```text
-//!   .voidmap  ->  brushes  ->  CSG  ->  BSP tree  ->  portals
+//!   .keromap  ->  brushes  ->  CSG  ->  BSP tree  ->  portals
 //!                                                     |
-//!                     .voidprt  <----  clusters  <---  flood fill
+//!                     .keroprt  <----  clusters  <---  flood fill
 //!                                                     |
-//!                                        fill outside  ->  emit  ->  .voidbsp
+//!                                        fill outside  ->  emit  ->  .kerobsp
 //! ```
 //!
 //! Each stage is separately testable and reports its own numbers, because
@@ -18,10 +18,10 @@ use crate::emit::{self, BrushModel};
 use crate::portal::{self, LeakPath, PortalSet};
 use crate::tree::Tree;
 use crate::{csg, material};
-use void_bsp::Bsp;
-use void_kv::KeyValues;
-use void_map::Map;
-use void_math::{PlaneSet, Vec3};
+use kerosene_bsp::Bsp;
+use kerosene_kv::KeyValues;
+use kerosene_map::Map;
+use kerosene_math::{PlaneSet, Vec3};
 
 #[derive(Clone, Debug, Default)]
 pub struct CompileOptions {
@@ -193,7 +193,7 @@ fn entity_origins(map: &Map) -> Vec<Vec3> {
 fn filter_brush(tree: &mut Tree, planes: &PlaneSet, node: usize, brush: BrushWork) {
     if tree.nodes[node].is_leaf() {
         // Solid leaves are inside rock; nothing ever traces against them.
-        if tree.nodes[node].contents & void_bsp::contents::SOLID == 0 {
+        if tree.nodes[node].contents & kerosene_bsp::contents::SOLID == 0 {
             tree.nodes[node].brushes.push(brush);
         }
         return;

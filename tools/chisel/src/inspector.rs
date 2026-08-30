@@ -17,8 +17,8 @@
 //! and a key the schema has never heard of must not disappear.
 
 use crate::document::Document;
-use void_entity::{ClassSpec, KeyKind, Schema};
-use void_map::Entity;
+use kerosene_entity::{ClassSpec, KeyKind, Schema};
+use kerosene_map::Entity;
 
 /// One line of the property panel.
 #[derive(Clone, Debug, PartialEq)]
@@ -159,7 +159,7 @@ pub fn format_color(rgb: [u8; 3], brightness: f32) -> String {
         rgb[0],
         rgb[1],
         rgb[2],
-        void_kv::format_float(brightness)
+        kerosene_kv::format_float(brightness)
     )
 }
 
@@ -178,9 +178,9 @@ pub fn parse_vec3(text: &str) -> [f32; 3] {
 pub fn format_vec3(v: [f32; 3]) -> String {
     format!(
         "{} {} {}",
-        void_kv::format_float(v[0]),
-        void_kv::format_float(v[1]),
-        void_kv::format_float(v[2])
+        kerosene_kv::format_float(v[0]),
+        kerosene_kv::format_float(v[1]),
+        kerosene_kv::format_float(v[2])
     )
 }
 
