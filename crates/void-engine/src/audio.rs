@@ -146,18 +146,33 @@ impl AudioSystem {
         if let Some(sound) = self.bank.get(name) { return Some(sound) }
         if self.bank.already_missing(name) { return None }
 
-        let (path, _) = self.bank.resolve(name);
-        let bytes = match vfs.read(&path) {
-            Ok(bytes) => bytes,
-            Err(e) => {
-                // Once per name: a trigger firing every tick would otherwise
-                // fill the console until nothing else in it is readable.
-                log::warn!("sound `{name}`: {e}");
-                self.bank.mark_missing(name);
-                return None;
-            }
+        let (script_path, _) = self.bank.resolve(name);
+        // The compiled form first, then the source. A shipped game has only
+        // the first; a checkout mid-edit may have only the second, and a
+        // designer who has just dropped a `.wav` in should hear it without
+        // running a build to find out whether it is the right one.
+        let compiled_path = swap_extension(&script_path, void_audio::compiled::EXTENSION);
+        let (path, bytes) = match vfs.read(&compiled_path) {
+            Ok(bytes) => (compiled_path, bytes),
+            Err(_) => match vfs.read(&script_path) {
+                Ok(bytes) => (script_path, bytes),
+                Err(e) => {
+                    // Once per name: a trigger firing every tick would
+                    // otherwise fill the console until nothing else in it is
+                    // readable.
+                    log::warn!("sound `{name}`: {e}");
+                    self.bank.mark_missing(name);
+                    return None;
+                }
+            },
         };
-        match void_audio::wav::decode(&bytes) {
+
+        let decoded = if path.ends_with(void_audio::compiled::EXTENSION) {
+            void_audio::compiled::decode(&bytes).map(|(sound, _)| sound)
+        } else {
+            void_audio::wav::decode(&bytes)
+        };
+        match decoded {
             Ok(sound) => {
                 let sound = Arc::new(sound);
                 self.bank.insert(name, Arc::clone(&sound));
@@ -199,5 +214,19 @@ impl AudioSystem {
     pub fn forget_sounds(&mut self) {
         self.stop_all();
         self.bank.forget_all();
+    }
+}
+
+/// The same path wearing a different extension.
+///
+/// String work rather than `Path::with_extension`, because a VFS path is a
+/// forward-slashed name inside an archive and not something the platform's
+/// path rules have any business normalising.
+fn swap_extension(path: &str, extension: &str) -> String {
+    match path.rsplit_once('.') {
+        // Only the last component's extension: `sound/v1.2/click` has a dot in
+        // a directory name and no extension at all.
+        Some((stem, tail)) if !tail.contains('/') => format!("{stem}.{extension}"),
+        _ => format!("{path}.{extension}"),
     }
 }

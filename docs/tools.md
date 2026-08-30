@@ -1,6 +1,6 @@
 # Tool reference
 
-Seven programs. None of them is the engine, and none of them depends on it.
+Nine programs. None of them is the engine, and none of them depends on it.
 
 ---
 
@@ -611,3 +611,64 @@ the thing they set it for.
 `sv_air_max_wishspeed` is the air-speed cap that makes bunny-hopping and
 surfing work. It is 30 by default, and it is not a bug: changing it changes the
 game.
+
+---
+
+# Timbre — the sound compiler
+
+Turns `.wav` into `.voidaud`. It is the one tool with no Source counterpart,
+because Source shipped `.wav` and paid for it in download size; this pays a
+compile step instead.
+
+```
+timbre                          # open the window
+timbre build                    # compile a project's sounds
+timbre compile a.wav --gain 0.8 --mono
+timbre info a.voidaud
+```
+
+## What it decides
+
+**Encoding.** ADPCM at a quarter the size, or 16-bit PCM. Per sound, not per
+project: ADPCM is close to transparent on impacts, speech and machinery, and
+audible on a quiet room tone with a lot of air in it. It also has an attack
+transient — the quantiser starts at its smallest step and takes a few
+milliseconds to reach a loud signal — which softens a sharp onset. PCM16 is
+the escape hatch for material where either matters.
+
+**Gain.** Applied before encoding rather than at play time, so a sound
+recorded too hot is fixed once instead of in every entity that plays it.
+
+**Loop points.** Read out of the WAV's `smpl` chunk if it has one. Before
+this, looping was all-or-nothing: a room tone with a proper loop region had it
+thrown away and was repeated end to end, click and all.
+
+**Channels.** A sound placed in the world has to be mono — there is one pan
+and a stereo file already carries its own left and right, so positioning it
+applies a pan to a signal that is not a point. Timbre says so, and can fold it
+down.
+
+## The window
+
+`timbre` with no arguments opens it, because every one of those decisions is
+better made by seeing and hearing the result than by reading a number. A gain
+of 0.8 means nothing on a command line; the same 0.8 with the waveform redrawn
+under it and the clipped samples marked in red means something at a glance.
+
+- The waveform is the samples that will actually be written, not the source.
+- Peak and a live level meter, the second following the playhead.
+- Play through the same mixer the engine uses.
+- Gain in decibels, encoding, mono, and the loop region shaded on the wave.
+
+Settings are written to `sound/timbre.voidbuild` and read back by `timbre
+build`, so the window and the command line cannot disagree about what a build
+is — the same discipline that makes the texture build a library call rather
+than a second implementation.
+
+## Where the window comes from
+
+`void-ui` is a window with egui in it and nothing else: winit's application
+handler, a wgpu surface, an egui integration and the frame loop that drives
+them. Implement `App`, call `run`. It exists because that is three hundred
+lines with nothing to do with any particular tool, and a second copy of them
+is a second place for a resize bug to live.

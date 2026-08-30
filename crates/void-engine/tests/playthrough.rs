@@ -1390,3 +1390,71 @@ fn a_disabled_trigger_hurt_does_no_damage() {
     assert_eq!(engine.player.health, 100.0, "a disabled trigger must not hurt");
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+// ---- compiled sounds ------------------------------------------------------
+
+/// A `.voidaud` holding a short tone, written by the same code Timbre uses.
+fn compiled_bytes(frames: usize) -> Vec<u8> {
+    let samples = (0..frames)
+        .map(|i| 0.5 * (std::f32::consts::TAU * 440.0 * i as f32 / 44100.0).sin())
+        .collect();
+    let sound = void_audio::wav::Sound { channels: 1, sample_rate: 44100, samples };
+    void_audio::compiled::encode(
+        &sound,
+        void_audio::compiled::Encoding::Adpcm,
+        void_audio::compiled::Loop::default(),
+    )
+}
+
+#[test]
+fn a_compiled_sound_loads_and_plays() {
+    let (mut engine, dir) = engine_with_sound();
+    // Replace the source with its compiled form, as a shipped game has.
+    std::fs::remove_file(dir.join("sound/test/beep.wav")).unwrap();
+    std::fs::write(dir.join("sound/test/beep.voidaud"), compiled_bytes(4800)).unwrap();
+    engine.load_map("testmap").unwrap();
+
+    let handle = engine.audio.play(&engine.vfs.clone(), "test/beep", None, 1.0);
+    assert!(handle.is_some(), "a .voidaud should load where a .wav would");
+    assert!(engine.console.log().all(|l| !l.text.contains("beep")), "and quietly");
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn the_compiled_form_is_preferred_over_the_source() {
+    // A checkout has both. Loading the `.wav` would work and would silently
+    // undo the build -- different samples, and none of the loop points.
+    let (mut engine, dir) = engine_with_sound();
+    // A compiled file of a different length, so which one loaded is visible.
+    std::fs::write(dir.join("sound/test/beep.voidaud"), compiled_bytes(1000)).unwrap();
+    engine.load_map("testmap").unwrap();
+
+    let sound = engine.audio.sound(&engine.vfs.clone(), "test/beep").expect("it should load");
+    assert_eq!(sound.frames(), 1000, "the .voidaud should have won over the .wav");
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_source_wav_still_plays_when_nothing_has_been_compiled_yet() {
+    // Mid-edit, a designer who has just dropped a .wav in should hear it
+    // without running a build first to find out whether it is the right one.
+    let (mut engine, dir) = engine_with_sound();
+    engine.load_map("testmap").unwrap();
+
+    let sound = engine.audio.sound(&engine.vfs.clone(), "test/beep");
+    assert!(sound.is_some(), "the source should still play");
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_broken_compiled_sound_is_reported_rather_than_silently_skipped() {
+    let (mut engine, dir) = engine_with_sound();
+    std::fs::write(dir.join("sound/test/beep.voidaud"), b"not a voidaud at all").unwrap();
+    engine.load_map("testmap").unwrap();
+
+    assert!(engine.audio.sound(&engine.vfs.clone(), "test/beep").is_none());
+    let _ = std::fs::remove_dir_all(&dir);
+}

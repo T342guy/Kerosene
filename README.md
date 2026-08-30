@@ -14,6 +14,7 @@ a build server, replace one, or write your own. VoidEngine keeps that shape.
 ```
    art/*.png ──alchemy──► materials/*.voidtex + *.voidmat ──────────────┐
    art/*.obj ──forge────► models/*.voidmdl ─────────────────────────────┤
+   sound/*.wav ─timbre──► sound/*.voidaud ──────────────────────────────┤
    maps/*.voidmap ─cleave─► *.voidbsp ─umbra─► +vis ─radiance─► +light ─┤
                                                                         └─vault─► content.vault ─► void
 
@@ -47,7 +48,7 @@ door frames that are already right. See
 
 ## The tools
 
-Seven programs, each with its own name, none of them the engine.
+Nine programs, each with its own name, none of them the engine.
 
 | Tool | Does | Source analogue |
 |---|---|---|
@@ -56,6 +57,7 @@ Seven programs, each with its own name, none of them the engine.
 | **Umbra** | Computes the PVS — which parts of a level can see which. | `vvis` |
 | **Radiance** | Bakes static lighting into lightmaps. | `vrad` |
 | **Alchemy** | Compiles textures and authors materials. | VTFEdit / `vtex` |
+| **Timbre** | Compiles sounds. Has a window, with a waveform and a gain slider. | (Source has no equivalent) |
 | **Forge** | Compiles source meshes into engine models. | `studiomdl` |
 | **Vault** | Packs a content tree into one archive. | `vpk` |
 | **Kiln** | Runs the whole pipeline over a project. | the batch file everyone writes |
@@ -69,7 +71,7 @@ The engine itself is `void`.
 Requires a Rust toolchain (edition 2024; developed against 1.94).
 
 ```sh
-cargo build --release              # engine and all eight tools
+cargo build --release              # engine and all nine tools
 ./scripts/build-content.sh         # compile the sample content and map
 cargo run --release -p void-runtime
 ```

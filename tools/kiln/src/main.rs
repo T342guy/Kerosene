@@ -25,7 +25,7 @@ struct Args {
     #[arg(long)]
     content: Option<PathBuf>,
 
-    /// Run only these stages: textures, models, maps, pack. Repeatable.
+    /// Run only these stages: textures, sounds, models, maps, pack. Repeatable.
     #[arg(long = "only", value_name = "STAGE")]
     only: Vec<String>,
 
@@ -82,7 +82,9 @@ fn main() -> Result<()> {
     for name in &args.only {
         match Stage::parse(name) {
             Some(stage) => stages.push(stage),
-            None => bail!("unknown stage {name:?}. Try textures, models, maps, pack or ship."),
+            None => bail!(
+                "unknown stage {name:?}. Try textures, sounds, models, maps, pack or ship."
+            ),
         }
     }
     if stages.is_empty() { stages = Stage::ALL.to_vec() }
@@ -107,8 +109,15 @@ fn main() -> Result<()> {
     let report = kiln::build(&settings)?;
 
     println!();
-    println!("built {} textures ({} already up to date), {} models, {} maps",
-        report.textures, report.textures_skipped, report.models, report.maps);
+    println!(
+        "built {} textures ({} up to date), {} sounds ({} up to date), {} models, {} maps",
+        report.textures,
+        report.textures_skipped,
+        report.sounds,
+        report.sounds_skipped,
+        report.models,
+        report.maps
+    );
     if let Some(archive) = &report.packed {
         println!("packed into {}", archive.display());
     }

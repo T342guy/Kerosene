@@ -12,7 +12,8 @@
 | `.voiddef` | Entity class definitions | text (KeyValues) | the game, by hand | `.fgd` |
 | `.voidscript` | Level script | text (Rhai) | by hand | `.nut` (VScript) |
 | `.voidsnd` | Sound script | text (KeyValues) | by hand | `game_sounds.txt` |
-| `.wav` | Sound | binary (RIFF) | any audio tool | `.wav` |
+| `.voidaud` | Compiled sound | binary | Timbre | `.wav` (ADPCM) |
+| `.wav` | Sound source | binary (RIFF) | any audio tool | `.wav` |
 | `.vault` | Content archive | binary | Vault | `.vpk` |
 
 Text where a person edits or reviews it; binary where the engine loads it.

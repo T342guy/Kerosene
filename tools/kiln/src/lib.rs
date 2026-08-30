@@ -36,6 +36,7 @@ pub mod ship;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Stage {
     Textures,
+    Sounds,
     Models,
     Maps,
     Pack,
@@ -50,15 +51,23 @@ impl Stage {
     /// every few minutes; assembling something to hand out is not, and a
     /// stage that writes a directory of licence files on every compile would
     /// be a nuisance rather than a service.
-    pub const ALL: [Stage; 4] = [Stage::Textures, Stage::Models, Stage::Maps, Stage::Pack];
+    pub const ALL: [Stage; 5] =
+        [Stage::Textures, Stage::Sounds, Stage::Models, Stage::Maps, Stage::Pack];
 
     /// Every stage that can be named on the command line.
-    pub const EVERY: [Stage; 5] =
-        [Stage::Textures, Stage::Models, Stage::Maps, Stage::Pack, Stage::Ship];
+    pub const EVERY: [Stage; 6] = [
+        Stage::Textures,
+        Stage::Sounds,
+        Stage::Models,
+        Stage::Maps,
+        Stage::Pack,
+        Stage::Ship,
+    ];
 
     pub fn name(self) -> &'static str {
         match self {
             Stage::Textures => "textures",
+            Stage::Sounds => "sounds",
             Stage::Models => "models",
             Stage::Maps => "maps",
             Stage::Pack => "pack",
@@ -144,6 +153,8 @@ pub(crate) fn slug(name: &str) -> String {
 pub struct Report {
     pub textures: usize,
     pub textures_skipped: usize,
+    pub sounds: usize,
+    pub sounds_skipped: usize,
     pub models: usize,
     pub maps: usize,
     /// Maps that compiled but do not seal the world.
@@ -169,6 +180,32 @@ pub fn build(settings: &Settings) -> Result<Report> {
             println!("  {built}");
             report.textures = built.textures.compiled;
             report.textures_skipped = built.textures.skipped;
+        }
+    }
+
+    if settings.runs(Stage::Sounds) {
+        say("sounds");
+        if settings.dry_run {
+            println!("  would build {}", settings.content.join("sound").display());
+        } else {
+            let built = timbre::build_sounds(&settings.content, false)
+                .context("building sounds")?;
+            for done in &built.compiled {
+                for warning in &done.warnings {
+                    println!("  {}: {warning}", done.output.display());
+                }
+            }
+            // Every failure, not the first: finding out about the second
+            // broken sound on the next build is how a fix takes three runs.
+            for (path, error) in &built.failed {
+                eprintln!("  error: {}: {error}", path.display());
+            }
+            if !built.failed.is_empty() {
+                bail!("{} sound(s) failed to compile", built.failed.len());
+            }
+            println!("  {built}");
+            report.sounds = built.compiled.len();
+            report.sounds_skipped = built.skipped;
         }
     }
 
@@ -267,10 +304,11 @@ fn build_map(settings: &Settings, map: &Path, report: &mut Report) -> Result<()>
 /// What goes into the archive.
 ///
 /// Compiled formats and the loose data the engine reads directly. Sources --
-/// `.png`, `.obj`, `.voidmap` -- are deliberately left out: shipping them
-/// doubles the download to deliver files the engine cannot read.
+/// `.png`, `.obj`, `.wav`, `.voidmap` -- are deliberately left out: shipping
+/// them doubles the download to deliver files the engine can read a smaller
+/// version of.
 const PACKED: &[&str] = &[
-    "voidtex", "voidmat", "voidmdl", "voidbsp", "voidscript", "voidsnd", "wav", "voiddef",
+    "voidtex", "voidmat", "voidmdl", "voidbsp", "voidscript", "voidsnd", "voidaud", "voiddef",
 ];
 
 fn pack(settings: &Settings, archive: &Path) -> Result<()> {

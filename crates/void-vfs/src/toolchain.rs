@@ -15,7 +15,8 @@ use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
 /// Every tool the pipeline can call, for reporting which are present.
-pub const TOOLS: &[&str] = &["chisel", "cleave", "umbra", "radiance", "alchemy", "forge", "vault", "kiln", "void"];
+pub const TOOLS: &[&str] =
+    &["chisel", "cleave", "umbra", "radiance", "alchemy", "timbre", "forge", "vault", "kiln", "void"];
 
 /// Where a sibling tool lives, if it is next to this executable.
 pub fn path(name: &str) -> Option<PathBuf> {

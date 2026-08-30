@@ -1,12 +1,21 @@
 # Sound
 
-Three layers, separable on purpose.
+Five layers, separable on purpose.
 
 | | |
 |---|---|
-| `void-audio::wav` | Files to samples |
+| `void-audio::wav` | Source `.wav` files to samples |
+| `void-audio::compiled` | `.voidaud` files to samples — what a shipped game reads |
+| `void-audio::adpcm` | Four bits a sample, for the above |
 | `void-audio::mixer` | Voices to a stereo buffer — no device, so it is testable |
 | `void-audio::device` | That buffer to the sound card, behind a feature flag |
+
+Sound has a compiled form as well as a source one. `timbre` turns `.wav` into
+`.voidaud`, which is a quarter the size, carries loop points and a peak, and
+records whether the sound may be positioned at all. The engine prefers it and
+falls back to the `.wav` when there is no compiled form — so a designer who has
+just dropped a file in hears it without running a build first, and a shipped
+game carries only the small one. See [`tools.md`](tools.md#timbre--the-sound-compiler).
 
 The split is the whole design. Everything that decides how a sound *sounds* —
 falloff, panning, resampling, voice limits — is arithmetic on buffers with no

@@ -10,6 +10,7 @@
 # shows up as a reviewable diff rather than as nothing at all.
 *.voidtex
 *.voidmdl
+*.voidaud
 *.vault
 *.voidprt
 *.voidleak

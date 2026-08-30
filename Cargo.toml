@@ -15,12 +15,14 @@ members = [
     "crates/void-game",
     "crates/void-script",
     "crates/void-audio",
+    "crates/void-ui",
     "apps/void",
     "tools/chisel",
     "tools/cleave",
     "tools/umbra",
     "tools/radiance",
     "tools/alchemy",
+    "tools/timbre",
     "tools/kiln",
     "tools/forge",
     "tools/vault",
@@ -49,6 +51,7 @@ void-engine  = { path = "crates/void-engine" }
 void-game    = { path = "crates/void-game" }
 void-script  = { path = "crates/void-script" }
 void-audio   = { path = "crates/void-audio", default-features = false }
+void-ui      = { path = "crates/void-ui" }
 
 anyhow      = "1"
 thiserror   = "2"

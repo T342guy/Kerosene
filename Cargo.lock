@@ -1426,6 +1426,7 @@ dependencies = [
  "clap",
  "env_logger",
  "log",
+ "timbre",
  "void-vfs",
 ]
 
@@ -2724,6 +2725,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "timbre"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "egui",
+ "env_logger",
+ "log",
+ "void-audio",
+ "void-kv",
+ "void-ui",
+ "void-vfs",
+]
+
+[[package]]
 name = "tiny-keccak"
 version = "2.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3088,6 +3104,20 @@ dependencies = [
  "rhai",
  "thiserror 2.0.20",
  "void-math",
+]
+
+[[package]]
+name = "void-ui"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "egui",
+ "egui-wgpu",
+ "egui-winit",
+ "log",
+ "pollster",
+ "wgpu",
+ "winit",
 ]
 
 [[package]]

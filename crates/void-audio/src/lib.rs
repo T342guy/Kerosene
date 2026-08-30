@@ -22,6 +22,8 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+pub mod adpcm;
+pub mod compiled;
 pub mod mixer;
 pub mod script;
 pub mod wav;

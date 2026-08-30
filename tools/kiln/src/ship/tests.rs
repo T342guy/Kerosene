@@ -131,8 +131,11 @@ fn no_tool_is_ever_shipped_with_a_game() {
         let name = path.file_name().unwrap_or_default().to_string_lossy().to_lowercase();
         let stem = name.trim_end_matches(".exe");
         assert!(
-            !["chisel", "cleave", "umbra", "radiance", "alchemy", "forge", "vault", "kiln"]
-                .contains(&stem),
+            ![
+                "chisel", "cleave", "umbra", "radiance", "alchemy", "timbre", "forge", "vault",
+                "kiln"
+            ]
+            .contains(&stem),
             "a compiler reached the distribution: {}",
             path.display()
         );

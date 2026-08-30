@@ -10,6 +10,9 @@ authors.workspace = true
 # The texture build is a library call, not a subprocess: Chisel makes the same
 # one, and two callers of the same step must not be able to disagree.
 alchemy = { path = "../alchemy" }
+# Same reasoning: Timbre's window and this build must not be able to
+# disagree about what compiling a sound means.
+timbre = { path = "../timbre" }
 void-vfs.workspace = true
 anyhow.workspace = true
 clap.workspace = true
