@@ -24,14 +24,15 @@
 //! the texture build a library call rather than a second implementation.
 
 pub mod build;
+pub mod decode;
 
 use anyhow::{Context, Result};
 use std::path::{Path, PathBuf};
 use void_audio::compiled::{self, Encoding, Loop};
 use void_audio::wav::Sound;
 
-/// The source extension.
-pub const SOURCE_EXTENSION: &str = "wav";
+/// Every source extension Timbre reads. See [`decode`].
+pub use decode::EXTENSIONS as SOURCE_EXTENSIONS;
 
 /// What one sound was compiled with.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -66,9 +67,24 @@ pub struct Compiled {
 
 impl Compiled {
     /// How much smaller the compiled form is, as a fraction saved.
+    ///
+    /// Negative when it grew, which is a real outcome rather than a bug: an
+    /// MP3 at 64 kbit is already smaller than four bits a sample, so
+    /// compiling one costs size as well as quality.
     pub fn saved(&self) -> f32 {
         if self.source_bytes == 0 { return 0.0 }
         1.0 - (self.output_bytes as f32 / self.source_bytes as f32)
+    }
+
+    pub fn grew(&self) -> bool { self.output_bytes > self.source_bytes }
+
+    /// How the size change reads, in the direction it actually went.
+    pub fn size_change(&self) -> String {
+        if self.grew() {
+            format!("{:.0}% larger", -self.saved() * 100.0)
+        } else {
+            format!("{:.0}% smaller", self.saved() * 100.0)
+        }
     }
 }
 
@@ -76,13 +92,13 @@ impl std::fmt::Display for Compiled {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "{} -- {:.2}s, {} {}, {} ({:.0}% smaller)",
+            "{} -- {:.2}s, {} {}, {} ({})",
             self.output.display(),
             self.info.duration(),
             self.info.channels,
             if self.info.channels == 1 { "channel" } else { "channels" },
             self.info.encoding.name(),
-            self.saved() * 100.0,
+            self.size_change(),
         )
     }
 }
@@ -122,10 +138,17 @@ pub fn peak_of(sound: &Sound) -> f32 {
 pub fn compile(source: &Path, output: &Path, options: &Options) -> Result<Compiled> {
     let bytes = std::fs::read(source)
         .with_context(|| format!("reading {}", source.display()))?;
-    let decoded = void_audio::wav::decode(&bytes)
-        .with_context(|| format!("decoding {}", source.display()))?;
+    let read = decode::any(source, &bytes)?;
+    let decoded = read.sound;
 
     let mut warnings = Vec::new();
+    if read.format.is_lossy() {
+        warnings.push(format!(
+            "{} is already lossy; compiling it further compounds the artifacts \
+             rather than cancelling them. A lossless source makes a better build.",
+            read.format.name()
+        ));
+    }
     let prepared = prepare(&decoded, options);
     let peak = peak_of(&prepared);
 
@@ -146,10 +169,7 @@ pub fn compile(source: &Path, output: &Path, options: &Options) -> Result<Compil
         );
     }
 
-    let looping = options
-        .looping
-        .or_else(|| loop_from_wav(&bytes, decoded.frames() as u32))
-        .unwrap_or_default();
+    let looping = options.looping.or(read.looping).unwrap_or_default();
 
     let encoded = compiled::encode(&prepared, options.encoding, looping);
     if let Some(parent) = output.parent() {
@@ -158,6 +178,16 @@ pub fn compile(source: &Path, output: &Path, options: &Options) -> Result<Compil
     }
     std::fs::write(output, &encoded)
         .with_context(|| format!("writing {}", output.display()))?;
+
+    // Checked after encoding, because it is the encoded size that decides it.
+    // A source that is already compressed gains nothing from four bits a
+    // sample and can cost more than it saves.
+    if encoded.len() > bytes.len() {
+        warnings.push(String::from(
+            "the compiled file is larger than its source. An already-compressed \
+             source gains nothing from ADPCM, and pcm16 at least keeps the quality.",
+        ));
+    }
 
     let info = compiled::read_info(&encoded)?;
     Ok(Compiled {
@@ -252,13 +282,28 @@ impl std::fmt::Display for Batch {
     }
 }
 
-/// Compile every `.wav` under a content tree's `sound/` directory.
+/// Compile every source sound under a content tree's `sound/` directory.
 pub fn build_sounds(content: &Path, force: bool) -> Result<Batch> {
     let root = content.join("sound");
     let script = build::Script::load_beside(&root)?;
     let mut batch = Batch::default();
+    let found = sources(&root);
 
-    for source in sources(&root) {
+    // Two sources with the same name compile to the same file, so one of them
+    // silently wins and which one depends on the sort order. Named rather than
+    // resolved: only the person who put both there knows which they meant.
+    for (a, b) in colliding(&found) {
+        batch.failed.push((
+            b.clone(),
+            format!(
+                "{} would overwrite the compiled form of {}. Two sources cannot share a name.",
+                b.display(),
+                a.display()
+            ),
+        ));
+    }
+
+    for source in found {
         let output = output_for(&source);
         if !force && is_up_to_date(&source, &output, &script.path) {
             batch.skipped += 1;
@@ -271,6 +316,22 @@ pub fn build_sounds(content: &Path, force: bool) -> Result<Batch> {
         }
     }
     Ok(batch)
+}
+
+/// Pairs of sources that compile to the same output.
+fn colliding(sources: &[PathBuf]) -> Vec<(PathBuf, PathBuf)> {
+    let mut seen: std::collections::BTreeMap<PathBuf, PathBuf> = std::collections::BTreeMap::new();
+    let mut clashes = Vec::new();
+    for source in sources {
+        let output = output_for(source);
+        match seen.get(&output) {
+            Some(first) => clashes.push((first.clone(), source.clone())),
+            None => {
+                seen.insert(output, source.clone());
+            }
+        }
+    }
+    clashes
 }
 
 /// Whether a compiled sound is newer than its source and its settings.
@@ -288,7 +349,7 @@ fn is_up_to_date(source: &Path, output: &Path, script: &Path) -> bool {
     !newer_than_out(source) && !newer_than_out(script)
 }
 
-/// Every `.wav` under a directory, in a stable order.
+/// Every source sound under a directory, in a stable order.
 pub fn sources(dir: &Path) -> Vec<PathBuf> {
     let mut found = Vec::new();
     collect(dir, &mut found);
@@ -301,10 +362,7 @@ fn collect(dir: &Path, out: &mut Vec<PathBuf>) {
         let path = entry.path();
         if path.is_dir() {
             collect(&path, out);
-        } else if path
-            .extension()
-            .is_some_and(|e| e.eq_ignore_ascii_case(SOURCE_EXTENSION))
-        {
+        } else if decode::Format::of(&path).is_some() {
             out.push(path);
         }
     }

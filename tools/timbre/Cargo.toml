@@ -19,6 +19,7 @@ path = "src/main.rs"
 # code the window does and the two cannot disagree about what a build is.
 void-audio = { workspace = true, features = ["device"] }
 void-kv.workspace = true
+symphonia.workspace = true
 void-vfs.workspace = true
 void-ui.workspace = true
 egui.workspace = true

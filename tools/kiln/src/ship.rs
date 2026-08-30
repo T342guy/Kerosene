@@ -360,6 +360,11 @@ fn readme(settings: &Settings, name: &str, shipped: &Shipped) -> String {
         "This program embeds typefaces licensed under the SIL Open Font License 1.1\n\
          and the Ubuntu Font Licence 1.0. Both permit redistribution; both require\n\
          their notices to be preserved.\n\n\
+         This program includes smartstring, by Bodil Stokke, licensed under the\n\
+         Mozilla Public License 2.0. The source is available from\n\
+         https://github.com/bodil/smartstring and under the terms of that licence.\n\
+         MPL-2.0 is file-level copyleft: it reaches only its own files, and this\n\
+         notice is what it asks of a program that carries them unmodified.\n\n\
          This program contains no Valve or id Software code, assets or data, and is\n\
          not affiliated with, endorsed by or sponsored by either company.\n",
     );

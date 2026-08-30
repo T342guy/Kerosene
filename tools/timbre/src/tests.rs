@@ -333,3 +333,81 @@ fn a_project_with_no_sound_directory_at_all_is_not_an_error() {
     let dir = scratch("no-sound-dir");
     assert!(build_sounds(&dir, false).unwrap().compiled.is_empty());
 }
+
+// ---- sources that would tread on each other -------------------------------
+
+#[test]
+fn two_sources_with_the_same_name_are_refused_rather_than_racing() {
+    // `click.wav` and `click.flac` compile to the same `click.voidaud`, so one
+    // silently wins and which one depends on the sort order. Only the person
+    // who put both there knows which they meant.
+    let dir = scratch("collision");
+    let sound = dir.join("sound");
+    write_wav(&sound, "click.wav", &tone(100, 1, 0.5));
+    std::fs::copy(
+        concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/tone.flac"),
+        sound.join("click.flac"),
+    )
+    .unwrap();
+
+    let batch = build_sounds(&dir, false).unwrap();
+    assert_eq!(batch.failed.len(), 1, "the clash should be reported");
+    assert!(batch.failed[0].1.contains("cannot share a name"), "{:?}", batch.failed[0]);
+}
+
+#[test]
+fn a_flac_source_compiles_like_any_other() {
+    let dir = scratch("flac-build");
+    let sound = dir.join("sound");
+    std::fs::create_dir_all(&sound).unwrap();
+    std::fs::copy(
+        concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/tone.flac"),
+        sound.join("chime.flac"),
+    )
+    .unwrap();
+
+    let batch = build_sounds(&dir, false).unwrap();
+    assert_eq!(batch.compiled.len(), 1);
+    assert!(sound.join("chime.voidaud").is_file());
+    assert!(batch.compiled[0].warnings.is_empty(), "{:?}", batch.compiled[0].warnings);
+}
+
+#[test]
+fn an_mp3_source_compiles_and_says_it_was_already_lossy() {
+    let dir = scratch("mp3-build");
+    let sound = dir.join("sound");
+    std::fs::create_dir_all(&sound).unwrap();
+    std::fs::copy(
+        concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/tone.mp3"),
+        sound.join("hum.mp3"),
+    )
+    .unwrap();
+
+    let batch = build_sounds(&dir, false).unwrap();
+    assert_eq!(batch.compiled.len(), 1);
+    assert!(
+        batch.compiled[0].warnings.iter().any(|w| w.contains("already lossy")),
+        "{:?}",
+        batch.compiled[0].warnings
+    );
+}
+
+#[test]
+fn a_compiled_file_larger_than_its_source_says_so() {
+    // Real, and the opposite of the point: a 64 kbit MP3 is already smaller
+    // than four bits a sample.
+    let dir = scratch("grew");
+    let sound = dir.join("sound");
+    std::fs::create_dir_all(&sound).unwrap();
+    std::fs::copy(
+        concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/tone.mp3"),
+        sound.join("hum.mp3"),
+    )
+    .unwrap();
+
+    let batch = build_sounds(&dir, false).unwrap();
+    let done = &batch.compiled[0];
+    assert!(done.grew(), "the fixture should compile larger than it started");
+    assert!(done.size_change().contains("larger"), "{}", done.size_change());
+    assert!(done.warnings.iter().any(|w| w.contains("larger than its source")));
+}

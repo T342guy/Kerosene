@@ -14,7 +14,7 @@ a build server, replace one, or write your own. VoidEngine keeps that shape.
 ```
    art/*.png ──alchemy──► materials/*.voidtex + *.voidmat ──────────────┐
    art/*.obj ──forge────► models/*.voidmdl ─────────────────────────────┤
-   sound/*.wav ─timbre──► sound/*.voidaud ──────────────────────────────┤
+   sound/*.{wav,flac,mp3} ─timbre─► sound/*.voidaud ───────────────────┤
    maps/*.voidmap ─cleave─► *.voidbsp ─umbra─► +vis ─radiance─► +light ─┤
                                                                         └─vault─► content.vault ─► void
 
@@ -57,7 +57,7 @@ Nine programs, each with its own name, none of them the engine.
 | **Umbra** | Computes the PVS — which parts of a level can see which. | `vvis` |
 | **Radiance** | Bakes static lighting into lightmaps. | `vrad` |
 | **Alchemy** | Compiles textures and authors materials. | VTFEdit / `vtex` |
-| **Timbre** | Compiles sounds. Has a window, with a waveform and a gain slider. | (Source has no equivalent) |
+| **Timbre** | Compiles sounds — WAV, FLAC or MP3. Has a window, with a waveform and a gain slider. | (Source has no equivalent) |
 | **Forge** | Compiles source meshes into engine models. | `studiomdl` |
 | **Vault** | Packs a content tree into one archive. | `vpk` |
 | **Kiln** | Runs the whole pipeline over a project. | the batch file everyone writes |

@@ -76,6 +76,11 @@ rhai        = "1"
 # Audio output. Needs ALSA headers on Linux (libasound2-dev); the mixer
 # itself is pure Rust and builds without it.
 cpal        = "0.18"
+# Decoding source audio that is not WAV, for Timbre only. MPL-2.0, and the
+# only copyleft crate in the tree -- see docs/licensing.md for why that is
+# acceptable here and nowhere else: it is a build tool, the engine never links
+# it, and `kiln --ship` never puts a tool in a game.
+symphonia   = { version = "0.6", default-features = false, features = ["flac", "mp3", "id3v2"] }
 
 [profile.release]
 opt-level = 3

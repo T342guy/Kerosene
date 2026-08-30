@@ -40,6 +40,7 @@ struct Entry {
     /// script keys on and the name worth showing.
     name: String,
     options: Options,
+    format: timbre::decode::Format,
     loaded: Option<Loaded>,
     /// What went wrong, if it will not decode at all.
     error: Option<String>,
@@ -127,7 +128,9 @@ impl Timbre {
                     .replace('\\', "/");
                 let options = self.script.options_for(&path, &self.sound_root);
                 let compiled = timbre::output_for(&path).is_file();
-                Entry { path, name, options, loaded: None, error: None, compiled }
+                let format =
+                    timbre::decode::Format::of(&path).unwrap_or(timbre::decode::Format::Wav);
+                Entry { path, name, format, options, loaded: None, error: None, compiled }
             })
             .collect();
 
@@ -135,7 +138,11 @@ impl Timbre {
             .and_then(|name| self.entries.iter().position(|e| e.name == name))
             .or_else(|| (!self.entries.is_empty()).then_some(0));
         if self.entries.is_empty() {
-            self.status = format!("no .wav files under {}", self.sound_root.display());
+            self.status = format!(
+                "no {} files under {}",
+                timbre::SOURCE_EXTENSIONS.join(", ."),
+                self.sound_root.display()
+            );
         }
     }
 
@@ -151,14 +158,14 @@ impl Timbre {
         let result = std::fs::read(&path)
             .map_err(|e| format!("{e}"))
             .and_then(|bytes| {
-                let sound = void_audio::wav::decode(&bytes).map_err(|e| format!("{e}"))?;
-                let source_loop = timbre::loop_from_wav(&bytes, sound.frames() as u32);
-                Ok((sound, source_loop))
+                let read = timbre::decode::any(&path, &bytes).map_err(|e| format!("{e:#}"))?;
+                Ok((read.sound, read.looping, read.format))
             });
 
         let Some(entry) = self.entries.get_mut(index) else { return };
         match result {
-            Ok((source, source_loop)) => {
+            Ok((source, source_loop, format)) => {
+                entry.format = format;
                 entry.loaded = Some(Loaded::build(source, source_loop, &options));
             }
             Err(e) => entry.error = Some(e),
@@ -417,14 +424,23 @@ impl Timbre {
                 loaded.prepared.frames(),
                 loaded.peak,
             );
+            let source_format = entry.format;
             ui.label(
                 egui::RichText::new(format!(
-                    "{:.2}s  \u{2022}  {rate} Hz  \u{2022}  {channels} channel{}  \u{2022}  {frames} frames",
+                    "{}  \u{2022}  {:.2}s  \u{2022}  {rate} Hz  \u{2022}  {channels} channel{}  \u{2022}  {frames} frames",
+                    source_format.name().to_uppercase(),
                     loaded.prepared.duration(),
                     if channels == 1 { "" } else { "s" },
                 ))
                 .weak(),
             );
+            if source_format.is_lossy() {
+                ui.colored_label(
+                    Color32::from_rgb(228, 186, 92),
+                    "already lossy: compiling this further compounds the artifacts rather than \
+                     cancelling them. A lossless source makes a better build.",
+                );
+            }
 
             ui.add_space(6.0);
             self.waveform(ui, index);

@@ -197,8 +197,8 @@ pub fn build(settings: &Settings) -> Result<Report> {
             }
             // Every failure, not the first: finding out about the second
             // broken sound on the next build is how a fix takes three runs.
-            for (path, error) in &built.failed {
-                eprintln!("  error: {}: {error}", path.display());
+            for (_, error) in &built.failed {
+                eprintln!("  error: {error}");
             }
             if !built.failed.is_empty() {
                 bail!("{} sound(s) failed to compile", built.failed.len());

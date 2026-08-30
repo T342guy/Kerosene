@@ -616,7 +616,8 @@ game.
 
 # Timbre — the sound compiler
 
-Turns `.wav` into `.voidaud`. It is the one tool with no Source counterpart,
+Turns `.wav`, `.flac` and `.mp3` into `.voidaud`. It is the one tool with no
+Source counterpart,
 because Source shipped `.wav` and paid for it in download size; this pays a
 compile step instead.
 
@@ -626,6 +627,29 @@ timbre build                    # compile a project's sounds
 timbre compile a.wav --gain 0.8 --mono
 timbre info a.voidaud
 ```
+
+## What it reads
+
+WAV goes through the engine's own decoder — the one that also reads `smpl`
+chunk loop points. FLAC and MP3 go through Symphonia, which is a dependency
+this project would not accept in the engine and does accept in a build tool:
+see [`licensing.md`](licensing.md#the-one-copyleft-dependency).
+
+MP3 is read because people have MP3s, not because it is a good thing to build
+from. Compiling one to ADPCM is lossy-to-lossy — the artifacts compound rather
+than cancelling, and the second encoder spends its bits describing the first
+one's mistakes. Timbre says so every time, and says so again if the result
+comes out *larger* than the source, which for an already-compressed input it
+often does.
+
+A file whose extension lies about its contents is named as such rather than
+reported as corrupt: a `.wav` that is really an MP3 is a thing that happens to
+downloaded files, and "not a RIFF/WAVE file" sends you looking for the wrong
+problem.
+
+FLAC can carry a loop region in `LOOPSTART`/`LOOPLENGTH` Vorbis comments, which
+is what game audio has settled on, and Timbre reads it — otherwise a looping
+ambience compiled from FLAC loses what the same sound in a WAV would keep.
 
 ## What it decides
 

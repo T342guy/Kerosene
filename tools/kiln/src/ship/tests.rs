@@ -235,6 +235,20 @@ fn the_notice_names_the_engine_and_disclaims_warranty() {
     assert!(readme.contains("Open Font License"), "{readme}");
 }
 
+#[test]
+fn the_notice_carries_the_mpl_crate_the_engine_links() {
+    // `smartstring` reaches the engine through rhai, so a shipped game carries
+    // MPL-2.0 code and owes its notice. Nobody would remember this; the point
+    // of writing the file from code is that nobody has to.
+    let f = Fixture::new("mpl");
+    f.ship_with_binary(None).unwrap();
+
+    let readme = std::fs::read_to_string(f.dist().join("README.txt")).unwrap();
+    assert!(readme.contains("smartstring"), "{readme}");
+    assert!(readme.contains("Mozilla Public License"), "{readme}");
+    assert!(readme.contains("source is available"), "the licence asks where: {readme}");
+}
+
 fn walk(dir: &Path, out: &mut Vec<PathBuf>) {
     for entry in std::fs::read_dir(dir).into_iter().flatten().flatten() {
         let path = entry.path();

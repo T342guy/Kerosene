@@ -26,7 +26,8 @@ The Lesser GPL is the GPL plus a linking permission. Concretely:
   your levels stay yours under whatever terms you like. That is exactly why the
   Lesser GPL exists, and it is the reason to pick it over the plain GPL for an
   engine: the GPL would have reached into every game anyone shipped.
-* **The tools** (Chisel, Cleave, Umbra, Radiance, Alchemy, Forge, Vault) are
+* **The tools** (Chisel, Cleave, Umbra, Radiance, Alchemy, Timbre, Forge,
+  Vault, Kiln) are
   covered too. For a standalone program the LGPL's extra permission simply has
   nothing to bite on, so in practice they behave as GPL-3.0 binaries: ship the
   source if you ship the tool.
@@ -59,9 +60,19 @@ onto a finished engine is unpleasant.
 
 ## Third-party dependencies
 
-219 crates in the workspace dependency graph (normal edges, all targets).
-**There is no copyleft anywhere in it** — no GPL, LGPL, AGPL, MPL, EUPL,
-CDDL or SSPL crate at any depth.
+325 distinct crates in the workspace dependency graph (normal edges, all
+targets). **No GPL, LGPL, AGPL, EUPL, CDDL or SSPL crate at any depth** — the
+strong copyleft licences, the ones that would reach into a game built on this,
+are absent entirely.
+
+There is weak copyleft, in two places, and they are not equivalent:
+
+| | Reaches | Ships in a game |
+|---|---|---|
+| `smartstring` (MPL-2.0+), via `rhai` | the engine | **yes** |
+| Symphonia, six crates (MPL-2.0) | `timbre` only | no |
+
+Both are covered [below](#the-two-copyleft-dependencies).
 
 | Licence | Crates |
 |---|---|
@@ -88,9 +99,58 @@ Regenerate with:
 cargo tree --workspace --edges normal --prefix none --format '{p}|{l}'
 ```
 
-At the time of writing that is 235 distinct crates, of which the only
-third-party copyleft is the `smartstring` noted above -- the other copyleft
-entries the command prints are VoidEngine's own crates.
+Every other copyleft entry the command prints is one of VoidEngine's own
+crates, which are LGPL by intent.
+
+### The two copyleft dependencies
+
+**What MPL-2.0 asks, first**, because it applies to both and is mild: it is
+*file-level* copyleft. Modify one of their files and you publish that file;
+use them unmodified and you keep the notice with the binary. It reaches
+nothing else — not your code, not the crate that called it — which is the
+whole difference between it and the GPL. And §3.3 explicitly permits combining
+MPL code with a "Secondary License" (GPL, LGPL or AGPL) and conveying the
+larger work under that licence, which is exactly the combination here.
+
+#### `smartstring`, which the engine does link
+
+```
+smartstring 1.0.1 (MPL-2.0+)
+└── rhai
+    └── void-script → void-engine
+```
+
+Scripting pulls it in, so it is inside `void` and inside every game built on
+it. **A shipped game therefore carries MPL-2.0 code**, and the obligation that
+travels with it is to preserve the notice — the same shape as the OFL and
+Ubuntu font licences that egui brings, and satisfied the same way.
+`kiln --ship` writes that notice into the distribution's `README.txt`, so a
+build made with it is compliant without anyone remembering to be.
+
+#### Symphonia, which only a build tool links
+
+```
+symphonia  symphonia-core  symphonia-common
+symphonia-metadata  symphonia-bundle-flac  symphonia-bundle-mp3
+```
+
+All MPL-2.0, all reached only by `timbre`, which reads FLAC and MP3 sources.
+`void-audio` decodes what a *player's* machine loads and is hand-written for
+that reason; Timbre is a compiler that runs on the machine making the content,
+and `kiln --ship` refuses to put a tool in a distribution at all. So no game
+ever ships these, and no game developer inherits anything from them. Alchemy
+made the same call first, pulling in `image` for PNG and JPEG while the engine
+reads only `.voidtex`.
+
+Admitting them was a choice with poor alternatives. There is no maintained,
+permissively licensed, pure-Rust MP3 decoder: the options were Symphonia, a C
+library through bindings — which would put a C++ toolchain in the build and
+wreck the cross-compilation story `kiln --ship` depends on — or writing an MP3
+decoder by hand, which is several thousand lines of solved problem. FLAC alone
+could have used `claxon` (Apache-2.0); MP3 forced it.
+
+Dropping `timbre` removes all six. Nothing else in the workspace depends on it
+except Kiln's sound stage.
 
 ### The four that actually matter
 
@@ -223,10 +283,14 @@ the §4 relinking clause above if the game itself is closed-source.
 copyleft binaries — distribute the corresponding source.
 
 **Fonts, again, because it catches people.** Any binary linking egui — Chisel,
-and the engine's debug overlay — carries OFL-1.1 and Ubuntu-Font-1.0 typefaces
-inside it. Both licences are satisfied by shipping their notices alongside the
-binary. Neither conflicts with the LGPL, because the fonts are data travelling
-with the program rather than part of it.
+Timbre, and the engine's debug overlay — carries OFL-1.1 and Ubuntu-Font-1.0
+typefaces inside it. Both licences are satisfied by shipping their notices
+alongside the binary. Neither conflicts with the LGPL, because the fonts are
+data travelling with the program rather than part of it.
+
+**And `smartstring`, for the same reason.** It is MPL-2.0 and it is inside the
+engine, so a shipped game carries it and owes its notice. `kiln --ship` writes
+that too.
 
 **What the licence does not do.** It does not make the provenance question above
 go away, in either direction. Copyleft is a statement about what *you* grant

@@ -6,6 +6,7 @@
 //! timbre build                            # compile a project's sounds
 //! timbre build --content path/to/content --force
 //! timbre compile sound/door/move.wav --gain 0.8 --mono
+//! timbre compile sound/music/theme.flac --encoding pcm16
 //! timbre info sound/door/move.voidaud
 //! ```
 //!
@@ -41,7 +42,7 @@ enum Command {
         #[arg(long)]
         force: bool,
     },
-    /// Compile one file.
+    /// Compile one file: `.wav`, `.flac` or `.mp3`.
     Compile {
         source: PathBuf,
         #[arg(short, long)]
@@ -129,8 +130,10 @@ fn build(content: Option<PathBuf>, force: bool) -> Result<()> {
             println!("  note: {warning}");
         }
     }
-    for (path, error) in &batch.failed {
-        eprintln!("error: {}: {error}", path.display());
+    // Not prefixed with the path: every error from a compile already names the
+    // file it is about, and saying it twice reads as two problems.
+    for (_, error) in &batch.failed {
+        eprintln!("error: {error}");
     }
     println!();
     println!("{batch}");
