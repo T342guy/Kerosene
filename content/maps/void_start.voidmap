@@ -641,10 +641,10 @@ world
 	}
 	solid
 	{
-		"id" "113"
+		"id" "121"
 		side
 		{
-			"id" "114"
+			"id" "122"
 			"plane" "(1040 0 128) (784 0 128) (784 512 128)"
 			"material" "dev/wall"
 			"uaxis" "[1 0 0 0] 0.25"
@@ -655,7 +655,7 @@ world
 		}
 		side
 		{
-			"id" "115"
+			"id" "123"
 			"plane" "(784 512 0) (784 0 0) (1040 0 0)"
 			"material" "dev/wall"
 			"uaxis" "[1 0 0 0] 0.25"
@@ -666,7 +666,7 @@ world
 		}
 		side
 		{
-			"id" "116"
+			"id" "124"
 			"plane" "(1040 512 0) (1040 0 0) (1040 0 128)"
 			"material" "dev/wall"
 			"uaxis" "[0 1 0 0] 0.25"
@@ -677,7 +677,7 @@ world
 		}
 		side
 		{
-			"id" "117"
+			"id" "125"
 			"plane" "(784 0 128) (784 0 0) (784 512 0)"
 			"material" "dev/wall"
 			"uaxis" "[0 1 0 0] 0.25"
@@ -688,7 +688,7 @@ world
 		}
 		side
 		{
-			"id" "118"
+			"id" "126"
 			"plane" "(784 512 128) (784 512 0) (1040 512 0)"
 			"material" "dev/wall"
 			"uaxis" "[1 0 0 0] 0.25"
@@ -699,7 +699,7 @@ world
 		}
 		side
 		{
-			"id" "119"
+			"id" "127"
 			"plane" "(1040 0 0) (784 0 0) (784 0 128)"
 			"material" "dev/wall"
 			"uaxis" "[1 0 0 0] 0.25"
@@ -1173,15 +1173,93 @@ entity
 }
 entity
 {
-	"id" "120"
+	"id" "113"
+	"classname" "func_rotating"
+	"targetname" "ceiling_fan"
+	"spawnflags" "1"
+	"maxspeed" "60"
+	solid
+	{
+		"id" "114"
+		side
+		{
+			"id" "115"
+			"plane" "(312 240 216) (200 240 216) (200 272 216)"
+			"material" "dev/door"
+			"uaxis" "[1 0 0 0] 0.25"
+			"vaxis" "[0 -1 0 0] 0.25"
+			"rotation" "0"
+			"lightmapscale" "16"
+			"smoothing_groups" "0"
+		}
+		side
+		{
+			"id" "116"
+			"plane" "(200 272 200) (200 240 200) (312 240 200)"
+			"material" "dev/door"
+			"uaxis" "[1 0 0 0] 0.25"
+			"vaxis" "[0 -1 0 0] 0.25"
+			"rotation" "0"
+			"lightmapscale" "16"
+			"smoothing_groups" "0"
+		}
+		side
+		{
+			"id" "117"
+			"plane" "(312 272 200) (312 240 200) (312 240 216)"
+			"material" "dev/door"
+			"uaxis" "[0 1 0 0] 0.25"
+			"vaxis" "[0 0 -1 0] 0.25"
+			"rotation" "0"
+			"lightmapscale" "16"
+			"smoothing_groups" "0"
+		}
+		side
+		{
+			"id" "118"
+			"plane" "(200 240 216) (200 240 200) (200 272 200)"
+			"material" "dev/door"
+			"uaxis" "[0 1 0 0] 0.25"
+			"vaxis" "[0 0 -1 0] 0.25"
+			"rotation" "0"
+			"lightmapscale" "16"
+			"smoothing_groups" "0"
+		}
+		side
+		{
+			"id" "119"
+			"plane" "(200 272 216) (200 272 200) (312 272 200)"
+			"material" "dev/door"
+			"uaxis" "[1 0 0 0] 0.25"
+			"vaxis" "[0 0 -1 0] 0.25"
+			"rotation" "0"
+			"lightmapscale" "16"
+			"smoothing_groups" "0"
+		}
+		side
+		{
+			"id" "120"
+			"plane" "(312 240 200) (200 240 200) (200 240 216)"
+			"material" "dev/door"
+			"uaxis" "[1 0 0 0] 0.25"
+			"vaxis" "[0 0 -1 0] 0.25"
+			"rotation" "0"
+			"lightmapscale" "16"
+			"smoothing_groups" "0"
+		}
+	}
+}
+entity
+{
+	"id" "128"
 	"classname" "func_ladder"
 	"targetname" "ledge_ladder"
 	solid
 	{
-		"id" "121"
+		"id" "129"
 		side
 		{
-			"id" "122"
+			"id" "130"
 			"plane" "(784 224 176) (768 224 176) (768 288 176)"
 			"material" "tools/ladder"
 			"uaxis" "[1 0 0 0] 0.25"
@@ -1192,7 +1270,7 @@ entity
 		}
 		side
 		{
-			"id" "123"
+			"id" "131"
 			"plane" "(768 288 0) (768 224 0) (784 224 0)"
 			"material" "tools/ladder"
 			"uaxis" "[1 0 0 0] 0.25"
@@ -1203,7 +1281,7 @@ entity
 		}
 		side
 		{
-			"id" "124"
+			"id" "132"
 			"plane" "(784 288 0) (784 224 0) (784 224 176)"
 			"material" "tools/ladder"
 			"uaxis" "[0 1 0 0] 0.25"
@@ -1214,7 +1292,7 @@ entity
 		}
 		side
 		{
-			"id" "125"
+			"id" "133"
 			"plane" "(768 224 176) (768 224 0) (768 288 0)"
 			"material" "tools/ladder"
 			"uaxis" "[0 1 0 0] 0.25"
@@ -1225,7 +1303,7 @@ entity
 		}
 		side
 		{
-			"id" "126"
+			"id" "134"
 			"plane" "(768 288 176) (768 288 0) (784 288 0)"
 			"material" "tools/ladder"
 			"uaxis" "[1 0 0 0] 0.25"
@@ -1236,7 +1314,7 @@ entity
 		}
 		side
 		{
-			"id" "127"
+			"id" "135"
 			"plane" "(784 224 0) (768 224 0) (768 224 176)"
 			"material" "tools/ladder"
 			"uaxis" "[1 0 0 0] 0.25"
@@ -1249,7 +1327,7 @@ entity
 }
 entity
 {
-	"id" "128"
+	"id" "136"
 	"classname" "func_button"
 	"targetname" "shutter_switch"
 	"movedir" "0 -1 0"
@@ -1258,10 +1336,10 @@ entity
 	"wait" "1"
 	solid
 	{
-		"id" "129"
+		"id" "137"
 		side
 		{
-			"id" "130"
+			"id" "138"
 			"plane" "(256 0 88) (224 0 88) (224 4 88)"
 			"material" "dev/door"
 			"uaxis" "[1 0 0 0] 0.25"
@@ -1272,7 +1350,7 @@ entity
 		}
 		side
 		{
-			"id" "131"
+			"id" "139"
 			"plane" "(224 4 40) (224 0 40) (256 0 40)"
 			"material" "dev/door"
 			"uaxis" "[1 0 0 0] 0.25"
@@ -1283,7 +1361,7 @@ entity
 		}
 		side
 		{
-			"id" "132"
+			"id" "140"
 			"plane" "(256 4 40) (256 0 40) (256 0 88)"
 			"material" "dev/door"
 			"uaxis" "[0 1 0 0] 0.25"
@@ -1294,7 +1372,7 @@ entity
 		}
 		side
 		{
-			"id" "133"
+			"id" "141"
 			"plane" "(224 0 88) (224 0 40) (224 4 40)"
 			"material" "dev/door"
 			"uaxis" "[0 1 0 0] 0.25"
@@ -1305,7 +1383,7 @@ entity
 		}
 		side
 		{
-			"id" "134"
+			"id" "142"
 			"plane" "(224 4 88) (224 4 40) (256 4 40)"
 			"material" "dev/door"
 			"uaxis" "[1 0 0 0] 0.25"
@@ -1316,7 +1394,7 @@ entity
 		}
 		side
 		{
-			"id" "135"
+			"id" "143"
 			"plane" "(256 0 40) (224 0 40) (224 0 88)"
 			"material" "dev/door"
 			"uaxis" "[1 0 0 0] 0.25"
@@ -1333,15 +1411,15 @@ entity
 }
 entity
 {
-	"id" "136"
+	"id" "144"
 	"classname" "func_brush"
 	"targetname" "shutter"
 	solid
 	{
-		"id" "137"
+		"id" "145"
 		side
 		{
-			"id" "138"
+			"id" "146"
 			"plane" "(272 320 64) (240 320 64) (240 480 64)"
 			"material" "dev/wall"
 			"uaxis" "[1 0 0 0] 0.25"
@@ -1352,7 +1430,7 @@ entity
 		}
 		side
 		{
-			"id" "139"
+			"id" "147"
 			"plane" "(240 480 0) (240 320 0) (272 320 0)"
 			"material" "dev/wall"
 			"uaxis" "[1 0 0 0] 0.25"
@@ -1363,7 +1441,7 @@ entity
 		}
 		side
 		{
-			"id" "140"
+			"id" "148"
 			"plane" "(272 480 0) (272 320 0) (272 320 64)"
 			"material" "dev/wall"
 			"uaxis" "[0 1 0 0] 0.25"
@@ -1374,7 +1452,7 @@ entity
 		}
 		side
 		{
-			"id" "141"
+			"id" "149"
 			"plane" "(240 320 64) (240 320 0) (240 480 0)"
 			"material" "dev/wall"
 			"uaxis" "[0 1 0 0] 0.25"
@@ -1385,7 +1463,7 @@ entity
 		}
 		side
 		{
-			"id" "142"
+			"id" "150"
 			"plane" "(240 480 64) (240 480 0) (272 480 0)"
 			"material" "dev/wall"
 			"uaxis" "[1 0 0 0] 0.25"
@@ -1396,7 +1474,7 @@ entity
 		}
 		side
 		{
-			"id" "143"
+			"id" "151"
 			"plane" "(272 320 0) (240 320 0) (240 320 64)"
 			"material" "dev/wall"
 			"uaxis" "[1 0 0 0] 0.25"
@@ -1409,21 +1487,21 @@ entity
 }
 entity
 {
-	"id" "144"
+	"id" "152"
 	"classname" "light"
 	"origin" "256 256 192"
 	"_light" "255 240 214 320"
 }
 entity
 {
-	"id" "145"
+	"id" "153"
 	"classname" "light"
 	"origin" "784 256 192"
 	"_light" "214 230 255 320"
 }
 entity
 {
-	"id" "146"
+	"id" "154"
 	"classname" "light_environment"
 	"origin" "512 256 224"
 	"pitch" "-45"
@@ -1433,7 +1511,7 @@ entity
 }
 entity
 {
-	"id" "147"
+	"id" "155"
 	"classname" "info_player_start"
 	"origin" "128 256 16"
 	"angles" "0 0 0"

@@ -16,7 +16,7 @@ use bytemuck::{Pod, Zeroable};
 use std::collections::HashMap;
 use void_asset::{Material, Shader, Texture};
 use void_bsp::surf;
-use void_math::{Mat4, Vec3};
+use void_math::{Mat4, Pose, Vec3};
 use void_vfs::Vfs;
 use wgpu::util::DeviceExt;
 
@@ -63,16 +63,34 @@ enum Pass {
     Unlit,
 }
 
-/// Where one brush model has moved to since it was compiled.
+/// Where one brush model has got to since it was compiled.
 ///
-/// A whole uniform for three floats, because a dynamic offset is the portable
-/// way to change a value between draws inside one render pass -- push
-/// constants are an optional feature and rewriting a buffer mid-pass does not
-/// do what it looks like it does.
+/// A full transform rather than a displacement. It was three floats while the
+/// only movers were doors that slide, and that was exactly enough until
+/// something needed to turn -- at which point a translation cannot express
+/// the answer at all, and neither can the collision code that has to agree
+/// with it.
+///
+/// A whole uniform per model, because a dynamic offset is the portable way to
+/// change a value between draws inside one render pass: push constants are an
+/// optional feature and rewriting a buffer mid-pass does not do what it looks
+/// like it does.
 #[repr(C)]
-#[derive(Clone, Copy, Debug, Default, Pod, Zeroable)]
+#[derive(Clone, Copy, Debug, Pod, Zeroable)]
 pub struct ModelUniform {
-    pub offset: [f32; 4],
+    pub transform: [[f32; 4]; 4],
+}
+
+impl Default for ModelUniform {
+    fn default() -> Self {
+        ModelUniform { transform: Mat4::IDENTITY.to_cols_array_2d() }
+    }
+}
+
+impl From<Pose> for ModelUniform {
+    fn from(pose: Pose) -> Self {
+        ModelUniform { transform: pose.to_mat4().to_cols_array_2d() }
+    }
 }
 
 /// How many brush models one map may have on screen.
@@ -356,18 +374,19 @@ impl Renderer {
         queue.write_buffer(&self.camera_buffer, 0, bytemuck::bytes_of(uniform));
     }
 
-    /// Tell the GPU where each brush model has moved to.
+    /// Tell the GPU where each brush model has got to.
     ///
     /// Written once per frame, before the pass, because a buffer written
     /// during a pass is not read by the draws in it -- every draw would see
     /// whichever value was written last, and the doors would all move
     /// together.
     ///
-    /// Index 0 is the world and is always zero; a caller may pass it or not.
-    pub fn update_models(&self, queue: &wgpu::Queue, offsets: &[Vec3]) {
+    /// Index 0 is the world and is always the identity; a caller may pass it
+    /// or not.
+    pub fn update_models(&self, queue: &wgpu::Queue, poses: &[Pose]) {
         let mut data = vec![ModelUniform::default(); MAX_MODELS];
-        for (i, offset) in offsets.iter().enumerate().take(MAX_MODELS) {
-            data[i].offset = [offset.x, offset.y, offset.z, 0.0];
+        for (i, pose) in poses.iter().enumerate().take(MAX_MODELS) {
+            data[i] = ModelUniform::from(*pose);
         }
         // Written as one span with the device's stride between entries, so
         // the same buffer can be addressed by dynamic offset.

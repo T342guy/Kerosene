@@ -17,7 +17,7 @@ use crate::input::InputSystem;
 use void_console::ConsoleUi;
 use std::sync::Arc;
 use std::time::Instant;
-use void_math::Vec3;
+use void_math::Pose;
 use void_render::gpu::{CameraUniform, MapResources, Renderer};
 use void_render::{Camera, FrameStats, LightmapAtlas, WorldMesh};
 use winit::application::ApplicationHandler;
@@ -380,15 +380,16 @@ impl App {
         }
         gfx.renderer.update_camera(&gfx.queue, &uniform);
 
-        // Where each brush entity has moved to, from the same fields the
+        // Where each brush entity has got to, from the same fields the
         // collision code traces against -- so what you see and what you walk
         // into are the same thing by construction rather than by agreement.
-        let brush_models = self.engine.brush_model_offsets();
-        let mut offsets = vec![Vec3::ZERO; brush_models.iter().map(|(m, _)| m + 1).max().unwrap_or(1)];
-        for (model, offset) in &brush_models {
-            offsets[*model] = *offset;
+        let brush_models = self.engine.brush_model_poses();
+        let mut poses =
+            vec![Pose::IDENTITY; brush_models.iter().map(|(m, _)| m + 1).max().unwrap_or(1)];
+        for (model, pose) in &brush_models {
+            poses[*model] = *pose;
         }
-        gfx.renderer.update_models(&gfx.queue, &offsets);
+        gfx.renderer.update_models(&gfx.queue, &poses);
 
         let mut encoder = gfx
             .device
@@ -436,13 +437,13 @@ impl App {
                         &visible,
                     );
 
-                    // Then the brush entities, each where it has moved to.
+                    // Then the brush entities, each where it has got to.
                     // They are not in the world's PVS -- their leaves are
                     // their own -- so a leaf walk cannot find them, which is
                     // why every door in every map used to be invisible.
                     let frustum = camera.frustum();
-                    for (model, offset) in &brush_models {
-                        if !novis && !map.mesh.model_is_visible(*model, *offset, &frustum) {
+                    for (model, pose) in &brush_models {
+                        if !novis && !map.mesh.model_is_visible(*model, *pose, &frustum) {
                             continue;
                         }
                         let drawn = gfx.renderer.draw_model(

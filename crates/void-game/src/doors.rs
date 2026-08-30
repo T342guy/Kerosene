@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: LGPL-3.0-or-later
-//! Moving brushes: doors, buttons, and toggleable brush entities.
+//! Moving brushes: doors, buttons, rotating brushes and switchable ones.
 //!
 //! A door and a button are the same machine. Both travel along an axis by
 //! their own size less a lip, both take a `speed` to do it, both come back
@@ -28,6 +28,12 @@ const MOVE_INTERVAL: f32 = 0.05;
 
 /// Spawnflag bits, matching the names Source gives them.
 pub const SF_START_OPEN: u32 = 1;
+/// A rotating brush that is already turning when the map starts.
+pub const SF_START_ON: u32 = 1;
+/// Turn about the forward axis rather than up.
+pub const SF_ROTATE_X: u32 = 2;
+/// Turn about the left axis rather than up.
+pub const SF_ROTATE_Y: u32 = 4;
 
 /// The outputs one class of mover fires, and the input that sends it back.
 ///
@@ -126,6 +132,28 @@ pub fn register(registry: &mut ClassRegistry) {
     );
 
     registry.register(
+        ClassDef::new("func_rotating")
+            .on_spawn(spawn_rotating)
+            .on_think(think_rotating)
+            .input("Start", |w, id, _| { set_spinning(w, id, true); true })
+            .input("Stop", |w, id, _| { set_spinning(w, id, false); true })
+            .input("Toggle", |w, id, _| {
+                let on = w.get(id).is_some_and(|e| e.fields.bool("spinning", false));
+                set_spinning(w, id, !on);
+                true
+            })
+            .input("Reverse", |w, id, _| {
+                let speed = field_f32(w, id, "maxspeed", 100.0);
+                set_field(w, id, "maxspeed", Value::Float(-speed));
+                true
+            })
+            .input("SetSpeed", |w, id, e| {
+                if let Some(v) = e.parameter_f32() { set_field(w, id, "maxspeed", Value::Float(v)); }
+                true
+            }),
+    );
+
+    registry.register(
         ClassDef::new("func_brush")
             .on_spawn(spawn_brush)
             .input("Enable", |w, id, _| { set_field(w, id, "disabled", Value::Bool(false)); true })
@@ -136,6 +164,53 @@ pub fn register(registry: &mut ClassRegistry) {
                 true
             }),
     );
+}
+
+fn spawn_rotating(world: &mut EntityWorld, id: EntityId) {
+    let on = world.get(id).is_some_and(|e| e.has_spawnflag(SF_START_ON));
+    set_field(world, id, "last_move", Value::Float(world.time));
+    set_spinning(world, id, on);
+}
+
+/// Start or stop a rotating brush.
+///
+/// Stopping clears the think rather than leaving one scheduled that does
+/// nothing: a map with fifty stopped fans should cost nothing to run.
+fn set_spinning(world: &mut EntityWorld, id: EntityId, on: bool) {
+    set_field(world, id, "spinning", Value::Bool(on));
+    if on {
+        // The clock restarts, or a fan switched on after a minute would jump
+        // through a minute's worth of rotation on its first think.
+        set_field(world, id, "last_move", Value::Float(world.time));
+        world.set_think_delay(id, 0.0);
+    } else {
+        world.clear_think(id);
+    }
+}
+
+fn think_rotating(world: &mut EntityWorld, id: EntityId) {
+    let Some(entity) = world.get(id) else { return };
+    if !entity.fields.bool("spinning", false) { return }
+
+    let speed = entity.fields.f32("maxspeed", 100.0);
+    let elapsed = (world.time - entity.fields.f32("last_move", world.time)).max(0.0);
+    // Source's numbering: 2 turns about forward, 4 about left, otherwise up.
+    let turned = speed * elapsed;
+    let mut angles = entity.angles;
+    if entity.has_spawnflag(SF_ROTATE_X) {
+        angles.roll += turned;
+    } else if entity.has_spawnflag(SF_ROTATE_Y) {
+        angles.pitch += turned;
+    } else {
+        angles.yaw += turned;
+    }
+    // Wrapped every think, so a fan left running for an hour does not lose
+    // precision to a number that only ever grows.
+    let angles = angles.normalized();
+
+    if let Some(e) = world.get_mut(id) { e.angles = angles }
+    set_field(world, id, "last_move", Value::Float(world.time));
+    world.set_think_delay(id, MOVE_INTERVAL);
 }
 
 fn spawn_brush(world: &mut EntityWorld, id: EntityId) {
@@ -188,8 +263,10 @@ fn spawn_mover(world: &mut EntityWorld, id: EntityId) {
     set_field(world, id, "door_state", Value::Int(if start_open { state::OPEN } else { state::CLOSED }));
     set_field(world, id, "locked", Value::Bool(false));
 
-    if start_open {
-        if let Some(e) = world.get_mut(id) { e.origin = dir * travel; }
+    if start_open
+        && let Some(e) = world.get_mut(id)
+    {
+        e.origin = dir * travel;
     }
 }
 

@@ -21,12 +21,14 @@
 mod aabb;
 mod angles;
 mod plane;
+pub mod pose;
 pub mod units;
 mod winding;
 
 pub use aabb::Aabb;
 pub use angles::{Angles, Basis, angle_diff, wrap180};
 pub use plane::{Plane, PlaneKind, PlaneSet, PlaneSide};
+pub use pose::Pose;
 pub use winding::Winding;
 
 /// Format a number the way level data is written: no trailing zeroes, and no

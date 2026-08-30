@@ -751,3 +751,128 @@ fn using_a_locked_door_reports_it_rather_than_opening() {
 
     assert_eq!(field(&w, gate, "progress"), 0.0);
 }
+
+// ---- rotating brushes ----------------------------------------------------
+
+const FAN_MAP: &str = r#"
+entity
+{
+    "classname" "func_rotating"
+    "targetname" "fan"
+    "model" "*1"
+    "maxspeed" "90"
+    "spawnflags" "1"
+    "model_mins" "0 0 0"
+    "model_maxs" "64 64 8"
+}
+entity
+{
+    "classname" "func_rotating"
+    "targetname" "stopped"
+    "model" "*2"
+    "maxspeed" "90"
+    "model_mins" "0 0 0"
+    "model_maxs" "64 64 8"
+}
+"#;
+
+fn yaw(w: &EntityWorld, id: EntityId) -> f32 {
+    w.get(id).map(|e| e.angles.yaw).unwrap_or(0.0)
+}
+
+#[test]
+fn a_rotating_brush_flagged_on_starts_turning_by_itself() {
+    let mut w = world_from(FAN_MAP);
+    let fan = named(&w, "fan");
+    run(&mut w, 1.0);
+
+    // 90 degrees a second for a second, less up to one think's worth of lag:
+    // movers run on their own cadence, quantised to the tick rate, so the
+    // last step before the second is up lands a little short of it.
+    assert!((yaw(&w, fan) - 90.0).abs() < 8.0, "turned to {}", yaw(&w, fan));
+}
+
+#[test]
+fn a_rotating_brush_without_the_flag_stays_still_until_told() {
+    let mut w = world_from(FAN_MAP);
+    let stopped = named(&w, "stopped");
+    run(&mut w, 1.0);
+    assert_eq!(yaw(&w, stopped), 0.0);
+
+    w.accept_input(stopped, &InputEvent::new("Start"));
+    run(&mut w, 1.0);
+    assert!((yaw(&w, stopped) - 90.0).abs() < 8.0, "turned to {}", yaw(&w, stopped));
+}
+
+#[test]
+fn stopping_a_rotating_brush_leaves_it_where_it_was() {
+    let mut w = world_from(FAN_MAP);
+    let fan = named(&w, "fan");
+    run(&mut w, 1.0);
+    w.accept_input(fan, &InputEvent::new("Stop"));
+    let stopped_at = yaw(&w, fan);
+
+    run(&mut w, 2.0);
+    assert_eq!(yaw(&w, fan), stopped_at, "a stopped fan must not creep");
+}
+
+#[test]
+fn restarting_does_not_jump_through_the_time_it_was_stopped() {
+    // The failure this catches: `last_move` left alone while stopped, so the
+    // first think after restarting integrates the whole pause at once and the
+    // fan teleports to a new angle.
+    let mut w = world_from(FAN_MAP);
+    let fan = named(&w, "fan");
+    w.accept_input(fan, &InputEvent::new("Stop"));
+    let stopped_at = yaw(&w, fan);
+    run(&mut w, 5.0);
+
+    w.accept_input(fan, &InputEvent::new("Start"));
+    run(&mut w, TICK * 2.0);
+
+    let moved = (yaw(&w, fan) - stopped_at).abs();
+    assert!(moved < 10.0, "jumped {moved} degrees on the first think after restarting");
+}
+
+#[test]
+fn reversing_turns_the_other_way() {
+    let mut w = world_from(FAN_MAP);
+    let fan = named(&w, "fan");
+    run(&mut w, 1.0);
+    let forward = yaw(&w, fan);
+
+    w.accept_input(fan, &InputEvent::new("Reverse"));
+    run(&mut w, 1.0);
+
+    assert!(yaw(&w, fan) < forward, "should have come back, {} then {}", forward, yaw(&w, fan));
+}
+
+#[test]
+fn the_axis_is_chosen_by_spawnflag() {
+    let source = r#"
+entity { "classname" "func_rotating" "targetname" "roll" "model" "*1" "maxspeed" "90"
+         "spawnflags" "3" "model_mins" "0 0 0" "model_maxs" "64 64 8" }
+entity { "classname" "func_rotating" "targetname" "pitch" "model" "*2" "maxspeed" "90"
+         "spawnflags" "5" "model_mins" "0 0 0" "model_maxs" "64 64 8" }
+"#;
+    let mut w = world_from(source);
+    run(&mut w, 1.0);
+
+    let rolling = w.get(named(&w, "roll")).unwrap().angles;
+    let pitching = w.get(named(&w, "pitch")).unwrap().angles;
+
+    assert!(rolling.roll.abs() > 80.0 && rolling.yaw == 0.0, "{rolling:?}");
+    assert!(pitching.pitch.abs() > 80.0 && pitching.yaw == 0.0, "{pitching:?}");
+}
+
+#[test]
+fn a_fan_left_running_keeps_its_angle_in_range() {
+    // Angles that only ever grow lose precision, and after long enough a
+    // float degree count stops being able to represent small steps at all.
+    let mut w = world_from(FAN_MAP);
+    let fan = named(&w, "fan");
+    run(&mut w, 60.0);
+
+    let angles = w.get(fan).unwrap().angles;
+    assert!(angles.yaw >= -180.0 && angles.yaw < 180.0, "yaw ran away to {}", angles.yaw);
+}

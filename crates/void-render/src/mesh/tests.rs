@@ -5,7 +5,7 @@ use crate::lightmap::LightmapAtlas;
 use void_bsp::{
     BspPlane, ColorRgbExp32, Edge, Face, Leaf, Model, TexData, TexInfo, encode_leaf,
 };
-use void_math::{Angles, Plane, PlaneSet};
+use void_math::{Angles, Plane, PlaneSet, Pose};
 
 /// A map with two quads facing +Z, side by side, wearing different materials.
 fn two_quad_map(lit: bool) -> Bsp {
@@ -395,7 +395,7 @@ fn a_model_in_front_of_the_camera_is_drawn() {
         aspect: 1.0,
         ..Default::default()
     };
-    assert!(mesh.model_is_visible(1, Vec3::ZERO, &camera.frustum()));
+    assert!(mesh.model_is_visible(1, Pose::IDENTITY, &camera.frustum()));
 }
 
 #[test]
@@ -408,7 +408,7 @@ fn a_model_behind_the_camera_is_not() {
         aspect: 1.0,
         ..Default::default()
     };
-    assert!(!mesh.model_is_visible(1, Vec3::ZERO, &camera.frustum()));
+    assert!(!mesh.model_is_visible(1, Pose::IDENTITY, &camera.frustum()));
 }
 
 #[test]
@@ -424,9 +424,37 @@ fn a_model_is_culled_where_it_has_moved_to_not_where_it_was_built() {
     };
     let frustum = camera.frustum();
 
-    assert!(mesh.model_is_visible(1, Vec3::ZERO, &frustum));
+    assert!(mesh.model_is_visible(1, Pose::IDENTITY, &frustum));
     // Moved far off to one side, it is no longer in front of the camera.
-    assert!(!mesh.model_is_visible(1, Vec3::new(0.0, 40_000.0, 0.0), &frustum));
+    assert!(!mesh.model_is_visible(1, Pose::at(Vec3::new(0.0, 40_000.0, 0.0)), &frustum));
+}
+
+#[test]
+fn a_model_is_culled_by_the_bounds_it_has_after_turning() {
+    // The failure this catches is the same one moving had, one dimension up:
+    // a model culled by its compiled bounds pops out of existence as it turns
+    // past the edge of the screen, or worse, stays culled while visible.
+    let (_, mesh) = build_with_model();
+    let camera = Camera {
+        position: Vec3::new(96.0, 32.0, 128.0),
+        angles: Angles::new(90.0, 0.0, 0.0),
+        aspect: 1.0,
+        ..Default::default()
+    };
+    let frustum = camera.frustum();
+
+    // Turned in place, it is still under the camera and still drawn.
+    let spun = Pose::about(Vec3::ZERO, Angles::new(0.0, 45.0, 0.0), Vec3::new(96.0, 32.0, 0.0));
+    assert!(mesh.model_is_visible(1, spun, &frustum));
+
+    // Turned about a point far away, it is flung off screen -- which only
+    // happens if the pivot is being honoured at all.
+    let flung = Pose::about(
+        Vec3::ZERO,
+        Angles::new(0.0, 90.0, 0.0),
+        Vec3::new(0.0, 20_000.0, 0.0),
+    );
+    assert!(!mesh.model_is_visible(1, flung, &frustum));
 }
 
 #[test]
@@ -445,5 +473,5 @@ fn a_model_with_nothing_in_it_is_not_drawn() {
     // a wasted bind and a wasted call.
     let (_, mesh) = build_with_model();
     let camera = Camera { aspect: 1.0, ..Default::default() };
-    assert!(!mesh.model_is_visible(99, Vec3::ZERO, &camera.frustum()), "no such model");
+    assert!(!mesh.model_is_visible(99, Pose::IDENTITY, &camera.frustum()), "no such model");
 }

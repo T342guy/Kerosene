@@ -23,11 +23,11 @@ struct Camera {
 @group(1) @binding(0) var base_texture: texture_2d<f32>;
 @group(1) @binding(1) var base_sampler: sampler;
 
-// Where this brush model has moved to since it was compiled. Zero for the
-// world; a door's displacement while it opens. Bound with a dynamic offset,
-// so it changes between draws inside one pass.
+// Where this brush model has got to since it was compiled. The identity for
+// the world; a door's displacement while it opens, or a rotating brush's turn.
+// Bound with a dynamic offset, so it changes between draws inside one pass.
 struct Model {
-    offset: vec4<f32>,
+    transform: mat4x4<f32>,
 };
 @group(2) @binding(0) var<uniform> model: Model;
 
@@ -49,15 +49,18 @@ struct VertexOut {
 @vertex
 fn vs_main(input: VertexIn) -> VertexOut {
     var out: VertexOut;
-    // The model's displacement is added in world space, so a moving door is
-    // its compiled geometry translated -- the same transform the collision
-    // code applies when it traces against the model, and the reason the two
-    // stay in the same place.
-    let world = input.position + model.offset.xyz;
+    // The same transform the collision code inverts when it traces against
+    // this model, which is the reason what you see and what you walk into are
+    // in the same place by construction rather than by agreement.
+    let world = (model.transform * vec4<f32>(input.position, 1.0)).xyz;
     out.clip_position = camera.view_proj * vec4<f32>(world, 1.0);
     out.uv = input.uv;
     out.lightmap_uv = input.lightmap_uv;
-    out.normal = input.normal;
+    // Rotated, not carried through: w = 0 drops the translation, which a
+    // direction must not have. Nothing samples this yet -- lighting is baked
+    // -- but a normal that silently pointed the wrong way would be found by
+    // whoever adds bump mapping rather than by anyone here.
+    out.normal = (model.transform * vec4<f32>(input.normal, 0.0)).xyz;
     out.world_position = world;
     return out;
 }

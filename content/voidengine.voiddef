@@ -163,6 +163,27 @@ class
 
 class
 {
+    "name" "func_rotating"
+    "kind" "brush"
+    "base" "Entity"
+    "help" "A brush that spins in place -- a fan, a turntable, a rotating door. It turns about the centre of its own geometry, so no origin brush is needed."
+    key {
+        "name" "spawnflags" "label" "Flags" "type" "flags" "default" "0"
+        choice { "value" "1" "label" "Start turning" }
+        choice { "value" "2" "label" "Turn about the forward axis" }
+        choice { "value" "4" "label" "Turn about the left axis" }
+    }
+    key { "name" "maxspeed" "label" "Speed" "type" "float" "default" "100"
+          "help" "Degrees per second. Negative turns the other way." }
+    input { "name" "Start" }
+    input { "name" "Stop" }
+    input { "name" "Toggle" }
+    input { "name" "Reverse" "help" "Turn the other way, at the same speed." }
+    input { "name" "SetSpeed" "parameter" "degrees per second" }
+}
+
+class
+{
     "name" "func_ladder"
     "kind" "brush"
     "base" "Entity"

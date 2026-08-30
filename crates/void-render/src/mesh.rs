@@ -17,7 +17,7 @@
 use crate::lightmap::LightmapAtlas;
 use bytemuck::{Pod, Zeroable};
 use void_bsp::{Bsp, surf};
-use void_math::{Aabb, Vec3};
+use void_math::{Aabb, Pose, Vec3};
 
 /// One vertex of world geometry.
 #[repr(C)]
@@ -313,13 +313,17 @@ impl WorldMesh {
     pub fn model_is_visible(
         &self,
         model: usize,
-        offset: Vec3,
+        pose: Pose,
         frustum: &crate::camera::Frustum,
     ) -> bool {
         let Some(bounds) = self.model_bounds.get(model) else { return false };
         if bounds.is_empty() { return false }
         if self.model_surfaces.get(model).is_none_or(Vec::is_empty) { return false }
-        frustum.intersects_box(bounds.min + offset, bounds.max + offset)
+        // The enclosing box of the turned box, not the turned box: a frustum
+        // test wants an axis-aligned answer, and a rotated model's compiled
+        // bounds are no longer axis aligned once it has turned.
+        let world = pose.bounds_of(*bounds);
+        frustum.intersects_box(world.min, world.max)
     }
 }
 

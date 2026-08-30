@@ -94,6 +94,23 @@ fn main() -> std::io::Result<()> {
         },
     );
 
+    // A slowly turning bar under the ceiling of the first room. Visible from
+    // the spawn, reachable by nothing, and there for one reason: a brush model
+    // that turns is the case the model transform exists for, and a sample
+    // level with no rotating geometry in it never exercises it.
+    add_brush_entity(
+        &mut map,
+        "func_rotating",
+        Aabb::new(Vec3::new(200.0, 240.0, 200.0), Vec3::new(312.0, 272.0, 216.0)),
+        "dev/door",
+        |e| {
+            e.set("targetname", "ceiling_fan");
+            // Flag 1 starts it turning; no flag for the axis means about up.
+            e.set("spawnflags", "1");
+            e.set("maxspeed", "60");
+        },
+    );
+
     // A raised ledge across the back of the second room, and a ladder up its
     // face. Somewhere to go that is not on the floor, which is the point of
     // having a climb at all.

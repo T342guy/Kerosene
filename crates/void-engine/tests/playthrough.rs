@@ -1000,6 +1000,107 @@ fn a_button_can_switch_a_brush_out_of_the_world() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+// ---- rotation ---------------------------------------------------------------
+
+/// The corridor with a bar across half of it, turned by `yaw`.
+///
+/// At rest the bar covers the half of the corridor the player walks down; a
+/// quarter turn about its own centre swings it out of the way. Which is the
+/// whole test: the renderer and the collision have to agree about where a
+/// turned model is, and a bar that blocks where it is *not* drawn is the
+/// failure worth catching.
+fn corridor_with_bar(yaw: f32) -> Map {
+    let mut map = corridor_map(false, false);
+    let at = add_brush_entity(
+        &mut map,
+        "func_rotating",
+        Aabb::new(Vec3::new(250.0, 0.0, 0.0), Vec3::new(266.0, 64.0, 128.0)),
+        "dev/grid",
+    );
+    map.entities[at].set("targetname", "bar");
+    map.entities[at].set("maxspeed", "90");
+    map.entities[at].set("angles", &format!("0 {yaw} 0"));
+    map
+}
+
+fn walked_to(engine: &mut void_engine::engine::Engine, seconds: f32) -> f32 {
+    let walking = InputState { forward: 1.0, view_angles: Angles::ZERO, ..Default::default() };
+    for _ in 0..(seconds / TICK) as usize { engine.tick(TICK, &walking); }
+    engine.player.movement.origin.x
+}
+
+#[test]
+fn an_unturned_bar_blocks_the_corridor() {
+    let (mut engine, dir) = engine_with(&corridor_with_bar(0.0), "bar-0");
+    let reached = walked_to(&mut engine, 3.0);
+    assert!(reached < 250.0, "the bar should be in the way, walked to {reached}");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_bar_turned_a_quarter_turn_is_no_longer_in_the_way() {
+    // The same geometry, the same position, ninety degrees about its own
+    // centre. If the collision code ignored the angles this would still block.
+    let (mut engine, dir) = engine_with(&corridor_with_bar(90.0), "bar-90");
+    let reached = walked_to(&mut engine, 3.0);
+    assert!(reached > 300.0, "the bar should have swung clear, walked to {reached}");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_turned_model_is_drawn_where_it_blocks() {
+    // Renderer and collision take their transform from the same function, and
+    // this is the assertion that keeps it that way: the pose the renderer is
+    // handed must be the pose the collision world was built from.
+    use void_engine::collision::LevelCollision;
+
+    let (engine, dir) = engine_with(&corridor_with_bar(90.0), "bar-agree");
+    let bsp = &engine.level.as_ref().unwrap().bsp;
+    let drawn: Vec<_> = engine.brush_model_poses();
+    let world = LevelCollision::new(bsp, &engine.entities);
+
+    assert_eq!(drawn.len(), 1, "one brush entity in this map");
+    let (model, pose) = drawn[0];
+    assert_eq!(world.mover_count(), 1);
+
+    // The bar is x 250..266, y 0..64, turning about (258, 32). A quarter turn
+    // puts it at x 226..290, y 24..40. Both probes avoid the corridor's own
+    // dividing wall (x 256..272 outside the y 32..96 doorway), so the only
+    // thing either can be hitting is the bar.
+    let solid = Vec3::new(240.0, 32.0, 64.0);      // in the turned bar
+    let clear = Vec3::new(260.0, 50.0, 64.0);      // in the unturned one, in the doorway
+    let probe = |at: Vec3| {
+        world
+            .trace(at, at, Vec3::ZERO, Vec3::ZERO, void_bsp::contents::MASK_PLAYER_SOLID)
+            .start_solid
+    };
+
+    assert!(probe(solid), "the turned bar should be solid where it is drawn, at {solid:?}");
+    assert!(!probe(clear), "and not solid where it used to be, at {clear:?}");
+
+    // And the pose the renderer is handed is the one that produced those
+    // answers, which is the invariant the two probes are evidence for.
+    assert_eq!(pose.angles.yaw, 90.0);
+    assert!(pose.is_rotated());
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_rotating_brush_actually_turns_while_the_engine_runs() {
+    let mut map = corridor_with_bar(0.0);
+    let at = map.entities.len() - 1;
+    map.entities[at].set("spawnflags", "1");
+
+    let (mut engine, dir) = engine_with(&map, "bar-spin");
+    let idle = InputState { view_angles: Angles::ZERO, ..Default::default() };
+    for _ in 0..(1.0 / TICK) as usize { engine.tick(TICK, &idle); }
+
+    let bar = *engine.entities.find_by_name("bar").first().unwrap();
+    let turned = engine.entities.get(bar).unwrap().angles.yaw;
+    assert!(turned > 60.0, "90 degrees a second should have turned it, got {turned}");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 // ---- push and teleport ------------------------------------------------------
 
 #[test]

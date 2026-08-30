@@ -17,7 +17,7 @@ use std::sync::Arc;
 use void_bsp::{Bsp, contents};
 use void_console::{ConVarFlags, Console, requests};
 use void_entity::{EntityId, EntityWorld};
-use void_math::{Aabb, Angles, Vec3};
+use void_math::{Aabb, Angles, Pose, Vec3};
 use crate::collision::LevelCollision;
 use void_physics::{MoveInput, MoveParams, MoveState};
 use void_vfs::{Vfs, VfsError};
@@ -121,6 +121,25 @@ pub struct Level {
     /// map is loaded, and the entity that names it is inert at runtime, so
     /// this is the only moment anything asks.
     pub sky_color: Vec3,
+}
+
+/// How a brush model is placed, given where its entity has got to.
+///
+/// The pivot is the model's own centre, taken from its compiled bounds rather
+/// than from a keyvalue. A brush model is built in world coordinates, so there
+/// is no other point that means "spin where you stand", and asking a designer
+/// to place an origin brush -- Source's answer -- is asking them to state
+/// something the geometry already knows.
+pub fn brush_pose(bsp: Option<&Bsp>, model: usize, origin: Vec3, angles: Angles) -> Pose {
+    if angles == Angles::ZERO {
+        // The common case by a wide margin, and it needs no pivot at all.
+        return Pose::new(origin, angles);
+    }
+    let pivot = bsp
+        .and_then(|b| b.models.get(model))
+        .map(|m| m.bounds().center())
+        .unwrap_or(Vec3::ZERO);
+    Pose::about(origin, angles, pivot)
 }
 
 /// The engine.
@@ -267,12 +286,14 @@ impl Engine {
     /// agree: a door drawn where it is not is worse than a door that does not
     /// move at all, because the second is obvious. Model 0 is the static
     /// world and never appears here.
-    pub fn brush_model_offsets(&self) -> Vec<(usize, Vec3)> {
+    pub fn brush_model_poses(&self) -> Vec<(usize, Pose)> {
+        let level = self.level.as_ref();
         self.entities
             .iter()
             .filter_map(|e| {
                 let model = e.brush_model?;
-                (model != 0).then_some((model, e.origin))
+                if model == 0 { return None }
+                Some((model, brush_pose(level.map(|l| &l.bsp), model, e.origin, e.angles)))
             })
             .collect()
     }
