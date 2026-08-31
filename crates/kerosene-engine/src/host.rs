@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0-or-later
+// SPDX-License-Identifier: MPL-2.0
 //! The window, the GPU, and the frame loop.
 //!
 //! Everything display-dependent lives here, so that [`crate::engine::Engine`]

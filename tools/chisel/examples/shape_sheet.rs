@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0-or-later
+// SPDX-License-Identifier: MPL-2.0
 //! Every shape the shape tool draws, built and rendered, in one picture.
 //!
 //! ```text

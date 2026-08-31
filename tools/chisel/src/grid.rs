@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0-or-later
+// SPDX-License-Identifier: MPL-2.0
 //! The editing grid.
 //!
 //! Everything in a brush-based editor snaps to a grid, and the grid is a power

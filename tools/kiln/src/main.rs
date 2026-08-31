@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0-or-later
+// SPDX-License-Identifier: MPL-2.0
 //! `kiln` -- build a project's content.
 //!
 //! ```text
@@ -123,16 +123,6 @@ fn main() -> Result<()> {
     }
     if let Some(shipped) = &report.shipped {
         println!("shipped into {}", shipped.root.display());
-        // Said plainly and every time, because it is the difference between a
-        // distribution that satisfies the licence on its own and one whose
-        // obligations fall on whoever hands it out.
-        if !shipped.engine_is_replaceable() {
-            println!();
-            println!("note: the engine is linked statically into this build, so a");
-            println!("      recipient cannot replace it. That is fine for a game you");
-            println!("      ship with source; a closed-source one needs the engine as a");
-            println!("      shared library. README.txt in the distribution says so too.");
-        }
     }
 
     // Last, and on its own, because it is the thing worth reading: a leaking

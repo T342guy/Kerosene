@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0-or-later
+// SPDX-License-Identifier: MPL-2.0
 use super::*;
 use crate::Stage;
 use kerosene_vfs::project::Project;
@@ -49,14 +49,11 @@ impl Fixture {
     }
 
     /// Ship into `dist`, standing in a binary for the one cargo would build.
-    fn ship_with_binary(&self, library: Option<&str>) -> Result<Shipped> {
+    fn ship_with_binary(&self) -> Result<Shipped> {
         let bin_dir = self.root.join("bin");
         std::fs::create_dir_all(&bin_dir).unwrap();
         let binary = bin_dir.join("kerosene");
         std::fs::write(&binary, b"ELF").unwrap();
-        if let Some(library) = library {
-            std::fs::write(bin_dir.join(library), b"SO").unwrap();
-        }
         ship_from(&self.settings, &self.root.join("dist"), &binary)
     }
 
@@ -68,7 +65,7 @@ impl Fixture {
 #[test]
 fn the_game_is_named_after_the_project() {
     let f = Fixture::new("named");
-    let shipped = f.ship_with_binary(None).unwrap();
+    let shipped = f.ship_with_binary().unwrap();
 
     let exe = if cfg!(windows) { "test_game.exe" } else { "test_game" };
     assert_eq!(shipped.binary, f.dist().join(exe));
@@ -78,7 +75,7 @@ fn the_game_is_named_after_the_project() {
 #[test]
 fn the_archive_lands_under_content_where_the_game_looks_for_it() {
     let f = Fixture::new("archive");
-    let shipped = f.ship_with_binary(None).unwrap();
+    let shipped = f.ship_with_binary().unwrap();
 
     assert_eq!(shipped.archive, f.dist().join("content/test_game.vault"));
     assert_eq!(std::fs::read(&shipped.archive).unwrap(), b"vault");
@@ -87,7 +84,7 @@ fn the_archive_lands_under_content_where_the_game_looks_for_it() {
 #[test]
 fn a_project_file_is_written_pointing_at_the_shipped_content() {
     let f = Fixture::new("project");
-    f.ship_with_binary(None).unwrap();
+    f.ship_with_binary().unwrap();
 
     let written = std::fs::read_to_string(f.dist().join("test_game.keroproj")).unwrap();
     let project = Project::parse(&written, &f.dist().join("test_game.keroproj")).unwrap();
@@ -101,17 +98,17 @@ fn a_project_file_is_written_pointing_at_the_shipped_content() {
 }
 
 #[test]
-fn both_licence_texts_are_written_in_full() {
+fn the_licence_text_is_written_in_full() {
     let f = Fixture::new("licences");
-    f.ship_with_binary(None).unwrap();
+    f.ship_with_binary().unwrap();
 
-    let lgpl = std::fs::read_to_string(f.dist().join("COPYING.LESSER")).unwrap();
-    let gpl = std::fs::read_to_string(f.dist().join("COPYING")).unwrap();
+    let mpl = std::fs::read_to_string(f.dist().join("LICENSE-MPL-2.0")).unwrap();
 
-    assert!(lgpl.contains("GNU LESSER GENERAL PUBLIC LICENSE"), "the LGPL itself, not a summary");
-    assert!(gpl.contains("GNU GENERAL PUBLIC LICENSE"), "the GPL the LGPL builds on");
-    // Section 4 is the one this whole module exists to satisfy.
-    assert!(lgpl.contains("Combined Works"), "the LGPL text must be complete enough to act on");
+    assert!(mpl.contains("Mozilla Public License"), "the MPL, not a summary");
+    assert!(mpl.contains("2.0"), "the MPL-2.0 text must be complete enough to act on");
+    // No LGPL/GPL text belongs in an MPL-2.0 distribution.
+    assert!(!f.dist().join("COPYING").exists());
+    assert!(!f.dist().join("COPYING.LESSER").exists());
 }
 
 // ---- what must never land in it ---------------------------------------
@@ -123,7 +120,7 @@ fn no_tool_is_ever_shipped_with_a_game() {
     // distribution is assembled from a named list precisely so that this
     // cannot happen by accident, and this is the assertion that keeps it so.
     let f = Fixture::new("no-tools");
-    f.ship_with_binary(None).unwrap();
+    f.ship_with_binary().unwrap();
 
     let mut found = Vec::new();
     walk(&f.dist(), &mut found);
@@ -164,7 +161,7 @@ fn shipping_without_an_archive_says_to_build_first() {
     let f = Fixture::new("no-archive");
     std::fs::remove_file(f.settings.archive()).unwrap();
 
-    let err = f.ship_with_binary(None).unwrap_err().to_string();
+    let err = f.ship_with_binary().unwrap_err().to_string();
     assert!(err.contains("does not exist"), "{err}");
     assert!(err.contains("Run kiln"), "the error has to say what to do: {err}");
 }
@@ -178,56 +175,25 @@ fn shipping_a_stale_archive_is_refused_and_names_what_changed() {
     std::thread::sleep(std::time::Duration::from_millis(20));
     std::fs::write(f.settings.content.join("maps/a.kerobsp"), b"edited").unwrap();
 
-    let err = f.ship_with_binary(None).unwrap_err().to_string();
+    let err = f.ship_with_binary().unwrap_err().to_string();
     assert!(err.contains("older than"), "{err}");
     assert!(err.contains("a.kerobsp"), "the stale file must be named: {err}");
 }
 
-// ---- the licence notice tracks how the engine was linked ---------------
-
-#[test]
-fn a_shared_engine_is_shipped_and_reported_as_replaceable() {
-    let library = if cfg!(windows) {
-        "kerosene_engine.dll"
-    } else if cfg!(target_os = "macos") {
-        "libkerosene_engine.dylib"
-    } else {
-        "libkerosene_engine.so"
-    };
-    let f = Fixture::new("dynamic");
-    let shipped = f.ship_with_binary(Some(library)).unwrap();
-
-    assert!(shipped.engine_is_replaceable());
-    assert!(shipped.engine_library.as_ref().unwrap().is_file(), "the library must be copied");
-
-    let readme = std::fs::read_to_string(f.dist().join("README.txt")).unwrap();
-    assert!(readme.contains("replace that file"), "{readme}");
-    assert!(readme.contains("1.94"), "relinking needs the compiler version: {readme}");
-}
-
-#[test]
-fn a_static_engine_is_reported_as_not_replaceable_and_says_what_is_owed() {
-    let f = Fixture::new("static");
-    let shipped = f.ship_with_binary(None).unwrap();
-
-    assert!(!shipped.engine_is_replaceable());
-    assert_eq!(shipped.engine_library, None);
-
-    let readme = std::fs::read_to_string(f.dist().join("README.txt")).unwrap();
-    assert!(readme.contains("linked statically"), "{readme}");
-    assert!(readme.contains("section 4"), "the recipient is owed a relink route: {readme}");
-}
+// ---- the licence notice is unconditional under MPL-2.0 ---------------
 
 #[test]
 fn the_notice_names_the_engine_and_disclaims_warranty() {
-    // LGPL 4(a): prominent notice that the work uses the library and that the
-    // library is covered by the licence.
+    // MPL-2.0 asks that a program carrying its code unmodified preserve the
+    // notice and point at the source. That is the whole of the obligation --
+    // there is no relinking clause, because MPL-2.0 copies only at file
+    // level and never at the level of how the binary is linked.
     let f = Fixture::new("notice");
-    f.ship_with_binary(None).unwrap();
+    f.ship_with_binary().unwrap();
 
     let readme = std::fs::read_to_string(f.dist().join("README.txt")).unwrap();
     assert!(readme.contains("Built with Kerosene"));
-    assert!(readme.contains("Lesser General Public License"));
+    assert!(readme.contains("Mozilla Public License"));
     assert!(readme.contains("NO WARRANTY"));
     assert!(readme.contains("Test Game"), "the game's own name belongs at the top: {readme}");
     // The fonts travel inside any binary linking egui, which includes the
@@ -241,7 +207,7 @@ fn the_notice_carries_the_mpl_crate_the_engine_links() {
     // MPL-2.0 code and owes its notice. Nobody would remember this; the point
     // of writing the file from code is that nobody has to.
     let f = Fixture::new("mpl");
-    f.ship_with_binary(None).unwrap();
+    f.ship_with_binary().unwrap();
 
     let readme = std::fs::read_to_string(f.dist().join("README.txt")).unwrap();
     assert!(readme.contains("smartstring"), "{readme}");

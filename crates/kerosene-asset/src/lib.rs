@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0-or-later
+// SPDX-License-Identifier: MPL-2.0
 //! Asset formats: textures, materials and models.
 //!
 //! These are the *compiled* forms the engine loads. Source art -- PNGs, mesh

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0-or-later
+// SPDX-License-Identifier: MPL-2.0
 //! Generates `content/maps/kero_start.keromap`, the sample level.
 //!
 //! Run with `cargo run -p kerosene-map --example sample_map`. Writing it in code

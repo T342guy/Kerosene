@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0-or-later
+// SPDX-License-Identifier: MPL-2.0
 //! Cleave -- the Kerosene BSP compiler.
 //!
 //! Takes a `.keromap` and produces a `.kerobsp` the engine can load, plus a `.keroprt`

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0-or-later
+// SPDX-License-Identifier: MPL-2.0
 //! Regression tests for the 3D pane, at the pixel level.
 //!
 //! The bugs these cover were all reported the same way -- "at certain angles"

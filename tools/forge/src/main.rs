@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0-or-later
+// SPDX-License-Identifier: MPL-2.0
 //! Forge -- the Kerosene model compiler.
 //!
 //! Turns a source mesh into a `.keromdl` the engine can load, the studiomdl

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0-or-later
+// SPDX-License-Identifier: MPL-2.0
 //! Moving brushes: doors, buttons, rotating brushes and switchable ones.
 //!
 //! A door and a button are the same machine. Both travel along an axis by

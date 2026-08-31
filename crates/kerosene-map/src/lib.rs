@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0-or-later
+// SPDX-License-Identifier: MPL-2.0
 //! `.keromap` -- Kerosene's editable map source format.
 //!
 //! This is the analogue of Source's `.vmf`: what Chisel saves, what version

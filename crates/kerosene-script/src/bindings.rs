@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0-or-later
+// SPDX-License-Identifier: MPL-2.0
 //! What a script can call.
 //!
 //! The whole API, in one file, on purpose. A scripting surface that is spread

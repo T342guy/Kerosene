@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0-or-later
+// SPDX-License-Identifier: MPL-2.0
 //! The editing tools: select, block, shape, entity, texture.
 //!
 //! Each tool is a small state machine over a drag. Keeping them here, away

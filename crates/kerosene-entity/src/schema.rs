@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0-or-later
+// SPDX-License-Identifier: MPL-2.0
 //! Entity class definitions -- what an editor needs to show for a class.
 //!
 //! The engine reads whatever keys a map happens to carry: an entity is a bag

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0-or-later
+// SPDX-License-Identifier: MPL-2.0
 //! Turning a compiled map into geometry a GPU can draw.
 //!
 //! A `.kerobsp` stores faces as rings of shared edges, which is right for

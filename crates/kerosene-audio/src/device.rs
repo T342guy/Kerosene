@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0-or-later
+// SPDX-License-Identifier: MPL-2.0
 //! The last hop: a mixer feeding a sound card.
 //!
 //! Behind a feature flag because it is the only part of this crate that needs

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0-or-later
+// SPDX-License-Identifier: MPL-2.0
 //! The mixer: voices in, stereo out.
 //!
 //! Everything here is arithmetic on buffers, with no device in it, which is

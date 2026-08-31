@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0-or-later
+// SPDX-License-Identifier: MPL-2.0
 //! `alchemy` -- the command-line front end to the texture tool.
 //!
 //! Turns source art into the formats the engine loads: `.png` and friends into

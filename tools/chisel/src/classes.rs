@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0-or-later
+// SPDX-License-Identifier: MPL-2.0
 //! Loading the game's entity class definitions.
 //!
 //! Chisel does not link the game. It reads the game's `.kerodef` files out of

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0-or-later
+// SPDX-License-Identifier: MPL-2.0
 //! The entity system and its I/O graph.
 //!
 //! Alongside brush geometry, entity I/O is what makes a Source level a level

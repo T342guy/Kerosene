@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0-or-later
+// SPDX-License-Identifier: MPL-2.0
 //! Tool materials: how a material name decides what a brush *means*.
 //!
 //! Source encodes compile-time intent in the texture applied to a face. A

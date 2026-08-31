@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0-or-later
+// SPDX-License-Identifier: MPL-2.0
 //! Input: key bindings and the move commands they produce.
 //!
 //! Bindings map a key to a *console command string*, exactly as Source does.

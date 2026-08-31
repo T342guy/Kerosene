@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0-or-later
+// SPDX-License-Identifier: MPL-2.0
 //! Reading and writing `.kerobsp` files.
 //!
 //! The file is a header, a lump directory, and then the lumps. Every lump is a

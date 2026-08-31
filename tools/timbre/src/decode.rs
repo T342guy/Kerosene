@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0-or-later
+// SPDX-License-Identifier: MPL-2.0
 //! Reading source audio, whatever it arrived as.
 //!
 //! WAV is decoded by [`kerosene_audio::wav`] -- the engine's own decoder, written

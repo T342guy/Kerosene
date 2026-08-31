@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0-or-later
+// SPDX-License-Identifier: MPL-2.0
 //! Sound: decoding, mixing, and getting it to the speakers.
 //!
 //! Three layers, separable on purpose:

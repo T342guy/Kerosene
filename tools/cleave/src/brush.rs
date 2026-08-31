@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0-or-later
+// SPDX-License-Identifier: MPL-2.0
 //! The compiler's working representation of a brush.
 //!
 //! A `.keromap` solid is a list of planes. Cleave needs more: interned plane

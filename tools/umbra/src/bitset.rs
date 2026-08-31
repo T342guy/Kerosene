@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0-or-later
+// SPDX-License-Identifier: MPL-2.0
 //! A fixed-width bit set, sized once and reused.
 //!
 //! Visibility is fundamentally "which of these N things can see which other N

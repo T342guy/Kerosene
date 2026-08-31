@@ -281,17 +281,13 @@ Known limits, stated plainly:
 
 ## Licence
 
-**LGPL-3.0-or-later.** The full texts are `COPYING` (GPL-3.0, which the LGPL
-builds on) and `COPYING.LESSER` (LGPL-3.0); every source file carries an
-`SPDX-License-Identifier` line.
+**MPL-2.0.** The full text is `LICENSE-MPL-2.0`; every source file carries an
+`SPDX-License-Identifier: MPL-2.0` line.
 
-In practice: changes *to Kerosene itself* must be published under the same
-licence, but a game built on it can be whatever you like. That is the whole
-point of choosing the Lesser GPL over the GPL.
-
-One thing to know before you ship a binary: the LGPL's mechanism assumes a
-user can swap in their own build of the library, and Rust links statically. If
-you distribute a closed-source game linked against Kerosene, LGPL §4 asks you
-to make relinking possible — ship object files, or link the engine as a shared
-library. [`docs/licensing.md`](docs/licensing.md) explains this properly, along
-with the full dependency audit and the provenance of the algorithms.
+MPL-2.0 is weak, *file-level* copyleft. In practice: changes *to Kerosene's
+own files* must be published under MPL-2.0, but a game built on it — your
+code, your assets, your levels — can be whatever you like and shipped any way
+you like. There is no linking stage and no relinking clause, so a
+closed-source game with the engine statically linked needs nothing more than
+a notice. [`docs/licensing.md`](docs/licensing.md) explains this properly,
+along with the full dependency audit and the provenance of the algorithms.

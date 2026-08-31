@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0-or-later
+// SPDX-License-Identifier: MPL-2.0
 //! Core math for Kerosene.
 //!
 //! Kerosene inherits Source's conventions, because the tools and the map

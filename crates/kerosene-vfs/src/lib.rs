@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0-or-later
+// SPDX-License-Identifier: MPL-2.0
 //! The virtual filesystem: search paths and mounted archives.
 //!
 //! Source's filesystem lets a mod, the base game and a set of VPKs stack into

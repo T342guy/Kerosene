@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0-or-later
+// SPDX-License-Identifier: MPL-2.0
 //! Reading a list of connections as the sequence a designer meant.
 //!
 //! A `.keromap` stores wiring as a flat list of connections, each one an

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0-or-later
+// SPDX-License-Identifier: MPL-2.0
 //! Drawing the viewports.
 //!
 //! The 2D panes are drawn with egui's painter: a grid, then brush outlines,

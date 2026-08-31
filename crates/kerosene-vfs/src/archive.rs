@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0-or-later
+// SPDX-License-Identifier: MPL-2.0
 //! The `.vault` archive format -- Kerosene's answer to Source's VPK.
 //!
 //! One file holding a whole content tree, so a mod ships as a handful of

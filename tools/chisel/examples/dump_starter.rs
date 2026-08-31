@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0-or-later
+// SPDX-License-Identifier: MPL-2.0
 //! Write Chisel's starter room out as a `.keromap`, so the compilers can be
 //! pointed at exactly what a new document contains.
 fn main() -> anyhow::Result<()> {

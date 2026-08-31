@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0-or-later
+// SPDX-License-Identifier: MPL-2.0
 //! On-disk lump structures for `.kerobsp`.
 //!
 //! Every struct here is `#[repr(C)]` and padding-free so it can be

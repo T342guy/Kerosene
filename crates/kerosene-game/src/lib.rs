@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0-or-later
+// SPDX-License-Identifier: MPL-2.0
 //! The sample game: entity classes and the rules that use them.
 //!
 //! This is the analogue of Source's game DLL. `kerosene-entity` knows how to route

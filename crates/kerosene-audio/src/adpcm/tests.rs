@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0-or-later
+// SPDX-License-Identifier: MPL-2.0
 use super::*;
 
 /// A sine at `hz`, the shape most like real audio that is easy to reason about.

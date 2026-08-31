@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0-or-later
+// SPDX-License-Identifier: MPL-2.0
 //! Light entities, read out of the compiled entity lump.
 //!
 //! Lighting is authored as entities, the same as everything else -- a `light`

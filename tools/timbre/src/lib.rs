@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0-or-later
+// SPDX-License-Identifier: MPL-2.0
 //! Timbre -- the Kerosene sound compiler.
 //!
 //! Turns `.wav` into `.keroaud`, the studiomdl of audio. It exists for the

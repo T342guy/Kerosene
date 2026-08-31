@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0-or-later
+// SPDX-License-Identifier: MPL-2.0
 //! Grouping a flat list of asset names into something you can look through.
 //!
 //! Materials and models both arrive as a list of paths -- `dev/grid`,

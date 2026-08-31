@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0-or-later
+// SPDX-License-Identifier: MPL-2.0
 //! Scripting: the layer above entity I/O.
 //!
 //! Entity outputs wired to inputs compose further than they have any right

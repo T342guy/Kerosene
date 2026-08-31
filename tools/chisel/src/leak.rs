@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0-or-later
+// SPDX-License-Identifier: MPL-2.0
 //! Loading and showing a leak trace.
 //!
 //! When a map is not sealed, Cleave writes a `.keroleak` beside it: the route

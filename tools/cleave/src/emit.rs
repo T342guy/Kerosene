@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0-or-later
+// SPDX-License-Identifier: MPL-2.0
 //! Turning the compiled tree into `.kerobsp` lumps.
 //!
 //! Three jobs happen here, in order:

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0-or-later
+// SPDX-License-Identifier: MPL-2.0
 //! `.keromdl` -- compiled models, the MDL analogue.
 //!
 //! Brush geometry handles walls and floors; models handle everything a brush

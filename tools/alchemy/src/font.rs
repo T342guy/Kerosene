@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0-or-later
+// SPDX-License-Identifier: MPL-2.0
 //! A 5x7 bitmap font, for labelling generated textures.
 //!
 //! Small on purpose. A tool texture is only useful if you can tell which one

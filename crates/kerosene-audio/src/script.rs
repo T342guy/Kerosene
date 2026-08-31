@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0-or-later
+// SPDX-License-Identifier: MPL-2.0
 //! Sound scripts: what a name means.
 //!
 //! A level fires `door/open`, and what that *is* -- which file, how loud, how

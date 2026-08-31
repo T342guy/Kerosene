@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0-or-later
+// SPDX-License-Identifier: MPL-2.0
 //! Player movement and collision response.
 //!
 //! This is a faithful reimplementation of Source's `gamemovement`, because the

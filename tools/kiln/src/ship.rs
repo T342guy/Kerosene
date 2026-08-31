@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0-or-later
+// SPDX-License-Identifier: MPL-2.0
 //! Assembling a distribution -- the step after the content is built.
 //!
 //! Everything up to here produces *content*: textures, models, maps, and a
@@ -31,9 +31,8 @@
 //!   my_game.keroproj   content = "content", so the game finds its own archive
 //!   content/
 //!     my_game.vault
-//!   COPYING            GPL-3.0, which the LGPL builds on
-//!   COPYING.LESSER     LGPL-3.0
-//!   README.txt         what this is, and the notice LGPL section 4(a) asks for
+//!   LICENSE-MPL-2.0    the engine's licence, full text
+//!   README.txt         what this is, and the notice MPL-2.0 asks for
 //! ```
 
 use crate::{Settings, slug};
@@ -49,14 +48,6 @@ use std::time::SystemTime;
 /// write them, and a licence file that is missing when it matters is the
 /// whole failure this module exists to prevent.
 const MPL: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../LICENSE-MPL-2.0"));
-const LGPL: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../LICENSE-LGPL-3.0"));
-
-/// The Rust toolchain this engine is built with.
-///
-/// Part of the distribution rather than a development detail: relinking a
-/// modified engine against a game requires the same compiler, so the version
-/// is something a recipient needs to be told.
-const TOOLCHAIN: &str = "1.94";
 
 /// What was assembled.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -65,22 +56,8 @@ pub struct Shipped {
     /// The game executable, as named in the distribution.
     pub binary: PathBuf,
     pub archive: PathBuf,
-    /// The engine shared library, when the build produced one.
-    ///
-    /// Absent means the engine is linked statically into the binary, which is
-    /// a licence question rather than a technical one -- see [`ship`].
-    pub engine_library: Option<PathBuf>,
     /// Every file written that exists to satisfy a licence.
     pub notices: Vec<PathBuf>,
-}
-
-impl Shipped {
-    /// Whether the engine can be replaced in this distribution.
-    ///
-    /// The LGPL's whole mechanism is that a recipient can build a modified
-    /// engine and use it with the program they were given. A separate shared
-    /// library allows that; a static link does not.
-    pub fn engine_is_replaceable(&self) -> bool { self.engine_library.is_some() }
 }
 
 /// Assemble a distribution into `out`.
@@ -111,16 +88,11 @@ pub(crate) fn ship_from(settings: &Settings, out: &Path, source: &Path) -> Resul
     };
     let exe = if cfg!(windows) { format!("{name}.exe") } else { name.clone() };
 
-    let library = engine_library_beside(source);
-
     let shipped = Shipped {
         root: out.to_path_buf(),
         binary: out.join(&exe),
         archive: out.join("content").join(archive.file_name().unwrap_or_default()),
-        engine_library: library
-            .as_ref()
-            .map(|l| out.join(l.file_name().unwrap_or_default())),
-        notices: ["COPYING", "COPYING.LESSER", "README.txt"]
+        notices: ["LICENSE-MPL-2.0", "README.txt"]
             .iter()
             .map(|n| out.join(n))
             .collect(),
@@ -136,21 +108,14 @@ pub(crate) fn ship_from(settings: &Settings, out: &Path, source: &Path) -> Resul
 
     copy(source, &shipped.binary)?;
     copy(&archive, &shipped.archive)?;
-    if let (Some(from), Some(to)) = (&library, &shipped.engine_library) {
-        copy(from, to)?;
-    }
 
     write_project(settings, &out.join(format!("{name}.keroproj")), &name)?;
-    std::fs::write(out.join("COPYING"), MPL)?;
-    std::fs::write(out.join("COPYING.LESSER"), LGPL)?;
-    std::fs::write(out.join("README.txt"), readme(settings, &name, &shipped))?;
+    std::fs::write(out.join("LICENSE-MPL-2.0"), MPL)?;
+    std::fs::write(out.join("README.txt"), readme(settings, &name))?;
 
     println!("  {} -> {}", source.display(), shipped.binary.display());
     println!("  {} -> {}", archive.display(), shipped.archive.display());
-    if let Some(library) = &shipped.engine_library {
-        println!("  engine library -> {}", library.display());
-    }
-    println!("  wrote COPYING, COPYING.LESSER and README.txt");
+    println!("  wrote LICENSE-MPL-2.0 and README.txt");
     Ok(shipped)
 }
 
@@ -270,22 +235,6 @@ fn built_binary(from: &Path, package: &str) -> Option<PathBuf> {
     None
 }
 
-/// The engine shared library beside a built binary, when there is one.
-///
-/// Its absence is not an error -- a statically linked build runs perfectly
-/// well -- but it decides what [`readme`] has to say about relinking.
-fn engine_library_beside(binary: &Path) -> Option<PathBuf> {
-    let dir = binary.parent()?;
-    let names = if cfg!(windows) {
-        ["kerosene_engine.dll", "libkerosene_engine.dll"]
-    } else if cfg!(target_os = "macos") {
-        ["libkerosene_engine.dylib", "kerosene_engine.dylib"]
-    } else {
-        ["libkerosene_engine.so", "kerosene_engine.so"]
-    };
-    names.iter().map(|n| dir.join(n)).find(|p| p.is_file())
-}
-
 /// Write the project file the shipped game reads.
 ///
 /// Deliberately not a copy of the developer's own: theirs points at a content
@@ -307,13 +256,13 @@ fn write_project(settings: &Settings, path: &Path, name: &str) -> Result<()> {
     Ok(())
 }
 
-/// The notice LGPL section 4(a) asks for, plus what a recipient needs to act on it.
+/// The notice MPL-2.0 asks of a program that carries its code unmodified.
 ///
 /// Written out in full rather than pointing at a URL, because the obligation
-/// travels with the copy and a link can rot. What it says depends on how the
-/// engine was linked: with a shared library the recipient already has
-/// everything they need, and without one they are owed more.
-fn readme(settings: &Settings, name: &str, shipped: &Shipped) -> String {
+/// travels with the copy and a link can rot. MPL-2.0 is file-level copyleft:
+/// it reaches only its own files, so a game that ships Kerosene owes a notice
+/// and a pointer to the source, and nothing resembling a relinking clause.
+fn readme(settings: &Settings, name: &str) -> String {
     let title = settings.project.as_ref().map_or(name, |p| p.name.as_str());
     let mut out = String::new();
 
@@ -323,30 +272,12 @@ fn readme(settings: &Settings, name: &str, shipped: &Shipped) -> String {
     out.push_str("\n\nBuilt with Kerosene.\n\n");
 
     out.push_str(
-        "Kerosene is free software: you can redistribute it and modify it under\n\
-         the terms of the GNU Lesser General Public License, version 3 or (at your\n\
-         option) any later version. The full terms are in COPYING.LESSER, and in\n\
-         COPYING, which holds the GNU General Public License that the Lesser GPL\n\
-         builds on. Kerosene comes with ABSOLUTELY NO WARRANTY.\n\n",
+        "Kerosene is provided under the Mozilla Public License 2.0. The full\n\
+         terms are in LICENSE-MPL-2.0. MPL-2.0 is file-level copyleft: it requires\n\
+         source for the files it covers, and it does not reach the rest of this\n\
+         program or the game that builds on it. Kerosene comes with ABSOLUTELY\n\
+         NO WARRANTY.\n\n",
     );
-
-    out.push_str("Replacing the engine\n--------------------\n\n");
-    if shipped.engine_is_replaceable() {
-        out.push_str(&format!(
-            "The engine is the shared library shipped alongside this program, not part\n\
-             of the executable. To run this program against your own build of Kerosene,\n\
-             compile the engine and replace that file. Both must be built with the same\n\
-             Rust compiler -- this program was built with {TOOLCHAIN}.\n\n"
-        ));
-    } else {
-        out.push_str(&format!(
-            "The engine is linked statically into this executable, so it cannot be\n\
-             replaced by swapping a file. If you received this program without source,\n\
-             you are entitled under section 4 of the Lesser GPL to what you need in\n\
-             order to relink it against your own build of Kerosene; ask whoever\n\
-             distributed it. Any such rebuild uses Rust {TOOLCHAIN}.\n\n"
-        ));
-    }
 
     out.push_str("Engine source\n-------------\n\n");
     out.push_str(

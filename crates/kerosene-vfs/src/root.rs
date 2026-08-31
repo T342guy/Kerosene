@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0-or-later
+// SPDX-License-Identifier: MPL-2.0
 //! Finding the content tree.
 //!
 //! Every tool in the engine needs the same answer to the same question: where

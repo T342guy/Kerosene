@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0-or-later
+// SPDX-License-Identifier: MPL-2.0
 //! Primitives that are not boxes.
 //!
 //! A brush is a convex solid, and no convex solid is curved. That is not a

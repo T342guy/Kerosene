@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0-or-later
+// SPDX-License-Identifier: MPL-2.0
 //! Textures, for the 3D pane and the material browser.
 //!
 //! Chisel reads the *compiled* `.kerotex`, not the source PNG, and does it

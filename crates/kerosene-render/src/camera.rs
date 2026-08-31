@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0-or-later
+// SPDX-License-Identifier: MPL-2.0
 //! View and projection, and the frustum that falls out of them.
 //!
 //! The awkward part is that Kerosene's world is Z-up with +X forward, while

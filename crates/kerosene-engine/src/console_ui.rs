@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0-or-later
+// SPDX-License-Identifier: MPL-2.0
 //! Drawing the developer console over the game.
 //!
 //! The console's behaviour -- history, completion, scrollback -- is a state
