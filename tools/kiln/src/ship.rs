@@ -48,8 +48,8 @@ use std::time::SystemTime;
 /// time, because `kiln` installed somewhere else still has to be able to
 /// write them, and a licence file that is missing when it matters is the
 /// whole failure this module exists to prevent.
-const GPL: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../COPYING"));
-const LGPL: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../COPYING.LESSER"));
+const MPL: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../LICENSE-MPL-2.0"));
+const LGPL: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../LICENSE-LGPL-3.0"));
 
 /// The Rust toolchain this engine is built with.
 ///
@@ -141,7 +141,7 @@ pub(crate) fn ship_from(settings: &Settings, out: &Path, source: &Path) -> Resul
     }
 
     write_project(settings, &out.join(format!("{name}.keroproj")), &name)?;
-    std::fs::write(out.join("COPYING"), GPL)?;
+    std::fs::write(out.join("COPYING"), MPL)?;
     std::fs::write(out.join("COPYING.LESSER"), LGPL)?;
     std::fs::write(out.join("README.txt"), readme(settings, &name, &shipped))?;
 

@@ -19,3 +19,6 @@ content/maps/*.kerobsp
 
 **/*.rs.bk
 .DS_Store
+
+# RustRover
+/.idea
