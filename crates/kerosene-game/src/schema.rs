@@ -1,3 +1,28 @@
+// SPDX-License-Identifier: MPL-2.0
+//! The game's entity schema, embedded in the crate.
+//!
+//! Chisel used to read this out of a `.kerodef` file in the content tree --
+//! the same relationship Hammer has with an FGD. That split had a failure
+//! mode: an editor pointed at a tree with no definitions file showed a blank
+//! property inspector for every freshly placed entity, and there was nothing
+//! for the editor to fall back on.
+//!
+//! So the schema for this game now lives here, compiled into the crate that
+//! defines the classes it describes. Chisel parses [`BUILTIN`] first and only
+//! then merges any `.kerodef` files it finds on disk, so a mod can still
+//! override a class by dropping its own file beside the game's -- and a tree
+//! with no such file loses nothing, because the built-in schema is always
+//! there.
+//!
+//! The text is the `.kerodef` format described in `docs/formats.md`, kept as
+//! data rather than constructed in code so it stays readable and reviewable.
+
+/// The shipped entity schema, in `.kerodef` text form.
+///
+/// Parsed with `kerosene_entity::Schema::parse`. This is the canonical copy:
+/// `content/kerosene.kerodef` mirrors it and doubles as the content-root
+/// marker, but Chisel no longer needs that file to describe a class.
+pub const BUILTIN: &str = r#"
 // Kerosene entity class definitions.
 //
 // This is what Chisel shows in its property inspector: for every class the
@@ -454,3 +479,4 @@ class
     input  { "name" "Display" "help" "The same as Show." }
     output { "name" "OnShowMessage" }
 }
+"#;

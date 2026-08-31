@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 //! The shipped class schema must describe the game that is actually here.
 //!
-//! `content/kerosene.kerodef` is what Chisel shows in its property
+//! `kerosene_game::schema::BUILTIN` is what Chisel shows in its property
 //! inspector. Nothing at runtime reads it, so without a test it would rot the
 //! first time someone added an input -- and the failure mode is miserable: a
 //! designer wires up something the editor offered and the map silently does
@@ -15,10 +15,7 @@ use std::collections::BTreeSet;
 use kerosene_entity::{ClassKind, Schema};
 
 fn schema() -> Schema {
-    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../content/kerosene.kerodef");
-    let text = std::fs::read_to_string(path)
-        .unwrap_or_else(|e| panic!("the shipped schema must be readable at {path}: {e}"));
-    Schema::parse(&text).expect("the shipped schema must parse")
+    Schema::parse(kerosene_game::schema::BUILTIN).expect("the embedded schema must parse")
 }
 
 #[test]
@@ -32,7 +29,7 @@ fn every_registered_class_is_described() {
         .collect();
     assert!(
         missing.is_empty(),
-        "these classes exist in the game but not in content/kerosene.kerodef, \
+        "these classes exist in the game but not in the built-in schema, \
          so Chisel would show no properties for them: {missing:?}"
     );
 }

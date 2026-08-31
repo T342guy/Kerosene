@@ -32,6 +32,7 @@
 
 pub mod doors;
 pub mod logic;
+pub mod schema;
 pub mod scripted;
 pub mod sound;
 pub mod triggers;

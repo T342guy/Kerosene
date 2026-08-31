@@ -22,10 +22,11 @@ use kerosene_entity::{ClassKind, KeyKind, Schema};
 use kerosene_map::Connection;
 use kerosene_math::Vec3;
 
-/// Entity classes offered when the content tree has no definitions in it.
+/// Entity classes offered if the built-in schema ever fails to load.
 ///
-/// A bare minimum so the entity tool is not simply broken without content;
-/// the real list comes from the game's `.kerodef`.
+/// The built-in set is compiled into the game crate, so this should be
+/// unreachable; it is a last resort so the entity tool is not simply broken
+/// if the embedded schema is somehow invalid.
 const FALLBACK_CLASSES: &[&str] = &["info_player_start", "light", "logic_relay"];
 
 /// How fast the 3D camera flies by default, in kerosene units per second.
@@ -1423,7 +1424,7 @@ impl ChiselApp {
                 if spec.is_none() {
                     ui.label(RichText::new("(no definition)").color(egui::Color32::from_rgb(220, 160, 90)))
                         .on_hover_text(
-                            "No .kerodef describes this class, so only the keys it \
+                            "No class definition describes this class, so only the keys it \
                              already carries can be shown.",
                         );
                 }
@@ -3201,10 +3202,11 @@ mod tests {
     #[test]
     fn the_menus_still_offer_something_without_a_content_tree() {
         let app = ChiselApp::new(std::path::PathBuf::from("/definitely/not/here"));
-        assert!(app.schema.is_empty());
+        // The built-in schema is always present, even with no content tree.
+        assert!(!app.schema.is_empty(), "the built-in schema covers a missing tree");
         assert!(!app.point_classes().is_empty(), "the entity tool must not be dead");
         assert!(!app.brush_classes().is_empty());
-        assert!(app.status.contains("no .kerodef"), "and it says so: {}", app.status);
+        assert!(app.status.contains("built in"), "and it says so: {}", app.status);
     }
 
     #[test]

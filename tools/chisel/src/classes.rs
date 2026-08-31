@@ -1,14 +1,18 @@
 // SPDX-License-Identifier: MPL-2.0
 //! Loading the game's entity class definitions.
 //!
-//! Chisel does not link the game. It reads the game's `.kerodef` files out of
-//! the content tree, exactly as Hammer reads an FGD -- which is what lets the
-//! editor stay a separate program from the engine while still knowing that a
-//! `func_door` has a `speed` and answers to `Open`.
+//! The shipped definitions are compiled into the game crate
+//! (`kerosene_game::schema::BUILTIN`) and parsed here first, so Chisel knows
+//! that a `func_door` has a `speed` and answers to `Open` even when the
+//! content tree has no `.kerodef` file in it. On-disk `.kerodef` files are
+//! still read and merged *over* the built-in set, exactly as Hammer reads an
+//! FGD, so a mod can override a class by dropping its own file beside the
+//! game's -- and a tree with no such file loses nothing.
 //!
-//! Without a schema the inspector can only show the keys an entity already
-//! carries, which for a freshly placed entity is none of them. That is not a
-//! degraded mode worth being quiet about, so [`load`] reports what it found.
+//! Without a schema at all the inspector can only show the keys an entity
+//! already carries, which for a freshly placed entity is none of them. The
+//! built-in set makes that state unreachable for the shipped game; [`load`]
+//! still reports what it found.
 
 use std::path::{Path, PathBuf};
 use kerosene_entity::Schema;
@@ -34,9 +38,13 @@ impl Loaded {
             return format!("entity definitions: {}", self.errors.join("; "));
         }
         match self.files.len() {
-            0 => format!("no .{EXTENSION} found -- entity properties will be blank"),
-            1 => format!("{} entity classes from {}", self.schema.len(), display(&self.files[0])),
-            n => format!("{} entity classes from {n} files", self.schema.len()),
+            0 => format!("{} entity classes (built in)", self.schema.len()),
+            1 => format!(
+                "{} entity classes from {} plus the built-in set",
+                self.schema.len(),
+                display(&self.files[0])
+            ),
+            n => format!("{} entity classes from {n} files plus the built-in set", self.schema.len()),
         }
     }
 }
@@ -45,17 +53,29 @@ fn display(path: &Path) -> String {
     path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default()
 }
 
-/// Load and merge every `.kerodef` under a content root.
+/// Load the built-in schema, then every `.kerodef` under a content root.
 ///
-/// Files are merged in sorted path order and a later definition of a class
-/// replaces an earlier one, so a mod can drop its own file in beside the
-/// game's and override a class without editing it.
+/// The built-in set comes first so the editor is never without entity
+/// definitions. Files found on disk are merged in sorted path order and a
+/// later definition of a class replaces an earlier one, so a mod can drop its
+/// own file in beside the game's and override a class without editing it.
 pub fn load(content_root: &Path) -> Loaded {
+    let schema = match Schema::parse(kerosene_game::schema::BUILTIN) {
+        Ok(schema) => schema,
+        Err(e) => {
+            return Loaded {
+                schema: Schema::default(),
+                files: Vec::new(),
+                errors: vec![format!("built-in schema: {e}")],
+            };
+        }
+    };
+
     let mut files = Vec::new();
     collect(content_root, &mut files);
     files.sort();
 
-    let mut loaded = Loaded { schema: Schema::default(), files: Vec::new(), errors: Vec::new() };
+    let mut loaded = Loaded { schema, files: Vec::new(), errors: Vec::new() };
     for path in files {
         match std::fs::read_to_string(&path) {
             Ok(text) => match Schema::parse(&text) {
@@ -105,6 +125,7 @@ mod tests {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content");
         let loaded = load(&root);
         assert!(loaded.errors.is_empty(), "{:?}", loaded.errors);
+        // The mirror file in content/ is found and merged over the built-in set.
         assert_eq!(loaded.files.len(), 1, "one shipped file: {:?}", loaded.files);
         let door = loaded.schema.get("func_door").expect("the sample game has doors");
         assert!(door.key("speed").is_some());
@@ -115,11 +136,17 @@ mod tests {
     }
 
     #[test]
-    fn an_empty_tree_is_reported_rather_than_looking_like_success() {
+    fn the_built_in_definitions_cover_an_empty_tree() {
+        // The bug this module exists to prevent: an editor pointed at a tree
+        // with no `.kerodef` file must still know what a `func_door` is.
         let dir = scratch("empty");
         let loaded = load(&dir);
-        assert!(loaded.schema.is_empty());
-        assert!(loaded.summary().contains("no .kerodef"), "{}", loaded.summary());
+        assert!(loaded.errors.is_empty(), "{:?}", loaded.errors);
+        assert!(loaded.files.is_empty(), "no files to read: {:?}", loaded.files);
+        assert!(!loaded.schema.is_empty(), "the built-in schema is always present");
+        assert!(loaded.schema.get("func_door").is_some());
+        assert!(loaded.schema.get("light").is_some());
+        assert!(loaded.summary().contains("built in"), "{}", loaded.summary());
         std::fs::remove_dir_all(&dir).ok();
     }
 
@@ -141,7 +168,6 @@ mod tests {
         std::fs::write(dir.join("b-mod.kerodef"), r#"class { "name" "func_x" "help" "second" }"#).unwrap();
         let loaded = load(&dir);
         assert_eq!(loaded.files.len(), 2);
-        assert_eq!(loaded.schema.len(), 1);
         assert_eq!(loaded.schema.get("func_x").unwrap().help, "second");
         std::fs::remove_dir_all(&dir).ok();
     }
@@ -152,7 +178,7 @@ mod tests {
         std::fs::create_dir_all(dir.join("cfg")).unwrap();
         std::fs::write(dir.join("cfg/game.kerodef"), r#"class { "name" "func_y" }"#).unwrap();
         let loaded = load(&dir);
-        assert_eq!(loaded.schema.len(), 1, "{:?}", loaded.errors);
+        assert!(loaded.schema.get("func_y").is_some(), "{:?}", loaded.errors);
         std::fs::remove_dir_all(&dir).ok();
     }
 }
