@@ -2756,34 +2756,30 @@ impl ChiselApp {
         if !kind.is_2d() {
             // The 3D pane picks but does not drag geometry: a drag there has
             // no unambiguous depth, and the orthographic views do have one.
-            if response.clicked() {
-                if let Some(pos) = response.interact_pointer_pos() {
+            if response.clicked()
+                && let Some(pos) = response.interact_pointer_pos() {
                     let (x, y) = local(pos);
                     self.pick_in_3d(index, x, y, ui);
                 }
-            }
             return;
         }
 
-        if response.drag_started_by(egui::PointerButton::Primary) {
-            if let Some(pos) = response.interact_pointer_pos() {
+        if response.drag_started_by(egui::PointerButton::Primary)
+            && let Some(pos) = response.interact_pointer_pos() {
                 let (x, y) = local(pos);
                 self.tool.press(&self.document, &self.viewports[index], x, y);
             }
-        }
-        if response.dragged_by(egui::PointerButton::Primary) {
-            if let Some(pos) = response.interact_pointer_pos() {
+        if response.dragged_by(egui::PointerButton::Primary)
+            && let Some(pos) = response.interact_pointer_pos() {
                 let (x, y) = local(pos);
                 self.tool.drag_to(&self.document, &self.viewports[index], x, y);
             }
-        }
         if response.drag_stopped_by(egui::PointerButton::Primary) || response.clicked() {
-            if self.tool.drag.is_none() {
-                if let Some(pos) = response.interact_pointer_pos() {
+            if self.tool.drag.is_none()
+                && let Some(pos) = response.interact_pointer_pos() {
                     let (x, y) = local(pos);
                     self.tool.press(&self.document, &self.viewports[index], x, y);
                 }
-            }
             let add = ui.input(|i| i.modifiers.shift);
             if let Some(action) = self.tool.release(add) {
                 let viewport = self.viewports[index].clone();
@@ -3114,12 +3110,11 @@ fn collect_by_extension(
         let path = entry.path();
         if path.is_dir() {
             collect_by_extension(root, &path, extension, out);
-        } else if path.extension().and_then(|e| e.to_str()) == Some(extension) {
-            if let Ok(relative) = path.strip_prefix(root) {
+        } else if path.extension().and_then(|e| e.to_str()) == Some(extension)
+            && let Ok(relative) = path.strip_prefix(root) {
                 let name = relative.with_extension("");
                 out.push(name.to_string_lossy().replace('\\', "/"));
             }
-        }
     }
 }
 

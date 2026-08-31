@@ -274,11 +274,10 @@ impl Document {
                     // selected, or brush by brush when its brushes are.
                     if selected || solids.contains(&solid.id) { solid.translate(delta); }
                 }
-                if selected {
-                    if let Some(origin) = entity.get_vec3("origin") {
+                if selected
+                    && let Some(origin) = entity.get_vec3("origin") {
                         entity.set_origin(origin + delta);
                     }
-                }
             }
         });
     }

@@ -225,8 +225,8 @@ fn run_compile(
 
     let _ = sender.send(CompileMessage::Finished(compiled.clone()));
 
-    if settings.run_after {
-        if let Some(name) = compiled.file_stem().and_then(|s| s.to_str()) {
+    if settings.run_after
+        && let Some(name) = compiled.file_stem().and_then(|s| s.to_str()) {
             let _ = sender.send(CompileMessage::Stage(format!("launching {name}")));
             // Detached, so the editor does not block on the game and closing
             // the game does not take the editor with it. The content root is
@@ -244,7 +244,6 @@ fn run_compile(
                 .stderr(Stdio::null())
                 .spawn();
         }
-    }
 
     Ok(())
 }

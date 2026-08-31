@@ -27,8 +27,7 @@ The Lesser GPL is the GPL plus a linking permission. Concretely:
   Lesser GPL exists, and it is the reason to pick it over the plain GPL for an
   engine: the GPL would have reached into every game anyone shipped.
 * **The tools** (Chisel, Cleave, Umbra, Radiance, Alchemy, Timbre, Forge,
-  Vault, Kiln) are
-  covered too. For a standalone program the LGPL's extra permission simply has
+  Vault, Kiln) are covered too. For a standalone program the LGPL's extra permission simply has
   nothing to bite on, so in practice they behave as GPL-3.0 binaries: ship the
   source if you ship the tool.
 
