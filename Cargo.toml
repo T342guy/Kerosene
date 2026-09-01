@@ -3,6 +3,7 @@ resolver = "3"
 members = [
     "crates/kerosene-math",
     "crates/kerosene-kv",
+    "crates/kerosene-config",
     "crates/kerosene-console",
     "crates/kerosene-vfs",
     "crates/kerosene-asset",
@@ -40,6 +41,7 @@ repository = "https://github.com/t342guy/kerosene"
 [workspace.dependencies]
 kerosene-math    = { path = "crates/kerosene-math" }
 kerosene-kv      = { path = "crates/kerosene-kv" }
+kerosene-config  = { path = "crates/kerosene-config" }
 kerosene-console = { path = "crates/kerosene-console" }
 kerosene-vfs     = { path = "crates/kerosene-vfs" }
 kerosene-asset   = { path = "crates/kerosene-asset" }

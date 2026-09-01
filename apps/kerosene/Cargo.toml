@@ -11,6 +11,7 @@ kerosene-engine.workspace = true
 kerosene-vfs.workspace = true
 kerosene-game.workspace = true
 kerosene-console.workspace = true
+kerosene-config.workspace = true
 kerosene-math.workspace = true
 anyhow.workspace = true
 log.workspace = true

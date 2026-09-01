@@ -372,6 +372,7 @@ dependencies = [
  "image",
  "kerosene-asset",
  "kerosene-bsp",
+ "kerosene-config",
  "kerosene-entity",
  "kerosene-game",
  "kerosene-kv",
@@ -1439,6 +1440,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "kerosene-config"
+version = "0.1.0"
+dependencies = [
+ "kerosene-kv",
+ "log",
+ "wgpu",
+]
+
+[[package]]
 name = "kerosene-console"
 version = "0.1.0"
 dependencies = [
@@ -1460,6 +1470,7 @@ dependencies = [
  "kerosene-asset",
  "kerosene-audio",
  "kerosene-bsp",
+ "kerosene-config",
  "kerosene-console",
  "kerosene-entity",
  "kerosene-game",
@@ -1571,6 +1582,7 @@ dependencies = [
  "anyhow",
  "clap",
  "env_logger",
+ "kerosene-config",
  "kerosene-console",
  "kerosene-engine",
  "kerosene-game",
@@ -1597,6 +1609,7 @@ dependencies = [
  "egui",
  "egui-wgpu",
  "egui-winit",
+ "kerosene-config",
  "log",
  "pollster",
  "wgpu",

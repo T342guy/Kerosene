@@ -61,6 +61,15 @@ fn main() -> Result<()> {
     log::info!("{}", kerosene_vfs::root::describe(&found));
     let root = found.as_ref().map(|f| f.root.clone()).unwrap_or_default();
 
+    // The renderer comes from the engine config, generated the first time a
+    // program needs it. With no content tree there is nowhere to keep one, so
+    // the default (Vulkan) stands on its own.
+    let renderer = if root.as_os_str().is_empty() {
+        kerosene_config::Renderer::default()
+    } else {
+        kerosene_config::EngineConf::load_or_create(&root).renderer
+    };
+
     // Before the editor is built, not after: `ChiselApp::new` scans the
     // materials tree once, and an editor that scanned it before the textures
     // existed is an editor with no textures in it -- which is what happened,
@@ -83,7 +92,7 @@ fn main() -> Result<()> {
 
     let event_loop = EventLoop::new()?;
     event_loop.set_control_flow(ControlFlow::Wait);
-    let mut host = Host { app, gfx: None, title: String::new() };
+    let mut host = Host { app, gfx: None, title: String::new(), renderer };
     event_loop.run_app(&mut host)?;
     Ok(())
 }
@@ -123,6 +132,8 @@ struct Gfx {
 struct Host {
     app: ChiselApp,
     gfx: Option<Gfx>,
+    /// The renderer read from the engine config, kept for the first frame.
+    renderer: kerosene_config::Renderer,
     /// The title the window is currently wearing.
     ///
     /// Kept so it is only set when it changes: `set_title` is a call into the
@@ -134,7 +145,7 @@ struct Host {
 impl ApplicationHandler for Host {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         if self.gfx.is_some() { return; }
-        match pollster::block_on(create_gfx(event_loop)) {
+        match pollster::block_on(create_gfx(event_loop, self.renderer)) {
             Ok(gfx) => self.gfx = Some(gfx),
             Err(e) => {
                 log::error!("could not open a window: {e}");
@@ -252,22 +263,21 @@ impl Host {
     }
 }
 
-async fn create_gfx(event_loop: &ActiveEventLoop) -> Result<Gfx> {
+async fn create_gfx(event_loop: &ActiveEventLoop, renderer: kerosene_config::Renderer) -> Result<Gfx> {
     let attributes = Window::default_attributes()
         .with_title("Chisel -- Kerosene world editor")
         .with_inner_size(winit::dpi::LogicalSize::new(1600, 950));
     let window = Arc::new(event_loop.create_window(attributes)?);
 
-    let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor::default());
-    let surface = instance.create_surface(window.clone())?;
-    let adapter = instance
-        .request_adapter(&wgpu::RequestAdapterOptions {
-            power_preference: wgpu::PowerPreference::LowPower,
-            compatible_surface: Some(&surface),
-            force_fallback_adapter: false,
-        })
-        .await
-        .map_err(|e| anyhow::anyhow!("no suitable GPU adapter: {e}"))?;
+    let gpu = kerosene_config::gpu::open(
+        renderer,
+        wgpu::PowerPreference::LowPower,
+        |instance| instance.create_surface(window.clone()).ok(),
+    )
+    .await
+    .ok_or_else(|| anyhow::anyhow!("no suitable GPU adapter"))?;
+    let surface = gpu.surface;
+    let adapter = gpu.adapter;
 
     let (device, queue) = adapter
         .request_device(&wgpu::DeviceDescriptor {

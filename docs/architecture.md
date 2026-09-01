@@ -55,6 +55,12 @@ Nothing points upward. `kerosene-math` knows about nothing; `kerosene-engine` kn
 about everything. The tools sit off to the side, depending on the format crates
 but never on the engine.
 
+`kerosene-config` is not on the diagram because it sits to the side of all of
+it: a small crate on top of `kerosene-kv` that reads `engineconf.keroconfig`,
+the settings every program shares (which renderer, how big the window). The
+game, Chisel, and the tool windows all ask it the same question, so the
+renderer is chosen once in a file rather than once per program.
+
 Two edges in that picture are there for a reason worth stating. `chisel`
 depends on `alchemy`, because the editor builds the content tree's textures
 itself rather than shelling out to a sibling binary that may not be beside it.

@@ -236,18 +236,18 @@ async fn create_gfx(
         .with_inner_size(winit::dpi::LogicalSize::new(size.0, size.1));
     let window = Arc::new(event_loop.create_window(attributes)?);
 
-    let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor::default());
-    let surface = instance.create_surface(window.clone())?;
-    let adapter = instance
-        .request_adapter(&wgpu::RequestAdapterOptions {
-            // A tool window is egui and nothing else; the integrated GPU draws
-            // it perfectly well and leaves the discrete one alone.
-            power_preference: wgpu::PowerPreference::LowPower,
-            compatible_surface: Some(&surface),
-            force_fallback_adapter: false,
-        })
-        .await
-        .map_err(|e| anyhow::anyhow!("no suitable GPU adapter: {e}"))?;
+    // Tools share the engine's renderer default (Vulkan), falling back to
+    // whatever is there when it is not. The integrated GPU is preferred:
+    // a tool window is egui and nothing else.
+    let gpu = kerosene_config::gpu::open(
+        kerosene_config::Renderer::default(),
+        wgpu::PowerPreference::LowPower,
+        |instance| instance.create_surface(window.clone()).ok(),
+    )
+    .await
+    .ok_or_else(|| anyhow::anyhow!("no suitable GPU adapter"))?;
+    let surface = gpu.surface;
+    let adapter = gpu.adapter;
 
     let (device, queue) = adapter
         .request_device(&wgpu::DeviceDescriptor {

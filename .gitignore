@@ -15,6 +15,7 @@
 *.keroprt
 *.keroleak
 *.kerowalk
+*.keroconfig
 content/maps/*.kerobsp
 
 

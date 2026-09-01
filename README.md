@@ -223,6 +223,7 @@ removing it would change the game.
 crates/
   kerosene-math       vectors, planes, convex windings with exact clipping
   kerosene-kv         KeyValues, the text format .keromap and materials use
+  kerosene-config     engineconf.keroconfig — the settings every program shares
   kerosene-console    convars, concommands, the command buffer
   kerosene-vfs        layered search paths and the .vault archive format
   kerosene-asset      .kerotex textures, .keromat materials, .keromdl models
@@ -241,14 +242,16 @@ kerosene.keroproj  the project file: what content tree this is, and where
 content/          sample art, models, materials, the sample level, and the
                   archive packed from them -- a content tree, the thing every
                   tool and the engine go looking for
-docs/             architecture, formats, tools, scripting, audio, licensing
+docs/             architecture, formats, tools, scripting, audio,
+                  licensing, configuration
 ```
 
 Read [`docs/architecture.md`](docs/architecture.md) for how the pieces fit,
 [`docs/formats.md`](docs/formats.md) for the file formats, and
 [`docs/tools.md`](docs/tools.md) for the full tool reference.
 [`docs/scripting.md`](docs/scripting.md) covers the script API,
-[`docs/audio.md`](docs/audio.md) sound, and
+[`docs/audio.md`](docs/audio.md) sound,
+[`docs/configuration.md`](docs/configuration.md) the engine config, and
 [`docs/licensing.md`](docs/licensing.md) the dependency audit and the
 provenance of the algorithms.
 

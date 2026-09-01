@@ -45,6 +45,7 @@ fn main() -> Result<()> {
         archives: parsed.archives,
         map: parsed.map,
         startup_commands: parsed.commands,
+        ..Default::default()
     };
     if config.content_paths.is_empty() {
         // Searched for, not assumed. `./content` is only right when the game
@@ -73,6 +74,17 @@ fn main() -> Result<()> {
                 config.content_paths.push(PathBuf::from("content"));
             }
         }
+    }
+
+    // The engine config always exists: read it out of the content tree,
+    // writing the defaults the first time anything runs. It is where the
+    // renderer is chosen, so it is read before the window is made.
+    if let Some(root) = config.content_paths.first().cloned() {
+        let conf = kerosene_config::EngineConf::load_or_create(&root);
+        config.renderer = conf.renderer;
+        config.window_width = conf.width;
+        config.window_height = conf.height;
+        config.vsync = conf.vsync;
     }
 
     // A vault sitting in the content tree is mounted without being asked for.

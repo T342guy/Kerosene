@@ -1,0 +1,15 @@
+[package]
+name = "kerosene-config"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+# The file format. `engineconf.keroconfig` is KeyValues, like everything else
+# a person is expected to edit by hand.
+kerosene-kv.workspace = true
+# "vulkan" has to mean a real backend, so the mapping lives next to the enum.
+wgpu.workspace = true
+log.workspace = true

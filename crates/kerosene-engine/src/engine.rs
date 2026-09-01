@@ -42,6 +42,14 @@ pub struct EngineConfig {
     /// Off in tests and headless runs: opening a sound card is slow, and a
     /// hundred `Engine`s in one test binary would each try.
     pub audio: bool,
+    /// Which renderer to prefer for the window. Vulkan by default; the
+    /// display falls back to whatever is there when it is not.
+    pub renderer: kerosene_config::Renderer,
+    /// Window size in pixels, when there is a window.
+    pub window_width: u32,
+    pub window_height: u32,
+    /// Whether the window syncs to the display's refresh.
+    pub vsync: bool,
     /// The global log relay, if one was installed.
     ///
     /// Handed in rather than installed here because installing a logger is a
@@ -55,6 +63,10 @@ impl Default for EngineConfig {
     fn default() -> Self {
         EngineConfig {
             audio: false,
+            renderer: kerosene_config::Renderer::default(),
+            window_width: kerosene_config::DEFAULT_WIDTH,
+            window_height: kerosene_config::DEFAULT_HEIGHT,
+            vsync: true,
             log: None,
             content_paths: vec![PathBuf::from("content")],
             archives: Vec::new(),

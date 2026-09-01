@@ -25,6 +25,7 @@ kerosene-bsp.workspace = true
 kerosene-asset.workspace = true
 kerosene-vfs.workspace = true
 kerosene-render.workspace = true
+kerosene-config.workspace = true
 kerosene-entity.workspace = true
 anyhow.workspace = true
 log.workspace = true

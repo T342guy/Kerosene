@@ -51,6 +51,7 @@ struct LoadedMap {
 
 struct App {
     engine: Engine,
+    config: EngineConfig,
     input: InputSystem,
     gfx: Option<Gfx>,
     map: Option<LoadedMap>,
@@ -71,6 +72,7 @@ pub fn run(config: EngineConfig) -> anyhow::Result<()> {
 
     let mut app = App {
         engine: Engine::new(&config),
+        config,
         input: InputSystem::new(),
         gfx: None,
         map: None,
@@ -88,7 +90,7 @@ pub fn run(config: EngineConfig) -> anyhow::Result<()> {
 impl ApplicationHandler for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         if self.gfx.is_some() { return; }
-        match pollster::block_on(create_gfx(event_loop)) {
+        match pollster::block_on(create_gfx(event_loop, &self.config)) {
             Ok(gfx) => {
                 self.gfx = Some(gfx);
                 self.last_frame = Instant::now();
@@ -550,23 +552,21 @@ fn draw_console(
     }
 }
 
-async fn create_gfx(event_loop: &ActiveEventLoop) -> anyhow::Result<Gfx> {
+async fn create_gfx(event_loop: &ActiveEventLoop, config: &EngineConfig) -> anyhow::Result<Gfx> {
     let attributes = Window::default_attributes()
         .with_title("Kerosene")
-        .with_inner_size(winit::dpi::LogicalSize::new(1280, 720));
+        .with_inner_size(winit::dpi::LogicalSize::new(config.window_width, config.window_height));
     let window = Arc::new(event_loop.create_window(attributes)?);
 
-    let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor::default());
-    let surface = instance.create_surface(window.clone())?;
-
-    let adapter = instance
-        .request_adapter(&wgpu::RequestAdapterOptions {
-            power_preference: wgpu::PowerPreference::HighPerformance,
-            compatible_surface: Some(&surface),
-            force_fallback_adapter: false,
-        })
-        .await
-        .map_err(|e| anyhow::anyhow!("no suitable GPU adapter: {e}"))?;
+    let gpu = kerosene_config::gpu::open(
+        config.renderer,
+        wgpu::PowerPreference::HighPerformance,
+        |instance| instance.create_surface(window.clone()).ok(),
+    )
+    .await
+    .ok_or_else(|| anyhow::anyhow!("no suitable GPU adapter"))?;
+    let surface = gpu.surface;
+    let adapter = gpu.adapter;
 
     log::info!("gpu: {}", adapter.get_info().name);
 
@@ -595,7 +595,11 @@ async fn create_gfx(event_loop: &ActiveEventLoop) -> anyhow::Result<Gfx> {
         format,
         width: size.width.max(1),
         height: size.height.max(1),
-        present_mode: wgpu::PresentMode::AutoVsync,
+        present_mode: if config.vsync {
+            wgpu::PresentMode::AutoVsync
+        } else {
+            wgpu::PresentMode::Immediate
+        },
         alpha_mode: capabilities.alpha_modes[0],
         view_formats: vec![],
         desired_maximum_frame_latency: 2,
