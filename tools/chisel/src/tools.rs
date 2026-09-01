@@ -8,7 +8,6 @@
 use crate::document::Document;
 use crate::viewport::{Viewport, ray_box};
 use kerosene_math::{Aabb, Vec3, Winding};
-
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub enum ToolKind {
     /// Click to select, drag to move, shift-click to add.
@@ -55,6 +54,90 @@ impl ToolKind {
     /// Whether this tool draws a box out and turns it into geometry.
     pub fn draws_a_box(self) -> bool {
         matches!(self, ToolKind::Block | ToolKind::Shape)
+    }
+}
+
+/// How the texture tool responds to a click.
+///
+/// The original behaviour -- apply on every click -- is fine for painting a
+/// whole room at once and maddening for picking one face at a time, because
+/// every stray click repaints something. These three cover the two ends and
+/// the middle.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default, Hash)]
+pub enum TextureMode {
+    /// Click only selects faces. Applying is explicit, via the face panel.
+    Selection,
+    /// Click selects; double-click applies. The middle ground.
+    #[default]
+    ApplyDoubleClick,
+    /// Click selects and applies -- the original behaviour.
+    AlwaysApply,
+}
+
+impl TextureMode {
+    pub fn label(self) -> &'static str {
+        match self {
+            TextureMode::Selection => "select only",
+            TextureMode::ApplyDoubleClick => "apply on double-click",
+            TextureMode::AlwaysApply => "always apply",
+        }
+    }
+
+    pub fn describe(self) -> &'static str {
+        match self {
+            TextureMode::Selection => "A click selects; nothing is applied. Use the face panel's \"apply current\" to paint.",
+            TextureMode::ApplyDoubleClick => "A click selects; a double-click applies the current material.",
+            TextureMode::AlwaysApply => "A click selects and applies the current material.",
+        }
+    }
+
+    pub fn all() -> [TextureMode; 3] {
+        [TextureMode::Selection, TextureMode::ApplyDoubleClick, TextureMode::AlwaysApply]
+    }
+
+    pub fn next(self) -> TextureMode {
+        match self {
+            TextureMode::Selection => TextureMode::ApplyDoubleClick,
+            TextureMode::ApplyDoubleClick => TextureMode::AlwaysApply,
+            TextureMode::AlwaysApply => TextureMode::Selection,
+        }
+    }
+}
+
+/// What the texture tool selects when it clicks.
+///
+/// A face, or the whole brush. The two are orthogonal to [`TextureMode`]:
+/// that decides *when* material is applied, this decides *what* is selected.
+/// Some tools only make sense for one of these -- the face editor edits a
+/// face -- and a tool may ignore the distinction when it does not apply.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default, Hash)]
+pub enum TextureTarget {
+    /// Click selects the single face under the pointer.
+    #[default]
+    SingleFace,
+    /// Click selects the whole brush -- or the entity that owns it.
+    WholeBrush,
+}
+
+impl TextureTarget {
+    pub fn label(self) -> &'static str {
+        match self {
+            TextureTarget::SingleFace => "single face",
+            TextureTarget::WholeBrush => "whole brush",
+        }
+    }
+
+    pub fn describe(self) -> &'static str {
+        match self {
+            TextureTarget::SingleFace => "A click selects the one face under the pointer.",
+            TextureTarget::WholeBrush => {
+                "A click selects the whole brush -- or the entity that owns it, for a door."
+            }
+        }
+    }
+
+    pub fn all() -> [TextureTarget; 2] {
+        [TextureTarget::SingleFace, TextureTarget::WholeBrush]
     }
 }
 
@@ -108,6 +191,10 @@ pub struct Tool {
     pub shape: crate::shapes::Shape,
     /// How many sides it has, how far round it goes, how thick its wall is.
     pub shape_options: crate::shapes::Options,
+    /// How the texture tool responds to a click.
+    pub texture_mode: TextureMode,
+    /// What the texture tool selects: one face, or the whole brush.
+    pub texture_target: TextureTarget,
 }
 
 impl Tool {
@@ -115,6 +202,8 @@ impl Tool {
         Tool {
             entity_class: "info_player_start".to_string(),
             shape_options: crate::shapes::Options::default(),
+            texture_mode: TextureMode::default(),
+            texture_target: TextureTarget::default(),
             ..Default::default()
         }
     }
@@ -844,6 +933,29 @@ mod tests {
         let mut seen = std::collections::HashSet::new();
         for kind in ToolKind::all() {
             assert!(seen.insert(kind.shortcut()), "{} reuses a shortcut", kind.label());
+        }
+    }
+
+    #[test]
+    fn the_texture_modes_cycle_and_are_labelled() {
+        let mut seen = std::collections::HashSet::new();
+        let mut mode = TextureMode::default();
+        for _ in 0..TextureMode::all().len() {
+            assert!(seen.insert(mode), "a mode appeared twice in the cycle");
+            assert!(!mode.label().is_empty());
+            assert!(!mode.describe().is_empty());
+            mode = mode.next();
+        }
+        assert_eq!(mode, TextureMode::default(), "three modes, back to the start");
+    }
+
+    #[test]
+    fn the_texture_targets_are_labelled() {
+        let mut seen = std::collections::HashSet::new();
+        for target in TextureTarget::all() {
+            assert!(seen.insert(target), "a target appeared twice");
+            assert!(!target.label().is_empty());
+            assert!(!target.describe().is_empty());
         }
     }
 

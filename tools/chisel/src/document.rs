@@ -14,7 +14,7 @@
 use crate::grid::Grid;
 use std::collections::HashSet;
 use std::path::PathBuf;
-use kerosene_map::{Entity, Map, Side, Solid};
+use kerosene_map::{Entity, Map, Side, Solid, WalkmapRule};
 use kerosene_math::{Aabb, Plane, Vec3, Winding};
 
 /// How many undo steps to keep.
@@ -322,11 +322,15 @@ impl Document {
 
     /// Apply the current material to every selected face, or to every face of
     /// every selected brush when no individual faces are picked.
+    ///
+    /// A selected brush *entity* counts too: selecting a `func_door` and
+    /// applying a material should retexture the door, not silently do
+    /// nothing.
     pub fn apply_material(&mut self) -> usize {
         let material = self.current_material.clone();
         self.apply(format!("apply {material}"), move |doc| {
             let faces = doc.selection.faces.clone();
-            let solids = doc.selection.solids.clone();
+            let solids = doc.selected_solid_ids();
             let mut changed = 0;
 
             for solid in all_solids_mut(&mut doc.map) {
@@ -338,6 +342,35 @@ impl Document {
                 for side in solid.sides.iter_mut() {
                     if faces.contains(&(solid.id, side.id)) {
                         side.material = material.clone();
+                        changed += 1;
+                    }
+                }
+            }
+            changed
+        })
+    }
+
+    /// Apply a walkmap rule to every selected face, or to every face of every
+    /// selected brush when no individual faces are picked.
+    ///
+    /// Mirrors [`Document::apply_material`]: the rule is a per-face property,
+    /// and the face selection (or the whole brush, when a brush is picked
+    /// rather than a face) is the thing being edited.
+    pub fn apply_walkmap(&mut self, rule: WalkmapRule) -> usize {
+        self.apply(format!("walkmap {rule}"), move |doc| {
+            let faces = doc.selection.faces.clone();
+            let solids = doc.selected_solid_ids();
+            let mut changed = 0;
+
+            for solid in all_solids_mut(&mut doc.map) {
+                if solids.contains(&solid.id) {
+                    for side in &mut solid.sides { side.walkmap = rule; }
+                    changed += solid.sides.len();
+                    continue;
+                }
+                for side in solid.sides.iter_mut() {
+                    if faces.contains(&(solid.id, side.id)) {
+                        side.walkmap = rule;
                         changed += 1;
                     }
                 }

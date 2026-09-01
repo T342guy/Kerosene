@@ -105,6 +105,7 @@ fn main() -> Result<()> {
     println!("  portals  {} portals ({} too small to keep)", s.portals, s.tiny_portals);
     println!("  fill     {} leaves outside the world removed, {} clusters", s.leaves_filled, s.clusters);
     println!("  output   {} faces, {} vertices", s.faces, s.vertices);
+    println!("  walkmap  {} walkable faces", output.walk.len());
 
     if let Some(leak) = &output.leak {
         println!("  LEAK: the world is not sealed (traced from {:?})", leak.from);
@@ -122,6 +123,10 @@ fn main() -> Result<()> {
     let prt_path = out_path.with_extension("keroprt");
     std::fs::write(&prt_path, &output.prt)
         .with_context(|| format!("writing {}", prt_path.display()))?;
+
+    let walk_path = out_path.with_extension("kerowalk");
+    output.walk.write(&walk_path)
+        .with_context(|| format!("writing {}", walk_path.display()))?;
 
     // The trace describes *this* compile. A sealed map must clear the one
     // left by an earlier broken build, or every later compile looks like it
@@ -143,10 +148,11 @@ fn main() -> Result<()> {
         }
     }
 
-    println!("  wrote {} ({:.1} KiB) and {} in {:.2}s",
+    println!("  wrote {} ({:.1} KiB), {} and {} in {:.2}s",
         out_path.display(),
         size as f64 / 1024.0,
         prt_path.display(),
+        walk_path.display(),
         started.elapsed().as_secs_f32());
     Ok(())
 }

@@ -2,7 +2,7 @@
 //! Brush solids and their faces.
 
 use crate::texture::{TextureAxis, default_axes_for_plane};
-use crate::{DEFAULT_LIGHTMAP_SCALE, read_id};
+use crate::{DEFAULT_LIGHTMAP_SCALE, WalkmapRule, read_id};
 use thiserror::Error;
 use kerosene_kv::{KeyValues, Vec3Value};
 use kerosene_math::{Aabb, MAX_MAP_COORD, ON_EPSILON, Plane, Vec3, Winding};
@@ -43,6 +43,8 @@ pub struct Side {
     /// Faces sharing a smoothing group get their vertex normals averaged, so a
     /// faceted curve shades as a smooth one.
     pub smoothing_groups: u32,
+    /// How this face participates in the NPC walkmap. See [`WalkmapRule`].
+    pub walkmap: WalkmapRule,
 }
 
 impl Side {
@@ -58,6 +60,7 @@ impl Side {
             rotation: 0.0,
             lightmap_scale: DEFAULT_LIGHTMAP_SCALE,
             smoothing_groups: 0,
+            walkmap: WalkmapRule::Allow,
         }
     }
 
@@ -96,6 +99,7 @@ impl Side {
             rotation: kv.get_or("rotation", 0.0f32),
             lightmap_scale: kv.get_or("lightmapscale", DEFAULT_LIGHTMAP_SCALE),
             smoothing_groups: kv.get_or("smoothing_groups", 0u32),
+            walkmap: kv.get("walkmap").map(WalkmapRule::parse).unwrap_or_default(),
         })
     }
 
@@ -119,6 +123,12 @@ impl Side {
         kv.push_value("rotation", self.rotation);
         kv.push_value("lightmapscale", self.lightmap_scale);
         kv.push_value("smoothing_groups", self.smoothing_groups);
+        // Only the faces someone changed carry a rule; a floor that says
+        // nothing is `allow`, and writing it on every face would bury the few
+        // that matter in noise.
+        if self.walkmap != WalkmapRule::Allow {
+            kv.push("walkmap", self.walkmap.as_str());
+        }
         kv
     }
 }
@@ -198,6 +208,7 @@ impl Solid {
                     rotation: 0.0,
                     lightmap_scale: DEFAULT_LIGHTMAP_SCALE,
                     smoothing_groups: 0,
+                    walkmap: WalkmapRule::Allow,
                 }
             })
             .collect();
@@ -231,6 +242,7 @@ impl Solid {
             rotation: 0.0,
             lightmap_scale: DEFAULT_LIGHTMAP_SCALE,
             smoothing_groups: 0,
+            walkmap: WalkmapRule::Allow,
         })
     }
 
@@ -646,6 +658,26 @@ mod tests {
             assert_eq!(a.material, b.material);
             assert_eq!(a.uaxis, b.uaxis);
         }
+    }
+
+    #[test]
+    fn a_walkmap_rule_round_trips_and_defaults_to_allow() {
+        let mut c = cube64();
+        assert!(
+            c.sides.iter().all(|s| s.walkmap == WalkmapRule::Allow),
+            "a face that says nothing is `allow`"
+        );
+        c.sides[0].walkmap = WalkmapRule::Deny;
+
+        let kv = c.to_kv();
+        let back = Solid::from_kv(&kv).unwrap();
+        assert_eq!(back.sides[0].walkmap, WalkmapRule::Deny);
+        assert_eq!(back.sides[1].walkmap, WalkmapRule::Allow);
+
+        // Only faces someone changed carry the key, so a diff between saves
+        // still shows what actually moved.
+        let text = kv.to_document();
+        assert_eq!(text.matches("walkmap").count(), 1, "{text}");
     }
 
     #[test]

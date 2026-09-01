@@ -437,6 +437,7 @@ dependencies = [
  "kerosene-kv",
  "kerosene-map",
  "kerosene-math",
+ "kerosene-walk",
  "log",
  "rayon",
  "thiserror 2.0.20",
@@ -1609,6 +1610,15 @@ dependencies = [
  "anyhow",
  "kerosene-kv",
  "log",
+ "thiserror 2.0.20",
+]
+
+[[package]]
+name = "kerosene-walk"
+version = "0.1.0"
+dependencies = [
+ "kerosene-map",
+ "kerosene-math",
  "thiserror 2.0.20",
 ]
 

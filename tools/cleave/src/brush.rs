@@ -6,7 +6,7 @@
 //! the ability to be cut in half by an arbitrary plane while staying convex.
 
 use crate::material;
-use kerosene_map::{Solid, TextureAxis};
+use kerosene_map::{Solid, TextureAxis, WalkmapRule};
 use kerosene_math::{Aabb, ON_EPSILON, Plane, PlaneSet, PlaneSide, Vec3, Winding};
 
 /// One face of a working brush.
@@ -24,6 +24,8 @@ pub struct SideWork {
     pub vaxis: TextureAxis,
     pub lightmap_scale: f32,
     pub smoothing_groups: u32,
+    /// How this face participates in the NPC walkmap.
+    pub walkmap: WalkmapRule,
     /// `side` id from the source map, for error messages that point back at
     /// something the designer can click on.
     pub map_side_id: u32,
@@ -112,6 +114,7 @@ impl BrushWork {
                 vaxis: side.vaxis,
                 lightmap_scale: side.lightmap_scale,
                 smoothing_groups: side.smoothing_groups,
+                walkmap: side.walkmap,
                 map_side_id: side.id,
                 fragments: Vec::new(),
                 generated: false,
@@ -282,6 +285,7 @@ impl BrushWork {
                 vaxis: TextureAxis::default(),
                 lightmap_scale: kerosene_map::DEFAULT_LIGHTMAP_SCALE,
                 smoothing_groups: 0,
+                walkmap: WalkmapRule::Allow,
                 map_side_id: 0,
                 fragments: Vec::new(),
                 generated: true,

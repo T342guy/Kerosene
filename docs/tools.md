@@ -256,9 +256,11 @@ what is decided per pixel, and it draws the materials themselves --
 perspective-correct, mipped, with a face tinted rather than painted over when
 it is selected so you can still see what it is wearing. `view` switches
 between *textured*, *flat colour* (each material's average, when a texture is
-too busy to read shape through) and *shaded only* (untextured grey, for hunting
-a brush in the wrong place). Lighting is not previewed; compiling and running
-the map is one keystroke away.
+too busy to read shape through), *shaded only* (untextured grey, for hunting
+a brush in the wrong place) and *walkmap* -- which colours each face by its
+walkmap rule (green to go, red to stay away) without touching the texture, so
+you can read where NPCs may go without compiling. Lighting is not previewed;
+compiling and running the map is one keystroke away.
 
 Tool **volumes** are drawn see-through, as they are in Hammer, because that is
 what they are: a trigger is a region, not a wall, and one drawn solid hides the
@@ -281,9 +283,18 @@ every name looks like, which is nobody on their first level.
 **Face editing.** With the texture tool, clicking a face in the 3D pane selects
 it (shift adds, ctrl picks its material up), and the inspector becomes a face
 editor: scale, shift, rotation, fit, align to world or to the face itself,
-justify to an edge or the middle, and the lightmap scale. Everything acts on
-the whole selection as one undo step, and a value the selected faces disagree
-about shows as `--` rather than as one of them.
+justify to an edge or the middle, the lightmap scale, and the face's **walkmap
+rule** -- `allow`, `deny`, `avoid` or `always` -- which decides whether the
+compiler puts that face in the NPC walkmap. Everything acts on the whole
+selection as one undo step, and a value the selected faces disagree about
+shows as `--` rather than as one of them.
+
+The texture tool has two settings, chosen in the toolbar: *what* it selects
+-- **single face** or **whole brush** (a brush entity is selected whole, as
+the door) -- and *when* it applies, cycled with `T`: **select only**, **apply
+on double-click** (the default) or **always apply**. Shift always just
+selects, in every combination. The face editor only applies when a face is
+selected, so it simply has nothing to show for a whole-brush selection.
 
 **Compiling.** `map → compile` opens a window with the settings and three
 buttons: *compile* runs exactly what the window is showing, while *fast* and
@@ -326,7 +337,10 @@ comparison on hover.
 cleave map.keromap [-o out.kerobsp] [--ignore-leaks] [--no-fill] [--dry-run] [-v]
 ```
 
-`.keromap` → `.kerobsp` plus a `.keroprt` portal graph for Umbra.
+`.keromap` → `.kerobsp` plus a `.keroprt` portal graph for Umbra, and a
+`.kerowalk` NPC walkmap built from the world's flat walkable faces. The
+walkmap is written every compile -- the compiler already has the final face
+polygons, so the designer does not run a separate step to get one.
 
 Reports every brush and entity problem in one pass rather than stopping at the
 first, because a designer would rather fix five brushes in one cycle than five.

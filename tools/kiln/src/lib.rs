@@ -308,7 +308,8 @@ fn build_map(settings: &Settings, map: &Path, report: &mut Report) -> Result<()>
 /// them doubles the download to deliver files the engine can read a smaller
 /// version of.
 const PACKED: &[&str] = &[
-    "kerotex", "keromat", "keromdl", "kerobsp", "keroscript", "kerosnd", "keroaud", "kerodef",
+    "kerotex", "keromat", "keromdl", "kerobsp", "kerowalk", "keroscript", "kerosnd", "keroaud",
+    "kerodef",
 ];
 
 fn pack(settings: &Settings, archive: &Path) -> Result<()> {

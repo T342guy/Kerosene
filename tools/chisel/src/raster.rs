@@ -110,6 +110,9 @@ pub enum Shading {
     /// Untextured grey, so geometry is all that is visible. For hunting a
     /// leak or a brush in the wrong place.
     Shaded,
+    /// Each face coloured by its walkmap rule -- allow, deny, avoid, always --
+    /// so a designer can read where NPCs may go without compiling.
+    Walkmap,
 }
 
 impl Shading {
@@ -118,10 +121,13 @@ impl Shading {
             Shading::Textured => "textured",
             Shading::Flat => "flat colour",
             Shading::Shaded => "shaded only",
+            Shading::Walkmap => "walkmap",
         }
     }
 
-    pub fn all() -> [Shading; 3] { [Shading::Textured, Shading::Flat, Shading::Shaded] }
+    pub fn all() -> [Shading; 4] {
+        [Shading::Textured, Shading::Flat, Shading::Shaded, Shading::Walkmap]
+    }
 }
 
 /// Everything the rasteriser needs beyond the document.
@@ -218,12 +224,19 @@ pub fn render_with(
         // The average, or a colour derived from the name when there is no
         // texture -- so a material that has not been compiled yet is a wrong
         // colour rather than a black hole, and two of them are two colours.
-        let flat = match (&resolved, settings.shading) {
-            (Some(texture), _) => texture.average,
-            (None, Shading::Textured | Shading::Flat) => {
-                TextureCache::fallback_colour(&face.material)
+        // The walkmap view ignores materials entirely: it colours by rule.
+        let flat = match settings.shading {
+            Shading::Walkmap => {
+                let c = colors::walkmap(face.walkmap);
+                [c.r(), c.g(), c.b()]
             }
-            _ => [colors::BRUSH.r(), colors::BRUSH.g(), colors::BRUSH.b()],
+            _ => match (&resolved, settings.shading) {
+                (Some(texture), _) => texture.average,
+                (None, Shading::Textured | Shading::Flat) => {
+                    TextureCache::fallback_colour(&face.material)
+                }
+                _ => [colors::BRUSH.r(), colors::BRUSH.g(), colors::BRUSH.b()],
+            },
         };
         // Flat mode wants the average, not the pixels.
         let texture = (settings.shading == Shading::Textured).then_some(resolved).flatten();

@@ -10,6 +10,7 @@ authors.workspace = true
 kerosene-math.workspace = true
 kerosene-map.workspace = true
 kerosene-bsp.workspace = true
+kerosene-walk.workspace = true
 kerosene-kv.workspace = true
 anyhow.workspace = true
 clap.workspace = true

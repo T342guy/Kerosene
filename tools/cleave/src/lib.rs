@@ -13,5 +13,6 @@ pub mod material;
 pub mod pipeline;
 pub mod portal;
 pub mod tree;
+pub mod walk;
 
 pub use pipeline::{CompileError, CompileOptions, CompileOutput, Stats, compile, lint_materials};

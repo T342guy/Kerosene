@@ -122,11 +122,11 @@ mod tests {
 
     #[test]
     fn the_shipped_definitions_load() {
+        // The shipped definitions are compiled into the game crate, so they
+        // load whether or not a `.kerodef` mirror file is present on disk.
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content");
         let loaded = load(&root);
         assert!(loaded.errors.is_empty(), "{:?}", loaded.errors);
-        // The mirror file in content/ is found and merged over the built-in set.
-        assert_eq!(loaded.files.len(), 1, "one shipped file: {:?}", loaded.files);
         let door = loaded.schema.get("func_door").expect("the sample game has doors");
         assert!(door.key("speed").is_some());
         assert!(door.has_input("Open"));

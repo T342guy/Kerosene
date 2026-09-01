@@ -217,6 +217,62 @@ fn applying_a_material_to_one_face_leaves_the_others() {
 }
 
 #[test]
+fn applying_a_walkmap_rule_covers_a_whole_selected_brush() {
+    let mut d = doc();
+    let id = block(&mut d, 0.0, 64.0);
+    assert_eq!(d.apply_walkmap(WalkmapRule::Deny), 6);
+    assert!(d.find_solid(id).unwrap().sides.iter().all(|s| s.walkmap == WalkmapRule::Deny));
+}
+
+#[test]
+fn applying_a_material_to_a_selected_brush_entity_retextures_it() {
+    // Whole-brush selection of a door selects the *entity*, and applying must
+    // reach its brushes -- otherwise retexturing a door silently does nothing.
+    let mut d = doc();
+    block(&mut d, 0.0, 64.0);
+    let entity = d.tie_to_entity("func_door").unwrap();
+    assert_eq!(d.map.world.solids.len(), 0, "the brush should have left the world");
+
+    // `tie_to_entity` selects the new entity.
+    assert_eq!(d.selection.entities.len(), 1);
+    d.current_material = "dev/wall".into();
+    assert_eq!(d.apply_material(), 6);
+
+    let door = d.find_entity(entity).unwrap();
+    assert!(door.solids.iter().all(|s| s.sides.iter().all(|x| x.material == "dev/wall")));
+}
+
+#[test]
+fn applying_a_walkmap_rule_to_one_face_leaves_the_others() {
+    let mut d = doc();
+    let id = block(&mut d, 0.0, 64.0);
+    let side = d.find_solid(id).unwrap().sides[0].id;
+    d.selection.clear();
+    d.selection.faces.insert((id, side));
+
+    assert_eq!(d.apply_walkmap(WalkmapRule::Avoid), 1);
+    let solid = d.find_solid(id).unwrap();
+    assert_eq!(solid.sides[0].walkmap, WalkmapRule::Avoid);
+    assert!(solid.sides[1..].iter().all(|s| s.walkmap == WalkmapRule::Allow));
+}
+
+#[test]
+fn a_walkmap_rule_is_one_undo_step_for_a_whole_selection() {
+    let mut d = doc();
+    let a = block(&mut d, 0.0, 64.0);
+    let b = block(&mut d, 64.0, 128.0);
+    d.selection.clear();
+    d.selection.solids.insert(a);
+    d.selection.solids.insert(b);
+
+    let depth = d.undo_depth();
+    d.apply_walkmap(WalkmapRule::Always);
+    assert_eq!(d.undo_depth(), depth + 1, "two brushes, one undo step");
+    assert!(d.find_solid(a).unwrap().sides.iter().all(|s| s.walkmap == WalkmapRule::Always));
+    assert!(d.find_solid(b).unwrap().sides.iter().all(|s| s.walkmap == WalkmapRule::Always));
+}
+
+#[test]
 fn tying_brushes_to_an_entity_moves_them_out_of_the_world() {
     // How a designer makes a door: build it in the world, then tie it.
     let mut d = doc();

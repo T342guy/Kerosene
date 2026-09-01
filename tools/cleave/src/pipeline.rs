@@ -57,6 +57,8 @@ pub struct CompileOutput {
     pub bsp: Bsp,
     /// Portal graph for Umbra.
     pub prt: String,
+    /// The NPC walkmap, built from the world's flat walkable faces.
+    pub walk: kerosene_walk::Walkmap,
     /// Set when the world is not sealed.
     pub leak: Option<LeakPath>,
     pub warnings: Vec<Warning>,
@@ -168,12 +170,13 @@ pub fn compile(map: &Map, options: &CompileOptions) -> Result<CompileOutput, Com
 
     let entities_text = build_entity_lump(map, &model_entities);
     let prt = portal::write_prt(&tree, &portals, stats.clusters);
+    let walk = crate::walk::collect(&world, &planes);
 
     let bsp = emit::emit(&tree, &planes, &world, &models, entities_text, 1);
     stats.faces = bsp.faces.len();
     stats.vertices = bsp.vertices.len();
 
-    Ok(CompileOutput { bsp, prt, leak: flood.leak, warnings, stats })
+    Ok(CompileOutput { bsp, prt, walk, leak: flood.leak, warnings, stats })
 }
 
 /// Points the flood fill starts from.

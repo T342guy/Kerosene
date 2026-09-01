@@ -6,6 +6,7 @@
 | `.kerobsp` | Compiled map | binary, lump directory | Cleave / Umbra / Radiance | `.bsp` |
 | `.keroprt` | Portal graph | text | Cleave | `.prt` |
 | `.keroleak` | Leak trace | text | Cleave | `.lin` |
+| `.kerowalk` | NPC walkmap | binary | Cleave | (Source has no equivalent) |
 | `.kerotex` | Texture | binary | Alchemy | `.vtf` |
 | `.keromat` | Material | text (KeyValues) | Alchemy, by hand | `.vmt` |
 | `.keromdl` | Model | binary | Forge | `.mdl` |
@@ -138,6 +139,28 @@ VPRT1
 The winding's own plane normal points toward the first cluster listed. Only
 portals between two non-solid leaves appear: sight does not travel through
 rock, so a portal with a solid side is not a portal.
+
+## `.kerowalk` — the NPC walkmap
+
+Written by Cleave, read by whatever drives NPC navigation. It is the answer
+to "where can NPCs go", precomputed once at build time the same way the PVS
+precomputes visibility: the runtime asks a cheap question -- *is this point on
+a walkable face, and what is that face's rule* -- instead of re-deriving it
+from the BSP.
+
+A little-endian binary: a `KRWL` magic, a version, a face count, then one
+record per face holding its rule, its polygon and its normal. Cleave builds it
+from the world's flat walkable faces -- a face whose normal points up and
+wears ordinary geometry -- and folds in each face's walkmap rule chosen in
+Chisel:
+
+* `allow` -- walkable if flat. The default; a floor that says nothing is one.
+* `deny` -- never part of the walkmap, however flat.
+* `avoid` -- walkable, but flagged for NPCs to route around.
+* `always` -- part of the walkmap even if the face is not flat, for ramps.
+
+Brush entities are absent on purpose: a `func_door` moves, and a static
+walkmap that said a closed door was open would send an NPC through it.
 
 ## `.kerotex` — textures
 

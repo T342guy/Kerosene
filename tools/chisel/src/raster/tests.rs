@@ -10,7 +10,7 @@
 use super::*;
 use crate::app::starter_document;
 use std::collections::HashSet;
-use kerosene_map::Solid;
+use kerosene_map::{Solid, WalkmapRule};
 use kerosene_math::{Aabb, Angles};
 
 const W: usize = 160;
@@ -440,6 +440,52 @@ fn flat_mode_uses_the_average_rather_than_the_pixels() {
     let distinct: HashSet<[u8; 4]> =
         image.pixels.iter().filter(|p| **p != background_rgba()).copied().collect();
     assert_eq!(distinct.len(), 1, "flat mode drew texture detail: {distinct:?}");
+}
+
+#[test]
+fn walkmap_mode_colours_each_face_by_its_rule() {
+    // The walkmap view ignores materials entirely: it reads the face's rule,
+    // so a designer can see where NPCs may go without compiling. A face that
+    // changes rule must change colour even though its texture does not.
+    let mut document = Document::new();
+    document.map.world.solids.clear();
+    let id = brush(&mut document, Vec3::new(300.0, -300.0, -300.0), Vec3::new(320.0, 300.0, 300.0));
+
+    let render_walkmap = |document: &Document| {
+        let mut resolve = |_: &str| None;
+        let mut settings = Settings { shading: Shading::Walkmap, resolve: Some(&mut resolve) };
+        render_with(document, Vec3::ZERO, basis_for(0.0, 0.0), FOV, W, H, &mut settings)
+    };
+
+    let allow = render_walkmap(&document);
+    let centre = allow.pixel(W / 2, H / 2);
+    assert!(centre[0] > 0 || centre[1] > 0 || centre[2] > 0, "nothing drawn");
+    assert!(centre[1] >= centre[0], "allow should be green-dominant, got {centre:?}");
+
+    // Change the face the camera can see from allow to deny; the colour must
+    // move from green to red, with no change to material or texture.
+    let side = document
+        .find_solid(id)
+        .unwrap()
+        .sides
+        .iter()
+        .find(|s| s.plane().is_some_and(|p| p.normal.x < -0.9))
+        .expect("the box has a face pointing at -X")
+        .id;
+    document
+        .map
+        .find_solid_mut(id)
+        .unwrap()
+        .sides
+        .iter_mut()
+        .find(|s| s.id == side)
+        .unwrap()
+        .walkmap = WalkmapRule::Deny;
+
+    let deny = render_walkmap(&document);
+    assert_ne!(allow.pixels, deny.pixels, "the rule change recoloured nothing");
+    let centre = deny.pixel(W / 2, H / 2);
+    assert!(centre[0] > centre[1], "deny should be red-dominant, got {centre:?}");
 }
 
 #[test]

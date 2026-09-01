@@ -11,7 +11,7 @@
 use crate::compile::{CompileJob, CompileMessage, CompileSettings, Quality, available_tools};
 use crate::document::Document;
 use crate::inspector::{self, PropertyRow};
-use crate::tools::{Tool, ToolKind};
+use crate::tools::{Tool, ToolKind, TextureMode, TextureTarget};
 use crate::viewport::Viewport;
 use crate::raster::Shading;
 use crate::textures::TextureCache;
@@ -19,7 +19,7 @@ use crate::{classes, draw, files, raster};
 use egui::{Context, Key, Modifiers, RichText};
 use std::path::PathBuf;
 use kerosene_entity::{ClassKind, KeyKind, Schema};
-use kerosene_map::Connection;
+use kerosene_map::{Connection, WalkmapRule};
 use kerosene_math::Vec3;
 
 /// Entity classes offered if the built-in schema ever fails to load.
@@ -672,6 +672,7 @@ impl ChiselApp {
             Finer,
             Coarser,
             Compile,
+            CycleTextureMode,
         }
 
         let mut actions = Vec::new();
@@ -719,6 +720,7 @@ impl ChiselApp {
             if i.consume_key(Modifiers::NONE, Key::CloseBracket) { actions.push(Action::Coarser) }
             if i.consume_key(Modifiers::NONE, Key::F9) { actions.push(Action::Compile) }
             if i.consume_key(Modifiers::NONE, Key::M) { actions.push(Action::Browse) }
+            if i.consume_key(Modifiers::NONE, Key::T) { actions.push(Action::CycleTextureMode) }
         });
 
         for action in actions {
@@ -752,6 +754,10 @@ impl ChiselApp {
                 Action::Finer => self.document.grid.finer(),
                 Action::Coarser => self.document.grid.coarser(),
                 Action::Compile => self.compile_now(Quality::Fast),
+                Action::CycleTextureMode => {
+                    self.tool.texture_mode = self.tool.texture_mode.next();
+                    self.status = format!("texture tool: {}", self.tool.texture_mode.label());
+                }
             }
         }
     }
@@ -901,6 +907,37 @@ impl ChiselApp {
                 let label = format!("{}  [{}]", kind.label(), kind.shortcut());
                 if ui.selectable_label(selected, label).clicked() {
                     self.tool.set_kind(kind);
+                }
+            }
+
+            if self.tool.kind == ToolKind::Texture {
+                ui.separator();
+                ui.label(RichText::new("texture").strong());
+
+                ui.label(RichText::new("select").size(10.0).weak());
+                for target in TextureTarget::all() {
+                    let selected = self.tool.texture_target == target;
+                    if ui
+                        .selectable_label(selected, target.label())
+                        .on_hover_text(target.describe())
+                        .clicked()
+                    {
+                        self.tool.texture_target = target;
+                        self.status = format!("texture tool: {}", target.label());
+                    }
+                }
+
+                ui.label(RichText::new("apply").size(10.0).weak());
+                for mode in TextureMode::all() {
+                    let selected = self.tool.texture_mode == mode;
+                    if ui
+                        .selectable_label(selected, mode.label())
+                        .on_hover_text(mode.describe())
+                        .clicked()
+                    {
+                        self.tool.texture_mode = mode;
+                        self.status = format!("texture tool: {}", mode.label());
+                    }
                 }
             }
 
@@ -2306,6 +2343,31 @@ impl ChiselApp {
 
         ui.separator();
 
+        // How the selected faces take part in the NPC walkmap. Set per face
+        // here; the compiler folds these rules into the `.kerowalk` it writes
+        // on every compile.
+        ui.label(RichText::new("walkmap").size(11.0).weak());
+        let rules: std::collections::BTreeSet<WalkmapRule> =
+            specs.iter().map(|f| f.side.walkmap).collect();
+        let current_rule = (rules.len() == 1).then(|| *rules.iter().next().unwrap());
+        ui.horizontal(|ui| {
+            for rule in WalkmapRule::all() {
+                if ui
+                    .selectable_label(current_rule == Some(rule), rule.as_str())
+                    .on_hover_text(rule.describe())
+                    .clicked()
+                {
+                    let changed = self.document.apply_walkmap(rule);
+                    self.status = format!("walkmap {rule} on {changed} faces");
+                }
+            }
+        });
+        if rules.len() > 1 {
+            ui.label(RichText::new("selected faces differ").size(10.0).weak());
+        }
+
+        ui.separator();
+
         // A value shared by every selected face, or None when they differ.
         // Showing one face's number for six is how you overwrite five of them
         // by accident.
@@ -2431,41 +2493,88 @@ impl ChiselApp {
     /// entity that owns it, and the texture tool wants the one face you are
     /// looking at. Picking a brush when someone meant a face is how a whole
     /// room ends up wearing the same texture.
-    fn pick_in_3d(&mut self, index: usize, x: f32, y: f32, ui: &egui::Ui) {
+    fn pick_in_3d(&mut self, index: usize, x: f32, y: f32, ui: &egui::Ui, double: bool) {
         let (origin, direction) = self.viewports[index].pick_ray(x, y);
         let (add, sample) = ui.input(|i| (i.modifiers.shift, i.modifiers.ctrl));
 
         if self.tool.kind == ToolKind::Texture {
-            let Some((solid, side)) = crate::tools::pick_face_3d(&self.document, origin, direction)
-            else {
-                if !add { self.document.selection.faces.clear(); }
-                return;
-            };
+            // Whether a plain click applies depends on the apply mode. Shift
+            // always just selects, for building up a selection; the mode
+            // decides what an unshifted click does.
+            let apply = !add
+                && match self.tool.texture_mode {
+                    TextureMode::Selection => false,
+                    TextureMode::ApplyDoubleClick => double,
+                    TextureMode::AlwaysApply => true,
+                };
 
-            // Ctrl samples: the eyedropper every texture tool has, and worth
-            // having now that the browser shows what you picked up.
-            if sample {
-                if let Some(material) = self
-                    .document
-                    .find_solid(solid)
-                    .and_then(|s| s.sides.iter().find(|s| s.id == side))
-                    .map(|s| s.material.clone())
-                {
-                    self.status = format!("picked up {material}");
-                    self.document.current_material = material;
+            match self.tool.texture_target {
+                TextureTarget::SingleFace => {
+                    let Some((solid, side)) =
+                        crate::tools::pick_face_3d(&self.document, origin, direction)
+                    else {
+                        if !add { self.document.selection.faces.clear(); }
+                        return;
+                    };
+
+                    // Ctrl samples: the eyedropper every texture tool has, and
+                    // worth having now that the browser shows what you picked up.
+                    if sample {
+                        if let Some(material) = self
+                            .document
+                            .find_solid(solid)
+                            .and_then(|s| s.sides.iter().find(|s| s.id == side))
+                            .map(|s| s.material.clone())
+                        {
+                            self.status = format!("picked up {material}");
+                            self.document.current_material = material;
+                        }
+                        return;
+                    }
+
+                    if !add { self.document.selection.clear(); }
+                    self.document.selection.faces.insert((solid, side));
+
+                    if apply {
+                        let material = self.document.current_material.clone();
+                        self.document.apply_material();
+                        self.status = format!("{material} on 1 face");
+                    }
                 }
-                return;
-            }
+                TextureTarget::WholeBrush => {
+                    let Some(solid) =
+                        crate::tools::pick_solid_3d(&self.document, origin, direction)
+                    else {
+                        if !add { self.document.selection.clear(); }
+                        return;
+                    };
 
-            if !add { self.document.selection.clear(); }
-            self.document.selection.faces.insert((solid, side));
-            if !add {
-                // A plain click with the texture tool applies, which is what
-                // the tool is named after. Shift only selects, for building up
-                // a set of faces to edit together.
-                let material = self.document.current_material.clone();
-                self.document.apply_material();
-                self.status = format!("{material} on 1 face");
+                    if !add { self.document.selection.clear(); }
+                    // A brush that belongs to an entity selects the entity:
+                    // that is the thing a designer thinks of as the door.
+                    let owner = self
+                        .document
+                        .map
+                        .all_solids()
+                        .find(|(_, s)| s.id == solid)
+                        .map(|(e, _)| {
+                            (e.id, e.is_brush_entity() && e.classname() != "worldspawn")
+                        });
+                    match owner {
+                        Some((entity, true)) => {
+                            self.document.selection.entities.insert(entity);
+                        }
+                        _ => {
+                            self.document.selection.solids.insert(solid);
+                        }
+                    }
+
+                    if apply {
+                        let material = self.document.current_material.clone();
+                        let changed = self.document.apply_material();
+                        self.status = format!("{material} on {changed} faces");
+                    }
+                }
             }
             return;
         }
@@ -2525,30 +2634,25 @@ impl ChiselApp {
         ui.ctx().request_repaint();
     }
 
-    /// Draw a 3D pane, rasterising it again only if it would look different.
+    /// Everything the rasterised 3D pane depends on, hashed.
     ///
-    /// A software rasteriser is cheap but not free, and an editor spends most
-    /// of its frames showing exactly what it showed last frame. Hashing what
-    /// the image depends on turns a still view into a texture blit.
-    fn draw_preview(&mut self, ui: &egui::Ui, painter: &egui::Painter, index: usize, rect: egui::Rect) {
+    /// When this key is unchanged the pane is redrawn from the cached image
+    /// rather than rasterised again. The selection is part of the key because
+    /// it changes colours without editing the map -- and faces in particular,
+    /// because picking one face tints it while its brush stays unselected.
+    fn preview_key(&self, index: usize, width: usize, height: usize) -> u64 {
         use std::hash::{Hash, Hasher};
-
-        // Render at device resolution so the pane is not soft on a high-DPI
-        // screen, but cap it: past a point this is work nobody can see.
-        const MAX_EDGE: f32 = 1920.0;
-        let scale = ui.ctx().pixels_per_point();
-        let width = (rect.width() * scale).round().clamp(1.0, MAX_EDGE) as usize;
-        let height = (rect.height() * scale).round().clamp(1.0, MAX_EDGE) as usize;
 
         let viewport = &self.viewports[index];
         let mut hasher = std::collections::hash_map::DefaultHasher::new();
         self.document.revision().hash(&mut hasher);
-        // The selection changes the colours but not the map, so it is not
-        // covered by the revision.
         let mut selected: Vec<u32> = self.document.selection.solids.iter().copied().collect();
         selected.extend(self.document.selection.entities.iter().copied());
         selected.sort_unstable();
         selected.hash(&mut hasher);
+        let mut faces: Vec<(u32, u32)> = self.document.selection.faces.iter().copied().collect();
+        faces.sort_unstable();
+        faces.hash(&mut hasher);
         for f in [
             viewport.eye.x, viewport.eye.y, viewport.eye.z,
             viewport.angles.pitch, viewport.angles.yaw, viewport.angles.roll,
@@ -2560,7 +2664,24 @@ impl ChiselApp {
         (self.shading as u8).hash(&mut hasher);
         // A texture arriving after a failed load changes the picture.
         self.textures.len().hash(&mut hasher);
-        let key = hasher.finish();
+        hasher.finish()
+    }
+
+    /// Draw a 3D pane, rasterising it again only if it would look different.
+    ///
+    /// A software rasteriser is cheap but not free, and an editor spends most
+    /// of its frames showing exactly what it showed last frame. Hashing what
+    /// the image depends on turns a still view into a texture blit.
+    fn draw_preview(&mut self, ui: &egui::Ui, painter: &egui::Painter, index: usize, rect: egui::Rect) {
+        // Render at device resolution so the pane is not soft on a high-DPI
+        // screen, but cap it: past a point this is work nobody can see.
+        const MAX_EDGE: f32 = 1920.0;
+        let scale = ui.ctx().pixels_per_point();
+        let width = (rect.width() * scale).round().clamp(1.0, MAX_EDGE) as usize;
+        let height = (rect.height() * scale).round().clamp(1.0, MAX_EDGE) as usize;
+
+        let viewport = &self.viewports[index];
+        let key = self.preview_key(index, width, height);
 
         let stale = self.previews[index].as_ref().is_none_or(|p| p.key != key);
         if stale {
@@ -2760,7 +2881,7 @@ impl ChiselApp {
             if response.clicked()
                 && let Some(pos) = response.interact_pointer_pos() {
                     let (x, y) = local(pos);
-                    self.pick_in_3d(index, x, y, ui);
+                    self.pick_in_3d(index, x, y, ui, response.double_clicked());
                 }
             return;
         }
@@ -3155,6 +3276,22 @@ mod tests {
         assert_eq!(document.map.world.solids.len(), 6);
         assert!(document.map.by_classname("info_player_start").count() == 1);
         assert!(document.map.by_classname("light").count() == 1);
+    }
+
+    #[test]
+    fn the_preview_cache_key_tracks_face_selection() {
+        // Picking one face tints it without editing the map, so the cache key
+        // must include the face selection -- otherwise the 3D pane keeps the
+        // stale image until the camera moves and invalidates it by accident.
+        let mut app = ChiselApp::new(std::path::PathBuf::from("/definitely/not/here"));
+        let id = app.document.create_block(Vec3::ZERO, Vec3::splat(64.0));
+        let side = app.document.find_solid(id).unwrap().sides[0].id;
+
+        let before = app.preview_key(0, 160, 120);
+        app.document.selection.faces.insert((id, side));
+        let after = app.preview_key(0, 160, 120);
+
+        assert_ne!(before, after, "selecting a face must invalidate the 3D preview");
     }
 
     #[test]

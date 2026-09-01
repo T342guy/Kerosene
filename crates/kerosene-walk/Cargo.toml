@@ -1,0 +1,12 @@
+[package]
+name = "kerosene-walk"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+kerosene-map.workspace = true
+kerosene-math.workspace = true
+thiserror.workspace = true

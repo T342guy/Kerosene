@@ -18,12 +18,13 @@ use crate::document::Document;
 use crate::tools::{Tool, ToolAction, ToolKind};
 use crate::viewport::Viewport;
 use egui::{Color32, Painter, Pos2, Rect, Stroke, Vec2};
-use kerosene_map::Solid;
+use kerosene_map::{Solid, WalkmapRule};
 use kerosene_math::{Aabb, Vec3};
 
 /// The editor's colours, in one place so the panes agree.
 pub mod colors {
     use egui::Color32;
+    use kerosene_map::WalkmapRule;
     pub const BACKGROUND: Color32 = Color32::from_rgb(22, 24, 28);
     pub const GRID_MINOR: Color32 = Color32::from_rgb(38, 41, 47);
     pub const GRID_MAJOR: Color32 = Color32::from_rgb(52, 56, 64);
@@ -41,6 +42,23 @@ pub mod colors {
     /// The leak trace. Deliberately the loudest thing on screen: it is only
     /// ever drawn when the map is broken.
     pub const LEAK: Color32 = Color32::from_rgb(255, 70, 70);
+
+    // The walkmap view colours each face by its rule, so a designer can read
+    // where NPCs may and may not go without compiling. The colours are the
+    // ones the rules suggest: green to go, red to stay away.
+    pub const WALKMAP_ALLOW: Color32 = Color32::from_rgb(70, 200, 120);
+    pub const WALKMAP_DENY: Color32 = Color32::from_rgb(230, 70, 70);
+    pub const WALKMAP_AVOID: Color32 = Color32::from_rgb(230, 180, 60);
+    pub const WALKMAP_ALWAYS: Color32 = Color32::from_rgb(90, 160, 255);
+
+    pub fn walkmap(rule: WalkmapRule) -> Color32 {
+        match rule {
+            WalkmapRule::Allow => WALKMAP_ALLOW,
+            WalkmapRule::Deny => WALKMAP_DENY,
+            WalkmapRule::Avoid => WALKMAP_AVOID,
+            WalkmapRule::Always => WALKMAP_ALWAYS,
+        }
+    }
 }
 
 /// Every fourth grid line is drawn brighter, so it is possible to count
@@ -681,6 +699,8 @@ pub struct VisibleFace {
     pub normal: Vec3,
     /// Which material is on it.
     pub material: String,
+    /// How this face participates in the NPC walkmap.
+    pub walkmap: WalkmapRule,
     pub selected: bool,
     /// Whether this face in particular is selected, as against its brush.
     pub face_selected: bool,
@@ -725,6 +745,7 @@ pub fn visible_faces(document: &Document, eye: Vec3, basis: kerosene_math::Basis
                 depth,
                 normal: plane.normal,
                 material: side.material.clone(),
+                walkmap: side.walkmap,
                 selected,
                 face_selected,
             });
