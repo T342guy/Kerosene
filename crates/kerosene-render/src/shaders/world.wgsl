@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MPL-2.0
+// SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
 // World surface shading.
 //
 // Lighting is entirely baked: the lightmap atlas already holds the result of

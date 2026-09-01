@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MPL-2.0
+// SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
 //! `.kerotex` -- Kerosene's texture format, the VTF analogue.
 //!
 //! A texture is not just an image: it is an image plus everything the renderer

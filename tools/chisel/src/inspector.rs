@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MPL-2.0
+// SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
 //! The property inspector: what an entity's keys are, and how to edit them.
 //!
 //! Before this existed the inspector could only list the keys an entity

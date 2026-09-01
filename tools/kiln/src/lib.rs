@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MPL-2.0
+// SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
 //! Kiln -- building a project's content.
 //!
 //! Everything a project ships has a source that is not what the engine loads:

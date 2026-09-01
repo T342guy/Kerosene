@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MPL-2.0
+// SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
 //! Reading Wavefront OBJ, Forge's source mesh format.
 //!
 //! OBJ is chosen for the same reason `.keromap` is text: it is what every

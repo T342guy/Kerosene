@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MPL-2.0
+// SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
 //! Naming, finding and moving map files.
 //!
 //! The editor used to have exactly one thing it could do with a file: write

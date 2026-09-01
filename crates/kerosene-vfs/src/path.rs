@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MPL-2.0
+// SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
 //! Virtual path normalisation.
 //!
 //! Asset paths come from map files, material references and tool arguments,

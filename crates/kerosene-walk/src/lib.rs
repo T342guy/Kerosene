@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MPL-2.0
+// SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
 //! `.kerowalk` -- the compiled NPC walkmap.
 //!
 //! A walkmap is the answer to "where can NPCs go", built once at compile time

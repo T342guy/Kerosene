@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MPL-2.0
+// SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
 //! A window with egui in it, and nothing else.
 //!
 //! The toolchain is command-line programs by design -- that is what makes it

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MPL-2.0
+// SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
 //! Finding the other tools.
 //!
 //! The compilers are separate programs on purpose -- that is the shape of the

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MPL-2.0
+// SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
 //! How a face participates in the NPC walkmap.
 //!
 //! A walkmap is a compiled answer to "where can NPCs go", built from the flat

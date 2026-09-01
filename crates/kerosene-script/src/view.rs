@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MPL-2.0
+// SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
 //! What a script is allowed to see of the world.
 //!
 //! A snapshot, not the world itself. The reason is in the crate docs; the

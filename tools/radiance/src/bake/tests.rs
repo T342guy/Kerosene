@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MPL-2.0
+// SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
 use super::*;
 use crate::lights::LightSet;
 use kerosene_bsp::{Brush, BrushSide, BspPlane, Edge, Face, Leaf, Model, TexData, TexInfo, encode_leaf};

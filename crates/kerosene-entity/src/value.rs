@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MPL-2.0
+// SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
 //! Typed entity fields.
 //!
 //! Entities carry a bag of named values rather than typed structs, because the

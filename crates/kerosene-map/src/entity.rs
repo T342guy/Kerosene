@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MPL-2.0
+// SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
 //! Entities and their I/O connections.
 
 use crate::{plain_properties, read_id, vec3_to_kv};

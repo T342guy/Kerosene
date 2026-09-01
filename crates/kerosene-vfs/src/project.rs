@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MPL-2.0
+// SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
 //! `.keroproj` -- a project's own account of where its content is.
 //!
 //! Everything up to here *infers* the content root: climb the tree looking

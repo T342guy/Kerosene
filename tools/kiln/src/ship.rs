@@ -1,10 +1,10 @@
-// SPDX-License-Identifier: MPL-2.0
+// SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
 //! Assembling a distribution -- the step after the content is built.
 //!
 //! Everything up to here produces *content*: textures, models, maps, and a
 //! `.vault` holding them. None of that is a thing you can hand somebody. A
 //! game is an executable, an archive, a project file telling the executable
-//! where the archive is, and the notices the licence requires -- arranged so
+//! where the archive is, and the notices the licences require -- arranged so
 //! that double-clicking the executable works.
 //!
 //! Assembling that by hand is the step everyone gets wrong, and the two ways
@@ -31,8 +31,9 @@
 //!   my_game.keroproj   content = "content", so the game finds its own archive
 //!   content/
 //!     my_game.vault
-//!   LICENSE-MPL-2.0    the engine's licence, full text
-//!   README.txt         what this is, and the notice MPL-2.0 asks for
+//!   LICENSE-LGPL-3.0   one arm of the licence, full text
+//!   LICENSE-MPL-2.0    the other arm, full text
+//!   README.txt         what this is, and the notices both licences ask for
 //! ```
 
 use crate::{Settings, slug};
@@ -48,6 +49,7 @@ use std::time::SystemTime;
 /// write them, and a licence file that is missing when it matters is the
 /// whole failure this module exists to prevent.
 const MPL: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../LICENSE-MPL-2.0"));
+const LGPL: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../LICENSE-LGPL-3.0"));
 
 /// What was assembled.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -92,7 +94,7 @@ pub(crate) fn ship_from(settings: &Settings, out: &Path, source: &Path) -> Resul
         root: out.to_path_buf(),
         binary: out.join(&exe),
         archive: out.join("content").join(archive.file_name().unwrap_or_default()),
-        notices: ["LICENSE-MPL-2.0", "README.txt"]
+        notices: ["LICENSE-LGPL-3.0", "LICENSE-MPL-2.0", "README.txt"]
             .iter()
             .map(|n| out.join(n))
             .collect(),
@@ -110,12 +112,13 @@ pub(crate) fn ship_from(settings: &Settings, out: &Path, source: &Path) -> Resul
     copy(&archive, &shipped.archive)?;
 
     write_project(settings, &out.join(format!("{name}.keroproj")), &name)?;
+    std::fs::write(out.join("LICENSE-LGPL-3.0"), LGPL)?;
     std::fs::write(out.join("LICENSE-MPL-2.0"), MPL)?;
     std::fs::write(out.join("README.txt"), readme(settings, &name))?;
 
     println!("  {} -> {}", source.display(), shipped.binary.display());
     println!("  {} -> {}", archive.display(), shipped.archive.display());
-    println!("  wrote LICENSE-MPL-2.0 and README.txt");
+    println!("  wrote LICENSE-LGPL-3.0, LICENSE-MPL-2.0 and README.txt");
     Ok(shipped)
 }
 
@@ -256,12 +259,13 @@ fn write_project(settings: &Settings, path: &Path, name: &str) -> Result<()> {
     Ok(())
 }
 
-/// The notice MPL-2.0 asks of a program that carries its code unmodified.
+/// The notice both licences ask of a program that carries Kerosene.
 ///
 /// Written out in full rather than pointing at a URL, because the obligation
-/// travels with the copy and a link can rot. MPL-2.0 is file-level copyleft:
-/// it reaches only its own files, so a game that ships Kerosene owes a notice
-/// and a pointer to the source, and nothing resembling a relinking clause.
+/// travels with the copy and a link can rot. Kerosene is dual-licensed, so
+/// the README states both arms and the choice between them; a game that
+/// ships Kerosene under MPL-2.0 owes a notice and a pointer to the source,
+/// and under the LGPL must keep the engine replaceable.
 fn readme(settings: &Settings, name: &str) -> String {
     let title = settings.project.as_ref().map_or(name, |p| p.name.as_str());
     let mut out = String::new();
@@ -272,10 +276,18 @@ fn readme(settings: &Settings, name: &str) -> String {
     out.push_str("\n\nBuilt with Kerosene.\n\n");
 
     out.push_str(
-        "Kerosene is provided under the Mozilla Public License 2.0. The full\n\
-         terms are in LICENSE-MPL-2.0. MPL-2.0 is file-level copyleft: it requires\n\
-         source for the files it covers, and it does not reach the rest of this\n\
-         program or the game that builds on it. Kerosene comes with ABSOLUTELY\n\
+        "Kerosene is offered under a choice of two licences, and you may use it\n\
+         under either one:\n\n\
+         * LGPL-3.0-or-later -- the full terms are in LICENSE-LGPL-3.0. If you\n\
+           modify Kerosene and distribute your version, the modified engine must be\n\
+           released under the LGPL; code you write against the engine stays yours,\n\
+           provided the engine part can still be replaced.\n\n\
+         * MPL-2.0 -- the full terms are in LICENSE-MPL-2.0. File-level copyleft:\n\
+           it requires source for the files it covers, and it does not reach the\n\
+           rest of this program or the game that builds on it.\n\n\
+         Either way, if you change Kerosene itself, please contribute the change\n\
+         back as a pull request rather than releasing a modified Kerosene of your\n\
+         own, so the fix exists once for everyone. Kerosene comes with ABSOLUTELY\n\
          NO WARRANTY.\n\n",
     );
 

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MPL-2.0
+// SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
 //! Sounds placed in the world.
 //!
 //! Two classes, because they are two jobs and one entity doing both is one

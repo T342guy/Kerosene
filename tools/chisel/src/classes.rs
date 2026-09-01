@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MPL-2.0
+// SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
 //! Loading the game's entity class definitions.
 //!
 //! The shipped definitions are compiled into the game crate

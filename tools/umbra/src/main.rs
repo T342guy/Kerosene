@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MPL-2.0
+// SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
 //! Umbra -- the Kerosene visibility compiler.
 //!
 //! Reads a compiled `.kerobsp` and the `.keroprt` portal graph Cleave wrote beside

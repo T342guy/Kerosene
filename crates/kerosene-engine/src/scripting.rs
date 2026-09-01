@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MPL-2.0
+// SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
 //! Wiring the script VM to the running game.
 //!
 //! `kerosene-script` deliberately knows nothing about the engine: it reads a

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MPL-2.0
+// SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
 //! End-to-end tests: build a map, compile it, load it, and play it.
 //!
 //! These go through the whole stack -- `.keromap` source, Cleave's compile, the

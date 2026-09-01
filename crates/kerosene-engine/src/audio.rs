@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MPL-2.0
+// SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
 //! Sound, from the engine's side.
 //!
 //! `kerosene-audio` decodes and mixes; this decides *when*. It owns the bank of

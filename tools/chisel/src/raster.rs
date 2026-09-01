@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MPL-2.0
+// SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
 //! A small software rasteriser for the 3D pane.
 //!
 //! The 3D view used to be drawn with egui's painter: polygons sorted back to

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MPL-2.0
+// SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
 //! KeyValues -- the text format Kerosene uses for anything human-editable.
 //!
 //! This is Source's KeyValues, and it shows up in the same places: `.keromap`

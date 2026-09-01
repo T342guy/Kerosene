@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MPL-2.0
+// SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
 //! What an entity looks like in a 2D pane.
 //!
 //! Every point entity used to be the same small square with its classname

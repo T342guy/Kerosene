@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MPL-2.0
+// SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
 //! The developer console's state, without any drawing.
 //!
 //! A console is mostly not a text box. It is history you can walk back

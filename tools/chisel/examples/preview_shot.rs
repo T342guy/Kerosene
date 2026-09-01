@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MPL-2.0
+// SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
 //! Render a map through Chisel's 3D pane and write it out as a PNG.
 //!
 //! ```text

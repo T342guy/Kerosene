@@ -281,13 +281,18 @@ Known limits, stated plainly:
 
 ## Licence
 
-**MPL-2.0.** The full text is `LICENSE-MPL-2.0`; every source file carries an
-`SPDX-License-Identifier: MPL-2.0` line.
+**LGPL-3.0-or-later OR MPL-2.0** — a dual licence; you may use Kerosene under
+either one. The full texts are `LICENSE-LGPL-3.0` and `LICENSE-MPL-2.0`, and
+every source file carries an `SPDX-License-Identifier: LGPL-3.0-or-later OR
+MPL-2.0` line.
 
-MPL-2.0 is weak, *file-level* copyleft. In practice: changes *to Kerosene's
-own files* must be published under MPL-2.0, but a game built on it — your
-code, your assets, your levels — can be whatever you like and shipped any way
-you like. There is no linking stage and no relinking clause, so a
-closed-source game with the engine statically linked needs nothing more than
-a notice. [`docs/licensing.md`](docs/licensing.md) explains this properly,
-along with the full dependency audit and the provenance of the algorithms.
+Pick whichever fits. MPL-2.0 is weak, *file-level* copyleft: changes *to
+Kerosene's own files* must be published under MPL-2.0, but a game built on it
+— your code, your assets, your levels — can be whatever you like and shipped
+any way you like, with no linking stage or relinking clause. LGPL-3.0-or-later
+is stronger copyleft on the engine as a whole, for anyone who wants that
+guarantee. The project's preference, under either licence: if you change
+Kerosene itself, contribute the change back as a pull request rather than
+releasing a modified fork. [`docs/licensing.md`](docs/licensing.md) explains
+all of this properly, along with the full dependency audit and the provenance
+of the algorithms.

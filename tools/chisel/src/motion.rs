@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MPL-2.0
+// SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
 //! Where a selected entity is going, and which way it faces.
 //!
 //! A `func_door` is a box until you compile the map and walk into it. Nothing

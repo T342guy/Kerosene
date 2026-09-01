@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MPL-2.0
+// SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
 //! The game's entity schema, embedded in the crate.
 //!
 //! Chisel used to read this out of a `.kerodef` file in the content tree --

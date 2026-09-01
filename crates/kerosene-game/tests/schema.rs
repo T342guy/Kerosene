@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MPL-2.0
+// SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
 //! The shipped class schema must describe the game that is actually here.
 //!
 //! `kerosene_game::schema::BUILTIN` is what Chisel shows in its property

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MPL-2.0
+// SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
 //! Rendering a model small, so it can be picked by looking at it.
 //!
 //! A model is referenced in a map by a path -- `props/crate_wood` -- and the

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MPL-2.0
+// SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
 //! Editing how a texture sits on a face.
 //!
 //! Once the 3D pane draws textures, the next thing anyone wants is to move

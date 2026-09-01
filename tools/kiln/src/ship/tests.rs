@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MPL-2.0
+// SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
 use super::*;
 use crate::Stage;
 use kerosene_vfs::project::Project;
@@ -98,15 +98,20 @@ fn a_project_file_is_written_pointing_at_the_shipped_content() {
 }
 
 #[test]
-fn the_licence_text_is_written_in_full() {
+fn the_licence_texts_are_written_in_full() {
     let f = Fixture::new("licences");
     f.ship_with_binary().unwrap();
 
+    let lgpl = std::fs::read_to_string(f.dist().join("LICENSE-LGPL-3.0")).unwrap();
     let mpl = std::fs::read_to_string(f.dist().join("LICENSE-MPL-2.0")).unwrap();
 
+    assert!(lgpl.contains("GNU LESSER GENERAL PUBLIC LICENSE"), "the LGPL, not a summary");
+    assert!(lgpl.contains("Version 3"), "the LGPL-3.0 text must be complete enough to act on");
     assert!(mpl.contains("Mozilla Public License"), "the MPL, not a summary");
     assert!(mpl.contains("2.0"), "the MPL-2.0 text must be complete enough to act on");
-    // No LGPL/GPL text belongs in an MPL-2.0 distribution.
+    // Both full texts ship, and the old GPL-only boilerplate filenames do not.
+    assert!(f.dist().join("LICENSE-LGPL-3.0").exists());
+    assert!(f.dist().join("LICENSE-MPL-2.0").exists());
     assert!(!f.dist().join("COPYING").exists());
     assert!(!f.dist().join("COPYING.LESSER").exists());
 }
@@ -180,21 +185,23 @@ fn shipping_a_stale_archive_is_refused_and_names_what_changed() {
     assert!(err.contains("a.kerobsp"), "the stale file must be named: {err}");
 }
 
-// ---- the licence notice is unconditional under MPL-2.0 ---------------
+// ---- the licence notice is unconditional under both arms ------------
 
 #[test]
 fn the_notice_names_the_engine_and_disclaims_warranty() {
-    // MPL-2.0 asks that a program carrying its code unmodified preserve the
-    // notice and point at the source. That is the whole of the obligation --
-    // there is no relinking clause, because MPL-2.0 copies only at file
+    // Both arms ask that a program carrying Kerosene preserve the notice and
+    // point at the source; the README states the choice between them. There
+    // is no relinking clause under MPL-2.0, because it copies only at file
     // level and never at the level of how the binary is linked.
     let f = Fixture::new("notice");
     f.ship_with_binary().unwrap();
 
     let readme = std::fs::read_to_string(f.dist().join("README.txt")).unwrap();
     assert!(readme.contains("Built with Kerosene"));
+    assert!(readme.contains("LGPL-3.0-or-later"), "both arms must be stated: {readme}");
     assert!(readme.contains("Mozilla Public License"));
     assert!(readme.contains("NO WARRANTY"));
+    assert!(readme.contains("pull request"), "the prefer-a-PR guidance: {readme}");
     assert!(readme.contains("Test Game"), "the game's own name belongs at the top: {readme}");
     // The fonts travel inside any binary linking egui, which includes the
     // engine's console overlay, and their notices have to travel with them.

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MPL-2.0
+// SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
 //! The units everything in Kerosene is measured in.
 //!
 //! Distances are **kerosene units** (`ku`). One kerosene unit is one inch, which fixes

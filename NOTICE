@@ -1,9 +1,64 @@
 Kerosene
 Copyright (C) 2026 T342guy
 
-This Source Code Form is subject to the terms of the Mozilla Public
-License, v. 2.0. If a copy of the MPL was not distributed with this
-file, You can obtain one at <https://mozilla.org/MPL/2.0/>.
+Kerosene is offered under a choice of two licences, and you may use it under
+either one. Both full texts are shipped alongside this notice:
+
+    LICENSE-LGPL-3.0    the GNU Lesser General Public License, version 3 or later
+    LICENSE-MPL-2.0     the Mozilla Public License, version 2.0
+
+Every source file records the choice:
+
+    SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
+
+This Source Code Form is subject to the terms of the Mozilla Public License,
+v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain
+one at <https://mozilla.org/MPL/2.0/>.
+
+Kerosene is free software: you can redistribute it and/or modify it under the
+terms of the GNU Lesser General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version. Kerosene is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for
+more details. You should have received a copy of the GNU Lesser General Public
+License along with Kerosene. If not, see <https://www.gnu.org/licenses/>.
+
+How to use the two licences
+---------------------------
+
+The licences are alternatives, not conditions stacked on top of each other.
+Pick the one that fits what you are doing; you do not have to satisfy both at
+once.
+
+  * MPL-2.0 is weak, file-level copyleft. Change a Kerosene file and
+    distribute it, and that file must stay MPL-2.0; files you write yourself
+    -- your game code, levels, scripts, assets -- carry whatever terms you
+    like. There is no linking stage, so a closed-source game statically linked
+    to the engine owes nothing beyond this notice and a pointer to the source.
+
+  * LGPL-3.0-or-later is stronger copyleft on the engine as a whole. If you
+    modify Kerosene and distribute your version, the modified engine must be
+    released under the LGPL. Code you write *against* the engine is not the
+    engine: the LGPL lets you keep it closed, provided the engine part can
+    still be replaced. Rust links statically, so that means shipping the
+    engine as a replaceable library or shipping your object files for
+    relinking -- real but ordinary work. The MPL arm exists precisely so that
+    anyone who finds that too much ceremony can take the other one.
+
+Why offer both? So the choice is yours, not the project's. Take MPL-2.0 for
+the simplest possible shipping story; take the LGPL if you want the stronger
+guarantee that a modified engine stays open.
+
+Whichever you take, the project's preference is the same: if you change
+Kerosene itself, please contribute the change back as a pull request instead
+of releasing a modified Kerosene of your own. Use the updated engine, and the
+fix exists once, reviewed and maintained, rather than once per fork. Releasing
+a fork is permitted under either licence; a pull request is simply better for
+everyone who builds on Kerosene.
+
+Independent reimplementation
+----------------------------
 
 Kerosene is an independent reimplementation. It is not affiliated with,
 endorsed by, or sponsored by Valve Corporation or id Software LLC, and it

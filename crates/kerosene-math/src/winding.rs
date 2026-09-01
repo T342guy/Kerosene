@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MPL-2.0
+// SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
 use crate::{Aabb, MAX_MAP_COORD, Plane, PlaneSide, major_axis};
 use glam::Vec3;
 

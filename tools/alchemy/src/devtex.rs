@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MPL-2.0
+// SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
 //! The standard developer texture set, generated rather than shipped.
 //!
 //! Two families, and both earn their place before a single piece of real art

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MPL-2.0
+// SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
 //! IMA ADPCM: four bits a sample.
 //!
 //! Audio is the largest thing in most games' downloads and WAV is the least

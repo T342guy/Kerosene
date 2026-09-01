@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MPL-2.0
+// SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
 //! Cleave -- the Kerosene BSP compiler, as a library.
 //!
 //! The command-line tool is a thin wrapper over [`pipeline::compile`]. Exposing

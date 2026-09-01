@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MPL-2.0
+// SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
 //! Reading WAV files.
 //!
 //! Written out rather than pulled in, because the useful subset is small and
