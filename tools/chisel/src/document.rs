@@ -658,6 +658,25 @@ impl Document {
         (!bounds.is_empty()).then_some(bounds)
     }
 
+    /// Bounds of the selection when it is something that can be resized.
+    ///
+    /// Only world brushes resize. A point entity has no size to scale, and a
+    /// brush entity is a door or trigger to be configured, not a box to be
+    /// stretched -- so neither shows resize grips. The move still works for
+    /// either; only the grips are gated on this.
+    pub fn resizable_bounds(&self) -> Option<Aabb> {
+        if self.selection.solids.is_empty() || !self.selection.entities.is_empty() {
+            return None;
+        }
+        let mut bounds = Aabb::EMPTY;
+        for solid in &self.map.world.solids {
+            if self.selection.solids.contains(&solid.id) {
+                bounds = bounds.union(&solid.bounds());
+            }
+        }
+        (!bounds.is_empty()).then_some(bounds)
+    }
+
     pub fn find_solid(&self, id: u32) -> Option<&Solid> { self.map.find_solid(id) }
 
     pub fn find_entity(&self, id: u32) -> Option<&Entity> {

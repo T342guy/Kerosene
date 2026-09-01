@@ -80,6 +80,12 @@ impl ViewportKind {
         }
     }
 
+    /// The two axes this view shows, as `(horizontal, vertical)` indices.
+    pub fn plane_axes(self) -> (usize, usize) {
+        let (h, v, _) = self.axes();
+        (h, v)
+    }
+
     /// Which way the horizontal axis runs on screen: `+1` right, `-1` left.
     ///
     /// A view and its opposite show the same plane from opposite sides, and

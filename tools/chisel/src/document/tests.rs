@@ -338,6 +338,47 @@ fn an_empty_selection_has_no_bounds() {
 }
 
 #[test]
+fn only_world_brushes_are_resizable() {
+    let mut d = doc();
+    let a = block(&mut d, 0.0, 64.0);
+    let bounds = d.resizable_bounds().unwrap();
+    assert_eq!(bounds.min, Vec3::ZERO);
+    assert_eq!(bounds.max, Vec3::splat(64.0));
+    assert!(d.selection.solids.contains(&a));
+}
+
+#[test]
+fn a_point_entity_is_not_resizable() {
+    let mut d = doc();
+    d.create_entity("light", Vec3::new(100.0, 100.0, 100.0));
+    // It still has bounds to grab and drag, but no resize grips.
+    assert!(d.selection_bounds().is_some());
+    assert!(d.resizable_bounds().is_none());
+}
+
+#[test]
+fn a_brush_entity_is_not_resizable() {
+    let mut d = doc();
+    block(&mut d, 0.0, 64.0);
+    let entity = d.tie_to_entity("func_door").unwrap();
+    assert!(d.selection.entities.contains(&entity));
+    assert!(d.selection.solids.is_empty());
+    assert!(d.selection_bounds().is_some(), "the door still has bounds");
+    assert!(d.resizable_bounds().is_none(), "a door is configured, not stretched");
+}
+
+#[test]
+fn a_mixed_selection_is_not_resizable() {
+    let mut d = doc();
+    let a = block(&mut d, 0.0, 64.0);
+    let light = d.create_entity("light", Vec3::new(100.0, 100.0, 100.0));
+    // create_entity selects the entity and clears the brush; select both.
+    d.selection.solids.insert(a);
+    d.selection.entities.insert(light);
+    assert!(d.resizable_bounds().is_none());
+}
+
+#[test]
 fn a_document_round_trips_through_a_file() {
     let mut d = doc();
     block(&mut d, 0.0, 64.0);

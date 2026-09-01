@@ -2735,7 +2735,7 @@ impl ChiselApp {
             );
         }
 
-        self.draw_move_ghost(painter, index, rect);
+        self.draw_drag_ghost(painter, index, rect);
         self.draw_leak_3d(painter, index, rect);
     }
 
@@ -2775,11 +2775,13 @@ impl ChiselApp {
 
     /// Outline where a dragged selection will land, over the 3D image.
     ///
+    /// A move shows the selection translated; a resize shows it scaled about
+    /// the far side, the same shape the 2D pane that owns the drag previews.
     /// Stroked on top rather than rasterised into the pane, for two reasons:
     /// the cached image does not have to be thrown away on every mouse move,
     /// and a ghost that is hidden by the wall you are dragging something
     /// behind is a ghost that is no use.
-    fn draw_move_ghost(&self, painter: &egui::Painter, index: usize, rect: egui::Rect) {
+    fn draw_drag_ghost(&self, painter: &egui::Painter, index: usize, rect: egui::Rect) {
         let Some(drag) = &self.tool.drag else { return };
         if self.tool.kind != ToolKind::Select || !drag.is_dragging { return }
 
@@ -2795,8 +2797,24 @@ impl ChiselApp {
             )
         };
 
+        // A grip drag is a resize: show the scaled shape, computed the same
+        // way the 2D pane that owns the drag computes it, rather than a move
+        // of the whole selection by the pointer delta.
+        let polygons = match (drag.grip, drag.from, drag.axes) {
+            (Some(grip), Some(from), Some(axes)) => {
+                let minimum = self.document.grid.size;
+                let Some((anchor, factor)) =
+                    crate::tools::resize_factor(from, axes, grip, drag.current, minimum)
+                else {
+                    return;
+                };
+                draw::resize_outline(&self.document, anchor, factor)
+            }
+            _ => draw::ghost_outline(&self.document, drag.delta()),
+        };
+
         let stroke = egui::Stroke::new(1.5, draw::colors::TOOL_PREVIEW);
-        for polygon in draw::ghost_outline(&self.document, drag.delta()) {
+        for polygon in polygons {
             let camera = draw::to_camera_space(&polygon, viewport.eye, basis);
             // An entity marker is a line segment, not a loop; clipping a loop
             // is the wrong operation for it.
@@ -2886,7 +2904,13 @@ impl ChiselApp {
             return;
         }
 
-        if response.drag_started_by(egui::PointerButton::Primary)
+        // Press the geometry on the frame the button goes down, not on the
+        // frame egui first calls it a drag. egui delays a drag until the
+        // pointer has moved its threshold, and by then the point in hand is
+        // no longer where the user pressed -- a resize grip hit-tested there
+        // is why grabbing a corner sometimes fell through to a move and
+        // relocated the brush.
+        if ui.input(|i| i.pointer.primary_pressed()) && response.is_pointer_button_down_on()
             && let Some(pos) = response.interact_pointer_pos() {
                 let (x, y) = local(pos);
                 self.tool.press(&self.document, &self.viewports[index], x, y);

@@ -358,9 +358,10 @@ fn draw_motion(painter: &Painter, rect: Rect, viewport: &Viewport, document: &Do
 
 /// The eight grips around the selection, which is how it gets resized.
 ///
-/// Only for the select tool, and only when something is selected: a handle
-/// that does nothing when dragged is worse than no handle, and the grips are
-/// also the only thing on screen that says resizing is possible at all.
+/// Only for the select tool, and only around world brushes: entities cannot
+/// be resized, so a selected entity gets no grips. A handle that does nothing
+/// when dragged is worse than no handle, and the grips are also the only
+/// thing on screen that says resizing is possible at all.
 fn draw_resize_grips(
     painter: &Painter,
     rect: Rect,
@@ -369,7 +370,7 @@ fn draw_resize_grips(
     tool: &Tool,
 ) {
     if tool.kind != ToolKind::Select { return }
-    let Some(bounds) = document.selection_bounds() else { return };
+    let Some(bounds) = document.resizable_bounds() else { return };
     // Hidden mid-drag: the grips describe where the selection is, and during
     // a drag that is somewhere else.
     if tool.drag.as_ref().is_some_and(|d| d.is_dragging) { return }
@@ -407,7 +408,7 @@ fn draw_tool_preview(
     if let (Some(grip), Some(from)) = (drag.grip, drag.from) {
         let minimum = document.grid.size;
         let Some((anchor, factor)) =
-            crate::tools::resize_factor(from, viewport, grip, drag.current, minimum)
+            crate::tools::resize_factor(from, viewport.kind.plane_axes(), grip, drag.current, minimum)
         else {
             return;
         };
@@ -785,7 +786,7 @@ pub fn apply_action(document: &mut Document, viewport: &Viewport, action: ToolAc
             // surface rather than a solid.
             let minimum = document.grid.size;
             if let Some((anchor, factor)) =
-                crate::tools::resize_factor(from, viewport, grip, to, minimum)
+                crate::tools::resize_factor(from, viewport.kind.plane_axes(), grip, to, minimum)
             {
                 document.scale_selection(anchor, factor);
             }
@@ -1119,7 +1120,7 @@ mod tests {
         let grip = crate::tools::Handle { h: 1, v: 1 };
         let to = Vec3::new(128.0, 128.0, 0.0);
 
-        let (anchor, factor) = crate::tools::resize_factor(from, &viewport, grip, to, 16.0).unwrap();
+        let (anchor, factor) = crate::tools::resize_factor(from, viewport.kind.plane_axes(), grip, to, 16.0).unwrap();
         let preview = resize_outline(&document, anchor, factor);
         let predicted = bounds_of(&preview);
 

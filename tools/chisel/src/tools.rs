@@ -162,6 +162,13 @@ pub struct Drag {
     /// frame's scaling into the next -- a drag of a few pixels would grow the
     /// brush without limit.
     pub from: Option<Aabb>,
+    /// The two on-screen axes of the 2D pane the resize began in.
+    ///
+    /// A resize moves the grip along those two axes and holds the third; the
+    /// 3D view needs the same answer to draw the same ghost, so the axes ride
+    /// along rather than being guessed from a perspective view that has no
+    /// such axes.
+    pub axes: Option<(usize, usize)>,
 }
 
 impl Drag {
@@ -221,10 +228,11 @@ impl Tool {
         self.drag_origin_px = (x, y);
 
         // Pressing on one of the selection's grips resizes it; pressing
-        // anywhere else does what it always did. Only the select tool, and
-        // only in a 2D pane: a resize needs two axes on screen and a third
-        // that holds still, which is exactly what an orthographic view is.
-        let (grip, from) = match (self.kind, document.selection_bounds()) {
+        // anywhere else does what it always did. Only the select tool, only
+        // in a 2D pane, and only around world brushes: entities cannot be
+        // resized, so a press on an entity never grabs a grip and a drag
+        // falls through to a move.
+        let (grip, from) = match (self.kind, document.resizable_bounds()) {
             (ToolKind::Select, Some(bounds)) if viewport.kind.is_2d() => {
                 (handle_at(bounds, viewport, x, y), Some(bounds))
             }
@@ -237,6 +245,7 @@ impl Tool {
             is_dragging: false,
             grip,
             from: grip.and(from),
+            axes: grip.map(|_| viewport.kind.plane_axes()),
         });
     }
 
@@ -345,6 +354,14 @@ impl Handle {
     /// Where this grip sits in the world, given what is selected.
     pub fn world_position(self, bounds: Aabb, viewport: &Viewport) -> Vec3 {
         let (h, v, _) = viewport.kind.axes();
+        self.world_position_on(bounds, h, v)
+    }
+
+    /// Where this grip sits in the world, given the two axes on screen.
+    ///
+    /// The viewport flavour of [`Handle::world_position`] knows which axes a
+    /// pane shows; this is the same thing for callers that already know.
+    pub fn world_position_on(self, bounds: Aabb, h: usize, v: usize) -> Vec3 {
         let mut at = bounds.center();
         at[h] = pick(bounds.min[h], bounds.max[h], self.h);
         at[v] = pick(bounds.min[v], bounds.max[v], self.v);
@@ -400,19 +417,22 @@ pub fn handle_at(bounds: Aabb, viewport: &Viewport, x: f32, y: f32) -> Option<Ha
 
 /// The scale a resize drag asks for, and the point it pivots about.
 ///
+/// `axes` are the two world axes the pane shows: they decide which
+/// components the grip drags and which one holds still.
+///
 /// Returns `None` when the drag would collapse the selection to nothing.
 /// Nothing is not a size: a brush of zero thickness still exists, still
 /// compiles, and is invisible in every view -- so the drag is refused at one
 /// grid square rather than allowed to produce one.
 pub fn resize_factor(
     bounds: Aabb,
-    viewport: &Viewport,
+    axes: (usize, usize),
     grip: Handle,
     to: Vec3,
     minimum: f32,
 ) -> Option<(Vec3, Vec3)> {
-    let (h, v, _) = viewport.kind.axes();
-    let anchor = grip.opposite().world_position(bounds, viewport);
+    let (h, v) = axes;
+    let anchor = grip.opposite().world_position_on(bounds, h, v);
     let mut factor = Vec3::ONE;
 
     for (axis, side) in [(h, grip.h), (v, grip.v)] {
@@ -787,6 +807,66 @@ mod tests {
     }
 
     #[test]
+    fn a_point_entity_never_grabs_a_grip() {
+        // A point entity has a selection box to drag, but no size to scale,
+        // so pressing on its corner must fall through to a move.
+        let (mut document, viewport) = setup();
+        document.create_entity("light", Vec3::new(64.0, 64.0, 64.0));
+        let bounds = document.selection_bounds().unwrap();
+        let mut tool = Tool::new();
+
+        let (x, y) = viewport.world_to_screen(Handle { h: 1, v: 1 }.world_position(bounds, &viewport));
+        tool.press(&document, &viewport, x, y);
+        assert_eq!(tool.drag.unwrap().grip, None, "entities cannot be resized");
+    }
+
+    #[test]
+    fn a_brush_entity_never_grabs_a_grip() {
+        // A door is configured, not stretched: selecting it shows no grips,
+        // and a press on its corner is a move, not a resize.
+        let (mut document, viewport) = setup();
+        document.create_block(Vec3::ZERO, Vec3::splat(128.0));
+        document.tie_to_entity("func_door").unwrap();
+        let bounds = document.selection_bounds().unwrap();
+        let mut tool = Tool::new();
+
+        let (x, y) = viewport.world_to_screen(Handle { h: 1, v: 1 }.world_position(bounds, &viewport));
+        tool.press(&document, &viewport, x, y);
+        assert_eq!(tool.drag.unwrap().grip, None, "entities cannot be resized");
+    }
+
+    #[test]
+    fn a_resize_records_the_axes_of_the_pane_it_was_dragged_in() {
+        // A top view drags x and y; a front view drags x and z. The 3D ghost
+        // needs to know which, or it would scale the wrong components.
+        let (mut document, _) = setup();
+        document.create_block(Vec3::ZERO, Vec3::splat(128.0));
+        let bounds = document.selection_bounds().unwrap();
+
+        let top_view = Viewport { size: (800.0, 600.0), zoom: 1.0, ..Viewport::new(ViewportKind::Top) };
+        let mut top = Tool::new();
+        let (x, y) = top_view.world_to_screen(Handle { h: 1, v: 1 }.world_position(bounds, &top_view));
+        top.press(&document, &top_view, x, y);
+        assert_eq!(top.drag.unwrap().axes, Some((0, 1)));
+
+        let front_view = Viewport { size: (800.0, 600.0), zoom: 1.0, ..Viewport::new(ViewportKind::Front) };
+        let mut front = Tool::new();
+        let (x, y) = front_view.world_to_screen(Handle { h: 1, v: 1 }.world_position(bounds, &front_view));
+        front.press(&document, &front_view, x, y);
+        assert_eq!(front.drag.unwrap().axes, Some((0, 2)));
+    }
+
+    #[test]
+    fn a_move_records_no_resize_axes() {
+        let (document, viewport, bounds) = with_a_selected_box();
+        let mut tool = Tool::new();
+        let (x, y) = viewport.world_to_screen(bounds.center());
+
+        tool.press(&document, &viewport, x, y);
+        assert_eq!(tool.drag.unwrap().axes, None);
+    }
+
+    #[test]
     fn dragging_a_grip_asks_for_a_resize() {
         let (document, viewport, bounds) = with_a_selected_box();
         let mut tool = Tool::new();
@@ -820,7 +900,7 @@ mod tests {
         let grip = Handle { h: 1, v: 1 };
         let to = Vec3::new(256.0, 256.0, 0.0);
 
-        let (anchor, factor) = resize_factor(bounds, &viewport, grip, to, 16.0).unwrap();
+        let (anchor, factor) = resize_factor(bounds, viewport.kind.plane_axes(), grip, to, 16.0).unwrap();
         assert_eq!(anchor, Vec3::new(0.0, 0.0, 64.0), "the opposite corner holds still");
         assert_eq!(factor.x, 2.0);
         assert_eq!(factor.y, 2.0);
@@ -833,7 +913,7 @@ mod tests {
         let grip = Handle { h: 1, v: 0 };
         let to = Vec3::new(64.0, 999.0, 0.0);
 
-        let (_, factor) = resize_factor(bounds, &viewport, grip, to, 16.0).unwrap();
+        let (_, factor) = resize_factor(bounds, viewport.kind.plane_axes(), grip, to, 16.0).unwrap();
         assert_eq!(factor.x, 0.5);
         assert_eq!(factor.y, 1.0, "an edge grip does not touch the other axis");
     }
@@ -846,7 +926,7 @@ mod tests {
         let grip = Handle { h: 1, v: 1 };
         let to = Vec3::new(-500.0, -500.0, 0.0);
 
-        let (anchor, factor) = resize_factor(bounds, &viewport, grip, to, 16.0).unwrap();
+        let (anchor, factor) = resize_factor(bounds, viewport.kind.plane_axes(), grip, to, 16.0).unwrap();
         assert!(factor.x > 0.0 && factor.y > 0.0, "never inverted: {factor:?}");
         let size = bounds.size() * factor;
         assert_eq!(size.x, 16.0, "clamped to one grid square");
@@ -859,7 +939,7 @@ mod tests {
         let (_, viewport, bounds) = with_a_selected_box();
         let grip = Handle { h: 1, v: 1 };
         let to = Handle { h: 1, v: 1 }.world_position(bounds, &viewport);
-        assert!(resize_factor(bounds, &viewport, grip, to, 16.0).is_none());
+        assert!(resize_factor(bounds, viewport.kind.plane_axes(), grip, to, 16.0).is_none());
     }
 
     #[test]
@@ -868,7 +948,7 @@ mod tests {
         let flat = Aabb::new(Vec3::ZERO, Vec3::new(0.0, 128.0, 128.0));
         let grip = Handle { h: 1, v: 1 };
 
-        let (_, factor) = resize_factor(flat, &viewport, grip, Vec3::new(64.0, 256.0, 0.0), 16.0).unwrap();
+        let (_, factor) = resize_factor(flat, viewport.kind.plane_axes(), grip, Vec3::new(64.0, 256.0, 0.0), 16.0).unwrap();
         assert!(factor.x.is_finite(), "{factor:?}");
         assert_eq!(factor.x, 1.0);
         assert_eq!(factor.y, 2.0);
