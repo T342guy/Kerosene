@@ -24,3 +24,6 @@ content/maps/*.kerobsp
 
 # RustRover
 /.idea
+
+# Pi coding-agent session transcripts
+pi-session-*.html

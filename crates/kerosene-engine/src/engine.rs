@@ -16,9 +16,10 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use kerosene_bsp::{Bsp, contents};
 use kerosene_console::{ConVarFlags, Console, requests};
-use kerosene_entity::{EntityId, EntityWorld};
+use kerosene_entity::{EntityId, EntityWorld, Value};
 use kerosene_math::{Aabb, Angles, Pose, Vec3};
 use crate::collision::LevelCollision;
+use crate::physics::PhysicsProps;
 use kerosene_physics::{MoveInput, MoveParams, MoveState};
 use kerosene_vfs::{Vfs, VfsError};
 
@@ -166,6 +167,8 @@ pub struct Engine {
     pub vfs: Arc<Vfs>,
     pub level: Option<Level>,
     pub entities: EntityWorld,
+    /// Rigid-body props and the static world they rest on.
+    pub physics: PhysicsProps,
     pub player: PlayerState,
     /// Accumulated real time not yet simulated.
     accumulator: f32,
@@ -269,6 +272,7 @@ impl Engine {
             vfs,
             level: None,
             entities,
+            physics: PhysicsProps::new(),
             player: PlayerState::default(),
             accumulator: 0.0,
             time: 0.0,
@@ -336,6 +340,15 @@ impl Engine {
         self.entities.set_trace(self.console.int("developer") >= 2);
         let count = self.entities.load_from_bsp(&bsp)?;
         self.console.print(format!("{count} entities"));
+
+        // Static world geometry, so rigid-body props have something to land
+        // on. Built before `bsp` moves into `level`.
+        self.physics = PhysicsProps::new();
+        self.physics.build_static_world(&bsp);
+        self.console.developer(format!(
+            "  physics: {} static hulls",
+            self.physics.static_body_count()
+        ));
 
         let sky_color = self.sky_color_from_map();
         self.level = Some(Level { name: name.to_string(), bsp, sky_color });
@@ -502,6 +515,12 @@ impl Engine {
         self.update_triggers(dt);
         self.entities.run(dt);
         self.take_entity_requests();
+
+        // Rigid-body props: give new ones bodies, simulate, and write each
+        // body's pose back so the renderer draws it where the physics put it.
+        if self.level.is_some() {
+            self.physics.sync_and_step(dt, &mut self.entities, &self.vfs);
+        }
 
         // Only when a script asked for it: the snapshot a hook reads is
         // O(entities) to build, and most maps define no tick hook at all.
@@ -718,6 +737,21 @@ impl Engine {
             None => contents::EMPTY,
         }
     }
+
+    /// Spawn a physics prop at a point, with a named model.
+    ///
+    /// Used by `phys_spawn` and by a `prop_dynamic_spawner` when it fires. The
+    /// body is not made here: the next [`PhysicsProps::sync_and_step`] pass
+    /// notices the new entity and gives it one, which is the one path every
+    /// prop takes however it came to exist.
+    pub fn spawn_prop(&mut self, model: &str, origin: Vec3) -> EntityId {
+        let id = self.entities.spawn("prop_physics");
+        if let Some(e) = self.entities.get_mut(id) {
+            e.origin = origin;
+            e.fields.set("model", Value::Text(model.to_string()));
+        }
+        id
+    }
 }
 
 /// Register the engine's convars.
@@ -751,6 +785,8 @@ fn register_cvars(console: &mut Console) {
     console.register_cvar("r_speeds", "0", ConVarFlags::NONE, "Show per-frame render statistics.");
     console.register_cvar_ranged("mat_exposure", "1.0", Some(0.01), Some(16.0), ConVarFlags::ARCHIVE, "Overall brightness.");
     console.register_cvar("fps_max", "0", ConVarFlags::ARCHIVE, "Frame rate cap; 0 for unlimited.");
+
+    console.register_cvar("phys_debug", "0", ConVarFlags::CHEAT, "Draw physics prop collision boxes. 1 boxes, 2 boxes and bodies.");
 
     console.register_cvar_ranged("volume", "0.7", Some(0.0), Some(1.0), ConVarFlags::ARCHIVE, "Master sound volume.");
 }
@@ -876,6 +912,20 @@ fn register_commands(console: &mut Console) {
     console.register_command("version", ConVarFlags::NONE, "Show the engine version.", |con, _| {
         con.print(format!("Kerosene {}", env!("CARGO_PKG_VERSION")));
     });
+
+    console.register_command("phys_stats", ConVarFlags::NONE, "Show rigid-body simulation counts.", |con, _| {
+        con.request(requests::PHYS_STATS, "");
+    });
+
+    console.register_command(
+        "phys_spawn",
+        ConVarFlags::CHEAT,
+        "Spawn a physics cube in front of you: phys_spawn [model]",
+        |con, args| {
+            let model = args.get(1).unwrap_or("props/cube").to_string();
+            con.request(requests::PHYS_SPAWN, model);
+        },
+    );
 }
 
 /// Poll the console for requests engine commands left behind.
@@ -909,6 +959,26 @@ pub fn take_console_requests(engine: &mut Engine) -> Vec<(String, String)> {
                 engine.audio.load_scripts(&vfs);
                 let status = engine.audio.status.clone();
                 engine.console.print(format!("audio: {status}"));
+            }
+            requests::PHYS_SPAWN => {
+                // A cube a little in front of the player's eye, at chest
+                // height, so the drop is visible immediately.
+                let forward = engine.player.view_angles.forward();
+                let eye = engine.player.movement.eye_position();
+                let origin = eye + forward * 96.0;
+                let model = if payload.is_empty() { "props/cube".to_string() } else { payload };
+                engine.spawn_prop(&model, origin);
+                engine.console.print(format!(
+                    "spawned prop_physics ({model}) at {origin:.1}",
+                ));
+            }
+            requests::PHYS_STATS => {
+                engine.console.print(format!(
+                    "physics: {} props, {} static hulls, {} bodies",
+                    engine.physics.prop_count(),
+                    engine.physics.static_body_count(),
+                    engine.physics.body_count(),
+                ));
             }
             // Not ours. The console can ask for things the *host* owns --
             // opening the console itself, most obviously -- and the engine

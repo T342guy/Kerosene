@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
-use glam::{Mat3, Vec3};
+use glam::{Mat3, Quat, Vec3};
 use std::fmt;
 
 /// Euler angles in degrees, ordered pitch/yaw/roll -- Source's `QAngle`.
@@ -72,6 +72,30 @@ impl Angles {
         // Columns are the images of local +X/+Y/+Z. Local +Y is *left*, which
         // is -right, matching the Z-up left-handed-looking convention.
         Mat3::from_cols(b.forward, -b.right, b.up)
+    }
+
+    /// Euler angles from a rotation matrix, the inverse of [`Self::to_mat3`].
+    ///
+    /// The decomposition matches Source's `MatrixAngles`: pitch from the
+    /// forward vector's fall, yaw from its heading, roll from how far the up
+    /// vector has rolled about the forward axis. At pitch +/-90 the yaw/roll
+    /// split is degenerate (it always is with Euler angles) and yaw wins.
+    pub fn from_mat3(m: &Mat3) -> Self {
+        // Columns: col0 = forward, col1 = -right, col2 = up.
+        let forward = m.col(0);
+        let right_neg = m.col(1); // -right, so right = -right_neg
+        let up = m.col(2);
+
+        let pitch = (-forward.z).atan2(forward.truncate().length()).to_degrees();
+        let yaw = forward.y.atan2(forward.x).to_degrees();
+        // right.z = -right_neg.z; roll = atan2(right.z, up.z).
+        let roll = (-(-right_neg.z)).atan2(up.z).to_degrees();
+        Self::new(pitch, yaw, roll)
+    }
+
+    /// Euler angles from a rotation quaternion.
+    pub fn from_quat(q: Quat) -> Self {
+        Self::from_mat3(&Mat3::from_quat(q))
     }
 
     /// Wrap every component into `[-180, 180)`.
@@ -180,6 +204,31 @@ mod tests {
         for d in [Vec3::X, Vec3::Y, Vec3::new(1.0, 2.0, -3.0).normalize()] {
             let a = Angles::from_direction(d);
             assert!(close(a.forward(), d), "{d:?} -> {a:?} -> {:?}", a.forward());
+        }
+    }
+
+    #[test]
+    fn from_mat3_inverts_to_mat3() {
+        for &(p, y, r) in &[(0.0, 0.0, 0.0), (13.0, 47.0, 21.0), (-80.0, 200.0, -33.0), (0.0, 90.0, 0.0)] {
+            let a = Angles::new(p, y, r);
+            let back = Angles::from_mat3(&a.to_mat3());
+            // Roll and yaw may wrap, but every component must land back within
+            // a degree.
+            assert!((angle_diff(back.pitch, p)).abs() < 0.01, "{a:?} -> {back:?}");
+            assert!((angle_diff(back.yaw, y)).abs() < 0.01, "{a:?} -> {back:?}");
+            assert!((angle_diff(back.roll, r)).abs() < 0.01, "{a:?} -> {back:?}");
+        }
+    }
+
+    #[test]
+    fn from_quat_matches_the_matrix_path() {
+        for &(p, y, r) in &[(5.0, 20.0, -10.0), (40.0, -120.0, 80.0)] {
+            let a = Angles::new(p, y, r);
+            let q = Quat::from_mat3(&a.to_mat3());
+            let back = Angles::from_quat(q);
+            assert!((angle_diff(back.pitch, p)).abs() < 0.01, "{a:?} -> {back:?}");
+            assert!((angle_diff(back.yaw, y)).abs() < 0.01, "{a:?} -> {back:?}");
+            assert!((angle_diff(back.roll, r)).abs() < 0.01, "{a:?} -> {back:?}");
         }
     }
 

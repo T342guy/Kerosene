@@ -289,6 +289,81 @@ fn the_engine_loads_and_ticks_a_compiled_map() {
 }
 
 #[test]
+fn a_physics_prop_falls_and_comes_to_rest_on_the_floor() {
+    use kerosene_engine::engine::{Engine, EngineConfig};
+
+    let dir = std::env::temp_dir().join(format!("kerosene-phys-{}", std::process::id()));
+    std::fs::create_dir_all(dir.join("maps")).unwrap();
+    std::fs::create_dir_all(dir.join("models/props")).unwrap();
+    let bsp = build(&corridor_map(false, false));
+    std::fs::write(dir.join("maps/phystest.kerobsp"), bsp.to_bytes()).unwrap();
+    std::fs::write(dir.join("models/props/cube.keromdl"), cube_model().to_bytes()).unwrap();
+
+    let mut engine = Engine::new(&EngineConfig {
+        content_paths: vec![dir.clone()],
+        ..Default::default()
+    });
+    engine.load_map("phystest").expect("the engine should load it");
+
+    let id = engine.spawn_prop("props/cube", Vec3::new(100.0, 64.0, 100.0));
+    assert_eq!(engine.physics.prop_count(), 0, "the body appears on the next sync");
+
+    let input = InputState::default();
+    for _ in 0..(3.0 / TICK) as usize {
+        engine.tick(TICK, &input);
+    }
+
+    assert_eq!(engine.physics.prop_count(), 1, "the prop got a body");
+    let origin = engine.entities.get(id).expect("still alive").origin;
+    // The cube is 32 units tall, so its centre rests 16 above the floor (z=0).
+    assert!(
+        origin.z > 14.0 && origin.z < 18.0,
+        "the cube should rest on the floor, not at z={}",
+        origin.z
+    );
+    assert!(
+        origin.z < 100.0,
+        "the cube must have fallen from 100 to {}",
+        origin.z
+    );
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// A minimal 32-unit cube `.keromdl`, so the test does not depend on content.
+fn cube_model() -> kerosene_asset::Model {
+    use kerosene_asset::{Mesh, Model, Vertex};
+    let mut m = Model::new();
+    let mat = m.intern("dev/orange");
+    let h = 16.0f32;
+    let corners: [[f32; 3]; 8] = [
+        [-h, -h, -h], [h, -h, -h], [h, h, -h], [-h, h, -h],
+        [-h, -h, h], [h, -h, h], [h, h, h], [-h, h, h],
+    ];
+    for c in corners {
+        let pos = Vec3::from_array(c);
+        let normal = (pos / h).normalize_or_zero();
+        m.vertices.push(Vertex::rigid(pos, normal, [0.0, 0.0]));
+    }
+    // 12 triangles (6 faces), wound counter-clockwise from the outside.
+    for t in [
+        [0, 2, 1], [0, 3, 2], [4, 5, 6], [4, 6, 7],
+        [0, 1, 5], [0, 5, 4], [2, 3, 7], [2, 7, 6],
+        [0, 4, 7], [0, 7, 3], [1, 2, 6], [1, 6, 5],
+    ] {
+        m.indices.extend(t.iter().map(|&i| i as u32));
+    }
+    m.meshes.push(Mesh {
+        first_index: 0,
+        index_count: 36,
+        material_offset: mat,
+        flags: 0,
+    });
+    m.recompute_bounds();
+    m
+}
+
+#[test]
 fn what_the_engine_logs_reaches_the_console() {
     // The gap this closes: everything logged through the `log` crate went to
     // stderr and nowhere else, so a door reporting a missing target was

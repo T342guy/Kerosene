@@ -205,6 +205,16 @@ impl RigidWorld {
         from_b3(b3::body::body_get_linear_velocity(&self.world, body.0))
     }
 
+    /// Set a body's linear velocity, in Kerosene units per second.
+    pub fn set_linear_velocity(&mut self, body: Body, velocity: Vec3) {
+        b3::body::body_set_linear_velocity(&mut self.world, body.0, to_b3(velocity));
+    }
+
+    /// Set a body's angular velocity (axis-and-angle), in radians per second.
+    pub fn set_angular_velocity(&mut self, body: Body, velocity: Vec3) {
+        b3::body::body_set_angular_velocity(&mut self.world, body.0, to_b3(velocity));
+    }
+
     /// Whether a body is awake (moving or recently disturbed).
     pub fn is_awake(&self, body: Body) -> bool {
         b3::body::body_is_awake(&self.world, body.0)

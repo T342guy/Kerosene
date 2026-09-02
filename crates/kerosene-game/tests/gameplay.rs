@@ -994,3 +994,65 @@ fn a_one_shot_announces_itself_so_something_can_follow_it() {
 
     assert_eq!(field(&w, named(&w, "plays"), "value"), 1.0);
 }
+
+// ---- physics props and the spawner ---------------------------------------
+
+#[test]
+fn a_spawner_drops_a_batch_when_triggered() {
+    let mut w = world_from(r#"
+entity {
+    "classname" "prop_dynamic_spawner"
+    "targetname" "dropper"
+    "model" "props/cube"
+    "spawncount" "3"
+}
+"#);
+    let dropper = named(&w, "dropper");
+    w.accept_input(dropper, &InputEvent::new("Trigger"));
+
+    let props = w.find_by_class("prop_physics");
+    assert_eq!(props.len(), 3, "one batch of three props");
+    for id in &props {
+        assert_eq!(w.get(*id).unwrap().fields.text("model"), Some("props/cube"));
+    }
+}
+
+#[test]
+fn a_spawner_can_spawn_on_map_start() {
+    let w = world_from(r#"
+entity {
+    "classname" "prop_dynamic_spawner"
+    "model" "props/cube"
+    "spawnflags" "1"
+}
+"#);
+    assert_eq!(w.find_by_class("prop_physics").len(), 1, "spawned once at map start");
+}
+
+#[test]
+fn a_spawner_respects_its_total_limit() {
+    let mut w = world_from(r#"
+entity {
+    "classname" "prop_dynamic_spawner"
+    "targetname" "dropper"
+    "model" "props/cube"
+    "spawncount" "5"
+    "maxprops" "3"
+}
+"#);
+    let dropper = named(&w, "dropper");
+    w.accept_input(dropper, &InputEvent::new("Trigger"));
+    w.accept_input(dropper, &InputEvent::new("Trigger"));
+    assert_eq!(w.find_by_class("prop_physics").len(), 3, "capped at maxprops");
+}
+
+#[test]
+fn breaking_a_prop_removes_it() {
+    let mut w = world_from(r#"
+entity { "classname" "prop_physics" "targetname" "box" "model" "props/cube" }
+"#);
+    let box_id = named(&w, "box");
+    assert!(w.accept_input(box_id, &InputEvent::new("Break")));
+    run(&mut w, TICK);
+    assert!(!w.exists(box_id), "Break removes the prop");
+}

@@ -14,11 +14,31 @@ use crate::mesh::{WorldMesh, WorldVertex};
 use crate::FrameStats;
 use bytemuck::{Pod, Zeroable};
 use std::collections::HashMap;
-use kerosene_asset::{Material, Shader, Texture};
+use kerosene_asset::{Material, Model, Shader, Texture};
 use kerosene_bsp::surf;
 use kerosene_math::{Mat4, Pose, Vec3};
 use kerosene_vfs::Vfs;
 use wgpu::util::DeviceExt;
+
+/// A vertex in a studio model, as uploaded to the GPU.
+///
+/// Skinning data is not uploaded: rigid rendering uses bone 0 (the identity),
+/// which is all a physics prop needs. Position, normal and uv only.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, Pod, Zeroable)]
+pub struct ModelVertex {
+    pub position: [f32; 3],
+    pub normal: [f32; 3],
+    pub uv: [f32; 2],
+}
+
+/// A debug wireframe vertex: a position and a colour, nothing else.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, Pod, Zeroable)]
+pub struct LineVertex {
+    pub position: [f32; 3],
+    pub color: [f32; 3],
+}
 
 /// Uniforms shared by every draw in a frame.
 #[repr(C)]
@@ -61,6 +81,10 @@ enum Pass {
     World,
     Sky,
     Unlit,
+    /// A studio model, drawn without a lightmap.
+    Model,
+    /// Debug wireframe lines.
+    Lines,
 }
 
 /// Where one brush model has got to since it was compiled.
@@ -131,6 +155,14 @@ impl Renderer {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("world"),
             source: wgpu::ShaderSource::Wgsl(include_str!("shaders/world.wgsl").into()),
+        });
+        let model_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("model"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("shaders/model.wgsl").into()),
+        });
+        let line_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("line"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("shaders/line.wgsl").into()),
         });
 
         let frame_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -294,6 +326,117 @@ impl Renderer {
             pipelines.insert(PipelineKey::from(pass), pipeline);
         }
 
+        // Studio models carry position, normal and uv only -- no lightmap --
+        // so they get their own vertex layout and pipeline, while sharing the
+        // same bind groups (camera, material, per-model transform).
+        let model_vertex_layout = wgpu::VertexBufferLayout {
+            array_stride: std::mem::size_of::<ModelVertex>() as wgpu::BufferAddress,
+            step_mode: wgpu::VertexStepMode::Vertex,
+            attributes: &[
+                wgpu::VertexAttribute { offset: 0, shader_location: 0, format: wgpu::VertexFormat::Float32x3 },
+                wgpu::VertexAttribute { offset: 12, shader_location: 1, format: wgpu::VertexFormat::Float32x3 },
+                wgpu::VertexAttribute { offset: 24, shader_location: 2, format: wgpu::VertexFormat::Float32x2 },
+            ],
+        };
+        let model_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("model"),
+            layout: Some(&pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &model_shader,
+                entry_point: Some("vs_model"),
+                buffers: &[model_vertex_layout],
+                compilation_options: Default::default(),
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &model_shader,
+                entry_point: Some("fs_model"),
+                targets: &[Some(wgpu::ColorTargetState {
+                    format,
+                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+                compilation_options: Default::default(),
+            }),
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::TriangleList,
+                strip_index_format: None,
+                front_face: wgpu::FrontFace::Ccw,
+                cull_mode: Some(wgpu::Face::Back),
+                polygon_mode: wgpu::PolygonMode::Fill,
+                unclipped_depth: false,
+                conservative: false,
+            },
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: DEPTH_FORMAT,
+                depth_write_enabled: true,
+                depth_compare: wgpu::CompareFunction::LessEqual,
+                stencil: wgpu::StencilState::default(),
+                bias: wgpu::DepthBiasState::default(),
+            }),
+            multisample: wgpu::MultisampleState::default(),
+            multiview: None,
+            cache: None,
+        });
+        pipelines.insert(PipelineKey::from(Pass::Model), model_pipeline);
+
+        // Debug lines: the same camera uniform, a line-list topology, and a
+        // colour straight through. Only the camera is bound.
+        let line_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("line"),
+            bind_group_layouts: &[&frame_layout],
+            push_constant_ranges: &[],
+        });
+        let line_vertex_layout = wgpu::VertexBufferLayout {
+            array_stride: std::mem::size_of::<LineVertex>() as wgpu::BufferAddress,
+            step_mode: wgpu::VertexStepMode::Vertex,
+            attributes: &[
+                wgpu::VertexAttribute { offset: 0, shader_location: 0, format: wgpu::VertexFormat::Float32x3 },
+                wgpu::VertexAttribute { offset: 12, shader_location: 1, format: wgpu::VertexFormat::Float32x3 },
+            ],
+        };
+        let line_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("line"),
+            layout: Some(&line_layout),
+            vertex: wgpu::VertexState {
+                module: &line_shader,
+                entry_point: Some("vs_line"),
+                buffers: &[line_vertex_layout],
+                compilation_options: Default::default(),
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &line_shader,
+                entry_point: Some("fs_line"),
+                targets: &[Some(wgpu::ColorTargetState {
+                    format,
+                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+                compilation_options: Default::default(),
+            }),
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::LineList,
+                strip_index_format: None,
+                front_face: wgpu::FrontFace::Ccw,
+                cull_mode: None,
+                polygon_mode: wgpu::PolygonMode::Fill,
+                unclipped_depth: false,
+                conservative: false,
+            },
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: DEPTH_FORMAT,
+                depth_write_enabled: false,
+                // Lines are an overlay; draw them over the world but keep the
+                // depth test so occluded props are visibly behind walls.
+                depth_compare: wgpu::CompareFunction::LessEqual,
+                stencil: wgpu::StencilState::default(),
+                bias: wgpu::DepthBiasState::default(),
+            }),
+            multisample: wgpu::MultisampleState::default(),
+            multiview: None,
+            cache: None,
+        });
+        pipelines.insert(PipelineKey::from(Pass::Lines), line_pipeline);
+
         let camera_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("camera"),
             size: std::mem::size_of::<CameraUniform>() as u64,
@@ -403,6 +546,66 @@ impl Renderer {
     /// The dynamic offset that addresses one model's entry.
     fn model_offset(&self, model: usize) -> u32 {
         self.model_stride * model.min(MAX_MODELS - 1) as u32
+    }
+
+    /// Draw one uploaded studio model, at the pose in model slot `slot`.
+    ///
+    /// Physics props and other dynamic models are drawn through here: the
+    /// geometry comes from a `.keromdl` (not from the BSP), and the transform
+    /// comes from the same model buffer the brush models use.
+    pub fn draw_studio_model<'a>(
+        &'a self,
+        pass: &mut wgpu::RenderPass<'a>,
+        frame_bind_group: &'a wgpu::BindGroup,
+        gpu_model: &'a GpuModel,
+        slot: usize,
+    ) -> FrameStats {
+        let mut stats = FrameStats::default();
+        if gpu_model.meshes.is_empty() { return stats; }
+
+        pass.set_bind_group(0, frame_bind_group, &[]);
+        pass.set_bind_group(2, &self.model_bind_group, &[self.model_offset(slot)]);
+        pass.set_vertex_buffer(0, gpu_model.vertex_buffer.slice(..));
+        pass.set_index_buffer(gpu_model.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+        pass.set_pipeline(&self.pipelines[&PipelineKey::from(Pass::Model)]);
+
+        let mut current_material = u32::MAX;
+        for &(first, count, material) in &gpu_model.meshes {
+            if material != current_material {
+                if let Some(group) = gpu_model
+                    .material_bind_groups
+                    .get(material as usize)
+                    .and_then(|g| g.as_ref())
+                {
+                    pass.set_bind_group(1, group, &[]);
+                    current_material = material;
+                }
+            }
+            pass.draw_indexed(first..first + count, 0, 0..1);
+            stats.draw_calls += 1;
+            stats.triangles += (count / 3) as usize;
+        }
+        stats.surfaces_drawn = gpu_model.meshes.len();
+        stats
+    }
+
+    /// Draw debug wireframe lines.
+    ///
+    /// `vertex_buffer` holds [`LineVertex`] pairs (two vertices per segment)
+    /// and `vertex_count` is how many to draw. The caller uploads the buffer
+    /// once per frame; the debug overlay is small and changes every frame.
+    pub fn draw_lines<'a>(
+        &'a self,
+        pass: &mut wgpu::RenderPass<'a>,
+        frame_bind_group: &'a wgpu::BindGroup,
+        vertex_buffer: &'a wgpu::Buffer,
+        vertex_count: u32,
+    ) {
+        if vertex_count == 0 { return; }
+        pass.set_pipeline(&self.pipelines[&PipelineKey::from(Pass::Lines)]);
+        pass.set_bind_group(0, frame_bind_group, &[]);
+        pass.set_vertex_buffer(0, vertex_buffer.slice(..));
+        pass.draw(0..vertex_count, 0..1);
     }
 
     pub fn create_frame_bind_group(
@@ -708,6 +911,99 @@ fn fallback_texture(device: &wgpu::Device, queue: &wgpu::Queue) -> wgpu::Texture
     upload_rgba(device, queue, "missing material", SIZE, SIZE, &pixels)
 }
 
+/// One studio model uploaded to the GPU, ready to draw.
+pub struct GpuModel {
+    vertex_buffer: wgpu::Buffer,
+    index_buffer: wgpu::Buffer,
+    /// `(first_index, index_count, material_index)` per mesh.
+    meshes: Vec<(u32, u32, u32)>,
+    material_bind_groups: Vec<Option<wgpu::BindGroup>>,
+    /// Keeps every uploaded texture alive alongside its bind group.
+    _textures: Vec<wgpu::Texture>,
+    /// The model's compiled bounds, for culling and hull fitting.
+    pub bounds: kerosene_math::Aabb,
+}
+
+/// Load and upload a `.keromdl` model by the name an entity refers to it by.
+///
+/// Returns `None` when the model is missing or malformed -- a missing prop
+/// should be a logged warning and nothing drawn, not a crash.
+pub fn load_model(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    renderer: &Renderer,
+    vfs: &Vfs,
+    name: &str,
+) -> Option<GpuModel> {
+    let path = kerosene_asset::model_path(name);
+    let bytes = vfs.read(&path).ok()?;
+    let model = Model::from_bytes(&bytes).ok()?;
+
+    let vertices: Vec<ModelVertex> = model
+        .vertices
+        .iter()
+        .map(|v| ModelVertex { position: v.position, normal: v.normal, uv: v.uv })
+        .collect();
+    let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some("model vertices"),
+        contents: bytemuck::cast_slice(&vertices),
+        usage: wgpu::BufferUsages::VERTEX,
+    });
+    let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some("model indices"),
+        contents: bytemuck::cast_slice(&model.indices),
+        usage: wgpu::BufferUsages::INDEX,
+    });
+
+    let fallback = fallback_texture(device, queue);
+    let fallback_view = fallback.create_view(&wgpu::TextureViewDescriptor::default());
+    let mut textures = vec![fallback];
+
+    let mut name_to_group: HashMap<String, u32> = HashMap::new();
+    let mut material_bind_groups: Vec<Option<wgpu::BindGroup>> = Vec::new();
+    let mut meshes = Vec::with_capacity(model.meshes.len());
+
+    for i in 0..model.meshes.len() {
+        let material_name = model.mesh_material(i).to_string();
+        let material_index = match name_to_group.get(&material_name) {
+            Some(&idx) => idx,
+            None => {
+                let view = match load_material_texture(device, queue, vfs, &material_name) {
+                    Some(texture) => {
+                        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+                        textures.push(texture);
+                        view
+                    }
+                    None => fallback_view.clone(),
+                };
+                let group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some(&material_name),
+                    layout: &renderer.material_layout,
+                    entries: &[
+                        wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(&view) },
+                        wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::Sampler(&renderer.sampler) },
+                    ],
+                });
+                let idx = material_bind_groups.len() as u32;
+                material_bind_groups.push(Some(group));
+                name_to_group.insert(material_name, idx);
+                idx
+            }
+        };
+        let mesh = &model.meshes[i];
+        meshes.push((mesh.first_index, mesh.index_count, material_index));
+    }
+
+    Some(GpuModel {
+        vertex_buffer,
+        index_buffer,
+        meshes,
+        material_bind_groups,
+        _textures: textures,
+        bounds: model.bounds,
+    })
+}
+
 /// The view matrix a camera would use, exposed for tools that want it without
 /// building a whole renderer.
 pub fn view_projection(camera: &Camera) -> Mat4 { camera.view_projection() }
@@ -722,21 +1018,33 @@ mod tests {
     //! display -- which is a slow way to find a typo.
 
     const WORLD_WGSL: &str = include_str!("shaders/world.wgsl");
+    const MODEL_WGSL: &str = include_str!("shaders/model.wgsl");
+    const LINE_WGSL: &str = include_str!("shaders/line.wgsl");
 
-    fn validate() -> naga::valid::ModuleInfo {
-        let module = naga::front::wgsl::parse_str(WORLD_WGSL)
-            .unwrap_or_else(|e| panic!("world.wgsl failed to parse:\n{}", e.emit_to_string(WORLD_WGSL)));
+    fn validate(name: &str, source: &str) -> naga::valid::ModuleInfo {
+        let module = naga::front::wgsl::parse_str(source)
+            .unwrap_or_else(|e| panic!("{name} failed to parse:\n{}", e.emit_to_string(source)));
         naga::valid::Validator::new(
             naga::valid::ValidationFlags::all(),
             naga::valid::Capabilities::empty(),
         )
         .validate(&module)
-        .unwrap_or_else(|e| panic!("world.wgsl failed validation: {e:?}"))
+        .unwrap_or_else(|e| panic!("{name} failed validation: {e:?}"))
     }
 
     #[test]
     fn the_world_shader_compiles() {
-        validate();
+        validate("world.wgsl", WORLD_WGSL);
+    }
+
+    #[test]
+    fn the_model_shader_compiles() {
+        validate("model.wgsl", MODEL_WGSL);
+    }
+
+    #[test]
+    fn the_line_shader_compiles() {
+        validate("line.wgsl", LINE_WGSL);
     }
 
     #[test]
@@ -744,6 +1052,16 @@ mod tests {
         let module = naga::front::wgsl::parse_str(WORLD_WGSL).expect("parses");
         let names: Vec<&str> = module.entry_points.iter().map(|e| e.name.as_str()).collect();
         for wanted in ["vs_main", "fs_world", "fs_sky", "fs_unlit"] {
+            assert!(names.contains(&wanted), "missing entry point {wanted}; have {names:?}");
+        }
+        let module = naga::front::wgsl::parse_str(MODEL_WGSL).expect("parses");
+        let names: Vec<&str> = module.entry_points.iter().map(|e| e.name.as_str()).collect();
+        for wanted in ["vs_model", "fs_model"] {
+            assert!(names.contains(&wanted), "missing entry point {wanted}; have {names:?}");
+        }
+        let module = naga::front::wgsl::parse_str(LINE_WGSL).expect("parses");
+        let names: Vec<&str> = module.entry_points.iter().map(|e| e.name.as_str()).collect();
+        for wanted in ["vs_line", "fs_line"] {
             assert!(names.contains(&wanted), "missing entry point {wanted}; have {names:?}");
         }
     }
@@ -764,5 +1082,22 @@ mod tests {
         assert_eq!(std::mem::offset_of!(WorldVertex, normal), 12);
         assert_eq!(std::mem::offset_of!(WorldVertex, uv), 24);
         assert_eq!(std::mem::offset_of!(WorldVertex, lightmap_uv), 32);
+    }
+
+    #[test]
+    fn the_model_vertex_layout_matches_what_the_pipeline_declares() {
+        use super::ModelVertex;
+        assert_eq!(std::mem::size_of::<ModelVertex>(), 32);
+        assert_eq!(std::mem::offset_of!(ModelVertex, position), 0);
+        assert_eq!(std::mem::offset_of!(ModelVertex, normal), 12);
+        assert_eq!(std::mem::offset_of!(ModelVertex, uv), 24);
+    }
+
+    #[test]
+    fn the_line_vertex_layout_matches_what_the_pipeline_declares() {
+        use super::LineVertex;
+        assert_eq!(std::mem::size_of::<LineVertex>(), 24);
+        assert_eq!(std::mem::offset_of!(LineVertex, position), 0);
+        assert_eq!(std::mem::offset_of!(LineVertex, color), 12);
     }
 }

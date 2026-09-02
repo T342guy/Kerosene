@@ -239,6 +239,16 @@ impl Engine {
                 kerosene_entity::host_requests::STOP_SOUND => {
                     self.stop_entity_sound(request.caller);
                 }
+                kerosene_entity::host_requests::PHYS_WAKE => {
+                    if !self.physics.wake(request.caller) {
+                        self.console.warn("Wake: not a physics prop");
+                    }
+                }
+                kerosene_entity::host_requests::PHYS_SLEEP => {
+                    if !self.physics.sleep(request.caller) {
+                        self.console.warn("Sleep: not a physics prop");
+                    }
+                }
                 other => self.console.warn(format!("unknown entity request `{other}`")),
             }
         }

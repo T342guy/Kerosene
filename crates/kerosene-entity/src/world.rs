@@ -111,6 +111,10 @@ pub mod host_requests {
     pub const PLAY_SOUND: &str = "play_sound";
     /// Stop whatever the caller started.
     pub const STOP_SOUND: &str = "stop_sound";
+    /// Nudge a physics prop awake. The payload is ignored.
+    pub const PHYS_WAKE: &str = "phys_wake";
+    /// Put a physics prop to sleep. The payload is ignored.
+    pub const PHYS_SLEEP: &str = "phys_sleep";
 }
 
 impl EntityWorld {

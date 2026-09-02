@@ -21,6 +21,7 @@ pub mod collision;
 pub mod engine;
 pub mod host;
 pub mod input;
+pub mod physics;
 pub mod scripting;
 
 pub use collision::{LevelCollision, Mover};

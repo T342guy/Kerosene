@@ -120,6 +120,44 @@ class
     key { "name" "model" "label" "Model" "type" "model" }
 }
 
+class
+{
+    "name" "prop_physics"
+    "base" "Entity" "base" "Point" "base" "Angles"
+    "help" "A model with a rigid body: it falls, bounces off walls and settles. Spawned by a prop_dynamic_spawner, or dropped in with phys_spawn."
+    key { "name" "model" "label" "Model" "type" "model" }
+    key {
+        "name" "spawnflags" "label" "Flags" "type" "flags" "default" "0"
+        choice { "value" "1" "label" "Start asleep" }
+    }
+    input  { "name" "Break" "help" "Remove this prop, as Source's Break does." }
+    input  { "name" "Wake"  "help" "Nudge it so it reacts." }
+    input  { "name" "Sleep" "help" "Stop it dead." }
+    output { "name" "OnBreak" "help" "Fired when it breaks." }
+}
+
+class
+{
+    "name" "prop_dynamic_spawner"
+    "base" "Entity" "base" "Point" "base" "Angles"
+    "help" "Spawns physics props on demand. The engine's way to rain crates or drop a barrel when something fires it, with no scripting."
+    key { "name" "model" "label" "Prop model" "type" "model" "default" "props/cube"
+          "help" "The model each spawned prop uses." }
+    key { "name" "spawncount" "label" "Props per trigger" "type" "float" "default" "1"
+          "help" "How many it spawns each time it fires." }
+    key { "name" "maxprops" "label" "Maximum total" "type" "float" "default" "-1"
+          "help" "Total props it will ever spawn. -1 is unlimited." }
+    key { "name" "spread" "label" "Spread" "type" "float" "default" "0"
+          "help" "Random-looking scatter radius, in kerosene units." }
+    key {
+        "name" "spawnflags" "label" "Flags" "type" "flags" "default" "0"
+        choice { "value" "1" "label" "Spawn on map start" }
+    }
+    input  { "name" "Trigger" "help" "Spawn a batch of props." }
+    input  { "name" "Spawn" "help" "The same as Trigger." }
+    output { "name" "OnSpawned" "help" "Fired after spawning a batch." }
+}
+
 // --------------------------------------------------------------- lights ----
 //
 // Lights are read by Radiance at compile time and do not exist at runtime,

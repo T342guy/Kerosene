@@ -218,6 +218,10 @@ pub mod requests {
     /// Open or close the console. Owned by the host, not the engine: a
     /// dedicated server has a console and no window to draw one in.
     pub const TOGGLE_CONSOLE: &str = "toggle_console";
+    /// Spawn a physics prop at the player's position, for testing.
+    pub const PHYS_SPAWN: &str = "phys_spawn";
+    /// Print rigid-body simulation counts.
+    pub const PHYS_STATS: &str = "phys_stats";
 }
 
 const MAX_EXEC_DEPTH: u32 = 16;

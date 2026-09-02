@@ -32,6 +32,7 @@
 
 pub mod doors;
 pub mod logic;
+pub mod props;
 pub mod schema;
 pub mod scripted;
 pub mod sound;
@@ -66,6 +67,7 @@ pub fn register(registry: &mut ClassRegistry) {
     logic::register(registry);
     scripted::register(registry);
     sound::register(registry);
+    props::register(registry);
 
     // Inputs every entity understands, as Source makes them.
     registry.register_common_input("Kill", input_kill);

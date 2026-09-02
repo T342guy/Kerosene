@@ -8,7 +8,7 @@ world
 	"id" "1"
 	"classname" "worldspawn"
 	"skyname" "sky_kero"
-	"message" "The Void -- sample level"
+	"message" "Kerosene -- sample level"
 	solid
 	{
 		"id" "2"
@@ -1408,6 +1408,7 @@ entity
 	{
 		"OnPressed" "shutter,Toggle,,0,-1"
 		"OnPressed" "switch_click,Play,,0,-1"
+		"OnPressed" "propify!,Trigger,,0,-1"
 	}
 }
 entity
@@ -1521,7 +1522,23 @@ entity
 entity
 {
 	"id" "156"
+	"classname" "prop_dynamic_spawner"
+	"origin" "760 256 96"
+	"model" "props/cube"
+	"spawncount" "3"
+	"spawnflags" "1"
+}
+entity
+{
+	"id" "157"
 	"classname" "info_player_start"
 	"origin" "128 256 16"
 	"angles" "0 0 0"
+}
+entity
+{
+	"id" "159"
+	"classname" "prop_dynamic_spawner"
+	"origin" "256 144 96"
+	"targetname" "propify!"
 }

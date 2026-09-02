@@ -1467,6 +1467,7 @@ name = "kerosene-engine"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "bytemuck",
  "cleave",
  "egui",
  "egui-wgpu",
@@ -1485,6 +1486,7 @@ dependencies = [
  "kerosene-math",
  "kerosene-physics",
  "kerosene-render",
+ "kerosene-rigid",
  "kerosene-script",
  "kerosene-vfs",
  "log",

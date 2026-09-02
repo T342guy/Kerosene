@@ -14,12 +14,15 @@
 
 use crate::engine::{Engine, EngineConfig, report_unhandled, take_console_requests};
 use crate::input::InputSystem;
+use crate::physics::is_physics_prop;
 use kerosene_console::ConsoleUi;
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
 use kerosene_math::Pose;
-use kerosene_render::gpu::{CameraUniform, MapResources, Renderer};
+use kerosene_render::gpu::{CameraUniform, LineVertex, MapResources, Renderer, GpuModel, MAX_MODELS, load_model};
 use kerosene_render::{Camera, FrameStats, LightmapAtlas, WorldMesh};
+use wgpu::util::DeviceExt;
 use winit::application::ApplicationHandler;
 use winit::event::{DeviceEvent, DeviceId, ElementState, MouseButton, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
@@ -62,6 +65,8 @@ struct App {
     /// Seconds since the last `r_speeds` report.
     since_report: f32,
     console_ui: ConsoleUi,
+    /// Uploaded `.keromdl` models, keyed by the name an entity refers to them by.
+    model_cache: HashMap<String, GpuModel>,
 }
 
 /// Start the engine with a window.
@@ -81,6 +86,7 @@ pub fn run(config: EngineConfig) -> anyhow::Result<()> {
         stats: FrameStats::default(),
         since_report: 0.0,
         console_ui: ConsoleUi::new(),
+        model_cache: HashMap::new(),
     };
 
     event_loop.run_app(&mut app)?;
@@ -386,12 +392,60 @@ impl App {
         // collision code traces against -- so what you see and what you walk
         // into are the same thing by construction rather than by agreement.
         let brush_models = self.engine.brush_model_poses();
-        let mut poses =
-            vec![Pose::IDENTITY; brush_models.iter().map(|(m, _)| m + 1).max().unwrap_or(1)];
+        let mut poses = vec![Pose::IDENTITY; MAX_MODELS];
+        let mut next_slot = 1usize;
         for (model, pose) in &brush_models {
-            poses[*model] = *pose;
+            if *model < MAX_MODELS { poses[*model] = *pose; }
+            next_slot = next_slot.max(model + 1);
+        }
+
+        // Physics props each take a model slot and draw where their body is.
+        // The same entity fields the renderer reads, so a tumbling crate is
+        // drawn exactly where the simulation put it.
+        let mut props: Vec<(usize, String)> = Vec::new();
+        for entity in self.engine.entities.iter() {
+            if !is_physics_prop(&entity.classname) { continue; }
+            let Some(name) = entity.fields.text("model") else { continue };
+            if next_slot >= MAX_MODELS { break; }
+            poses[next_slot] = Pose::new(entity.origin, entity.angles);
+            props.push((next_slot, name.to_string()));
+            next_slot += 1;
         }
         gfx.renderer.update_models(&gfx.queue, &poses);
+
+        // Upload any prop model we have not seen yet, once.
+        for name in props.iter().map(|(_, n)| n) {
+            if self.model_cache.contains_key(name) { continue; }
+            match load_model(&gfx.device, &gfx.queue, &gfx.renderer, &self.engine.vfs, name) {
+                Some(model) => { self.model_cache.insert(name.clone(), model); }
+                None => self.engine.console.warn(format!("missing model: {name}")),
+            }
+        }
+
+        // Physics debug overlay: the prop boxes, when `phys_debug` is on.
+        let line_vertices: Vec<LineVertex> = if self.engine.console.int("phys_debug") >= 1 {
+            self.engine
+                .physics
+                .debug_lines()
+                .iter()
+                .flat_map(|l| {
+                    [
+                        LineVertex { position: l.a.to_array(), color: l.color },
+                        LineVertex { position: l.b.to_array(), color: l.color },
+                    ]
+                })
+                .collect()
+        } else {
+            Vec::new()
+        };
+        let line_count = line_vertices.len() as u32;
+        let line_buffer = (!line_vertices.is_empty()).then(|| {
+            gfx.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("debug lines"),
+                contents: bytemuck::cast_slice(&line_vertices),
+                usage: wgpu::BufferUsages::VERTEX,
+            })
+        });
 
         let mut encoder = gfx
             .device
@@ -459,6 +513,26 @@ impl App {
                         self.stats.triangles += drawn.triangles;
                         self.stats.surfaces_drawn += drawn.surfaces_drawn;
                     }
+
+                    // Physics props, at the pose in their model slot.
+                    for (slot, name) in &props {
+                        if let Some(model) = self.model_cache.get(name) {
+                            let drawn = gfx.renderer.draw_studio_model(
+                                &mut pass,
+                                &map.frame_bind_group,
+                                model,
+                                *slot,
+                            );
+                            self.stats.draw_calls += drawn.draw_calls;
+                            self.stats.triangles += drawn.triangles;
+                        }
+                    }
+
+                    // The physics debug overlay, drawn last so it sits on top.
+                    if let Some(buffer) = &line_buffer {
+                        gfx.renderer.draw_lines(&mut pass, &map.frame_bind_group, buffer, line_count);
+                    }
+
                     self.stats.cluster = level.bsp.point_cluster(camera.position);
                 }
             }

@@ -70,6 +70,15 @@ physics props, the rigid bodies that tumble and roll. It speaks Kerosene units
 natively: Box3D's length-unit scale is set to inches once at startup, and no
 coordinate conversion happens anywhere.
 
+In the engine, a [`PhysicsProps`](crate::physics::PhysicsProps) owns one
+`RigidWorld`: at map load every static world brush becomes a convex hull, each
+`prop_physics` entity becomes a dynamic box (shaped from its model's bounds,
+loaded through `kerosene-asset`), and once a tick the simulation is stepped and
+its poses written back to the entities. The renderer draws those props as
+`.keromdl` models at their simulated pose, and `phys_debug` turns the collision
+boxes into a wireframe overlay. `prop_dynamic_spawner` is the game-side spawner
+that creates the props in the first place.
+
 Two edges in that picture are there for a reason worth stating. `chisel`
 depends on `alchemy`, because the editor builds the content tree's textures
 itself rather than shelling out to a sibling binary that may not be beside it.
