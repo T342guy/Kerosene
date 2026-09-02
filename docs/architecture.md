@@ -42,6 +42,7 @@ and nothing at all to sample. Neither belongs in the engine.
             │              │  └── radiance      │
             │              ▼                    │
             ├── kerosene-physics                    │
+            ├── kerosene-rigid ── box3d-rust        │
             ├── kerosene-entity ── kerosene-game        │
             ├── kerosene-vfs ── kerosene-asset ─────────┤
             │                   │               │
@@ -60,6 +61,14 @@ it: a small crate on top of `kerosene-kv` that reads `engineconf.keroconfig`,
 the settings every program shares (which renderer, how big the window). The
 game, Chisel, and the tool windows all ask it the same question, so the
 renderer is chosen once in a file rather than once per program.
+
+`kerosene-rigid` is the newcomer beside `kerosene-physics`. Player movement
+stays in `kerosene-physics` (it is Source's `gamemovement`, and that is the
+feel); `kerosene-rigid` wraps [box3d-rust](https://crates.io/crates/box3d-rust),
+Erin Catto's 3D engine ported to pure Rust, for everything the player is not --
+physics props, the rigid bodies that tumble and roll. It speaks Kerosene units
+natively: Box3D's length-unit scale is set to inches once at startup, and no
+coordinate conversion happens anywhere.
 
 Two edges in that picture are there for a reason worth stating. `chisel`
 depends on `alchemy`, because the editor builds the content tree's textures

@@ -230,6 +230,7 @@ crates/
   kerosene-map        .keromap — the editable map format
   kerosene-bsp        .kerobsp — the compiled map, plus tracing and PVS
   kerosene-physics    player movement and collision response
+  kerosene-rigid      rigid-body props on Box3D (box3d-rust)
   kerosene-entity     entities, their fields, and the I/O event queue
   kerosene-render     the wgpu renderer, lightmap atlas, PVS culling
   kerosene-engine     the host: ties it together, with and without a window

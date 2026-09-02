@@ -269,6 +269,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "box3d-rust"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5314d16423995f138be106147438922d9355fe06c43d0e7fcc53e36ff4521b10"
+
+[[package]]
 name = "bumpalo"
 version = "3.20.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1573,6 +1579,15 @@ dependencies = [
  "naga",
  "pollster",
  "wgpu",
+]
+
+[[package]]
+name = "kerosene-rigid"
+version = "0.1.0"
+dependencies = [
+ "box3d-rust",
+ "glam",
+ "kerosene-math",
 ]
 
 [[package]]

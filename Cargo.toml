@@ -11,6 +11,7 @@ members = [
     "crates/kerosene-bsp",
     "crates/kerosene-walk",
     "crates/kerosene-physics",
+    "crates/kerosene-rigid",
     "crates/kerosene-entity",
     "crates/kerosene-render",
     "crates/kerosene-engine",
@@ -49,6 +50,7 @@ kerosene-map     = { path = "crates/kerosene-map" }
 kerosene-bsp     = { path = "crates/kerosene-bsp" }
 kerosene-walk    = { path = "crates/kerosene-walk" }
 kerosene-physics = { path = "crates/kerosene-physics" }
+kerosene-rigid   = { path = "crates/kerosene-rigid" }
 kerosene-entity  = { path = "crates/kerosene-entity" }
 kerosene-render  = { path = "crates/kerosene-render" }
 kerosene-engine  = { path = "crates/kerosene-engine" }
@@ -56,6 +58,7 @@ kerosene-game    = { path = "crates/kerosene-game" }
 kerosene-script  = { path = "crates/kerosene-script" }
 kerosene-audio   = { path = "crates/kerosene-audio", default-features = false }
 kerosene-ui      = { path = "crates/kerosene-ui" }
+box3d-rust       = "0.2"
 
 anyhow      = "1"
 thiserror   = "2"

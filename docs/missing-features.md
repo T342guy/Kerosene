@@ -46,10 +46,14 @@ for completeness.
 ## 3. Physics and simulation
 
 - **Rigid-body dynamics.** `kerosene-physics` is the player movement solver
-  only. No dynamic bodies, impulses, joints, or collision response between
-  moving objects.
-- **Ragdoll / skeletal physics.** None.
-- **Vehicles / wheeled physics.** None.
+  only. `kerosene-rigid` now wraps Box3D (via `box3d-rust`) and can simulate
+  static hulls, dynamic boxes and convex hulls, gravity, resting contact and
+  impulses -- but the engine does not yet spawn `prop_physics` entities into it
+  or sync their transforms, so nothing in a level uses it yet.
+- **Ragdoll / skeletal physics.** None. Box3D has joints, but no skeleton
+  attachment.
+- **Vehicles / wheeled physics.** None. Box3D has wheel joints, but no vehicle
+  controller.
 - **Cloth / soft body / fluid simulation.** Water is a volume flag, not
   simulated.
 - **Projectiles / ballistics.** No projectile physics. Traces exist for the
