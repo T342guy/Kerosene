@@ -678,6 +678,23 @@ impl Console {
             con.print(format!("{n} convars"));
         });
 
+        self.register_command("cmdlist", ConVarFlags::NONE, "List every command.", |con, _| {
+            let mut lines: Vec<String> = con
+                .commands
+                .values()
+                .filter(|c| !c.flags.contains(ConVarFlags::HIDDEN))
+                .map(|c| {
+                    let flags = c.flags.describe();
+                    let suffix = if flags.is_empty() { String::new() } else { format!(" [{flags}]") };
+                    format!("{} (command){suffix} - {}", c.name, c.help)
+                })
+                .collect();
+            lines.sort();
+            let n = lines.len();
+            for l in lines { con.print(l); }
+            con.print(format!("{n} commands"));
+        });
+
         self.register_command("help", ConVarFlags::NONE, "Show help for a convar or command.", |con, args| {
             let Some(name) = args.get(1).map(str::to_string) else {
                 con.print("usage: help <name>. Try 'find <substring>' or 'cvarlist'.");
@@ -863,5 +880,20 @@ mod tests {
         c.enqueue("chain");
         c.run_buffered();
         assert_eq!(c.float("sv_gravity"), 333.0);
+    }
+
+    #[test]
+    fn cmdlist_lists_commands_but_cvarlist_does_not() {
+        let mut c = con();
+        c.register_command("phys_spawn", ConVarFlags::CHEAT, "Spawn a cube.", |_, _| {});
+
+        c.execute("cmdlist");
+        let commands: String = c.log().map(|l| l.text.as_str()).collect();
+        assert!(commands.contains("phys_spawn (command)"), "{commands}");
+
+        c.clear_log();
+        c.execute("cvarlist");
+        let cvars: String = c.log().map(|l| l.text.as_str()).collect();
+        assert!(!cvars.contains("phys_spawn"), "commands do not belong in cvarlist: {cvars}");
     }
 }

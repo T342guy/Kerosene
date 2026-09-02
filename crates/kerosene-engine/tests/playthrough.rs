@@ -330,6 +330,210 @@ fn a_physics_prop_falls_and_comes_to_rest_on_the_floor() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+#[test]
+fn a_prop_rests_on_a_func_detail_pillar() {
+    use kerosene_engine::engine::{Engine, EngineConfig};
+
+    let dir = std::env::temp_dir().join(format!("kerosene-detail-{}", std::process::id()));
+    std::fs::create_dir_all(dir.join("maps")).unwrap();
+    std::fs::create_dir_all(dir.join("models/props")).unwrap();
+
+    let mut map = corridor_map(false, false);
+    // A pillar that is detail geometry, not structural world.
+    add_brush_entity(
+        &mut map,
+        "func_detail",
+        Aabb::new(Vec3::new(200.0, 32.0, 0.0), Vec3::new(232.0, 64.0, 64.0)),
+        "dev/grid",
+    );
+    let bsp = build(&map);
+    std::fs::write(dir.join("maps/phystest.kerobsp"), bsp.to_bytes()).unwrap();
+    std::fs::write(dir.join("models/props/cube.keromdl"), cube_model().to_bytes()).unwrap();
+
+    let mut engine = Engine::new(&EngineConfig {
+        content_paths: vec![dir.clone()],
+        ..Default::default()
+    });
+    engine.load_map("phystest").expect("the engine should load it");
+
+    let id = engine.spawn_prop("props/cube", Vec3::new(216.0, 48.0, 100.0));
+    let input = InputState::default();
+    for _ in 0..(3.0 / TICK) as usize {
+        engine.tick(TICK, &input);
+    }
+
+    let origin = engine.entities.get(id).expect("still alive").origin;
+    // Pillar top is z=64, cube half-height is 16, so the centre rests at 80.
+    assert!(
+        origin.z > 78.0 && origin.z < 82.0,
+        "the cube should rest on the pillar top, not at z={}",
+        origin.z
+    );
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_prop_rests_on_a_closed_moving_brush() {
+    use kerosene_engine::engine::{Engine, EngineConfig};
+
+    let dir = std::env::temp_dir().join(format!("kerosene-mover-{}", std::process::id()));
+    std::fs::create_dir_all(dir.join("maps")).unwrap();
+    std::fs::create_dir_all(dir.join("models/props")).unwrap();
+
+    let mut map = corridor_map(false, false);
+    // A half-height door across the corridor: it is MOVEABLE (a brush entity),
+    // so props must still collide with it while it is closed.
+    add_brush_entity(
+        &mut map,
+        "func_door",
+        Aabb::new(Vec3::new(300.0, 0.0, 0.0), Vec3::new(316.0, 128.0, 64.0)),
+        "dev/grid",
+    );
+    let bsp = build(&map);
+    std::fs::write(dir.join("maps/phystest.kerobsp"), bsp.to_bytes()).unwrap();
+    std::fs::write(dir.join("models/props/cube.keromdl"), cube_model().to_bytes()).unwrap();
+
+    let mut engine = Engine::new(&EngineConfig {
+        content_paths: vec![dir.clone()],
+        ..Default::default()
+    });
+    engine.load_map("phystest").expect("the engine should load it");
+
+    let id = engine.spawn_prop("props/cube", Vec3::new(308.0, 64.0, 100.0));
+    let input = InputState::default();
+    for _ in 0..(3.0 / TICK) as usize {
+        engine.tick(TICK, &input);
+    }
+
+    let origin = engine.entities.get(id).expect("still alive").origin;
+    // Door top is z=64, cube half-height is 16: the centre rests at 80. If the
+    // door were ignored the cube would keep falling to the floor at z=16.
+    assert!(
+        origin.z > 78.0 && origin.z < 82.0,
+        "the cube should rest on the closed door, not at z={}",
+        origin.z
+    );
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn the_player_is_blocked_by_a_physics_prop() {
+    use kerosene_engine::engine::{Engine, EngineConfig};
+
+    let dir = std::env::temp_dir().join(format!("kerosene-propcol-{}", std::process::id()));
+    std::fs::create_dir_all(dir.join("maps")).unwrap();
+    std::fs::create_dir_all(dir.join("models/props")).unwrap();
+    let bsp = build(&corridor_map(false, false));
+    std::fs::write(dir.join("maps/phystest.kerobsp"), bsp.to_bytes()).unwrap();
+    std::fs::write(dir.join("models/props/cube.keromdl"), cube_model().to_bytes()).unwrap();
+
+    let mut engine = Engine::new(&EngineConfig {
+        content_paths: vec![dir.clone()],
+        ..Default::default()
+    });
+    engine.load_map("phystest").expect("the engine should load it");
+
+    // A cube resting on the floor in the player's path (its box is 64..96).
+    let prop = engine.spawn_prop("props/cube", Vec3::new(80.0, 64.0, 16.0));
+    let idle = InputState::default();
+    for _ in 0..(2.0 / TICK) as usize {
+        engine.tick(TICK, &idle);
+    }
+    let settled = engine.entities.get(prop).expect("still alive").origin;
+    assert!(
+        settled.z > 14.0 && settled.z < 18.0,
+        "the cube should be at rest before the player walks, at z={}",
+        settled.z
+    );
+
+    let forward = InputState { forward: 1.0, ..Default::default() };
+    for _ in 0..(2.0 / TICK) as usize {
+        engine.tick(TICK, &forward);
+    }
+
+    let player = engine.player.movement.origin;
+    // The cube's back face is at x = 64; the player's hull is 16 wide, so the
+    // player must stop at x ~= 48 rather than walking through to the far end.
+    assert!(
+        player.x < 60.0,
+        "the player walked through the prop to x={}",
+        player.x
+    );
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn the_player_can_pick_up_and_drop_a_prop() {
+    use kerosene_engine::engine::{Engine, EngineConfig};
+
+    let dir = std::env::temp_dir().join(format!("kerosene-pickup-{}", std::process::id()));
+    std::fs::create_dir_all(dir.join("maps")).unwrap();
+    std::fs::create_dir_all(dir.join("models/props")).unwrap();
+
+    let mut map = corridor_map(false, false);
+    // A pillar that puts the cube's centre at eye height (z = 72), so the
+    // pick-up tool's straight-ahead ray reaches it.
+    add_brush_entity(
+        &mut map,
+        "func_detail",
+        Aabb::new(Vec3::new(64.0, 48.0, 0.0), Vec3::new(96.0, 80.0, 56.0)),
+        "dev/grid",
+    );
+    let bsp = build(&map);
+    std::fs::write(dir.join("maps/phystest.kerobsp"), bsp.to_bytes()).unwrap();
+    std::fs::write(dir.join("models/props/cube.keromdl"), cube_model().to_bytes()).unwrap();
+
+    let mut engine = Engine::new(&EngineConfig {
+        content_paths: vec![dir.clone()],
+        ..Default::default()
+    });
+    engine.load_map("phystest").expect("the engine should load it");
+
+    let prop = engine.spawn_prop("props/cube", Vec3::new(80.0, 64.0, 72.0));
+    let idle = InputState::default();
+    for _ in 0..(2.0 / TICK) as usize {
+        engine.tick(TICK, &idle);
+    }
+    // It settled on the pillar top: centre at z = 56 + 16 = 72.
+    let resting = engine.entities.get(prop).expect("still alive").origin;
+    assert!(
+        resting.z > 70.0 && resting.z < 74.0,
+        "the cube should rest on the pillar, at z={}",
+        resting.z
+    );
+
+    // Press use: pick it up.
+    let mut pressed = InputState { use_key: true, ..Default::default() };
+    engine.tick(TICK, &pressed);
+    assert_eq!(engine.held_prop(), Some(prop), "the press should pick the prop up");
+
+    // Walk forward a little; the prop must follow, not stay behind.
+    pressed.forward = 1.0;
+    for _ in 0..(0.5 / TICK) as usize {
+        engine.tick(TICK, &pressed);
+    }
+    let carried = engine.entities.get(prop).expect("still alive").origin;
+    let player = engine.player.movement.origin;
+    assert!(
+        carried.x > player.x + 30.0,
+        "the carried prop should ride in front of the player (prop x={}, player x={})",
+        carried.x,
+        player.x
+    );
+
+    // Release use and press it again: drop, launching it forward.
+    let release = InputState::default();
+    engine.tick(TICK, &release);
+    let drop = InputState { use_key: true, ..Default::default() };
+    engine.tick(TICK, &drop);
+    assert_eq!(engine.held_prop(), None, "the second press drops the prop");
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 /// A minimal 32-unit cube `.keromdl`, so the test does not depend on content.
 fn cube_model() -> kerosene_asset::Model {
     use kerosene_asset::{Mesh, Model, Vertex};
@@ -1135,7 +1339,7 @@ fn a_turned_model_is_drawn_where_it_blocks() {
     let world = LevelCollision::new(bsp, &engine.entities);
 
     assert_eq!(drawn.len(), 1, "one brush entity in this map");
-    let (model, pose) = drawn[0];
+    let (_, pose) = drawn[0];
     assert_eq!(world.mover_count(), 1);
 
     // The bar is x 250..266, y 0..64, turning about (258, 32). A quarter turn

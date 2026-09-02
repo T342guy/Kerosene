@@ -194,11 +194,13 @@ fn main() -> std::io::Result<()> {
     map.entities.push(sun);
 
     // A physics demo: a spawner in the second room drops three cubes the
-    // moment the map loads. Walk in and run `phys_debug 1` to see their
-    // collision boxes; `phys_spawn` drops another wherever you look.
+    // moment the map loads. It sits against the side wall so the fallen cubes
+    // do not block the route through the room. Walk over and run
+    // `phys_debug 1` to see their collision boxes; `phys_spawn` drops another
+    // wherever you look, and the use key picks one up.
     let id = map.next_id();
     let mut dropper = Entity::new(id, "prop_dynamic_spawner");
-    dropper.set_origin(Vec3::new(760.0, ROOM * 0.5, 96.0));
+    dropper.set_origin(Vec3::new(760.0, 96.0, 96.0));
     dropper.set("model", "props/cube");
     dropper.set("spawncount", "3");
     dropper.set("spawnflags", "1");

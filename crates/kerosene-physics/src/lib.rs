@@ -37,7 +37,7 @@ pub use movement::{
     air_accelerate, apply_friction, categorize_position, clip_velocity, player_move, step_move,
     try_move,
 };
-pub use world::{BspWorld, CollisionWorld};
+pub use world::{BspWorld, CollisionWorld, sweep_point_vs_box};
 #[cfg(any(test, feature = "test-world"))]
 pub use world::BoxWorld;
 

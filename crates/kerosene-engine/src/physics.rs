@@ -30,26 +30,45 @@ struct PropBody {
     half_extent: Vec3,
 }
 
+/// One moving brush entity (a door, a shutter, a rotating brush) as a set of
+/// static bodies that are teleported to the entity's pose every tick.
+struct Mover {
+    bodies: Vec<Body>,
+    /// The point the entity's angles turn about, in its own space.
+    pivot: Vec3,
+}
+
 /// The rigid-body simulation and the entities it drives.
 pub struct PhysicsProps {
     pub rigid: RigidWorld,
     props: HashMap<EntityId, PropBody>,
+    /// Moving brush entities, by BSP model index.
+    movers: HashMap<usize, Mover>,
     /// Static world body count, for reporting.
     static_bodies: usize,
 }
 
 impl PhysicsProps {
     pub fn new() -> PhysicsProps {
-        PhysicsProps { rigid: RigidWorld::new(), props: HashMap::new(), static_bodies: 0 }
+        PhysicsProps {
+            rigid: RigidWorld::new(),
+            props: HashMap::new(),
+            movers: HashMap::new(),
+            static_bodies: 0,
+        }
     }
 
     /// Add the static world's solid brushes as convex hulls.
     ///
-    /// Brush entities are excluded -- they move, and the doors already trace
-    /// against the player through the BSP -- as are triggers, water, ladders
-    /// and the player/monster clip volumes, which are solid only to specific
-    /// actors. What is left is the floor, walls and ceiling a prop can rest on.
-    pub fn build_static_world(&mut self, bsp: &Bsp) {
+    /// Brush entities are handled in two groups. Detail brushes (`func_detail`)
+    /// are static geometry already in `bsp.brushes`, so they become static
+    /// hulls like the world's own brushes. Moving brushes (doors, shutters,
+    /// rotating brushes -- anything with [`contents::MOVEABLE`]) become static
+    /// bodies too, but are re-placed to their entity's pose every tick, so a
+    /// closed door blocks a thrown prop and an open one lets it through.
+    /// Triggers, water, ladders and the player/monster clip volumes are solid
+    /// only to specific actors and are skipped entirely.
+    pub fn build_static_world(&mut self, bsp: &Bsp, entities: &EntityWorld) {
         self.static_bodies = 0;
         for (i, brush) in bsp.brushes.iter().enumerate() {
             if brush.contents & contents::SOLID == 0 { continue; }
@@ -62,6 +81,36 @@ impl PhysicsProps {
                 log::debug!("physics: skipped degenerate world brush {i}");
             } else {
                 self.static_bodies += 1;
+            }
+        }
+
+        // Moving brush entities. Each gets a static hull (or several, for a
+        // door built from multiple brushes) placed at its current pose, and
+        // `sync_and_step` moves the bodies when the entity moves.
+        for entity in entities.iter() {
+            let Some(model) = entity.brush_model else { continue };
+            if model == 0 { continue; }
+
+            let mut bodies = Vec::new();
+            for &brush_index in &model_brush_indices(bsp, model) {
+                let Some(brush) = bsp.brushes.get(brush_index) else { continue };
+                if brush.contents & contents::MOVEABLE == 0 { continue; }
+                if brush.contents & contents::SOLID == 0 { continue; }
+                let Some(points) = brush_vertices(bsp, brush) else { continue };
+                // Brushes are compiled in world coordinates; the body's local
+                // space is centred on the pivot so the entity's angles turn
+                // the body about the same point the renderer does.
+                let pivot = bsp.models.get(model).map(|m| m.bounds().center()).unwrap_or(Vec3::ZERO);
+                let local: Vec<Vec3> = points.iter().map(|&p| p - pivot).collect();
+                let rotation = Quat::from_mat3(&entity.angles.to_mat3());
+                let position = entity.origin + pivot;
+                if let Some(body) = self.rigid.add_static_hull(&local, position, rotation) {
+                    bodies.push(body);
+                }
+            }
+            if !bodies.is_empty() {
+                let pivot = bsp.models.get(model).map(|m| m.bounds().center()).unwrap_or(Vec3::ZERO);
+                self.movers.insert(model, Mover { bodies, pivot });
             }
         }
     }
@@ -111,6 +160,18 @@ impl PhysicsProps {
             self.props.insert(id, PropBody { body, center, half_extent });
         }
 
+        // Moving brush entities follow their entity's pose, so a door that
+        // opened or closed this tick blocks (or stops blocking) immediately.
+        for entity in entities.iter() {
+            let Some(model) = entity.brush_model else { continue };
+            let Some(mover) = self.movers.get(&model) else { continue };
+            let rotation = Quat::from_mat3(&entity.angles.to_mat3());
+            let position = entity.origin + mover.pivot;
+            for &body in &mover.bodies {
+                self.rigid.set_body_transform(body, position, rotation);
+            }
+        }
+
         // Advance, then push every body's pose back into its entity.
         self.rigid.step(dt);
         for (&id, prop) in &self.props {
@@ -130,7 +191,10 @@ impl PhysicsProps {
     /// Number of static world hulls added at map load.
     pub fn static_body_count(&self) -> usize { self.static_bodies }
 
-    /// Total bodies in the simulation (static world plus props).
+    /// Number of moving brush entities (doors, shutters) with bodies.
+    pub fn mover_count(&self) -> usize { self.movers.len() }
+
+    /// Total bodies in the simulation (static world plus movers plus props).
     pub fn body_count(&self) -> usize { self.rigid.body_count() }
 
     /// Apply an instantaneous impulse to one prop's centre of mass, in world
@@ -161,6 +225,81 @@ impl PhysicsProps {
     /// The body handle for an entity, if it is a physics prop.
     pub fn body_of(&self, id: EntityId) -> Option<Body> {
         self.props.get(&id).map(|p| p.body)
+    }
+
+    /// World-space axis-aligned boxes of every prop, for player collision.
+    ///
+    /// A prop can be rotated, so each returned box is the axis-aligned bounds
+    /// of its oriented collision box -- a good enough approximation for the
+    /// player's hull trace, and exactly what the debug overlay draws.
+    pub fn prop_aabbs(&self) -> Vec<Aabb> {
+        let mut out = Vec::with_capacity(self.props.len());
+        for prop in self.props.values() {
+            let (position, rotation) = self.rigid.body_transform(prop.body);
+            let h = prop.half_extent;
+            let mut aabb = Aabb::EMPTY;
+            for i in 0..8 {
+                let local = Vec3::new(
+                    if i & 1 == 0 { -h.x } else { h.x },
+                    if i & 2 == 0 { -h.y } else { h.y },
+                    if i & 4 == 0 { -h.z } else { h.z },
+                );
+                aabb.add_point(position + rotation * local);
+            }
+            out.push(aabb);
+        }
+        out
+    }
+
+    /// The nearest prop whose box a ray from `start` along `dir` hits within
+    /// `range`, plus its rotation at that moment.
+    ///
+    /// Used by the pick-up tool: aim at a prop and press use.
+    pub fn pick_prop(&self, start: Vec3, dir: Vec3, range: f32) -> Option<(EntityId, Quat)> {
+        let end = start + dir * range;
+        let mut best: Option<(f32, EntityId)> = None;
+        for (&id, prop) in &self.props {
+            let (position, rotation) = self.rigid.body_transform(prop.body);
+            let h = prop.half_extent;
+            let mut aabb = Aabb::EMPTY;
+            for i in 0..8 {
+                let local = Vec3::new(
+                    if i & 1 == 0 { -h.x } else { h.x },
+                    if i & 2 == 0 { -h.y } else { h.y },
+                    if i & 4 == 0 { -h.z } else { h.z },
+                );
+                aabb.add_point(position + rotation * local);
+            }
+            if let Some((t, _)) =
+                kerosene_physics::sweep_point_vs_box(start, end, aabb.min, aabb.max)
+            {
+                let distance = t * range;
+                if best.map_or(true, |(bd, _)| distance < bd) {
+                    best = Some((distance, id));
+                }
+            }
+        }
+        best.map(|(_, id)| (id, self.rigid.body_transform(self.props[&id].body).1))
+    }
+
+    /// Hold a prop still at `position` (its model centre) and update its
+    /// entity to match, so the renderer and the simulation agree.
+    pub fn hold_prop(
+        &mut self,
+        id: EntityId,
+        position: Vec3,
+        rotation: Quat,
+        entities: &mut EntityWorld,
+    ) {
+        let Some(prop) = self.props.get(&id) else { return };
+        self.rigid.set_body_transform(prop.body, position, rotation);
+        self.rigid.set_linear_velocity(prop.body, Vec3::ZERO);
+        self.rigid.set_angular_velocity(prop.body, Vec3::ZERO);
+        let origin = position - rotation * prop.center;
+        if let Some(e) = entities.get_mut(id) {
+            e.origin = origin;
+            e.angles = Angles::from_quat(rotation);
+        }
     }
 
     /// Wireframe boxes for every prop, for the in-game physics debug view.
@@ -241,6 +380,22 @@ fn brush_vertices(bsp: &Bsp, brush: &kerosene_bsp::Brush) -> Option<Vec<Vec3>> {
         }
     }
     (unique.len() >= 4).then_some(unique)
+}
+
+/// The brush indices belonging to one BSP model (0 = world, 1.. = brush
+/// entities). A brush model's head node is a single leaf whose leafbrushes
+/// reference exactly its brushes.
+fn model_brush_indices(bsp: &Bsp, model: usize) -> Vec<usize> {
+    let Some(m) = bsp.models.get(model) else { return Vec::new() };
+    let kerosene_bsp::Child::Leaf(leaf) = kerosene_bsp::decode_child(m.head_node) else {
+        return Vec::new();
+    };
+    let Some(leaf) = bsp.leaves.get(leaf) else { return Vec::new() };
+    let first = leaf.first_leafbrush as usize;
+    let count = leaf.num_leafbrushes as usize;
+    (first..first + count)
+        .filter_map(|i| bsp.leafbrushes.get(i).map(|&bi| bi as usize))
+        .collect()
 }
 
 /// The bounding box of a `.keromdl` model, by the name an entity refers to it.

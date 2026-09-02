@@ -141,6 +141,9 @@ fn run_headless(config: EngineConfig, ticks: u64) -> Result<()> {
             level.name, level.bsp.faces.len(), level.bsp.leaves.len(), level.bsp.num_clusters());
     }
     println!("  entities: {}", engine.entities.len());
+    println!("  physics: {} props, {} static hulls, {} movers, {} bodies",
+        engine.physics.prop_count(), engine.physics.static_body_count(),
+        engine.physics.mover_count(), engine.physics.body_count());
     let player = &engine.player;
     println!("  player at {:?}", player.movement.origin);
     println!("  speed {}, on ground: {}", kerosene_math::units::speed(player.movement.ground_speed()), player.movement.on_ground);

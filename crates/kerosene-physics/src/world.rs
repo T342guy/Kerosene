@@ -110,14 +110,15 @@ impl CollisionWorld for BoxWorld {
     }
 }
 
-#[cfg(any(test, feature = "test-world"))]
-/// Slab method: the entry and exit times of a ray against a box.
+/// Slab method: the entry and exit times of a swept point against a box.
 ///
-/// A start point lying exactly *on* a face while moving inward counts as an
-/// immediate hit at fraction zero. That case is not an edge case here -- it is
-/// a player standing on the floor, which is most of them -- and rejecting it
-/// makes the ground vanish from under everyone.
-fn sweep_point_vs_box(start: Vec3, end: Vec3, min: Vec3, max: Vec3) -> Option<(f32, Vec3)> {
+/// Returns `(fraction, normal)` where `fraction` is how far along `start` to
+/// `end` the point first enters the box, and `normal` points *out* of the box
+/// through the face it entered. A start point lying exactly *on* a face while
+/// moving inward counts as an immediate hit at fraction zero. That case is not
+/// an edge case here -- it is a player standing on the floor, which is most of
+/// them -- and rejecting it makes the ground vanish from under everyone.
+pub fn sweep_point_vs_box(start: Vec3, end: Vec3, min: Vec3, max: Vec3) -> Option<(f32, Vec3)> {
     let delta = end - start;
     let mut enter = 0.0f32;
     let mut exit = 1.0f32;

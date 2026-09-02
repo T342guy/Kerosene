@@ -17,8 +17,8 @@ use std::sync::Arc;
 use kerosene_bsp::{Bsp, contents};
 use kerosene_console::{ConVarFlags, Console, requests};
 use kerosene_entity::{EntityId, EntityWorld, Value};
-use kerosene_math::{Aabb, Angles, Pose, Vec3};
-use crate::collision::LevelCollision;
+use kerosene_math::{Aabb, Angles, Pose, Quat, Vec3};
+use crate::collision::{LevelCollision, PlayerCollision};
 use crate::physics::PhysicsProps;
 use kerosene_physics::{MoveInput, MoveParams, MoveState};
 use kerosene_vfs::{Vfs, VfsError};
@@ -170,6 +170,9 @@ pub struct Engine {
     /// Rigid-body props and the static world they rest on.
     pub physics: PhysicsProps,
     pub player: PlayerState,
+    /// The prop the pick-up tool is carrying, plus the rotation it was
+    /// grabbed at, so it stays put rather than spinning as the player turns.
+    held_prop: Option<(EntityId, Quat)>,
     /// Accumulated real time not yet simulated.
     accumulator: f32,
     /// Total simulated time.
@@ -274,6 +277,7 @@ impl Engine {
             entities,
             physics: PhysicsProps::new(),
             player: PlayerState::default(),
+            held_prop: None,
             accumulator: 0.0,
             time: 0.0,
             tick_count: 0,
@@ -344,15 +348,17 @@ impl Engine {
         // Static world geometry, so rigid-body props have something to land
         // on. Built before `bsp` moves into `level`.
         self.physics = PhysicsProps::new();
-        self.physics.build_static_world(&bsp);
+        self.physics.build_static_world(&bsp, &self.entities);
         self.console.developer(format!(
-            "  physics: {} static hulls",
-            self.physics.static_body_count()
+            "  physics: {} static hulls, {} movers",
+            self.physics.static_body_count(),
+            self.physics.mover_count()
         ));
 
         let sky_color = self.sky_color_from_map();
         self.level = Some(Level { name: name.to_string(), bsp, sky_color });
         self.spawn_player();
+        self.held_prop = None;
         self.time = 0.0;
         self.tick_count = 0;
         self.accumulator = 0.0;
@@ -474,8 +480,9 @@ impl Engine {
 
         if let Some(level) = &self.level {
             // Rebuilt each tick: a door that moved since the last one has to
-            // block where it is now, not where it was.
-            let world = LevelCollision::new(&level.bsp, &self.entities);
+            // block where it is now, not where it was -- and so does a prop
+            // the player just kicked.
+            let world = PlayerCollision::new(&level.bsp, &self.entities, &self.physics);
             let params = self.movement_params();
             let move_input = MoveInput {
                 forward: input.forward,
@@ -520,6 +527,20 @@ impl Engine {
         // body's pose back so the renderer draws it where the physics put it.
         if self.level.is_some() {
             self.physics.sync_and_step(dt, &mut self.entities, &self.vfs);
+        }
+
+        // A carried prop rides at a fixed point in front of the player rather
+        // than obeying gravity, so re-place it every tick.
+        if let Some((held, rotation)) = self.held_prop {
+            if self.entities.exists(held) {
+                let distance = self.console.float("phys_hold_distance").max(32.0);
+                let eye = self.player.movement.eye_position();
+                let forward = self.player.view_angles.forward();
+                let position = eye + forward * distance - Vec3::Z * 8.0;
+                self.physics.hold_prop(held, position, rotation, &mut self.entities);
+            } else {
+                self.held_prop = None;
+            }
         }
 
         // Only when a script asked for it: the snapshot a hook reads is
@@ -677,7 +698,27 @@ impl Engine {
         let Some(level) = &self.level else { return };
         let range = self.console.float("sv_use_range").max(1.0);
         let eye = self.player.movement.eye_position();
-        let end = eye + self.player.view_angles.forward() * range;
+        let forward = self.player.view_angles.forward();
+        let end = eye + forward * range;
+
+        // Carrying a prop? The use key drops it, launching it forward.
+        if let Some((held, _)) = self.held_prop.take() {
+            let force = self.console.float("phys_launch_force");
+            if self.physics.apply_impulse(held, forward * force) {
+                self.console.print("dropped prop");
+            } else {
+                self.console.warn("held prop no longer has a body");
+            }
+            return;
+        }
+
+        // Otherwise, a prop in the crosshair is picked up first; only when
+        // there is none does the press fall through to a brush entity's Use.
+        if let Some((prop, rotation)) = self.physics.pick_prop(eye, forward, range) {
+            self.held_prop = Some((prop, rotation));
+            self.console.print("picked up prop");
+            return;
+        }
 
         let world = LevelCollision::new(&level.bsp, &self.entities);
         let trace = world.trace(eye, end, Vec3::ZERO, Vec3::ZERO, contents::MASK_PLAYER_SOLID);
@@ -729,6 +770,9 @@ impl Engine {
     }
 
     pub fn has_pending_map(&self) -> bool { self.pending_map.is_some() }
+
+    /// The prop the pick-up tool is carrying, if any.
+    pub fn held_prop(&self) -> Option<EntityId> { self.held_prop.map(|(id, _)| id) }
 
     /// Contents the player is standing in, for water and trigger checks.
     pub fn player_contents(&self) -> u32 {
@@ -787,6 +831,8 @@ fn register_cvars(console: &mut Console) {
     console.register_cvar("fps_max", "0", ConVarFlags::ARCHIVE, "Frame rate cap; 0 for unlimited.");
 
     console.register_cvar("phys_debug", "0", ConVarFlags::CHEAT, "Draw physics prop collision boxes. 1 boxes, 2 boxes and bodies.");
+    console.register_cvar_ranged("phys_hold_distance", "72", Some(32.0), Some(256.0), ConVarFlags::REPLICATED, "How far in front the pick-up tool carries a prop.");
+    console.register_cvar("phys_launch_force", "400", ConVarFlags::REPLICATED, "Impulse applied when the pick-up tool drops a prop.");
 
     console.register_cvar_ranged("volume", "0.7", Some(0.0), Some(1.0), ConVarFlags::ARCHIVE, "Master sound volume.");
 }
@@ -974,9 +1020,10 @@ pub fn take_console_requests(engine: &mut Engine) -> Vec<(String, String)> {
             }
             requests::PHYS_STATS => {
                 engine.console.print(format!(
-                    "physics: {} props, {} static hulls, {} bodies",
+                    "physics: {} props, {} static hulls, {} movers, {} bodies",
                     engine.physics.prop_count(),
                     engine.physics.static_body_count(),
+                    engine.physics.mover_count(),
                     engine.physics.body_count(),
                 ));
             }

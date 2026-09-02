@@ -1408,7 +1408,6 @@ entity
 	{
 		"OnPressed" "shutter,Toggle,,0,-1"
 		"OnPressed" "switch_click,Play,,0,-1"
-		"OnPressed" "propify!,Trigger,,0,-1"
 	}
 }
 entity
@@ -1523,7 +1522,7 @@ entity
 {
 	"id" "156"
 	"classname" "prop_dynamic_spawner"
-	"origin" "760 256 96"
+	"origin" "760 96 96"
 	"model" "props/cube"
 	"spawncount" "3"
 	"spawnflags" "1"
@@ -1534,11 +1533,4 @@ entity
 	"classname" "info_player_start"
 	"origin" "128 256 16"
 	"angles" "0 0 0"
-}
-entity
-{
-	"id" "159"
-	"classname" "prop_dynamic_spawner"
-	"origin" "256 144 96"
-	"targetname" "propify!"
 }

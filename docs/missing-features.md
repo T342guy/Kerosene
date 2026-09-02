@@ -46,13 +46,17 @@ for completeness.
 ## 3. Physics and simulation
 
 - **Rigid-body dynamics.** `kerosene-physics` is the player movement solver
-  only. `kerosene-rigid` wraps Box3D (via `box3d-rust`) and is now wired into
-  the engine: world brushes become static hulls, `prop_physics` entities get
-  dynamic box bodies (from their model bounds) and a
-  `prop_dynamic_spawner` can drop them on demand. `.keromdl` models render at
-  their simulated pose, and `phys_debug` draws the collision boxes. Still
-  boxes only -- convex-hull props, joints and per-material friction are not
-  there yet.
+  only. `kerosene-rigid` wraps Box3D (via `box3d-rust`) and is wired into the
+  engine: world brushes become static hulls, `func_detail` joins them, and
+  moving brush entities (doors, shutters) become static bodies that follow
+  their entity's pose, so a closed door blocks a thrown prop. `prop_physics`
+  entities get dynamic box bodies (from their model bounds), a
+  `prop_dynamic_spawner` drops them on demand, and the player collides with
+  them. The use key is a pick-up tool: aim at a prop and press use to carry
+  it, press again to launch it. `.keromdl` models render at their simulated
+  pose, and `phys_debug` draws the collision boxes. Still boxes only --
+  convex-hull props, joints, per-material friction and a launch-beams
+  gravity-gun are not there yet.
 - **Ragdoll / skeletal physics.** None. Box3D has joints, but no skeleton
   attachment.
 - **Vehicles / wheeled physics.** None. Box3D has wheel joints, but no vehicle

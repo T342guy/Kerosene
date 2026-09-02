@@ -12,8 +12,10 @@
 
 use kerosene_bsp::{Bsp, Trace, contents};
 use kerosene_entity::EntityWorld;
-use kerosene_math::{Pose, Vec3};
+use kerosene_math::{Plane, Pose, Vec3};
 use kerosene_physics::CollisionWorld;
+
+use crate::physics::PhysicsProps;
 
 /// One brush model that is not part of the static world.
 #[derive(Clone, Copy, Debug)]
@@ -132,6 +134,89 @@ impl CollisionWorld for LevelCollision<'_> {
                     contents::MASK_PLAYER_SOLID | contents::MASK_VOLUMES,
                 );
                 if trace.start_solid { out |= trace.contents; }
+            }
+        }
+        out
+    }
+}
+
+/// The world, brush entities *and* physics props, as one trace target for the
+/// player's movement.
+///
+/// The BSP and its moving brush models are traced first (through
+/// [`LevelCollision`]); then every physics prop's axis-aligned box is swept
+/// against, and whichever hit is nearest wins. A prop that a player just
+/// kicked across the room blocks them the same tick the simulation moved it.
+pub struct PlayerCollision<'a> {
+    level: LevelCollision<'a>,
+    props: &'a PhysicsProps,
+}
+
+impl<'a> PlayerCollision<'a> {
+    pub fn new(bsp: &'a Bsp, entities: &EntityWorld, props: &'a PhysicsProps) -> PlayerCollision<'a> {
+        PlayerCollision { level: LevelCollision::new(bsp, entities), props }
+    }
+
+    /// Sweep the player hull against the prop boxes, keeping the nearest hit.
+    fn trace_props(&self, start: Vec3, end: Vec3, mins: Vec3, maxs: Vec3) -> Trace {
+        let mut best = Trace::miss(end);
+        best.all_solid = false;
+        let half = Vec3::new(
+            (-mins.x).max(maxs.x),
+            (-mins.y).max(maxs.y),
+            (-mins.z).max(maxs.z),
+        );
+        for prop in self.props.prop_aabbs() {
+            // Minkowski expansion: grow the prop box by the hull and sweep a
+            // point, exactly as the BSP tracer does for brushes.
+            let expanded = prop.expanded_by(half);
+            if let Some((fraction, normal)) =
+                kerosene_physics::sweep_point_vs_box(start, end, expanded.min, expanded.max)
+            {
+                if fraction < best.fraction {
+                    best.fraction = fraction;
+                    best.plane = Some(Plane::new(normal, normal.dot(start + (end - start) * fraction)));
+                    best.contents = contents::SOLID;
+                }
+            }
+            let inside = (0..3).all(|i| start[i] > expanded.min[i] && start[i] < expanded.max[i]);
+            if inside {
+                best.start_solid = true;
+                best.contents |= contents::SOLID;
+            }
+        }
+        best.endpos = if best.fraction >= 1.0 { end } else { start + (end - start) * best.fraction };
+        best
+    }
+}
+
+impl CollisionWorld for PlayerCollision<'_> {
+    fn trace_hull(&self, start: Vec3, end: Vec3, mins: Vec3, maxs: Vec3, mask: u32) -> Trace {
+        // Props are solid, so they only matter when the mask asks for solid.
+        let prop = if mask & contents::SOLID != 0 {
+            self.trace_props(start, end, mins, maxs)
+        } else {
+            Trace::miss(end)
+        };
+
+        let mut best = self.level.trace(start, end, mins, maxs, mask);
+        if prop.start_solid { best.start_solid = true; }
+        if prop.fraction < best.fraction {
+            best.fraction = prop.fraction;
+            best.plane = prop.plane;
+            best.contents = prop.contents;
+            best.endpos = start + (end - start) * prop.fraction;
+        }
+        best
+    }
+
+    fn contents_at(&self, point: Vec3) -> u32 {
+        let mut out = self.level.contents_at(point);
+        // Standing inside a prop reads as solid, which is mostly moot (the
+        // trace already stops you there) but keeps `contents_at` honest.
+        for prop in self.props.prop_aabbs() {
+            if prop.contains_point(point) {
+                out |= contents::SOLID;
             }
         }
         out
