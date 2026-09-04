@@ -62,13 +62,10 @@ pub fn model(model: &Model, size: usize, yaw: f32, pitch: f32) -> Image {
         // preview wants the shape read clearly, and per-vertex smoothing on a
         // 60-pixel image mostly reads as mud.
         //
-        // Negated because `.keromdl` stores triangles clockwise as seen from
-        // the front, the same way `.keromap` faces are. Taking the cross
-        // product at face value points every normal into the model, which
-        // renders its inside: a crate came out as a shapeless lump, because
-        // what you were looking at was the far wall of the inside of it.
-        let normal =
-            -(corners[1] - corners[0]).cross(corners[2] - corners[0]).normalize_or_zero();
+        // `.keromdl` stores triangles counter-clockwise as seen from the
+        // front -- the same convention the GPU renderer culls by -- so the
+        // raw cross product already points out of the model.
+        let normal = (corners[1] - corners[0]).cross(corners[2] - corners[0]).normalize_or_zero();
         let shade = 0.35 + 0.65 * normal.dot(light).max(0.0);
 
         // Back-face culling in world space rather than by the sign of the

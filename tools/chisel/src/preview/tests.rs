@@ -14,17 +14,17 @@ fn cube() -> Model {
     for c in corners {
         model.vertices.push(Vertex::rigid(c, c.normalize(), [0.0, 0.0]));
     }
-    // Wound the way `.keromdl` stores triangles: clockwise seen from the
-    // front, so the raw cross product of two edges points *into* the model.
-    // A fixture wound the other way is a fixture that cannot tell a correct
-    // renderer from one showing the inside of everything.
+    // Wound the way `.keromdl` stores triangles: counter-clockwise seen from
+    // the front, so the raw cross product of two edges points *out* of the
+    // model. A fixture wound the other way is a fixture that cannot tell a
+    // correct renderer from one showing the inside of everything.
     let faces: [[u32; 4]; 6] = [
-        [0, 1, 2, 3], // -Z
-        [4, 7, 6, 5], // +Z
-        [0, 4, 5, 1], // -Y
-        [2, 6, 7, 3], // +Y
-        [1, 5, 6, 2], // +X
-        [0, 3, 7, 4], // -X
+        [3, 2, 1, 0], // -Z
+        [5, 6, 7, 4], // +Z
+        [1, 5, 4, 0], // -Y
+        [3, 7, 6, 2], // +Y
+        [2, 6, 5, 1], // +X
+        [4, 7, 3, 0], // -X
     ];
     for f in faces {
         model.indices.extend([f[0], f[1], f[2], f[0], f[2], f[3]]);
@@ -135,8 +135,12 @@ fn the_shipped_model_renders() {
 
 /// A triangle in the plane x = 0, facing the camera at yaw 0.
 ///
+/// A triangle in the plane x = 0, facing the camera at yaw 0.
+///
 /// At yaw 0 the camera sits on the -X side looking toward +X, so a triangle
-/// whose outward normal is -X is the one facing it.
+/// whose outward normal is -X is the one facing it. With `reversed` set the
+/// winding is flipped to point the other way, producing the same triangle
+/// seen from behind.
 fn facing_triangle(reversed: bool) -> Model {
     let h = 32.0;
     let corners = [
@@ -148,7 +152,8 @@ fn facing_triangle(reversed: bool) -> Model {
     for c in corners {
         model.vertices.push(Vertex::rigid(c, Vec3::NEG_X, [0.0, 0.0]));
     }
-    model.indices = if reversed { vec![0, 2, 1] } else { vec![0, 1, 2] };
+    // Counter-clockwise from the front (outward normal -X) unless reversed.
+    model.indices = if reversed { vec![0, 1, 2] } else { vec![0, 2, 1] };
     model.bounds = Aabb::new(Vec3::new(-1.0, -h, -h), Vec3::new(1.0, h, h));
     model
 }
@@ -169,16 +174,18 @@ fn a_triangle_facing_away_is_not() {
 
 #[test]
 fn the_fixture_is_wound_the_way_the_real_format_is() {
-    // A fixture with the opposite convention passes whether the renderer is
-    // right or inside out, which is how the crate came to be rendered from
-    // within for as long as it was.
+    // `.keromdl` stores triangles counter-clockwise as seen from the front,
+    // which is also the winding the GPU renderer culls by. A fixture wound
+    // the opposite way would pass whether the renderer is right or inside
+    // out, which is how the crate came to be rendered from within for as
+    // long as it was.
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../content/models/props/crate.keromdl");
     let Ok(bytes) = std::fs::read(&path) else { return };
     let real = Model::from_bytes(&bytes).unwrap();
 
-    assert_eq!(raw_normals_point_outward(&real), 0, "the format stores them clockwise");
-    assert_eq!(raw_normals_point_outward(&cube()), 0, "and so must the fixture");
+    assert_eq!(raw_normals_point_outward(&real), 12, "the format stores them counter-clockwise");
+    assert_eq!(raw_normals_point_outward(&cube()), 12, "and so must the fixture");
 }
 
 /// How many triangles have `(b-a) x (c-a)` pointing away from the centre.

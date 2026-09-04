@@ -206,6 +206,12 @@ path and no branch in the hot loop.
 Bones are listed parents-first, so a single forward pass can build world
 transforms with no recursion and no sorting.
 
+Triangles are wound **counter-clockwise as seen from the front** -- the
+convention the GPU renderer culls by, and the opposite of `.keromap` faces,
+which are clockwise. Forge takes an OBJ's winding as-is (the axis remap
+preserves handedness), so the OBJ must already be counter-clockwise: a face
+wound the other way compiles and collides fine but renders inside out.
+
 ## The developer texture set
 
 Not a format, but content worth knowing the provenance of: `alchemy

@@ -198,3 +198,56 @@ fn info(path: &Path) -> Result<()> {
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The shipped prop models must not be inside out.
+    ///
+    /// OBJ carries an explicit normal per corner, but the GPU culls by the
+    /// face's *winding*. A model whose winding disagrees with its normals
+    /// still compiles and still gets physics, but renders inverted: back-face
+    /// culling shows the inside of every face. This loads the real art files
+    /// and checks that each triangle's winding points the same way its normal
+    /// does, so a wrongly-wound export fails here instead of in a screenshot.
+    #[test]
+    fn the_shipped_prop_models_wind_the_way_their_normals_point() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content");
+        for name in ["cube", "crate"] {
+            let path = root.join(format!("art/props/{name}.obj"));
+            let text = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+            let mesh = ObjMesh::parse(&text, UpAxis::Y, VU_PER_METRE).unwrap();
+
+            let mut checked = 0;
+            for group in &mesh.groups {
+                for triangle in &group.triangles {
+                    let p = [
+                        mesh.positions[triangle[0].position],
+                        mesh.positions[triangle[1].position],
+                        mesh.positions[triangle[2].position],
+                    ];
+                    let wound = (p[1] - p[0]).cross(p[2] - p[0]);
+                    assert!(
+                        wound.length_squared() > 1e-12,
+                        "{name}: degenerate triangle at indices {:?}",
+                        triangle
+                    );
+                    // Every corner of a prop face shares one normal, so the
+                    // first corner speaks for the whole triangle.
+                    if let Some(normal) = triangle[0].normal {
+                        let normal = mesh.normals[normal];
+                        assert!(
+                            wound.normalize().dot(normal) > 0.9,
+                            "{name}: a face winds against its normal ({:?} vs {:?})",
+                            wound.normalize(),
+                            normal
+                        );
+                        checked += 1;
+                    }
+                }
+            }
+            assert!(checked >= 12, "{name}: expected every face to carry a normal");
+        }
+    }
+}

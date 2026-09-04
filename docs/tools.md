@@ -479,6 +479,12 @@ that is subtly rotated or a hundred times too small. OBJ is Y-up with -Z
 forward; Kerosene is Z-up with +X forward. And modelling packages usually
 work in metres — `--scale-metres` converts.
 
+Winding is taken from the OBJ as-is (the axis remap preserves handedness), so
+export your faces counter-clockwise from the front: `.keromdl` stores them
+that way, and a face wound the other way renders inside out. `--recompute-normals`
+rebuilds normals from the winding and ignores any in the source, but it does
+not repair a source that was wound backwards to begin with.
+
 Welding is by the full corner tuple, not by position: two faces meeting at a
 hard edge legitimately share a position while needing different normals, and
 merging them rounds off every corner of the model.
