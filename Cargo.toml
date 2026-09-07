@@ -33,7 +33,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.1.0.prealpha.2"
+version = "0.1.0-prealpha.2"
 edition = "2024"
 rust-version = "1.94"
 license = "LGPL-3.0-or-later OR MPL-2.0"
