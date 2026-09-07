@@ -368,17 +368,12 @@ version = "0.1.0"
 dependencies = [
  "alchemy",
  "anyhow",
- "bytemuck",
  "cleave",
  "egui",
- "egui-wgpu",
- "egui-winit",
- "env_logger",
  "glam",
  "image",
  "kerosene-asset",
  "kerosene-bsp",
- "kerosene-config",
  "kerosene-entity",
  "kerosene-game",
  "kerosene-kv",
@@ -387,9 +382,6 @@ dependencies = [
  "kerosene-render",
  "kerosene-vfs",
  "log",
- "pollster",
- "wgpu",
- "winit",
 ]
 
 [[package]]
@@ -1616,6 +1608,27 @@ dependencies = [
  "log",
  "rhai",
  "thiserror 2.0.20",
+]
+
+[[package]]
+name = "kerosene-tools"
+version = "0.1.0"
+dependencies = [
+ "alchemy",
+ "anyhow",
+ "chisel",
+ "cleave",
+ "egui",
+ "env_logger",
+ "forge",
+ "kerosene-ui",
+ "kerosene-vfs",
+ "kiln",
+ "log",
+ "radiance",
+ "timbre",
+ "umbra",
+ "vault",
 ]
 
 [[package]]

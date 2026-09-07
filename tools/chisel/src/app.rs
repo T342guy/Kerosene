@@ -2010,7 +2010,7 @@ impl ChiselApp {
         if self.show_tools_check {
             let mut open = true;
             egui::Window::new("tools").open(&mut open).show(ctx, |ui| {
-                ui.label("Chisel runs the compilers as separate programs.");
+                ui.label("Chisel runs the compilers as subcommands of this same toolset.");
                 ui.separator();
                 for (name, found) in available_tools() {
                     ui.label(

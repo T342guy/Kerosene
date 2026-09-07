@@ -102,6 +102,7 @@ impl<'a> LevelCollision<'a> {
                 });
                 best.contents = hit.contents;
                 best.surface_flags = hit.surface_flags;
+                best.texture_index = hit.texture_index;
                 best.model = mover.model;
                 best.endpos = start + (end - start) * hit.fraction;
             }

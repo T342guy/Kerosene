@@ -1,24 +1,51 @@
 // SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
-//! Finding the other tools.
+//! Finding the other pieces of the toolchain.
 //!
-//! The compilers are separate programs on purpose -- that is the shape of the
-//! whole toolchain -- which means anything that drives them has to answer
-//! "where is `cleave`?" Chisel answers it when you press F9 and Kiln answers
-//! it on every build, and they had better answer it the same way.
+//! The tools used to be separate programs; now they are one executable, the
+//! unified toolset, with each former program a subcommand. The engine runtime
+//! is still its own binary, because a shipped game is the runtime and an
+//! archive, not the tools -- see [`kiln::ship`](tools/kiln/src/ship.rs).
 //!
-//! Beside this executable first, then whatever is on `PATH`. Beside first
-//! because a checkout and an install both put the tools in one directory, and
-//! picking up a *different* version of `cleave` from `PATH` is a way to spend
-//! an afternoon on a bug that was fixed weeks ago.
+//! Two things therefore need finding, and they need finding the same way from
+//! everywhere that looks:
+//!
+//! * A *subcommand* is always present: it is compiled into this very binary.
+//!   [`command`] runs it by re-invoking the executable with the subcommand as
+//!   its first argument, which keeps the old crash-isolation property -- a
+//!   compiler that fails does not take the editor down with it.
+//! * The *runtime* is a sibling binary, beside this executable first and then
+//!   on `PATH`. Beside first because a checkout and an install both put the
+//!   two in one directory.
 
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
-/// Every tool the pipeline can call, for reporting which are present.
-pub const TOOLS: &[&str] =
+/// The toolset's own subcommands, all compiled into the one executable.
+pub const TOOLSET: &[&str] =
+    &["chisel", "cleave", "umbra", "radiance", "alchemy", "timbre", "forge", "vault", "kiln"];
+
+/// The runtime, still its own binary so a game can ship without the tools.
+pub const RUNTIME: &str = "kerosene";
+
+/// Every name [`available`] reports, in a fixed order.
+pub const ALL: &[&str] =
     &["chisel", "cleave", "umbra", "radiance", "alchemy", "timbre", "forge", "vault", "kiln", "kerosene"];
 
-/// Where a sibling tool lives, if it is next to this executable.
+/// A command that runs one of the toolset's subcommands.
+///
+/// This is the executable re-invoking itself, so the subcommand is always
+/// present and the two can never disagree about which version runs.
+pub fn command(name: &str) -> Command {
+    let exe = std::env::current_exe().unwrap_or_else(|_| PathBuf::from("kerosene-tools"));
+    let mut cmd = Command::new(exe);
+    cmd.arg(name);
+    cmd
+}
+
+/// Where a *sibling binary* lives, if it is next to this executable.
+///
+/// Used for the runtime, which is not a subcommand. The tools themselves are
+/// not looked up this way any more: they are inside this binary.
 pub fn path(name: &str) -> Option<PathBuf> {
     let exe = std::env::current_exe().ok()?;
     let dir = exe.parent()?;
@@ -26,18 +53,10 @@ pub fn path(name: &str) -> Option<PathBuf> {
     candidate.is_file().then_some(candidate)
 }
 
-/// A command that runs a sibling tool, falling back to `PATH`.
-pub fn command(name: &str) -> Command {
-    match path(name) {
-        Some(path) => Command::new(path),
-        None => Command::new(name),
-    }
-}
-
-/// Whether a tool can be run at all.
+/// Whether a sibling binary can be run at all.
 ///
-/// Costs a process launch when the tool is not a sibling, which is why it is
-/// asked once for a report rather than before every stage.
+/// Costs a process launch when the binary is not a sibling, which is why it
+/// is asked once for a report rather than before every stage.
 pub fn is_available(name: &str) -> bool {
     path(name).is_some()
         || Command::new(name)
@@ -48,9 +67,14 @@ pub fn is_available(name: &str) -> bool {
             .is_ok()
 }
 
-/// Which of the tools are present, in a fixed order.
+/// Which pieces of the toolchain are present, in a fixed order.
+///
+/// The nine subcommands are always present -- they are this binary. The
+/// runtime depends on a sibling binary being installed.
 pub fn available() -> Vec<(&'static str, bool)> {
-    TOOLS.iter().map(|&name| (name, is_available(name))).collect()
+    ALL.iter()
+        .map(|&name| (name, TOOLSET.contains(&name) || is_available(name)))
+        .collect()
 }
 
 #[cfg(test)]
@@ -63,25 +87,31 @@ mod tests {
     }
 
     #[test]
-    fn a_command_for_an_unknown_tool_still_builds_and_names_it() {
-        // Falling back to the bare name is deliberate: it lets an installed
-        // toolchain on PATH work, and produces a "not found" naming the tool
-        // rather than a panic.
-        let command = command("definitely-not-a-kerosene-tool");
-        assert_eq!(command.get_program(), "definitely-not-a-kerosene-tool");
+    fn the_toolset_subcommands_are_all_known() {
+        // The dispatcher and this list must not drift: a subcommand that is
+        // compiled in but not listed here would be invisible to `--tools`.
+        assert_eq!(TOOLSET.len(), 9);
+        assert!(TOOLSET.contains(&"cleave"));
+        assert!(TOOLSET.contains(&"chisel"));
     }
 
     #[test]
-    fn the_tools_are_listed_in_a_fixed_order() {
+    fn the_runtime_is_listed_after_the_tools() {
+        assert_eq!(ALL.last(), Some(&RUNTIME));
+    }
+
+    #[test]
+    fn a_command_for_a_subcommand_reinvokes_this_binary() {
+        // It should name the current executable plus the subcommand, so the
+        // subcommand is always present and the version cannot drift.
+        let command = command("cleave");
+        let program = command.get_program();
+        assert!(program.to_string_lossy().contains("kerosene"), "{program:?}");
+    }
+
+    #[test]
+    fn the_names_are_listed_in_a_fixed_order() {
         let names: Vec<&str> = available().iter().map(|(n, _)| *n).collect();
-        assert_eq!(names, TOOLS);
-    }
-
-    #[test]
-    fn the_test_binary_finds_its_own_siblings() {
-        // Run from `target/debug/deps`, so the tools are one directory up
-        // rather than beside us -- which is exactly the case this must not
-        // pretend to handle. It should simply find nothing, not panic.
-        let _ = path("cleave");
+        assert_eq!(names, ALL);
     }
 }

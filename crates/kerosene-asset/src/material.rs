@@ -164,6 +164,12 @@ impl Material {
         self.get("$surfaceprop").unwrap_or("default")
     }
 
+    /// The parsed surface type, for callers that want to branch on it rather
+    /// than compare strings.
+    pub fn surface_type(&self) -> SurfaceProperty {
+        SurfaceProperty::parse(self.surface_property())
+    }
+
     /// Uniform colour tint, defaulting to white.
     pub fn color_tint(&self) -> Vec3 {
         self.get("$color")
@@ -178,6 +184,76 @@ impl Material {
 
     pub fn get_f32(&self, key: &str, default: f32) -> f32 {
         self.get(key).and_then(|v| f32::from_kv(v).ok()).unwrap_or(default)
+    }
+}
+
+/// The physical surface a material is made of, parsed from `$surfaceprop`.
+///
+/// This is what the format's `$surfaceprop` key was always for: it lets a game
+/// say "that was a footstep on metal" or "that impact was on concrete" without
+/// coupling the sound to the texture. It is deliberately a small, open set —
+/// an unknown string is preserved as [`SurfaceProperty::Other`] rather than
+/// lost, so a game can ship its own surface types without the engine knowing
+/// them.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub enum SurfaceProperty {
+    /// The default; ordinary, generic ground.
+    #[default]
+    Default,
+    Concrete,
+    Metal,
+    Wood,
+    Dirt,
+    Grass,
+    Glass,
+    Water,
+    Snow,
+    Carpet,
+    /// A named type the engine does not recognise, kept as its string.
+    Other,
+}
+
+impl SurfaceProperty {
+    /// Parse the spelling a `.keromat` uses. Unknown names become
+    /// [`SurfaceProperty::Other`] so they round-trip rather than being lost,
+    /// which is the same treatment unknown material parameters get.
+    pub fn parse(s: &str) -> SurfaceProperty {
+        match s.trim().to_ascii_lowercase().as_str() {
+            "" | "default" => SurfaceProperty::Default,
+            "concrete" => SurfaceProperty::Concrete,
+            "metal" => SurfaceProperty::Metal,
+            "wood" => SurfaceProperty::Wood,
+            "dirt" => SurfaceProperty::Dirt,
+            "grass" => SurfaceProperty::Grass,
+            "glass" => SurfaceProperty::Glass,
+            "water" => SurfaceProperty::Water,
+            "snow" => SurfaceProperty::Snow,
+            "carpet" => SurfaceProperty::Carpet,
+            _ => SurfaceProperty::Other,
+        }
+    }
+
+    /// The canonical name, for logging and for re-serialising.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            SurfaceProperty::Default => "default",
+            SurfaceProperty::Concrete => "concrete",
+            SurfaceProperty::Metal => "metal",
+            SurfaceProperty::Wood => "wood",
+            SurfaceProperty::Dirt => "dirt",
+            SurfaceProperty::Grass => "grass",
+            SurfaceProperty::Glass => "glass",
+            SurfaceProperty::Water => "water",
+            SurfaceProperty::Snow => "snow",
+            SurfaceProperty::Carpet => "carpet",
+            SurfaceProperty::Other => "other",
+        }
+    }
+
+    /// The footstep sound a game plays for this surface, by the naming
+    /// convention `footstep/<surface>/<step number>`.
+    pub fn footstep_sound(self, step: u8) -> String {
+        format!("footstep/{}/{}", self.as_str(), step % 4 + 1)
     }
 }
 
@@ -284,5 +360,25 @@ lit
         assert_eq!(Material::parse("lit { }").unwrap().color_tint(), Vec3::ONE);
         let tinted = Material::parse(r#"lit { "$color" "[1 0.5 0.25]" }"#).unwrap();
         assert_eq!(tinted.color_tint(), Vec3::new(1.0, 0.5, 0.25));
+    }
+
+    #[test]
+    fn surface_types_parse_case_insensitively() {
+        assert_eq!(SurfaceProperty::parse("CONCRETE"), SurfaceProperty::Concrete);
+        assert_eq!(SurfaceProperty::parse("Metal"), SurfaceProperty::Metal);
+        assert_eq!(SurfaceProperty::parse(""  ), SurfaceProperty::Default);
+        assert_eq!(SurfaceProperty::parse("default"), SurfaceProperty::Default);
+    }
+
+    #[test]
+    fn an_unknown_surface_is_preserved_as_other() {
+        assert_eq!(SurfaceProperty::parse("rubber"), SurfaceProperty::Other);
+    }
+
+    #[test]
+    fn footstep_sounds_follow_the_convention() {
+        assert_eq!(SurfaceProperty::Concrete.footstep_sound(0), "footstep/concrete/1");
+        assert_eq!(SurfaceProperty::Metal.footstep_sound(4), "footstep/metal/1");
+        assert_eq!(SurfaceProperty::Metal.footstep_sound(2), "footstep/metal/3");
     }
 }

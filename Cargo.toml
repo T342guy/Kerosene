@@ -29,6 +29,7 @@ members = [
     "tools/kiln",
     "tools/forge",
     "tools/vault",
+    "tools/kerosene-tools",
 ]
 
 [workspace.package]

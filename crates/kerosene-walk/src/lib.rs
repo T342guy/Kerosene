@@ -20,7 +20,10 @@
 use std::io::{self, Write};
 use kerosene_math::{Aabb, Vec3};
 
+pub mod nav;
+
 pub use kerosene_map::WalkmapRule;
+pub use nav::NavGraph;
 
 const MAGIC: [u8; 4] = *b"KRWL";
 const VERSION: u32 = 1;

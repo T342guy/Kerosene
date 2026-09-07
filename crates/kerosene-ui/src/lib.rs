@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
 //! A window with egui in it, and nothing else.
 //!
-//! The toolchain is command-line programs by design -- that is what makes it
-//! scriptable, and it is not going to change. But a compiler you have to
-//! remember the flags for is a compiler most people will not open, and "most
-//! people" here includes anyone on Windows for whom a terminal is a foreign
-//! object. So the tools that benefit from being *seen* -- a texture with its
-//! mips, a sound with its waveform -- grow a window as well as a flag.
+//! The toolset is one GUI application, and every part of it that draws is an
+//! [`App`] shown in this same window. A compiler you have to remember the
+//! flags for is a compiler most people will not open, and "most people" here
+//! includes anyone on Windows for whom a terminal is a foreign object. So the
+//! tools that benefit from being *seen* -- a texture with its mips, a sound
+//! with its waveform, an editor's four viewports -- draw in the window, while
+//! the same stages remain headless subcommands for scripts and build servers.
 //!
 //! That window is the same window every time, which is the reason this crate
 //! exists. Winit's application handler, a wgpu surface, an egui integration

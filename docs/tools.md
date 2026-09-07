@@ -1,13 +1,24 @@
 # Tool reference
 
-Nine programs. None of them is the engine, and none of them depends on it.
+One application, `kerosene-tools`. Open it with no arguments and you get one
+window holding every tool: the world editor, the sound editor, a build panel
+and an archive panel, switched with a rail down the left edge. None of it is
+the engine, and none of it depends on it.
+
+The same stages also run headless, as subcommands, so a script or build server
+can drive them without a screen: `kerosene-tools cleave map.keromap`, and so
+on. Each subcommand is the program it used to be, unchanged in argument and
+output.
 
 ---
 
 ## Chisel — the world editor
 
+A tab in the toolset window, and openable straight to a map:
+
 ```sh
-chisel [map.keromap] [--content <dir>] [--no-build]
+kerosene-tools                 # the toolset window, editor tab first
+kerosene-tools chisel [map.keromap] [--content <dir>]
 ```
 
 **Finding the content.** Chisel needs the content root -- the tree holding
@@ -36,7 +47,7 @@ project's map should not show this project's entities.
 The status bar says what it found: `20 classes, 41 materials` when the content
 is there, `no entity classes` in red when it is not, and `n materials unbuilt`
 in amber when a material has no texture behind it. If the first is red, nothing
-in the editor will look right, and `chisel --help` lists the search order.
+in the editor will look right, and `kerosene-tools chisel --help` lists the search order.
 `cargo run -p chisel --example diagnose` prints the same thing without opening
 a window -- discovery, classes, materials, which materials have no texture, and
 which maps have never been compiled -- which is the fastest way to answer "why
@@ -312,11 +323,12 @@ When a map is not sealed, Cleave writes a `.keroleak` trace beside it and
 Chisel loads it and draws the route out in red, through every pane. Follow the
 line to the wall it goes through. `map → clear the leak trace` puts it away.
 
-Chisel runs the compilers as separate programs, looking for them beside its own
-executable and then on `PATH`. `map → check tools are installed` says which it
-found.
+Chisel runs the compilers by re-invoking the same executable with the
+compiler's name as a subcommand, so they are always present. `map → check
+tools are installed` still says which pieces it found, including the engine
+runtime it launches after a compile.
 
-**Developer textures.** `alchemy dev-textures` writes the standard set, and
+**Developer textures.** `kerosene-tools alchemy dev-textures` writes the standard set, and
 `scripts/build-content.sh` runs it: `dev/` measurement checkerboards where one
 cell is 16 ku at the default texture scale, and the full `tools/` set --
 `nodraw`, `clip`, `playerclip`, `trigger`, `hint`, `skip`, `skybox` and the
@@ -334,7 +346,7 @@ comparison on hover.
 ## Cleave — the BSP compiler
 
 ```sh
-cleave map.keromap [-o out.kerobsp] [--ignore-leaks] [--no-fill] [--dry-run] [-v]
+kerosene-tools cleave map.keromap [-o out.kerobsp] [--ignore-leaks] [--no-fill] [--dry-run] [-v]
 ```
 
 `.keromap` → `.kerobsp` plus a `.keroprt` portal graph for Umbra, and a
@@ -387,7 +399,7 @@ designer has over compile time.
 ## Umbra — the visibility compiler
 
 ```sh
-umbra map.kerobsp [--portals map.keroprt] [--fast] [--dry-run]
+kerosene-tools umbra map.kerobsp [--portals map.keroprt] [--fast] [--dry-run]
 ```
 
 Computes which clusters can see which, and writes the PVS back into the map.
@@ -403,7 +415,7 @@ visible, and exactly what you want while a layout is still moving.
 ## Radiance — the lighting compiler
 
 ```sh
-radiance map.kerobsp [--samples 1-8] [--bounces 0-8] [--scale N]
+kerosene-tools radiance map.kerobsp [--samples 1-8] [--bounces 0-8] [--scale N]
                   [--ambient-scale N] [--fast] [--dry-run]
 ```
 
@@ -434,11 +446,11 @@ broken renderer — so Radiance says so.
 ## Alchemy — textures and materials
 
 ```sh
-alchemy compile art/grid.png -o materials/dev/grid.kerotex [--normal] [--clamp] [--ui]
-alchemy material dev/grid --basetexture dev/grid --shader lit
-alchemy batch art -o materials --make-materials
-alchemy build content
-alchemy info materials/dev/grid.kerotex
+kerosene-tools alchemy compile art/grid.png -o materials/dev/grid.kerotex [--normal] [--clamp] [--ui]
+kerosene-tools alchemy material dev/grid --basetexture dev/grid --shader lit
+kerosene-tools alchemy batch art -o materials --make-materials
+kerosene-tools alchemy build content
+kerosene-tools alchemy info materials/dev/grid.kerotex
 ```
 
 Compiles PNG/JPEG/TGA into `.kerotex` and authors `.keromat` materials.
@@ -466,10 +478,10 @@ unattended.
 ## Forge — the model compiler
 
 ```sh
-forge compile art/crate.obj -o models/props/crate.keromdl
+kerosene-tools forge compile art/crate.obj -o models/props/crate.keromdl
                             [--scale-metres] [--z-up] [--scale N]
                             [--material old=new] [--recompute-normals]
-forge info models/props/crate.keromdl
+kerosene-tools forge info models/props/crate.keromdl
 ```
 
 OBJ → `.keromdl`, splitting by material and welding vertices.
@@ -493,13 +505,15 @@ merging them rounds off every corner of the model.
 
 ## Kiln — building a project
 
+The build panel in the toolset window, and also a headless stage:
+
 ```sh
-kiln                              # build everything, from here
-kiln --content path/to/content    # or from there
-kiln --only maps --fast           # just relight, quickly
-kiln --only textures              # after adding art
-kiln --dry-run                    # say what would run
-kiln --tools                      # which compilers can be found
+kerosene-tools kiln                              # build everything, from here
+kerosene-tools kiln --content path/to/content    # or from there
+kerosene-tools kiln --only maps --fast           # just relight, quickly
+kerosene-tools kiln --only textures              # after adding art
+kerosene-tools kiln --dry-run                    # say what would run
+kerosene-tools kiln --tools                      # which pieces can be found
 ```
 
 Runs the whole content pipeline over a project: the texture build, then models
@@ -510,10 +524,11 @@ It is a program rather than a shell script for one reason, and it is the
 reason that matters: **a script is not shipped**. Install the tools, or copy
 them somewhere, and the thing that knows how to *use* them stays behind in a
 git checkout — so the first thing anyone does with a fresh copy of the
-toolchain is discover the build step is missing. Kiln installs beside the
-compilers it drives, finds them beside itself, and needs no shell.
+toolchain is discover the build step is missing. Kiln is part of the one
+toolset executable, so it needs no shell.
 
-The compilers stay separate programs and Kiln shells out to them, exactly as
+The compilers are stages of the same toolset and Kiln drives them by
+re-invoking the executable with the stage's name as a subcommand, exactly as
 Chisel does. You can still run any stage by hand or from a build server. Only
 the texture build is a library call, because Chisel makes the same one and the
 two must not be able to disagree.
@@ -528,18 +543,20 @@ over is not a service. The archive is named after the project and written
 inside the content tree, which is where the engine looks for it.
 
 `scripts/build-content.sh` in this repository is a thin wrapper: it builds the
-tools from source and regenerates the sample map from the code that defines
+toolset from source and regenerates the sample map from the code that defines
 it, then calls Kiln. Neither of those two belongs in a shipped tool.
 
 ---
 
 ## Vault — content archives
 
+The archive panel in the toolset window, and also a headless stage:
+
 ```sh
-vault pack content -o content/kerosene_content.vault [--ext kerotex] [--exclude tmp]
-vault list content/kerosene_content.vault [--long]
-vault verify content/kerosene_content.vault
-vault unpack content/kerosene_content.vault -o extracted
+kerosene-tools vault pack content -o content/kerosene_content.vault [--ext kerotex] [--exclude tmp]
+kerosene-tools vault list content/kerosene_content.vault [--long]
+kerosene-tools vault verify content/kerosene_content.vault
+kerosene-tools vault unpack content/kerosene_content.vault -o extracted
 ```
 
 The archive belongs *inside* the content tree, which is where a shipped game
@@ -637,15 +654,15 @@ game.
 # Timbre — the sound compiler
 
 Turns `.wav`, `.flac` and `.mp3` into `.keroaud`. It is the one tool with no
-Source counterpart,
-because Source shipped `.wav` and paid for it in download size; this pays a
-compile step instead.
+Source counterpart, because Source shipped `.wav` and paid for it in download
+size; this pays a compile step instead. It is the sound tab in the toolset
+window, and also a headless stage:
 
 ```
-timbre                          # open the window
-timbre build                    # compile a project's sounds
-timbre compile a.wav --gain 0.8 --mono
-timbre info a.keroaud
+kerosene-tools timbre                          # the sound tab
+kerosene-tools timbre build                    # compile a project's sounds
+kerosene-tools timbre compile a.wav --gain 0.8 --mono
+kerosene-tools timbre info a.keroaud
 ```
 
 ## What it reads

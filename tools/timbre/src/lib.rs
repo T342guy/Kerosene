@@ -25,6 +25,10 @@
 
 pub mod build;
 pub mod decode;
+mod cli;
+pub mod gui;
+
+pub use cli::run;
 
 use anyhow::{Context, Result};
 use std::path::{Path, PathBuf};

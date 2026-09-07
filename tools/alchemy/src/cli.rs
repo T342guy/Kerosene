@@ -1,24 +1,20 @@
 // SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
-//! `alchemy` -- the command-line front end to the texture tool.
-//!
-//! Turns source art into the formats the engine loads: `.png` and friends into
-//! `.kerotex`, and material definitions into `.keromat`. This is the VTFEdit/vtex
-//! analogue, and it exists for the same reason: the engine should load
-//! textures, not decode and mipmap them.
+//! The command-line surface of Alchemy, exposed as a `run` the unified
+//! toolset calls for the `alchemy` subcommand.
 //!
 //! ```text
-//! alchemy compile art/grid.png -o materials/dev/grid.kerotex
-//! alchemy compile art/grid_n.png --normal -o materials/dev/grid_normal.kerotex
-//! alchemy material dev/grid --basetexture dev/grid -o materials/dev/grid.keromat
-//! alchemy batch art -o materials --make-materials
-//! alchemy build content              # the whole texture set for a project
-//! alchemy info materials/dev/grid.kerotex
+//! kerosene-tools alchemy compile art/grid.png -o materials/dev/grid.kerotex
+//! kerosene-tools alchemy material dev/grid --basetexture dev/grid
+//! kerosene-tools alchemy batch art -o materials --make-materials
+//! kerosene-tools alchemy build content
+//! kerosene-tools alchemy info materials/dev/grid.kerotex
 //! ```
 
-use alchemy::{batch, build_flags, compile_image, devtex, info, write_material};
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
+
+use crate::{batch, build_flags, build_textures, compile_image, devtex, info, write_material};
 
 #[derive(Parser, Debug)]
 #[command(name = "alchemy", version, about = "Compile textures and author materials")]
@@ -101,12 +97,10 @@ enum Command {
     Info { file: PathBuf },
 }
 
-fn main() -> Result<()> {
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
-        .format_timestamp(None)
-        .init();
-
-    match Args::parse().command {
+/// Entry point for the `alchemy` subcommand of the unified toolset.
+pub fn run(args: Vec<String>) -> Result<()> {
+    let args = Args::parse_from(std::iter::once("alchemy".to_string()).chain(args));
+    match args.command {
         Command::Compile { image, output, normal, clamp, point, ui, opaque } => {
             let out = output.unwrap_or_else(|| image.with_extension("kerotex"));
             let flags = build_flags(normal, clamp, point, ui);
@@ -138,11 +132,10 @@ fn main() -> Result<()> {
             Ok(())
         }
         Command::Build { content } => {
-            let build = alchemy::build_textures(&content)?;
+            let build = build_textures(&content)?;
             println!("alchemy: {build}");
             Ok(())
         }
         Command::Info { file } => info(&file),
     }
 }
-

@@ -7,8 +7,8 @@ license.workspace = true
 authors.workspace = true
 
 [dependencies]
-# The texture build runs inside the editor, not as a shelled-out
-# sibling binary: see `build_content` in main.rs.
+# The texture build runs inside the editor, in-process, so the editor works
+# even when it is the only binary present.
 alchemy = { path = "../alchemy" }
 # For one thing only: what a material means to the compiler. The editor
 # explaining tool textures differently from the tool that acts on them would
@@ -25,17 +25,9 @@ kerosene-bsp.workspace = true
 kerosene-asset.workspace = true
 kerosene-vfs.workspace = true
 kerosene-render.workspace = true
-kerosene-config.workspace = true
 kerosene-entity.workspace = true
 anyhow.workspace = true
 log.workspace = true
-env_logger.workspace = true
 glam.workspace = true
 egui.workspace = true
-egui-wgpu.workspace = true
-egui-winit.workspace = true
-winit.workspace = true
-wgpu.workspace = true
-pollster.workspace = true
-bytemuck.workspace = true
 image.workspace = true

@@ -98,7 +98,7 @@ pub fn explain_missing_map(vfs: &Vfs, name: &str, why: &VfsError) -> String {
     if vfs.exists(&format!("maps/{name}.keromap")) {
         said.push_str(&format!("  maps/{name}.keromap is there, but has not been compiled.\n"));
         said.push_str("  build it with:  scripts/build-content.sh\n");
-        said.push_str(&format!("  or on its own:  cleave maps/{name}.keromap\n"));
+        said.push_str(&format!("  or on its own:  kerosene-tools cleave maps/{name}.keromap\n"));
     } else {
         let mut maps: Vec<String> = vfs
             .list("maps", Some("kerobsp"))
@@ -198,6 +198,11 @@ pub struct PlayerState {
     /// Using is an edge, not a state: holding the key against a door should
     /// open it once, not toggle it sixty-four times a second.
     pub use_held: bool,
+    /// How far the player has travelled on the ground since the last footstep,
+    /// so footstep sounds land at a stride rather than every tick.
+    pub step_distance: f32,
+    /// Which footstep sound played last, so left/right steps alternate.
+    pub step_index: u8,
 }
 
 impl Default for PlayerState {
@@ -209,6 +214,8 @@ impl Default for PlayerState {
             previous_origin: Vec3::ZERO,
             health: 100.0,
             use_held: false,
+            step_distance: 0.0,
+            step_index: 0,
         }
     }
 }
@@ -433,6 +440,8 @@ impl Engine {
             // with the use key held should have to let go and press again,
             // not immediately use whatever they spawn facing.
             use_held: self.player.use_held,
+            step_distance: 0.0,
+            step_index: self.player.step_index,
         };
     }
 
@@ -500,6 +509,8 @@ impl Engine {
             if let Some(speed) = result.landed_at_speed {
                 self.apply_fall_damage(speed);
             }
+
+            self.update_footsteps(dt);
         }
 
         // Keep the player's entity in step, so `!player` targets and trigger
@@ -672,6 +683,62 @@ impl Engine {
         self.hurt_player((speed - safe) * scale, &format!("fall damage at {speed:.0} ku/s"));
     }
 
+    /// Emit a footstep when the player has travelled a stride on the ground.
+    ///
+    /// The surface the player is standing on is resolved each step through the
+    /// trace's material, so a footstep on metal sounds different from one on
+    /// concrete — which is the whole point of `$surfaceprop`. Distance is
+    /// accumulated only while grounded, so jumping and air-strafing do not
+    /// tick the stride forward.
+    fn update_footsteps(&mut self, dt: f32) {
+        let (horizontal, origin) = {
+            let movement = &self.player.movement;
+            if !movement.on_ground { return; }
+            // Horizontal speed only: standing still, however long, is silent.
+            let horizontal = Vec3::new(movement.velocity.x, movement.velocity.y, 0.0).length();
+            (horizontal, movement.origin)
+        };
+
+        let min_speed = self.console.float("sv_footstep_min_speed");
+        if horizontal < min_speed { return; }
+
+        self.player.step_distance += horizontal * dt;
+        let stride = self.console.float("sv_footstep_stride");
+        if self.player.step_distance < stride { return; }
+        self.player.step_distance = 0.0;
+
+        let Some(surface) = self.surface_property_at(origin) else { return };
+        let vfs = self.vfs.clone();
+        let sound = surface.footstep_sound(self.player.step_index);
+        self.player.step_index = self.player.step_index.wrapping_add(1);
+        self.audio.play(&vfs, &sound, Some(origin), 0.5);
+    }
+
+    /// Resolve the physical surface under a point by tracing down and looking
+    /// up the material's `$surfaceprop`.
+    ///
+    /// The trace reports the texinfo of the face it hit, and the BSP names that
+    /// texinfo's material; the material file then carries the `$surfaceprop`.
+    /// This is the runtime end of the chain the compiler stores — the first
+    /// consumer the format's key was added for.
+    fn surface_property_at(
+        &self,
+        origin: Vec3,
+    ) -> Option<kerosene_asset::SurfaceProperty> {
+        let bsp = &self.level.as_ref()?.bsp;
+        let down = origin + Vec3::new(0.0, 0.0, -self.console.float("sv_footstep_trace"));
+        let hull = self.player.movement.hull();
+        let trace = bsp.trace_box(
+            origin + Vec3::Z, down, hull.mins, hull.maxs, contents::MASK_PLAYER_SOLID,
+        );
+        if trace.texture_index < 0 { return None; }
+        let name = bsp.texinfo_name(trace.texture_index as usize);
+        if name.is_empty() { return None; }
+        let text = self.vfs.read_string(&kerosene_asset::material_path(name)).ok()?;
+        let material = kerosene_asset::Material::parse(&text).ok()?;
+        Some(material.surface_type())
+    }
+
     /// Take health off the player, and respawn them if it runs out.
     ///
     /// One place rather than one per source of damage, because "what happens
@@ -815,6 +882,10 @@ fn register_cvars(console: &mut Console) {
     console.register_cvar("sv_falldamage_scale", "0.25", ConVarFlags::REPLICATED, "Damage per unit/s of landing speed above the safe threshold.");
     console.register_cvar("sv_noclip", "0", ConVarFlags::CHEAT, "Fly through walls.");
     console.register_cvar("sv_use_range", "80", ConVarFlags::REPLICATED, "How far the use key reaches, in kerosene units.");
+
+    console.register_cvar("sv_footstep_stride", "32", ConVarFlags::REPLICATED, "Distance on the ground between footstep sounds, in kerosene units.");
+    console.register_cvar("sv_footstep_min_speed", "50", ConVarFlags::REPLICATED, "Horizontal speed below which footsteps are silent.");
+    console.register_cvar("sv_footstep_trace", "48", ConVarFlags::REPLICATED, "How far down to trace to resolve the surface underfoot.");
 
     console.register_cvar("cl_fov", "90", ConVarFlags::ARCHIVE, "Horizontal field of view at 4:3.");
     console.register_cvar_ranged("sensitivity", "3", Some(0.01), Some(100.0), ConVarFlags::ARCHIVE, "Mouse sensitivity.");
@@ -1093,7 +1164,7 @@ mod tests {
         let said = explain_missing_map(&vfs_over(&dir), "arena", &not_found("arena"));
 
         assert!(said.contains("has not been compiled"), "{said}");
-        assert!(said.contains("cleave maps/arena.keromap"), "{said}");
+        assert!(said.contains("kerosene-tools cleave maps/arena.keromap"), "{said}");
         assert!(said.contains("build-content.sh"), "{said}");
         let _ = std::fs::remove_dir_all(&dir);
     }

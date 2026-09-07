@@ -1,24 +1,17 @@
 // SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
-//! Cleave -- the Kerosene BSP compiler.
-//!
-//! Takes a `.keromap` and produces a `.kerobsp` the engine can load, plus a `.keroprt`
-//! portal graph for Umbra and, when the world is not sealed, a `.keroleak` leak
-//! trace Chisel can draw.
-//!
-//! This is the first of the three compile stages, mirroring Source's
-//! vbsp/vvis/vrad split:
+//! The command-line surface of Cleave, exposed as a `run` the unified
+//! toolset calls for the `cleave` subcommand.
 //!
 //! ```text
-//! cleave map.keromap     ->  map.kerobsp + map.keroprt
-//! umbra  map.kerobsp     ->  map.kerobsp with visibility
-//! radiance map.kerobsp   ->  map.kerobsp with lighting
+//! kerosene-tools cleave map.keromap [-o out.kerobsp] [--ignore-leaks] [--no-fill] [--dry-run] [-v]
 //! ```
 
 use anyhow::{Context, Result};
-use cleave::pipeline;
 use clap::Parser;
 use std::path::PathBuf;
 use std::time::Instant;
+
+use crate::pipeline;
 
 #[derive(Parser, Debug)]
 #[command(name = "cleave", version, about = "Compile a .keromap into a .kerobsp")]
@@ -47,12 +40,9 @@ struct Args {
     verbose: bool,
 }
 
-fn main() -> Result<()> {
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
-        .format_timestamp(None)
-        .init();
-
-    let args = Args::parse();
+/// Entry point for the `cleave` subcommand of the unified toolset.
+pub fn run(args: Vec<String>) -> Result<()> {
+    let args = Args::parse_from(std::iter::once("cleave".to_string()).chain(args));
     let started = Instant::now();
 
     let text = std::fs::read_to_string(&args.map)

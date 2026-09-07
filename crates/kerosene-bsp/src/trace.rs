@@ -33,6 +33,9 @@ pub struct Trace {
     pub contents: u32,
     /// Surface flags of the face it hit, when known.
     pub surface_flags: u32,
+    /// Index into the BSP's `texinfo` lump for the face it hit, when known.
+    /// This is what ties a trace back to a material's `$surfaceprop`.
+    pub texture_index: i32,
     /// The trace began inside solid geometry.
     pub start_solid: bool,
     /// The entire path was inside solid geometry.
@@ -50,6 +53,7 @@ impl Trace {
             plane: None,
             contents: 0,
             surface_flags: 0,
+            texture_index: -1,
             start_solid: false,
             all_solid: false,
             model: 0,
@@ -134,6 +138,7 @@ impl Bsp {
                 plane: None,
                 contents: 0,
                 surface_flags: 0,
+                texture_index: -1,
                 // Cleared as soon as any non-solid space is seen. Starting
                 // true means a trace that never leaves rock reports it.
                 start_solid: false,
@@ -242,6 +247,7 @@ impl Work<'_> {
         let mut leave_frac = 1.0f32;
         let mut clip_plane: Option<Plane> = None;
         let mut clip_surface = 0u32;
+        let mut clip_texture: i32 = -1;
         let mut started_outside = false;
         let mut ends_outside = false;
 
@@ -282,11 +288,9 @@ impl Work<'_> {
                 if f > enter_frac {
                     enter_frac = f;
                     clip_plane = Some(plane);
-                    clip_surface = self
-                        .bsp
-                        .texinfo
-                        .get(side.texinfo.max(0) as usize)
-                        .map_or(0, |t| t.flags);
+                    let texinfo = side.texinfo.max(0) as usize;
+                    clip_surface = self.bsp.texinfo.get(texinfo).map_or(0, |t| t.flags);
+                    clip_texture = side.texinfo;
                 }
             } else {
                 // Back to front: an exit point.
@@ -310,6 +314,7 @@ impl Work<'_> {
             self.trace.plane = clip_plane;
             self.trace.contents = brush.contents;
             self.trace.surface_flags = clip_surface;
+            self.trace.texture_index = clip_texture;
         }
     }
 }

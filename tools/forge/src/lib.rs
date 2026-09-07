@@ -6,12 +6,15 @@
 //! than on every load: welding vertices, splitting by material, computing
 //! normals where the source has none, and converting axes and units.
 //!
+//! This is a library that the unified toolset invokes as the `forge`
+//! subcommand:
+//!
 //! ```text
-//! forge compile art/crate.obj -o models/props/crate.keromdl --scale-metres
-//! forge info models/props/crate.keromdl
+//! kerosene-tools forge compile art/crate.obj -o models/props/crate.keromdl --scale-metres
+//! kerosene-tools forge info models/props/crate.keromdl
 //! ```
 
-mod obj;
+pub mod obj;
 
 use anyhow::{Context, Result, bail};
 use clap::{Parser, Subcommand};
@@ -64,12 +67,10 @@ enum Command {
     Info { model: PathBuf },
 }
 
-fn main() -> Result<()> {
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
-        .format_timestamp(None)
-        .init();
-
-    match Args::parse().command {
+/// Entry point for the `forge` subcommand of the unified toolset.
+pub fn run(args: Vec<String>) -> Result<()> {
+    let args = Args::parse_from(std::iter::once("forge".to_string()).chain(args));
+    match args.command {
         Command::Compile {
             source, output, default_material, materials, scale, scale_metres, z_up,
             recompute_normals,

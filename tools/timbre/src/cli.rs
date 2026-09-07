@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
-//! `timbre` -- the Kerosene sound compiler.
+//! The command-line surface of Timbre, exposed as a `run` the unified toolset
+//! calls for the `timbre` subcommand.
 //!
 //! ```text
-//! timbre                                  # open the window
-//! timbre build                            # compile a project's sounds
-//! timbre build --content path/to/content --force
-//! timbre compile sound/door/move.wav --gain 0.8 --mono
-//! timbre compile sound/music/theme.flac --encoding pcm16
-//! timbre info sound/door/move.keroaud
+//! kerosene-tools timbre                                  # open the window
+//! kerosene-tools timbre build                            # compile a project's sounds
+//! kerosene-tools timbre build --content path/to/content --force
+//! kerosene-tools timbre compile sound/door/move.wav --gain 0.8 --mono
+//! kerosene-tools timbre info sound/door/move.keroaud
 //! ```
 //!
 //! Run with no arguments it opens a window, because the useful things to know
@@ -15,12 +15,10 @@
 //! chose clips it -- are things to see and hear rather than to read. Every one
 //! of them is also available as a flag, because a build server has no screen.
 
-mod gui;
-
 use anyhow::{Result, bail};
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
-use timbre::Options;
+use crate::Options;
 use kerosene_audio::compiled::{self, Encoding};
 
 #[derive(Parser, Debug)]
@@ -66,12 +64,10 @@ enum Command {
     },
 }
 
-fn main() -> Result<()> {
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
-        .format_timestamp(None)
-        .init();
-
-    match Args::parse().command {
+/// Entry point for the `timbre` subcommand of the unified toolset.
+pub fn run(args: Vec<String>) -> Result<()> {
+    let args = Args::parse_from(std::iter::once("timbre".to_string()).chain(args));
+    match args.command {
         None => edit(None),
         Some(Command::Edit { content }) => edit(content),
         Some(Command::Build { content, force }) => build(content, force),
@@ -81,9 +77,9 @@ fn main() -> Result<()> {
             if !(gain > 0.0 && gain.is_finite()) {
                 bail!("gain must be positive");
             }
-            let output = output.unwrap_or_else(|| timbre::output_for(&source));
+            let output = output.unwrap_or_else(|| crate::output_for(&source));
             let options = Options { encoding, gain, mono, looping: None };
-            let done = timbre::compile(&source, &output, &options)?;
+            let done = crate::compile(&source, &output, &options)?;
             println!("{done}");
             for warning in &done.warnings {
                 println!("  note: {warning}");
@@ -122,7 +118,7 @@ fn content_root(explicit: Option<PathBuf>) -> Result<PathBuf> {
 
 fn build(content: Option<PathBuf>, force: bool) -> Result<()> {
     let root = content_root(content)?;
-    let batch = timbre::build_sounds(&root, force)?;
+    let batch = crate::build_sounds(&root, force)?;
 
     for done in &batch.compiled {
         println!("{done}");
@@ -146,6 +142,6 @@ fn build(content: Option<PathBuf>, force: bool) -> Result<()> {
 
 fn edit(content: Option<PathBuf>) -> Result<()> {
     let root = content_root(content)?;
-    let app = gui::Timbre::open(&root)?;
+    let app = crate::gui::Timbre::open(&root)?;
     kerosene_ui::run("Timbre -- Kerosene sound compiler", (1180, 760), app)
 }

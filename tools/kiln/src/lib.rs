@@ -7,14 +7,14 @@
 //! packed into a `.vault`. Running those in the right order over a whole tree
 //! is a job, and it used to be a shell script in the repository.
 //!
-//! A shell script is not shipped. Install the tools, or copy them somewhere,
-//! and the thing that knows how to *use* them stays behind in a git checkout
+//! A shell script is not shipped. Install the toolset, or copy it somewhere,
+//! and the thing that knows how to *use* it stays behind in a git checkout
 //! -- so the first thing anyone does with a fresh copy of the toolchain is
-//! discover that the build step is missing. Hence a program: it installs
-//! beside the tools it drives, it works anywhere they do, and it needs no
-//! shell.
+//! discover that the build step is missing. Hence a program: it is part of
+//! the one toolset executable, works anywhere that does, and needs no shell.
 //!
-//! The compilers stay separate programs and Kiln shells out to them, exactly
+//! The compilers are stages of the one toolset now, and Kiln drives them by
+//! re-invoking the executable with the stage's name as a subcommand, exactly
 //! as Chisel does. That is the shape of the toolchain and it is not an
 //! accident: you can still run any stage by hand, from a Makefile, or on a
 //! build server. Only the texture build is a library call, because Chisel
@@ -27,6 +27,9 @@ use kerosene_vfs::project::Project;
 use kerosene_vfs::toolchain;
 
 pub mod ship;
+mod cli;
+
+pub use cli::run;
 
 /// Which stages to run.
 ///
@@ -268,7 +271,7 @@ fn build_models(settings: &Settings) -> Result<usize> {
             out.display().to_string(),
         ];
         if settings.models_in_metres { args.push("--scale-metres".into()) }
-        run("forge", &args, settings)?;
+        run_tool("forge", &args, settings)?;
         built += 1;
     }
     Ok(built)
@@ -282,7 +285,7 @@ fn build_map(settings: &Settings, map: &Path, report: &mut Report) -> Result<()>
     let compiled = map.with_extension("kerobsp");
     let mut args = vec![map.display().to_string()];
     if settings.ignore_leaks { args.push("--ignore-leaks".into()) }
-    run("cleave", &args, settings)?;
+    run_tool("cleave", &args, settings)?;
 
     // A leak is reported rather than fatal: the map still compiles, it just
     // will not light or cull correctly, and finding out at the end of a build
@@ -293,11 +296,11 @@ fn build_map(settings: &Settings, map: &Path, report: &mut Report) -> Result<()>
 
     let mut args = vec![compiled.display().to_string()];
     if settings.fast { args.push("--fast".into()) }
-    run("umbra", &args, settings)?;
+    run_tool("umbra", &args, settings)?;
 
     let mut args = vec![compiled.display().to_string()];
     if settings.fast { args.push("--fast".into()) }
-    run("radiance", &args, settings)?;
+    run_tool("radiance", &args, settings)?;
     Ok(())
 }
 
@@ -307,7 +310,7 @@ fn build_map(settings: &Settings, map: &Path, report: &mut Report) -> Result<()>
 /// `.png`, `.obj`, `.wav`, `.keromap` -- are deliberately left out: shipping
 /// them doubles the download to deliver files the engine can read a smaller
 /// version of.
-const PACKED: &[&str] = &[
+pub const PACKED: &[&str] = &[
     "kerotex", "keromat", "keromdl", "kerobsp", "kerowalk", "keroscript", "kerosnd", "keroaud",
     "kerodef",
 ];
@@ -323,8 +326,8 @@ fn pack(settings: &Settings, archive: &Path) -> Result<()> {
         args.push("--ext".into());
         args.push((*extension).to_string());
     }
-    run("vault", &args, settings)?;
-    run("vault", &["verify".to_string(), archive.display().to_string()], settings)
+    run_tool("vault", &args, settings)?;
+    run_tool("vault", &["verify".to_string(), archive.display().to_string()], settings)
 }
 
 /// Every file with an extension under a directory, in a stable order.
@@ -347,7 +350,11 @@ fn collect(dir: &Path, extension: &str, out: &mut Vec<PathBuf>) {
 }
 
 /// Run one tool, or say that it would be run.
-fn run(tool: &str, args: &[String], settings: &Settings) -> Result<()> {
+///
+/// The tool is a subcommand of this same executable, so running it means
+/// re-invoking ourselves with the subcommand first. That keeps the old
+/// property: a compiler crash cannot take the build driver down with it.
+fn run_tool(tool: &str, args: &[String], settings: &Settings) -> Result<()> {
     if settings.dry_run {
         println!("  would run: {tool} {}", args.join(" "));
         return Ok(());
@@ -358,12 +365,7 @@ fn run(tool: &str, args: &[String], settings: &Settings) -> Result<()> {
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit())
         .status()
-        .with_context(|| {
-            format!(
-                "running {tool}. It should be beside kiln or on PATH; \
-                 `kiln --tools` lists what was found"
-            )
-        })?;
+        .with_context(|| format!("running the {tool} stage"))?;
 
     if !status.success() {
         bail!("{tool} failed ({status})");

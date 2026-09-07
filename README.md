@@ -2,14 +2,17 @@
 
 A brush-based 3D game engine in Rust, built the way Valve's Source engine is
 built: levels are convex solids carved into a BSP tree, visibility and lighting
-are computed once at build time by separate command-line compilers, and the
-whole thing is driven by a suite of standalone tools rather than a single
-monolithic application.
+are computed once at build time by compilers, and the engine loads the result.
+The compilers and the editor are one executable, `kerosene-tools`, kept apart
+from the engine by the same boundary Source kept between its tools and its
+game DLL.
 
-That last part is the point. Source's real design achievement was never its
+That boundary is the point. Source's real design achievement was never its
 renderer — it was that Hammer, `vbsp`, `vvis`, `vrad`, `studiomdl` and VTFEdit
-are *separate programs* sharing file formats. You can script them, run them on
-a build server, replace one, or write your own. Kerosene keeps that shape.
+are *separate from the game* and share file formats. You can script them, run
+them on a build server, replace one, or write your own. Kerosene keeps that
+shape: the toolset's stages stay separate subcommands, so each is still
+scriptable and replaceable, while one binary carries them all.
 
 ```
    art/*.png ──alchemy──► materials/*.kerotex + *.keromat ─────────────┐
@@ -48,21 +51,27 @@ door frames that are already right. See
 
 ## The tools
 
-Nine programs, each with its own name, none of them the engine.
+One application, `kerosene-tools`. Open it with no arguments and you get one
+window holding every tool: the world editor, the sound editor, a build panel
+and an archive panel, switched with a rail down the left edge. None of it is
+the engine.
 
 | Tool | Does | Source analogue |
 |---|---|---|
-| **Chisel** | The world editor. Four viewports, brush editing, entity I/O wiring, compile-and-run. | Hammer |
+| **Chisel** (editor) | The world editor. Four viewports, brush editing, entity I/O wiring, compile-and-run. | Hammer |
 | **Cleave** | `.keromap` → `.kerobsp`. CSG, BSP tree, portals, leak detection. | `vbsp` |
 | **Umbra** | Computes the PVS — which parts of a level can see which. | `vvis` |
 | **Radiance** | Bakes static lighting into lightmaps. | `vrad` |
 | **Alchemy** | Compiles textures and authors materials. | VTFEdit / `vtex` |
-| **Timbre** | Compiles sounds — WAV, FLAC or MP3. Has a window, with a waveform and a gain slider. | (Source has no equivalent) |
+| **Timbre** (sound) | Compiles sounds — WAV, FLAC or MP3. Has a waveform view and a gain slider. | (Source has no equivalent) |
 | **Forge** | Compiles source meshes into engine models. | `studiomdl` |
-| **Vault** | Packs a content tree into one archive. | `vpk` |
-| **Kiln** | Runs the whole pipeline over a project. | the batch file everyone writes |
+| **Vault** (archive) | Packs a content tree into one archive. | `vpk` |
+| **Kiln** (build) | Runs the whole pipeline over a project. | the batch file everyone writes |
 
-The engine itself is `kerosene`.
+The stages also run headless, as subcommands, for scripts and build servers:
+`kerosene-tools cleave map.keromap`, `kerosene-tools kiln`, and so on.
+
+The engine itself is the separate `kerosene` binary.
 
 ---
 
@@ -71,7 +80,7 @@ The engine itself is `kerosene`.
 Requires a Rust toolchain (edition 2024; developed against 1.94).
 
 ```sh
-cargo build --release              # engine and all nine tools
+cargo build --release              # the engine and the toolset
 ./scripts/build-content.sh         # compile the sample content and map
 cargo run --release -p kerosene-runtime
 ```
@@ -104,17 +113,24 @@ content root, which works and is why a fresh clone needs no setup. A project
 file is how you overrule the guess, and `startmap` is why `kerosene` above needs
 no `+map`.
 
-Once the tools are built, **`kiln`** builds a project's content — textures,
-models, maps, and the archive — from anywhere. It is a program rather than a
-shell script because a script is not shipped: install the toolchain somewhere
-and the thing that knows how to use it would stay behind in a git checkout.
-`scripts/build-content.sh` is a wrapper that builds the tools from source and
-regenerates the sample map, then calls it.
+Once the toolset is built, **`kerosene-tools kiln`** builds a project's
+content — textures, models, maps, and the archive — from anywhere, and the
+**build panel** in the toolset window does the same with a button. It is a
+program rather than a shell script because a script is not shipped: install
+the toolchain somewhere and the thing that knows how to use it would stay
+behind in a git checkout. `scripts/build-content.sh` is a wrapper that builds
+the toolset from source and regenerates the sample map, then calls it.
 
-To open the sample level in the editor:
+To open the toolset window (the editor, on the way in):
 
 ```sh
-cargo run --release -p chisel -- content/maps/kero_start.keromap
+cargo run --release -p kerosene-tools
+```
+
+To open a specific map in the editor:
+
+```sh
+cargo run --release -p kerosene-tools -- chisel content/maps/kero_start.keromap
 ```
 
 Chisel builds the content tree's textures before it finishes loading, so the
@@ -261,7 +277,7 @@ provenance of the algorithms.
 ## Status
 
 Everything above works end to end: you can draw a level in Chisel, compile it
-through all three stages, and walk around it. 1219 tests cover the pieces and
+through all three stages, and walk around it. 1491 tests cover the pieces and
 the seams between them, including a suite that builds a map in memory,
 compiles it, loads it and plays it.
 

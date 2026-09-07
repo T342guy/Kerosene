@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
 //! Running a compile from the editor.
 //!
-//! Chisel shells out to Cleave, Umbra and Radiance rather than linking them.
-//! That is what Hammer does, and it is the right call for the same reasons:
-//! the compilers stay genuinely separate programs that can be run from a
-//! script or a build server, a crash in one cannot take the editor's unsaved
-//! work with it, and anyone can substitute their own.
+//! The compilers now live inside the same executable as the editor, so Chisel
+//! runs them by re-invoking itself with the compiler's name as a subcommand.
+//! That keeps the property the old separate-program split was there for: a
+//! crash in a compiler cannot take the editor's unsaved work with it, and the
+//! same subcommands run from a script or a build server.
 //!
 //! The compile runs on a background thread and streams its output back, so the
 //! editor stays responsive and the log appears as it happens rather than all
@@ -183,13 +183,13 @@ fn run_compile(
 ) -> Result<(), ()> {
     let compiled = map.with_extension("kerobsp");
 
-    // Alchemy first, and in-process rather than as a stage. The compilers are
-    // separate programs on purpose; the texture build is not, because the
-    // editor runs the same build on the way in, and two callers of the same
-    // step should not be able to disagree about what it does. It skips
-    // everything already compiled, so the usual cost is one directory walk --
-    // and the one time it is not, it is the run that saves the map from
-    // loading as a checkerboard.
+    // Alchemy first, and in-process rather than as a stage. The compilers run
+    // as subcommands of this same binary; the texture build is a library call
+    // instead, because the editor runs the same build on the way in, and two
+    // callers of the same step should not be able to disagree about what it
+    // does. It skips everything already compiled, so the usual cost is one
+    // directory walk -- and the one time it is not, it is the run that saves
+    // the map from loading as a checkerboard.
     if settings.run_materials {
         let _ = sender.send(CompileMessage::Stage("alchemy".into()));
         match alchemy::build_textures(&settings.content_root) {
@@ -293,19 +293,37 @@ fn stage(tool: &str, args: &[String], sender: &Sender<CompileMessage>) -> Result
     }
 }
 
-/// Build a command for one of the sibling tools.
+/// The compilers Chisel runs, now subcommands of the unified toolset binary.
 ///
-/// Looks beside Chisel's own executable first, so a built or installed tree
-/// works without anything being on PATH -- which is how the tools are actually
-/// laid out, all in one directory.
+/// These are compiled into the very executable that is running the editor, so
+/// running one means re-invoking ourselves with the subcommand first.
+const COMPILERS: &[&str] = &["cleave", "umbra", "radiance"];
+
+/// Build a command for one of the pieces the compile pipeline needs.
+///
+/// The compilers are subcommands of this same executable. The engine runtime
+/// is still its own binary, found beside us and then on PATH.
 pub fn tool_command(name: &str) -> Command {
-    if let Some(path) = tool_path(name) {
-        return Command::new(path);
+    if name == "kerosene" {
+        return match tool_path(name) {
+            Some(path) => Command::new(path),
+            None => Command::new(name),
+        };
     }
+    if COMPILERS.contains(&name) {
+        let exe = std::env::current_exe().unwrap_or_else(|_| PathBuf::from("kerosene-tools"));
+        let mut command = Command::new(exe);
+        command.arg(name);
+        return command;
+    }
+    // Unknown: spawning it fails, and `stage` reports that rather than
+    // hanging the editor.
     Command::new(name)
 }
 
-/// Where a sibling tool lives, if it is next to this executable.
+/// Where a sibling *binary* lives, if it is next to this executable.
+///
+/// Used for the runtime, which is not a subcommand of the toolset.
 pub fn tool_path(name: &str) -> Option<PathBuf> {
     let exe = std::env::current_exe().ok()?;
     let dir = exe.parent()?;
@@ -316,13 +334,18 @@ pub fn tool_path(name: &str) -> Option<PathBuf> {
 /// Which of the tools Chisel needs are actually present.
 ///
 /// Reported in the compile dialog, because "nothing happened when I pressed
-/// compile" is otherwise a mystery.
+/// compile" is otherwise a mystery. The compilers are always present -- they
+/// are this binary -- and only the engine runtime is looked up.
 pub fn available_tools() -> Vec<(&'static str, bool)> {
     ["cleave", "umbra", "radiance", "kerosene"]
         .iter()
         .map(|&name| {
-            let found = tool_path(name).is_some()
-                || Command::new(name).arg("--help").stdout(Stdio::null()).stderr(Stdio::null()).status().is_ok();
+            let found = if COMPILERS.contains(&name) {
+                true
+            } else {
+                tool_path(name).is_some()
+                    || Command::new(name).arg("--help").stdout(Stdio::null()).stderr(Stdio::null()).status().is_ok()
+            };
             (name, found)
         })
         .collect()

@@ -17,10 +17,13 @@
 //! for framerate. `--fast` skips the expensive pass and leaves an
 //! over-estimate, which is what you want while a level's layout is still
 //! moving.
+//!
+//! This is a library that the unified toolset invokes as the `umbra`
+//! subcommand.
 
-mod bitset;
-mod flow;
-mod prt;
+pub mod bitset;
+pub mod flow;
+pub mod prt;
 
 use anyhow::{Context, Result};
 use clap::Parser;
@@ -48,12 +51,9 @@ struct Args {
     dry_run: bool,
 }
 
-fn main() -> Result<()> {
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
-        .format_timestamp(None)
-        .init();
-
-    let args = Args::parse();
+/// Entry point for the `umbra` subcommand of the unified toolset.
+pub fn run(args: Vec<String>) -> Result<()> {
+    let args = Args::parse_from(std::iter::once("umbra".to_string()).chain(args));
     let started = Instant::now();
 
     let mut bsp = Bsp::load(&args.map)

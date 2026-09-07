@@ -21,7 +21,7 @@ pub mod material;
 pub mod model;
 pub mod texture;
 
-pub use material::{Material, MaterialError, Shader};
+pub use material::{Material, MaterialError, Shader, SurfaceProperty};
 pub use model::{Bone, Mesh, Model, ModelError, Vertex};
 pub use texture::{Mip, PixelFormat, Texture, TextureError, TextureFlags};
 

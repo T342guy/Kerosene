@@ -14,9 +14,12 @@
 //! Lighting is authored as entities in the map -- `light`, `light_spot`,
 //! `light_environment` -- so a designer changes it in the editor rather than
 //! in a separate file.
+//!
+//! This is a library that the unified toolset invokes as the `radiance`
+//! subcommand.
 
-mod bake;
-mod lights;
+pub mod bake;
+pub mod lights;
 
 use anyhow::{Context, Result};
 use bake::BakeOptions;
@@ -58,12 +61,9 @@ struct Args {
     dry_run: bool,
 }
 
-fn main() -> Result<()> {
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
-        .format_timestamp(None)
-        .init();
-
-    let args = Args::parse();
+/// Entry point for the `radiance` subcommand of the unified toolset.
+pub fn run(args: Vec<String>) -> Result<()> {
+    let args = Args::parse_from(std::iter::once("radiance".to_string()).chain(args));
     let started = Instant::now();
 
     let mut bsp = Bsp::load(&args.map)

@@ -1,19 +1,19 @@
 // SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
-//! `kiln` -- build a project's content.
+//! The command-line surface of Kiln, exposed as a `run` the unified toolset
+//! calls for the `kiln` subcommand.
 //!
 //! ```text
-//! kiln                              # build everything, from here
-//! kiln --content path/to/content    # or from there
-//! kiln --only maps --fast           # just relight, quickly
-//! kiln --dry-run                    # say what would run
-//! kiln --tools                      # which compilers can be found
-//! kiln --ship dist                  # build, then assemble something shippable
-//! kiln --ship dist --only ship      # assemble what is already built
+//! kerosene-tools kiln                              # build everything, from here
+//! kerosene-tools kiln --content path/to/content    # or from there
+//! kerosene-tools kiln --only maps --fast           # just relight, quickly
+//! kerosene-tools kiln --dry-run                    # say what would run
+//! kerosene-tools kiln --tools                      # which pieces are present
+//! kerosene-tools kiln --ship dist                  # build, then assemble
 //! ```
 
 use anyhow::{Result, bail};
 use clap::Parser;
-use kiln::{Settings, Stage};
+use crate::{Settings, Stage};
 use std::path::PathBuf;
 use kerosene_vfs::toolchain;
 
@@ -45,7 +45,7 @@ struct Args {
     #[arg(long)]
     model_units: bool,
 
-    /// List the tools that can be found, and stop.
+    /// List the pieces that can be found, and stop.
     #[arg(long)]
     tools: bool,
 
@@ -54,19 +54,21 @@ struct Args {
     ship: Option<PathBuf>,
 }
 
-fn main() -> Result<()> {
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
-        .format_timestamp(None)
-        .init();
-
-    let args = Args::parse();
+/// Entry point for the `kiln` subcommand of the unified toolset.
+pub fn run(args: Vec<String>) -> Result<()> {
+    let args = Args::parse_from(std::iter::once("kiln".to_string()).chain(args));
 
     if args.tools {
         println!("tools kiln can find:");
         for (name, found) in toolchain::available() {
-            let where_ = toolchain::path(name)
-                .map(|p| p.display().to_string())
-                .unwrap_or_else(|| if found { "on PATH".into() } else { "not found".into() });
+            let where_ = if toolchain::TOOLSET.contains(&name) {
+                // A subcommand of the one toolset executable: always present.
+                "part of the toolset".to_string()
+            } else {
+                toolchain::path(name)
+                    .map(|p| p.display().to_string())
+                    .unwrap_or_else(|| if found { "on PATH".into() } else { "not found".into() })
+            };
             println!("  {:<9} {:<3} {where_}", name, if found { "ok" } else { "--" });
         }
         return Ok(());
@@ -106,7 +108,7 @@ fn main() -> Result<()> {
         ship_to: args.ship,
     };
 
-    let report = kiln::build(&settings)?;
+    let report = crate::build(&settings)?;
 
     println!();
     println!(

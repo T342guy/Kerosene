@@ -10,11 +10,14 @@
 //! and loose files win. That is deliberate: during development you drop a file
 //! next to a shipped archive and it takes effect immediately, with no repack.
 //!
+//! This is a library that the unified toolset invokes as the `vault`
+//! subcommand:
+//!
 //! ```text
-//! vault pack content -o content.vault
-//! vault list content.vault
-//! vault verify content.vault
-//! vault unpack content.vault -o extracted
+//! kerosene-tools vault pack content -o content.vault
+//! kerosene-tools vault list content.vault
+//! kerosene-tools vault verify content.vault
+//! kerosene-tools vault unpack content.vault -o extracted
 //! ```
 
 use anyhow::{Context, Result, bail};
@@ -61,12 +64,14 @@ enum Command {
     },
 }
 
-fn main() -> Result<()> {
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
-        .format_timestamp(None)
-        .init();
-
-    match Args::parse().command {
+/// Entry point for the `vault` subcommand of the unified toolset.
+///
+/// The first element of `args` must be anything -- the toolset's dispatcher
+/// has already consumed the subcommand word, so the rest of the command line
+/// is handed here verbatim and clap parses it as `vault <args>`.
+pub fn run(args: Vec<String>) -> Result<()> {
+    let args = Args::parse_from(std::iter::once("vault".to_string()).chain(args));
+    match args.command {
         Command::Pack { directory, output, extensions, excludes } => {
             pack(&directory, &output, &extensions, &excludes)
         }

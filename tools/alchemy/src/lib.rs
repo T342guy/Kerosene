@@ -6,14 +6,18 @@
 //! VTFEdit/vtex analogue, and it exists for the same reason: the engine should
 //! load textures, not decode and mipmap them.
 //!
-//! This is a library as well as a command, because Chisel builds the texture
-//! set before it opens its window. Shelling out to a sibling binary for that
-//! would mean the editor only worked when the binary was on the path and next
-//! to the right version of itself -- a way to look broken that has nothing to
-//! do with textures.
+//! This is a library the toolset calls as the `alchemy` subcommand, and it is
+//! also called directly by Chisel, which builds the texture set before it
+//! opens its window. Running that step in-process rather than re-invoking the
+//! toolset means the editor works even when the only binary present is the one
+//! it is running as -- a way to look broken that has nothing to do with
+//! textures.
 
 pub mod devtex;
 pub mod font;
+mod cli;
+
+pub use cli::run;
 
 use anyhow::{Context, Result, bail};
 use std::path::{Path, PathBuf};

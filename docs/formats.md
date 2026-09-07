@@ -162,6 +162,12 @@ Chisel:
 Brush entities are absent on purpose: a `func_door` moves, and a static
 walkmap that said a closed door was open would send an NPC through it.
 
+Navigation is built on top of the faces: `kerosene-walk`'s `NavGraph` links
+faces that share an edge and A*-searches them into a list of waypoints, with
+`avoid` faces given a movement-cost penalty so paths bend around them when a
+detour is not much longer. The runtime asks for a path the way it asks whether
+a point is walkable — cheaply, against data the compiler already produced.
+
 ## `.kerotex` — textures
 
 A 48-byte header (dimensions, format, flags, average colour) then the mip
@@ -190,6 +196,13 @@ Geometry references *materials*, never textures, so retexturing a level or
 making every metal surface reflective is one file change. Unknown parameters
 round-trip rather than being dropped: a game will invent keys the engine has
 never heard of.
+
+`$surfaceprop` is the physical type the surface is made of — `concrete`,
+`metal`, `wood`, and so on. It has one runtime consumer today: a trace that
+stops against a face reports the face's material, and the engine parses that
+material's `$surfaceprop` to choose a footstep sound (`footstep/<type>/n`).
+Unknown types parse to `other` rather than failing, so a game's own surface
+names still work without the engine shipping them.
 
 ## `.keromdl` — models
 

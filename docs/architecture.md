@@ -25,9 +25,9 @@ Everything above the line happens once, on a developer's machine or a build
 server. Everything below happens sixty-four times a second on a player's.
 
 That division is the single most important thing about a BSP engine, and it is
-why the tools are separate programs rather than menu items. Visibility takes
-minutes to compute and microseconds to query. Lighting takes minutes to bake
-and nothing at all to sample. Neither belongs in the engine.
+why the tools are not part of the engine. Visibility takes minutes to compute
+and microseconds to query. Lighting takes minutes to bake and nothing at all
+to sample. Neither belongs in the engine.
 
 ## Crate dependencies
 
@@ -85,17 +85,19 @@ props in the first place.
 
 Two edges in that picture are there for a reason worth stating. `chisel`
 depends on `alchemy`, because the editor builds the content tree's textures
-itself rather than shelling out to a sibling binary that may not be beside it.
-And everything -- the editor, the compilers, the runtime -- finds the content
-tree through `kerosene_vfs::root`, one function they all call, and finds its
-sibling binaries through `kerosene_vfs::toolchain`, likewise. Each of them working
-either out separately is not a hypothetical: they did, they disagreed, and a
-tool looking in the wrong directory is indistinguishable from a tool that is
-broken. A shared answer that explains itself is the whole of the fix.
+itself rather than re-invoking the toolset for it. And everything -- the
+editor, the compilers, the runtime -- finds the content tree through
+`kerosene_vfs::root`, one function they all call, and finds the runtime and
+the toolset's subcommands through `kerosene_vfs::toolchain`, likewise. Each of
+them working either out separately is not a hypothetical: they did, they
+disagreed, and a tool looking in the wrong directory is indistinguishable
+from a tool that is broken. A shared answer that explains itself is the whole
+of the fix.
 
-`kiln` sits above the compilers rather than beside them: it is the only tool
-that runs the others, and it does so as subprocesses, so nothing about the
-pipeline being one program leaks into the compilers being separate ones.
+`kiln` sits above the compilers rather than beside them: it is the one tool
+that runs the others, and it does so by re-invoking the same executable with
+the compiler's name as a subcommand, so nothing about the pipeline being one
+program leaks into the compilers being separate stages.
 
 ## The map pipeline in detail
 

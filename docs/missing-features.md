@@ -84,9 +84,11 @@ for completeness.
 
 - **NPC entities.** No `npc_*` classes; `tools/npcclip` exists as a material
   but nothing is an NPC.
-- **Pathfinding.** The walkmap is data only (faces plus rules). There is no
-  connectivity graph, no A*/navmesh search, no flow fields, no path
-  smoothing. Nothing consumes it yet.
+- **Pathfinding.** [`NavGraph`](crate::nav) — the consumer the walkmap was
+  built for — builds a connectivity graph of walkable faces sharing edges and
+  A*-searches it for a list of waypoints. There is still no A* smoothing into
+  a funnel, no flow fields, and no NPC entity to steer along the result; the
+  query API exists and is tested, but nothing calls it yet.
 - **Behavior trees / state machines / perception.** No AI decision-making and
   no sight or hearing queries.
 - **Crowd / group movement.** None.
@@ -95,15 +97,18 @@ for completeness.
 
 ## 6. Audio
 
-- **Occlusion / reverb / doppler** (acknowledged). A sound through a wall is
+- **Occclusion / reverb / doppler** (acknowledged). A sound through a wall is
   as loud as one in the room.
 - **3D spatialization.** No HRTF, no surround.
 - **Audio effects / mixing buses.** The mixer is voices into a stereo buffer.
   No EQ, reverb sends, compression, ducking, or effects graph.
 - **Streaming audio.** Sounds are decoded whole; no streaming for long
   ambience or music.
-- **Footstep/impact effects.** `$surfaceprop` exists in the material format
-  specifically to drive footsteps and impacts, but nothing reads it yet.
+- **Footstep/impact effects.** `$surfaceprop` now parses into a
+  [`SurfaceProperty`](kerosene_asset::SurfaceProperty), and the engine traces
+  to resolve it and emits stride-timed footstep sounds (`footstep/<surface>/n`)
+  named off it. Impact effects (hits, falls) are still not emitted, and no
+  footstep sound files ship yet, so a surface without assets warns once.
 - **Procedural audio.** None.
 
 ## 7. UI and HUD
@@ -187,9 +192,13 @@ for completeness.
 
 ## Two gaps worth calling out
 
-1. **The walkmap is currently orphaned.** It is a solid data foundation, but
-   the consumer (NPC pathfinding, a nav query API in `kerosene-engine`) is the
-   biggest Kerosene-specific missing piece and the natural next milestone.
-2. **`$surfaceprop` is defined but dead.** The material format already
-   declares physical surface types explicitly for footstep and impact effects,
-   yet nothing emits them. Small, high-polish gap.
+1. **The walkmap has a consumer now.** [`NavGraph`](crate::nav) in
+   `kerosene-walk` links faces by shared edges and A*-searches them into
+   waypoints, so the format is no longer orphaned. The next step is an NPC,
+   or a debug overlay that draws a queried path — the API is real and tested,
+   but nothing at runtime calls it.
+2. **`$surfaceprop` is driven at runtime.** Traces now report the texinfo they
+   hit, the engine resolves that to a material and its `$surfaceprop`, and
+   footsteps emit from it. The remaining gap is the *other* side of the coin —
+   impact effects — and the sound assets themselves, which are content rather
+   than code.

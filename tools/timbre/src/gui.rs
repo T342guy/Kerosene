@@ -18,8 +18,8 @@ use egui::{Color32, Pos2, Rect, Sense, Stroke, StrokeKind, Vec2};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
-use timbre::build::Script;
-use timbre::Options;
+use crate::build::Script;
+use crate::Options;
 use kerosene_audio::compiled::{Encoding, Loop};
 use kerosene_audio::wav::Sound;
 use kerosene_audio::{Mixer, SoundHandle, SoundParams};
@@ -40,7 +40,7 @@ struct Entry {
     /// script keys on and the name worth showing.
     name: String,
     options: Options,
-    format: timbre::decode::Format,
+    format: crate::decode::Format,
     loaded: Option<Loaded>,
     /// What went wrong, if it will not decode at all.
     error: Option<String>,
@@ -118,7 +118,7 @@ impl Timbre {
     /// Find every source sound under the tree and note its state.
     fn rescan(&mut self) {
         let previous = self.selected.and_then(|i| self.entries.get(i)).map(|e| e.name.clone());
-        self.entries = timbre::sources(&self.sound_root)
+        self.entries = crate::sources(&self.sound_root)
             .into_iter()
             .map(|path| {
                 let name = path
@@ -127,9 +127,9 @@ impl Timbre {
                     .to_string_lossy()
                     .replace('\\', "/");
                 let options = self.script.options_for(&path, &self.sound_root);
-                let compiled = timbre::output_for(&path).is_file();
+                let compiled = crate::output_for(&path).is_file();
                 let format =
-                    timbre::decode::Format::of(&path).unwrap_or(timbre::decode::Format::Wav);
+                    crate::decode::Format::of(&path).unwrap_or(crate::decode::Format::Wav);
                 Entry { path, name, format, options, loaded: None, error: None, compiled }
             })
             .collect();
@@ -140,7 +140,7 @@ impl Timbre {
         if self.entries.is_empty() {
             self.status = format!(
                 "no {} files under {}",
-                timbre::SOURCE_EXTENSIONS.join(", ."),
+                crate::SOURCE_EXTENSIONS.join(", ."),
                 self.sound_root.display()
             );
         }
@@ -158,7 +158,7 @@ impl Timbre {
         let result = std::fs::read(&path)
             .map_err(|e| format!("{e}"))
             .and_then(|bytes| {
-                let read = timbre::decode::any(&path, &bytes).map_err(|e| format!("{e:#}"))?;
+                let read = crate::decode::any(&path, &bytes).map_err(|e| format!("{e:#}"))?;
                 Ok((read.sound, read.looping, read.format))
             });
 
@@ -242,8 +242,8 @@ impl Timbre {
     fn compile_one(&mut self, index: usize) {
         let Some(entry) = self.entries.get(index) else { return };
         let (path, options, name) = (entry.path.clone(), entry.options, entry.name.clone());
-        let output = timbre::output_for(&path);
-        match timbre::compile(&path, &output, &options) {
+        let output = crate::output_for(&path);
+        match crate::compile(&path, &output, &options) {
             Ok(done) => {
                 self.status = format!("{done}");
                 if let Some(entry) = self.entries.get_mut(index) {
@@ -255,11 +255,11 @@ impl Timbre {
     }
 
     fn compile_all(&mut self) {
-        match timbre::build_sounds(&self.root, true) {
+        match crate::build_sounds(&self.root, true) {
             Ok(batch) => {
                 self.status = format!("{batch}");
                 for entry in &mut self.entries {
-                    entry.compiled = timbre::output_for(&entry.path).is_file();
+                    entry.compiled = crate::output_for(&entry.path).is_file();
                 }
             }
             Err(e) => self.status = format!("{e:#}"),
@@ -269,8 +269,8 @@ impl Timbre {
 
 impl Loaded {
     fn build(source: Sound, source_loop: Option<Loop>, options: &Options) -> Loaded {
-        let prepared = timbre::prepare(&source, options);
-        let peak = timbre::peak_of(&prepared);
+        let prepared = crate::prepare(&source, options);
+        let peak = crate::peak_of(&prepared);
         let envelope = envelope_of(&prepared, WAVE_COLUMNS);
         Loaded { source, prepared: Arc::new(prepared), envelope, peak, source_loop }
     }
