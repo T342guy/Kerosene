@@ -29,7 +29,10 @@ fn corridor_map(with_door: bool, with_trigger: bool) -> Map {
     // Shell.
     for slab in [
         Aabb::new(Vec3::new(-t, -t, -t), Vec3::new(len + t, wide + t, 0.0)),
-        Aabb::new(Vec3::new(-t, -t, tall), Vec3::new(len + t, wide + t, tall + t)),
+        Aabb::new(
+            Vec3::new(-t, -t, tall),
+            Vec3::new(len + t, wide + t, tall + t),
+        ),
         Aabb::new(Vec3::new(-t, -t, 0.0), Vec3::new(0.0, wide + t, tall)),
         Aabb::new(Vec3::new(len, -t, 0.0), Vec3::new(len + t, wide + t, tall)),
         Aabb::new(Vec3::new(0.0, -t, 0.0), Vec3::new(len, 0.0, tall)),
@@ -55,7 +58,9 @@ fn corridor_map(with_door: bool, with_trigger: bool) -> Map {
         let side_ids: Vec<u32> = (0..6).map(|_| map.next_id()).collect();
         let mut solid = Solid::cube(bounds, "dev/grid");
         solid.id = solid_id;
-        for (s, sid) in solid.sides.iter_mut().zip(side_ids) { s.id = sid; }
+        for (s, sid) in solid.sides.iter_mut().zip(side_ids) {
+            s.id = sid;
+        }
 
         let mut door = Entity::new(id, "func_door");
         door.set("targetname", "gate");
@@ -74,7 +79,9 @@ fn corridor_map(with_door: bool, with_trigger: bool) -> Map {
         let side_ids: Vec<u32> = (0..6).map(|_| map.next_id()).collect();
         let mut solid = Solid::cube(bounds, "tools/trigger");
         solid.id = solid_id;
-        for (s, sid) in solid.sides.iter_mut().zip(side_ids) { s.id = sid; }
+        for (s, sid) in solid.sides.iter_mut().zip(side_ids) {
+            s.id = sid;
+        }
 
         let mut trigger = Entity::new(id, "trigger_multiple");
         trigger.set("targetname", "gate_trigger");
@@ -107,9 +114,17 @@ fn spawned_world(bsp: &Bsp) -> EntityWorld {
 
 /// Walk forward for `seconds` and report where the player ends up.
 fn walk(bsp: &Bsp, entities: &mut EntityWorld, start: Vec3, seconds: f32) -> MoveState {
-    let mut state = MoveState { origin: start, on_ground: true, ..Default::default() };
+    let mut state = MoveState {
+        origin: start,
+        on_ground: true,
+        ..Default::default()
+    };
     let params = MoveParams::default();
-    let input = MoveInput { forward: 1.0, view_angles: Angles::ZERO, ..Default::default() };
+    let input = MoveInput {
+        forward: 1.0,
+        view_angles: Angles::ZERO,
+        ..Default::default()
+    };
 
     let ticks = (seconds / TICK).ceil() as usize;
     for _ in 0..ticks {
@@ -136,7 +151,11 @@ fn the_player_can_walk_down_an_open_corridor() {
     let mut entities = spawned_world(&bsp);
     let end = walk(&bsp, &mut entities, Vec3::new(32.0, 64.0, 1.0), 4.0);
 
-    assert!(end.origin.x > 400.0, "should have crossed the corridor, got {:?}", end.origin);
+    assert!(
+        end.origin.x > 400.0,
+        "should have crossed the corridor, got {:?}",
+        end.origin
+    );
     assert!(end.on_ground, "should still be on the floor");
 }
 
@@ -146,8 +165,16 @@ fn the_player_is_stopped_by_the_far_wall() {
     let mut entities = spawned_world(&bsp);
     let end = walk(&bsp, &mut entities, Vec3::new(32.0, 64.0, 1.0), 8.0);
     // The wall's inner face is at x = 512, and the player's hull is 16 wide.
-    assert!(end.origin.x <= 497.0, "walked into the wall at {:?}", end.origin);
-    assert!(end.origin.x > 480.0, "stopped short of the wall at {:?}", end.origin);
+    assert!(
+        end.origin.x <= 497.0,
+        "walked into the wall at {:?}",
+        end.origin
+    );
+    assert!(
+        end.origin.x > 480.0,
+        "stopped short of the wall at {:?}",
+        end.origin
+    );
 }
 
 #[test]
@@ -157,7 +184,10 @@ fn a_closed_door_blocks_the_player() {
     // world model means walking straight through every door in the game.
     let bsp = build(&corridor_map(true, false));
     let mut entities = spawned_world(&bsp);
-    assert!(entities.first_of_class("func_door").is_some(), "the door should have loaded");
+    assert!(
+        entities.first_of_class("func_door").is_some(),
+        "the door should have loaded"
+    );
 
     let end = walk(&bsp, &mut entities, Vec3::new(32.0, 64.0, 1.0), 4.0);
     assert!(
@@ -175,7 +205,9 @@ fn an_open_door_lets_the_player_through() {
     // Open it and let it finish travelling.
     let gate = entities.find_by_name("gate")[0];
     entities.accept_input(gate, &InputEvent::new("Open"));
-    for _ in 0..128 { entities.run(TICK); }
+    for _ in 0..128 {
+        entities.run(TICK);
+    }
     assert!(
         entities.get(gate).unwrap().origin.z > 100.0,
         "the door should have risen, at {:?}",
@@ -183,7 +215,11 @@ fn an_open_door_lets_the_player_through() {
     );
 
     let end = walk(&bsp, &mut entities, Vec3::new(32.0, 64.0, 1.0), 4.0);
-    assert!(end.origin.x > 300.0, "should have walked through, got {:?}", end.origin);
+    assert!(
+        end.origin.x > 300.0,
+        "should have walked through, got {:?}",
+        end.origin
+    );
 }
 
 #[test]
@@ -193,13 +229,21 @@ fn a_door_blocks_again_after_closing() {
     let gate = entities.find_by_name("gate")[0];
 
     entities.accept_input(gate, &InputEvent::new("Open"));
-    for _ in 0..128 { entities.run(TICK); }
+    for _ in 0..128 {
+        entities.run(TICK);
+    }
     entities.accept_input(gate, &InputEvent::new("Close"));
-    for _ in 0..128 { entities.run(TICK); }
+    for _ in 0..128 {
+        entities.run(TICK);
+    }
     assert_eq!(entities.get(gate).unwrap().origin.z, 0.0);
 
     let end = walk(&bsp, &mut entities, Vec3::new(32.0, 64.0, 1.0), 4.0);
-    assert!(end.origin.x < 256.0, "a closed door should block again, got {:?}", end.origin);
+    assert!(
+        end.origin.x < 256.0,
+        "a closed door should block again, got {:?}",
+        end.origin
+    );
 }
 
 #[test]
@@ -213,9 +257,17 @@ fn walking_into_a_trigger_opens_the_door_in_front_of_it() {
     assert_eq!(entities.get(gate).unwrap().origin.z, 0.0, "starts closed");
 
     // Drive the trigger the way the engine does, from the player's box.
-    let mut state = MoveState { origin: Vec3::new(32.0, 64.0, 1.0), on_ground: true, ..Default::default() };
+    let mut state = MoveState {
+        origin: Vec3::new(32.0, 64.0, 1.0),
+        on_ground: true,
+        ..Default::default()
+    };
     let params = MoveParams::default();
-    let input = MoveInput { forward: 1.0, view_angles: Angles::ZERO, ..Default::default() };
+    let input = MoveInput {
+        forward: 1.0,
+        view_angles: Angles::ZERO,
+        ..Default::default()
+    };
 
     let trigger_model = entities.get(trigger).unwrap().brush_model.unwrap();
     let trigger_bounds = bsp.models[trigger_model].bounds();
@@ -249,7 +301,11 @@ fn a_trigger_volume_does_not_block_the_player() {
     let bsp = build(&corridor_map(false, true));
     let mut entities = spawned_world(&bsp);
     let end = walk(&bsp, &mut entities, Vec3::new(32.0, 64.0, 1.0), 4.0);
-    assert!(end.origin.x > 400.0, "a trigger stopped the player at {:?}", end.origin);
+    assert!(
+        end.origin.x > 400.0,
+        "a trigger stopped the player at {:?}",
+        end.origin
+    );
 }
 
 #[test]
@@ -266,13 +322,23 @@ fn the_engine_loads_and_ticks_a_compiled_map() {
         content_paths: vec![dir.clone()],
         ..Default::default()
     });
-    engine.load_map("testmap").expect("the engine should load it");
+    engine
+        .load_map("testmap")
+        .expect("the engine should load it");
 
     // The player should have spawned at the info_player_start.
     assert!(engine.player.entity.is_some());
-    assert!(engine.player.movement.origin.x < 64.0, "{:?}", engine.player.movement.origin);
+    assert!(
+        engine.player.movement.origin.x < 64.0,
+        "{:?}",
+        engine.player.movement.origin
+    );
 
-    let input = InputState { forward: 1.0, view_angles: Angles::ZERO, ..Default::default() };
+    let input = InputState {
+        forward: 1.0,
+        view_angles: Angles::ZERO,
+        ..Default::default()
+    };
     for _ in 0..(4.0 / TICK) as usize {
         engine.tick(TICK, &input);
     }
@@ -297,16 +363,26 @@ fn a_physics_prop_falls_and_comes_to_rest_on_the_floor() {
     std::fs::create_dir_all(dir.join("models/props")).unwrap();
     let bsp = build(&corridor_map(false, false));
     std::fs::write(dir.join("maps/phystest.kerobsp"), bsp.to_bytes()).unwrap();
-    std::fs::write(dir.join("models/props/cube.keromdl"), cube_model().to_bytes()).unwrap();
+    std::fs::write(
+        dir.join("models/props/cube.keromdl"),
+        cube_model().to_bytes(),
+    )
+    .unwrap();
 
     let mut engine = Engine::new(&EngineConfig {
         content_paths: vec![dir.clone()],
         ..Default::default()
     });
-    engine.load_map("phystest").expect("the engine should load it");
+    engine
+        .load_map("phystest")
+        .expect("the engine should load it");
 
     let id = engine.spawn_prop("props/cube", Vec3::new(100.0, 64.0, 100.0));
-    assert_eq!(engine.physics.prop_count(), 0, "the body appears on the next sync");
+    assert_eq!(
+        engine.physics.prop_count(),
+        0,
+        "the body appears on the next sync"
+    );
 
     let input = InputState::default();
     for _ in 0..(3.0 / TICK) as usize {
@@ -348,13 +424,19 @@ fn a_prop_rests_on_a_func_detail_pillar() {
     );
     let bsp = build(&map);
     std::fs::write(dir.join("maps/phystest.kerobsp"), bsp.to_bytes()).unwrap();
-    std::fs::write(dir.join("models/props/cube.keromdl"), cube_model().to_bytes()).unwrap();
+    std::fs::write(
+        dir.join("models/props/cube.keromdl"),
+        cube_model().to_bytes(),
+    )
+    .unwrap();
 
     let mut engine = Engine::new(&EngineConfig {
         content_paths: vec![dir.clone()],
         ..Default::default()
     });
-    engine.load_map("phystest").expect("the engine should load it");
+    engine
+        .load_map("phystest")
+        .expect("the engine should load it");
 
     let id = engine.spawn_prop("props/cube", Vec3::new(216.0, 48.0, 100.0));
     let input = InputState::default();
@@ -392,13 +474,19 @@ fn a_prop_rests_on_a_closed_moving_brush() {
     );
     let bsp = build(&map);
     std::fs::write(dir.join("maps/phystest.kerobsp"), bsp.to_bytes()).unwrap();
-    std::fs::write(dir.join("models/props/cube.keromdl"), cube_model().to_bytes()).unwrap();
+    std::fs::write(
+        dir.join("models/props/cube.keromdl"),
+        cube_model().to_bytes(),
+    )
+    .unwrap();
 
     let mut engine = Engine::new(&EngineConfig {
         content_paths: vec![dir.clone()],
         ..Default::default()
     });
-    engine.load_map("phystest").expect("the engine should load it");
+    engine
+        .load_map("phystest")
+        .expect("the engine should load it");
 
     let id = engine.spawn_prop("props/cube", Vec3::new(308.0, 64.0, 100.0));
     let input = InputState::default();
@@ -427,13 +515,19 @@ fn the_player_is_blocked_by_a_physics_prop() {
     std::fs::create_dir_all(dir.join("models/props")).unwrap();
     let bsp = build(&corridor_map(false, false));
     std::fs::write(dir.join("maps/phystest.kerobsp"), bsp.to_bytes()).unwrap();
-    std::fs::write(dir.join("models/props/cube.keromdl"), cube_model().to_bytes()).unwrap();
+    std::fs::write(
+        dir.join("models/props/cube.keromdl"),
+        cube_model().to_bytes(),
+    )
+    .unwrap();
 
     let mut engine = Engine::new(&EngineConfig {
         content_paths: vec![dir.clone()],
         ..Default::default()
     });
-    engine.load_map("phystest").expect("the engine should load it");
+    engine
+        .load_map("phystest")
+        .expect("the engine should load it");
 
     // A cube resting on the floor in the player's path (its box is 64..96).
     let prop = engine.spawn_prop("props/cube", Vec3::new(80.0, 64.0, 16.0));
@@ -448,7 +542,10 @@ fn the_player_is_blocked_by_a_physics_prop() {
         settled.z
     );
 
-    let forward = InputState { forward: 1.0, ..Default::default() };
+    let forward = InputState {
+        forward: 1.0,
+        ..Default::default()
+    };
     for _ in 0..(2.0 / TICK) as usize {
         engine.tick(TICK, &forward);
     }
@@ -484,13 +581,19 @@ fn the_player_can_pick_up_and_drop_a_prop() {
     );
     let bsp = build(&map);
     std::fs::write(dir.join("maps/phystest.kerobsp"), bsp.to_bytes()).unwrap();
-    std::fs::write(dir.join("models/props/cube.keromdl"), cube_model().to_bytes()).unwrap();
+    std::fs::write(
+        dir.join("models/props/cube.keromdl"),
+        cube_model().to_bytes(),
+    )
+    .unwrap();
 
     let mut engine = Engine::new(&EngineConfig {
         content_paths: vec![dir.clone()],
         ..Default::default()
     });
-    engine.load_map("phystest").expect("the engine should load it");
+    engine
+        .load_map("phystest")
+        .expect("the engine should load it");
 
     let prop = engine.spawn_prop("props/cube", Vec3::new(80.0, 64.0, 72.0));
     let idle = InputState::default();
@@ -506,9 +609,16 @@ fn the_player_can_pick_up_and_drop_a_prop() {
     );
 
     // Press use: pick it up.
-    let mut pressed = InputState { use_key: true, ..Default::default() };
+    let mut pressed = InputState {
+        use_key: true,
+        ..Default::default()
+    };
     engine.tick(TICK, &pressed);
-    assert_eq!(engine.held_prop(), Some(prop), "the press should pick the prop up");
+    assert_eq!(
+        engine.held_prop(),
+        Some(prop),
+        "the press should pick the prop up"
+    );
 
     // Walk forward a little; the prop must follow, not stay behind.
     pressed.forward = 1.0;
@@ -527,22 +637,491 @@ fn the_player_can_pick_up_and_drop_a_prop() {
     // Release use and press it again: drop, launching it forward.
     let release = InputState::default();
     engine.tick(TICK, &release);
-    let drop = InputState { use_key: true, ..Default::default() };
+    let drop = InputState {
+        use_key: true,
+        ..Default::default()
+    };
     engine.tick(TICK, &drop);
     assert_eq!(engine.held_prop(), None, "the second press drops the prop");
 
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+#[test]
+fn an_unpickable_prop_cannot_be_scooped_up() {
+    use kerosene_engine::engine::{Engine, EngineConfig};
+    use kerosene_entity::Value;
+
+    let dir = std::env::temp_dir().join(format!("kerosene-unpickable-{}", std::process::id()));
+    std::fs::create_dir_all(dir.join("maps")).unwrap();
+    std::fs::create_dir_all(dir.join("models/props")).unwrap();
+
+    let mut map = corridor_map(false, false);
+    add_brush_entity(
+        &mut map,
+        "func_detail",
+        Aabb::new(Vec3::new(64.0, 48.0, 0.0), Vec3::new(96.0, 80.0, 56.0)),
+        "dev/grid",
+    );
+    let bsp = build(&map);
+    std::fs::write(dir.join("maps/phystest.kerobsp"), bsp.to_bytes()).unwrap();
+    std::fs::write(
+        dir.join("models/props/cube.keromdl"),
+        cube_model().to_bytes(),
+    )
+    .unwrap();
+
+    let mut engine = Engine::new(&EngineConfig {
+        content_paths: vec![dir.clone()],
+        ..Default::default()
+    });
+    engine
+        .load_map("phystest")
+        .expect("the engine should load it");
+
+    let prop = engine.spawn_prop("props/cube", Vec3::new(80.0, 64.0, 72.0));
+    engine
+        .entities
+        .get_mut(prop)
+        .expect("just spawned")
+        .fields
+        .set("pickable", Value::Bool(false));
+    let idle = InputState::default();
+    for _ in 0..(2.0 / TICK) as usize {
+        engine.tick(TICK, &idle);
+    }
+
+    // Press use straight at it: the press must not grab a prop whose object
+    // properties say it is glued down.
+    let pressed = InputState {
+        use_key: true,
+        ..Default::default()
+    };
+    engine.tick(TICK, &pressed);
+    assert_eq!(
+        engine.held_prop(),
+        None,
+        "an unpickable prop must not be grabbed"
+    );
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_carried_prop_turns_to_face_the_player() {
+    use kerosene_engine::engine::{Engine, EngineConfig};
+
+    let dir = std::env::temp_dir().join(format!("kerosene-face-{}", std::process::id()));
+    std::fs::create_dir_all(dir.join("maps")).unwrap();
+    std::fs::create_dir_all(dir.join("models/props")).unwrap();
+
+    let mut map = corridor_map(false, false);
+    add_brush_entity(
+        &mut map,
+        "func_detail",
+        Aabb::new(Vec3::new(64.0, 48.0, 0.0), Vec3::new(96.0, 80.0, 56.0)),
+        "dev/grid",
+    );
+    let bsp = build(&map);
+    std::fs::write(dir.join("maps/phystest.kerobsp"), bsp.to_bytes()).unwrap();
+    std::fs::write(
+        dir.join("models/props/cube.keromdl"),
+        cube_model().to_bytes(),
+    )
+    .unwrap();
+
+    let mut engine = Engine::new(&EngineConfig {
+        content_paths: vec![dir.clone()],
+        ..Default::default()
+    });
+    engine
+        .load_map("phystest")
+        .expect("the engine should load it");
+
+    let prop = engine.spawn_prop("props/cube", Vec3::new(80.0, 64.0, 72.0));
+    let idle = InputState::default();
+    for _ in 0..(2.0 / TICK) as usize {
+        engine.tick(TICK, &idle);
+    }
+
+    let pressed = InputState {
+        use_key: true,
+        ..Default::default()
+    };
+    engine.tick(TICK, &pressed);
+    assert_eq!(
+        engine.held_prop(),
+        Some(prop),
+        "the press should pick the prop up"
+    );
+
+    let before = engine.entities.get(prop).expect("still alive").angles.yaw;
+    // Turn the view ninety degrees; the carried prop must turn with it rather
+    // than keeping its old world orientation. The view comes from the input,
+    // so the turn has to be fed in as the view angles the tick consumes.
+    let turned_view = InputState {
+        view_angles: Angles::new(0.0, 90.0, 0.0),
+        ..Default::default()
+    };
+    for _ in 0..4 {
+        engine.tick(TICK, &turned_view);
+    }
+    let after = engine.entities.get(prop).expect("still alive").angles.yaw;
+    let turned = kerosene_math::wrap180(after - before);
+    assert!(
+        (turned - 90.0).abs() < 5.0,
+        "the carried prop should face the player's new heading (turned {turned}, {before} -> {after})"
+    );
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_carried_prop_cannot_be_pushed_through_a_wall() {
+    use kerosene_engine::engine::{Engine, EngineConfig};
+
+    let dir = std::env::temp_dir().join(format!("kerosene-wall-{}", std::process::id()));
+    std::fs::create_dir_all(dir.join("maps")).unwrap();
+    std::fs::create_dir_all(dir.join("models/props")).unwrap();
+
+    let mut map = corridor_map(false, false);
+    add_brush_entity(
+        &mut map,
+        "func_detail",
+        Aabb::new(Vec3::new(64.0, 48.0, 0.0), Vec3::new(96.0, 80.0, 56.0)),
+        "dev/grid",
+    );
+    let bsp = build(&map);
+    std::fs::write(dir.join("maps/phystest.kerobsp"), bsp.to_bytes()).unwrap();
+    std::fs::write(
+        dir.join("models/props/cube.keromdl"),
+        cube_model().to_bytes(),
+    )
+    .unwrap();
+
+    let mut engine = Engine::new(&EngineConfig {
+        content_paths: vec![dir.clone()],
+        ..Default::default()
+    });
+    engine
+        .load_map("phystest")
+        .expect("the engine should load it");
+
+    let prop = engine.spawn_prop("props/cube", Vec3::new(80.0, 64.0, 72.0));
+    let idle = InputState::default();
+    for _ in 0..(2.0 / TICK) as usize {
+        engine.tick(TICK, &idle);
+    }
+
+    let pressed = InputState {
+        use_key: true,
+        ..Default::default()
+    };
+    engine.tick(TICK, &pressed);
+    assert_eq!(
+        engine.held_prop(),
+        Some(prop),
+        "the press should pick the prop up"
+    );
+
+    // Walk forward, straight into the far wall of the corridor (x = 512). The
+    // carried prop must stop with its far face against the wall, not clip
+    // through it.
+    let walk = InputState {
+        forward: 1.0,
+        ..Default::default()
+    };
+    for _ in 0..(3.0 / TICK) as usize {
+        engine.tick(TICK, &walk);
+    }
+    let origin = engine.entities.get(prop).expect("still alive").origin;
+    assert!(
+        origin.x < 512.0 - 14.0,
+        "the carried prop clipped into the far wall: prop x={}",
+        origin.x
+    );
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 /// A minimal 32-unit cube `.keromdl`, so the test does not depend on content.
+/// A light prop (8 kg) of the kind a player is expected to shove around,
+/// resting on the floor in the corridor at `x`.
+fn light_prop(engine: &mut kerosene_engine::engine::Engine, x: f32) -> kerosene_entity::EntityId {
+    light_prop_at(engine, Vec3::new(x, 64.0, 16.0))
+}
+
+/// The same, at an arbitrary point.
+fn light_prop_at(
+    engine: &mut kerosene_engine::engine::Engine,
+    origin: Vec3,
+) -> kerosene_entity::EntityId {
+    use kerosene_entity::Value;
+    let id = engine.spawn_prop("props/cube", origin);
+    if let Some(e) = engine.entities.get_mut(id) {
+        e.fields.set("mass", Value::Text("8".into()));
+    }
+    id
+}
+
+/// An engine on the corridor map with a cube model available.
+///
+/// With `pillar`, a block that stands a prop at eye height, so the pick-up
+/// ray -- which goes straight out from the eye -- can reach it.
+fn physics_engine(
+    name: &str,
+    pillar: bool,
+) -> (kerosene_engine::engine::Engine, std::path::PathBuf) {
+    use kerosene_engine::engine::{Engine, EngineConfig};
+    let dir = std::env::temp_dir().join(format!(
+        "kerosene-{name}-{}-{:?}",
+        std::process::id(),
+        std::thread::current().id()
+    ));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(dir.join("maps")).unwrap();
+    std::fs::create_dir_all(dir.join("models/props")).unwrap();
+    let mut map = corridor_map(false, false);
+    if pillar {
+        add_brush_entity(
+            &mut map,
+            "func_detail",
+            Aabb::new(Vec3::new(64.0, 48.0, 0.0), Vec3::new(96.0, 80.0, 56.0)),
+            "dev/grid",
+        );
+    }
+    let bsp = build(&map);
+    std::fs::write(dir.join("maps/phystest.kerobsp"), bsp.to_bytes()).unwrap();
+    std::fs::write(
+        dir.join("models/props/cube.keromdl"),
+        cube_model().to_bytes(),
+    )
+    .unwrap();
+    let mut engine = Engine::new(&EngineConfig {
+        content_paths: vec![dir.clone()],
+        ..Default::default()
+    });
+    engine
+        .load_map("phystest")
+        .expect("the engine should load it");
+    (engine, dir)
+}
+
+#[test]
+fn a_thrown_prop_flies_forward_instead_of_dropping_at_the_players_feet() {
+    // The launch was a fixed impulse, so how far a prop went depended entirely
+    // on its mass: 400 units of impulse into an 8 kg crate is 50 units/s, a
+    // sixth of walking speed, and it looked exactly like dropping it.
+    let (mut engine, dir) = physics_engine("throw", true);
+    let prop = light_prop_at(&mut engine, Vec3::new(80.0, 64.0, 72.0));
+
+    let idle = InputState::default();
+    for _ in 0..(2.0 / TICK) as usize {
+        engine.tick(TICK, &idle);
+    }
+
+    // Pick it up with use, then throw it with attack.
+    engine.tick(
+        TICK,
+        &InputState {
+            use_key: true,
+            ..Default::default()
+        },
+    );
+    assert_eq!(
+        engine.held_prop(),
+        Some(prop),
+        "the press should pick it up"
+    );
+    engine.tick(TICK, &idle);
+    engine.tick(
+        TICK,
+        &InputState {
+            attack: true,
+            ..Default::default()
+        },
+    );
+    assert_eq!(engine.held_prop(), None, "attack throws it");
+
+    let launched = engine.entities.get(prop).expect("still alive").origin;
+    for _ in 0..(0.5 / TICK) as usize {
+        engine.tick(TICK, &idle);
+    }
+    let landed = engine.entities.get(prop).expect("still alive").origin;
+
+    let travelled = landed.x - launched.x;
+    assert!(
+        travelled > 100.0,
+        "a thrown 8 kg crate went {travelled} units in half a second -- it was dropped, not thrown"
+    );
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn walking_into_a_light_prop_shoves_it_along() {
+    // The player had no presence in the rigid world at all: props collided
+    // with the level's brushes and with each other, and the player was a hole
+    // in the simulation that could block a prop but never move one.
+    let (mut engine, dir) = physics_engine("push", false);
+    let prop = light_prop(&mut engine, 80.0);
+
+    let idle = InputState::default();
+    for _ in 0..(2.0 / TICK) as usize {
+        engine.tick(TICK, &idle);
+    }
+    let settled = engine.entities.get(prop).expect("still alive").origin;
+
+    let forward = InputState {
+        forward: 1.0,
+        ..Default::default()
+    };
+    for _ in 0..(2.0 / TICK) as usize {
+        engine.tick(TICK, &forward);
+    }
+    let shoved = engine.entities.get(prop).expect("still alive").origin;
+
+    assert!(
+        shoved.x > settled.x + 24.0,
+        "walking into an 8 kg crate moved it from x={} to x={}",
+        settled.x,
+        shoved.x
+    );
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn the_use_key_puts_a_prop_down_where_a_throw_would_have_flung_it() {
+    // Pick-up and throw were the same key, so there was no way to simply put
+    // something down: every release was a launch. Use sets it down, attack
+    // throws it, and the two have to stay different.
+    let (mut engine, dir) = physics_engine("drop", true);
+    let prop = light_prop_at(&mut engine, Vec3::new(80.0, 64.0, 72.0));
+
+    let idle = InputState::default();
+    for _ in 0..(2.0 / TICK) as usize {
+        engine.tick(TICK, &idle);
+    }
+
+    let press_use = InputState {
+        use_key: true,
+        ..Default::default()
+    };
+    engine.tick(TICK, &press_use);
+    assert_eq!(engine.held_prop(), Some(prop), "use picks it up");
+    engine.tick(TICK, &idle);
+    engine.tick(TICK, &press_use);
+    assert_eq!(engine.held_prop(), None, "use puts it down again");
+
+    let released = engine.entities.get(prop).expect("still alive").origin;
+    for _ in 0..(0.5 / TICK) as usize {
+        engine.tick(TICK, &idle);
+    }
+    let settled = engine.entities.get(prop).expect("still alive").origin;
+
+    assert!(
+        (settled.x - released.x).abs() < 48.0,
+        "a dropped crate travelled {} units -- that is a throw",
+        settled.x - released.x
+    );
+    // And it fell. A prop let go of while standing still is asleep in the
+    // solver, and a body that is never woken hangs exactly where it was left.
+    assert!(
+        settled.z < released.z - 8.0,
+        "the dropped crate hung in the air at z={} (released at z={})",
+        settled.z,
+        released.z
+    );
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_heavy_prop_resists_the_shove_a_light_one_gives_way_to() {
+    // The first attempt at pushing made the player's body kinematic and let
+    // the solver do it, which meant the player had infinite mass: a half-tonne
+    // crate slid down the corridor exactly as readily as an empty one, and the
+    // player strolled along behind it. Mass has to be what decides.
+    let (mut engine, dir) = physics_engine("heavy", false);
+    // No `mass` key, so it takes the default wood density -- a 32-unit cube of
+    // it is a few hundred kilograms.
+    let prop = engine.spawn_prop("props/cube", Vec3::new(80.0, 64.0, 16.0));
+
+    let idle = InputState::default();
+    for _ in 0..(2.0 / TICK) as usize {
+        engine.tick(TICK, &idle);
+    }
+    let settled = engine.entities.get(prop).expect("still alive").origin;
+
+    let forward = InputState {
+        forward: 1.0,
+        ..Default::default()
+    };
+    for _ in 0..(2.0 / TICK) as usize {
+        engine.tick(TICK, &forward);
+    }
+    let shoved = engine.entities.get(prop).expect("still alive").origin;
+
+    assert!(
+        shoved.x < settled.x + 16.0,
+        "two seconds of walking moved a heavy crate from x={} to x={}",
+        settled.x,
+        shoved.x
+    );
+    // And the player is still behind it rather than through it.
+    assert!(
+        engine.player.movement.origin.x < shoved.x,
+        "the player ended up past the crate they were pushing"
+    );
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_moving_prop_is_stopped_by_the_player_rather_than_passing_through() {
+    // The other half of the same hole: with no player body, a prop sliding
+    // toward someone went straight through them.
+    let (mut engine, dir) = physics_engine("block", false);
+    let prop = light_prop(&mut engine, 120.0);
+
+    let idle = InputState::default();
+    for _ in 0..(2.0 / TICK) as usize {
+        engine.tick(TICK, &idle);
+    }
+
+    // Shove it back down the corridor, towards the player standing at spawn.
+    engine
+        .physics
+        .apply_impulse(prop, Vec3::new(-4000.0, 0.0, 0.0));
+    for _ in 0..(1.0 / TICK) as usize {
+        engine.tick(TICK, &idle);
+    }
+
+    let prop_x = engine.entities.get(prop).expect("still alive").origin.x;
+    let player_x = engine.player.movement.origin.x;
+    assert!(
+        prop_x > player_x - 8.0,
+        "the prop slid through the player: prop x={prop_x}, player x={player_x}"
+    );
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 fn cube_model() -> kerosene_asset::Model {
     use kerosene_asset::{Mesh, Model, Vertex};
     let mut m = Model::new();
     let mat = m.intern("dev/orange");
     let h = 16.0f32;
     let corners: [[f32; 3]; 8] = [
-        [-h, -h, -h], [h, -h, -h], [h, h, -h], [-h, h, -h],
-        [-h, -h, h], [h, -h, h], [h, h, h], [-h, h, h],
+        [-h, -h, -h],
+        [h, -h, -h],
+        [h, h, -h],
+        [-h, h, -h],
+        [-h, -h, h],
+        [h, -h, h],
+        [h, h, h],
+        [-h, h, h],
     ];
     for c in corners {
         let pos = Vec3::from_array(c);
@@ -551,9 +1130,18 @@ fn cube_model() -> kerosene_asset::Model {
     }
     // 12 triangles (6 faces), wound counter-clockwise from the outside.
     for t in [
-        [0, 2, 1], [0, 3, 2], [4, 5, 6], [4, 6, 7],
-        [0, 1, 5], [0, 5, 4], [2, 3, 7], [2, 7, 6],
-        [0, 4, 7], [0, 7, 3], [1, 2, 6], [1, 6, 5],
+        [0, 2, 1],
+        [0, 3, 2],
+        [4, 5, 6],
+        [4, 6, 7],
+        [0, 1, 5],
+        [0, 5, 4],
+        [2, 3, 7],
+        [2, 7, 6],
+        [0, 4, 7],
+        [0, 7, 3],
+        [1, 2, 6],
+        [1, 6, 5],
     ] {
         m.indices.extend(t.iter().map(|&i| i as u32));
     }
@@ -573,9 +1161,9 @@ fn what_the_engine_logs_reaches_the_console() {
     // stderr and nowhere else, so a door reporting a missing target was
     // invisible from inside the game -- and the console, the one place anyone
     // would look, showed nothing.
-    use log::Log;
     use kerosene_console::{LogLevel, LogRelay};
     use kerosene_engine::engine::{Engine, EngineConfig};
+    use log::Log;
 
     let relay = std::sync::Arc::new(LogRelay::detached(log::LevelFilter::Debug));
     let mut engine = Engine::new(&EngineConfig {
@@ -623,7 +1211,11 @@ fn the_console_does_not_repeat_its_own_output() {
     engine.console.print("hello from the console");
     engine.frame(0.016, &InputState::default());
 
-    let count = engine.console.log().filter(|l| l.text == "hello from the console").count();
+    let count = engine
+        .console
+        .log()
+        .filter(|l| l.text == "hello from the console")
+        .count();
     assert_eq!(count, 1, "the console echoed itself");
 }
 
@@ -655,9 +1247,8 @@ fn engine_with_script(script: &str) -> (kerosene_engine::engine::Engine, std::pa
 
 #[test]
 fn a_maps_script_loads_with_it_and_its_start_hook_runs() {
-    let (mut engine, dir) = engine_with_script(
-        r#" fn on_map_start() { print("the script ran"); } "#,
-    );
+    let (mut engine, dir) =
+        engine_with_script(r#" fn on_map_start() { print("the script ran"); } "#);
     engine.load_map("testmap").unwrap();
     assert!(
         engine.console.log().any(|l| l.text == "the script ran"),
@@ -679,7 +1270,10 @@ fn a_map_with_no_script_is_silent_rather_than_an_error() {
         ..Default::default()
     });
     engine.load_map("testmap").unwrap();
-    assert!(!engine.console.log().any(|l| l.text.contains("script")), "it complained");
+    assert!(
+        !engine.console.log().any(|l| l.text.contains("script")),
+        "it complained"
+    );
     let _ = std::fs::remove_dir_all(&dir);
 }
 
@@ -691,13 +1285,30 @@ fn a_script_can_open_a_door_through_the_same_path_a_wire_would() {
     let (mut engine, dir) = engine_with_script("");
     engine.load_map("testmap").unwrap();
 
-    let door = engine.entities.find_by_name("gate").first().copied().expect("the map has a door");
-    let before = engine.entities.get(door).unwrap().fields.f32("door_state", -1.0);
+    let door = engine
+        .entities
+        .find_by_name("gate")
+        .first()
+        .copied()
+        .expect("the map has a door");
+    let before = engine
+        .entities
+        .get(door)
+        .unwrap()
+        .fields
+        .f32("door_state", -1.0);
 
     engine.run_script(r#" ent_fire("gate", "Open"); "#).unwrap();
-    for _ in 0..8 { engine.tick(TICK, &InputState::default()); }
+    for _ in 0..8 {
+        engine.tick(TICK, &InputState::default());
+    }
 
-    let after = engine.entities.get(door).unwrap().fields.f32("door_state", -1.0);
+    let after = engine
+        .entities
+        .get(door)
+        .unwrap()
+        .fields
+        .f32("door_state", -1.0);
     assert_ne!(before, after, "the door never moved");
     let _ = std::fs::remove_dir_all(&dir);
 }
@@ -707,15 +1318,27 @@ fn a_script_reads_the_world_it_is_actually_in() {
     let (mut engine, dir) = engine_with_script("");
     engine.load_map("testmap").unwrap();
 
-    assert_eq!(engine.run_script("map_name()").unwrap().as_deref(), Some("testmap"));
     assert_eq!(
-        engine.run_script(r#" find_by_name("gate").classname "#).unwrap().as_deref(),
+        engine.run_script("map_name()").unwrap().as_deref(),
+        Some("testmap")
+    );
+    assert_eq!(
+        engine
+            .run_script(r#" find_by_name("gate").classname "#)
+            .unwrap()
+            .as_deref(),
         Some("func_door")
     );
     // The player exists and is somewhere, and a script can measure from it.
-    assert_eq!(engine.run_script("player() != ()").unwrap().as_deref(), Some("true"));
     assert_eq!(
-        engine.run_script(r#" cvar_float("sv_gravity") > 0.0 "#).unwrap().as_deref(),
+        engine.run_script("player() != ()").unwrap().as_deref(),
+        Some("true")
+    );
+    assert_eq!(
+        engine
+            .run_script(r#" cvar_float("sv_gravity") > 0.0 "#)
+            .unwrap()
+            .as_deref(),
         Some("true")
     );
     let _ = std::fs::remove_dir_all(&dir);
@@ -725,10 +1348,15 @@ fn a_script_reads_the_world_it_is_actually_in() {
 fn a_script_setting_a_keyvalue_changes_the_entity() {
     let (mut engine, dir) = engine_with_script("");
     engine.load_map("testmap").unwrap();
-    engine.run_script(r#" find_by_name("gate").set("speed", 999.0); "#).unwrap();
+    engine
+        .run_script(r#" find_by_name("gate").set("speed", 999.0); "#)
+        .unwrap();
 
     let door = engine.entities.find_by_name("gate")[0];
-    assert_eq!(engine.entities.get(door).unwrap().fields.f32("speed", 0.0), 999.0);
+    assert_eq!(
+        engine.entities.get(door).unwrap().fields.f32("speed", 0.0),
+        999.0
+    );
     let _ = std::fs::remove_dir_all(&dir);
 }
 
@@ -750,7 +1378,11 @@ fn a_handle_a_script_kept_across_a_death_does_not_hit_the_next_entity() {
 
     // The slot is free; something else takes it.
     let replacement = engine.entities.spawn("logic_relay");
-    assert_eq!(replacement.index, unpack(stale).index, "the test needs the slot reused");
+    assert_eq!(
+        replacement.index,
+        unpack(stale).index,
+        "the test needs the slot reused"
+    );
 
     engine.apply_script_actions(vec![ScriptAction::SetField {
         entity: stale,
@@ -758,7 +1390,13 @@ fn a_handle_a_script_kept_across_a_death_does_not_hit_the_next_entity() {
         value: "1".into(),
     }]);
     assert!(
-        engine.entities.get(replacement).unwrap().fields.text("speed").is_none(),
+        engine
+            .entities
+            .get(replacement)
+            .unwrap()
+            .fields
+            .text("speed")
+            .is_none(),
         "a stale handle wrote to the entity that replaced it"
     );
     let _ = std::fs::remove_dir_all(&dir);
@@ -776,9 +1414,14 @@ fn a_tick_hook_runs_every_tick_and_sees_time_moving() {
         "#,
     );
     engine.load_map("testmap").unwrap();
-    for _ in 0..4 { engine.tick(TICK, &InputState::default()); }
+    for _ in 0..4 {
+        engine.tick(TICK, &InputState::default());
+    }
     assert!(
-        engine.console.log().any(|l| l.text == "three ticks at true"),
+        engine
+            .console
+            .log()
+            .any(|l| l.text == "three ticks at true"),
         "the tick hook did not run"
     );
     let _ = std::fs::remove_dir_all(&dir);
@@ -789,11 +1432,16 @@ fn a_broken_script_reports_and_leaves_the_game_running() {
     let (mut engine, dir) = engine_with_script(" this is not valid ((( ");
     engine.load_map("testmap").unwrap();
     assert!(
-        engine.console.log().any(|l| l.level == kerosene_console::LogLevel::Error),
+        engine
+            .console
+            .log()
+            .any(|l| l.level == kerosene_console::LogLevel::Error),
         "a broken script loaded silently"
     );
     // ...and the map is still playable.
-    for _ in 0..4 { engine.tick(TICK, &InputState::default()); }
+    for _ in 0..4 {
+        engine.tick(TICK, &InputState::default());
+    }
     assert!(engine.tick_count > 0);
     let _ = std::fs::remove_dir_all(&dir);
 }
@@ -804,19 +1452,21 @@ fn a_logic_script_entity_calls_a_function_when_its_input_fires() {
     // runs. This is what makes scripting reachable from the editor.
     use kerosene_entity::{InputEvent, Target};
 
-    let (mut engine, dir) = engine_with_script(
-        r#" fn on_used(who) { print(`used by ${who}`); } "#,
-    );
+    let (mut engine, dir) = engine_with_script(r#" fn on_used(who) { print(`used by ${who}`); } "#);
     engine.load_map("testmap").unwrap();
 
     let id = engine.entities.spawn("logic_script");
     engine.entities.set_targetname(id, "brain");
-    engine.entities.get_mut(id).unwrap().fields.set(
-        "function",
-        kerosene_entity::Value::Text("on_used".into()),
-    );
+    engine
+        .entities
+        .get_mut(id)
+        .unwrap()
+        .fields
+        .set("function", kerosene_entity::Value::Text("on_used".into()));
 
-    engine.entities.accept_input(id, &InputEvent::new("CallScriptFunction"));
+    engine
+        .entities
+        .accept_input(id, &InputEvent::new("CallScriptFunction"));
     engine.take_entity_requests();
     assert!(
         engine.console.log().any(|l| l.text == "used by brain"),
@@ -824,9 +1474,20 @@ fn a_logic_script_entity_calls_a_function_when_its_input_fires() {
     );
 
     // ...and through the queue, the way an output would arrive.
-    engine.entities.queue_input(Target::Named("brain".into()), "CallScriptFunction", "", 0.0, None, None);
+    engine.entities.queue_input(
+        Target::Named("brain".into()),
+        "CallScriptFunction",
+        "",
+        0.0,
+        None,
+        None,
+    );
     engine.tick(TICK, &InputState::default());
-    let runs = engine.console.log().filter(|l| l.text == "used by brain").count();
+    let runs = engine
+        .console
+        .log()
+        .filter(|l| l.text == "used by brain")
+        .count();
     assert_eq!(runs, 2, "the queued input did not reach the script");
     let _ = std::fs::remove_dir_all(&dir);
 }
@@ -843,7 +1504,9 @@ fn a_logic_script_can_carry_its_code_inline() {
         "code",
         kerosene_entity::Value::Text(r#" print("inline"); "#.into()),
     );
-    engine.entities.accept_input(id, &InputEvent::new("RunScriptCode"));
+    engine
+        .entities
+        .accept_input(id, &InputEvent::new("RunScriptCode"));
     engine.take_entity_requests();
 
     assert!(engine.console.log().any(|l| l.text == "inline"));
@@ -860,7 +1523,10 @@ fn the_script_console_command_runs_and_shows_its_value() {
 
     engine.console.execute("script 6 * 7");
     take_console_requests(&mut engine);
-    assert!(engine.console.log().any(|l| l.text == "42"), "the value was not shown");
+    assert!(
+        engine.console.log().any(|l| l.text == "42"),
+        "the value was not shown"
+    );
     let _ = std::fs::remove_dir_all(&dir);
 }
 
@@ -872,7 +1538,9 @@ fn scripting_is_cheat_protected() {
     engine.load_map("testmap").unwrap();
     engine.console.set("sv_cheats", "0");
 
-    engine.console.execute(r#" script print("should not run") "#);
+    engine
+        .console
+        .execute(r#" script print("should not run") "#);
     kerosene_engine::engine::take_console_requests(&mut engine);
     assert!(!engine.console.log().any(|l| l.text == "should not run"));
     let _ = std::fs::remove_dir_all(&dir);
@@ -898,7 +1566,10 @@ fn the_mixer_runs_whether_or_not_there_is_a_sound_card() {
         assert_eq!(mixer.voice_count(), 1);
         let mut out = vec![0.0; 256 * 2];
         mixer.mix(&mut out);
-        assert!(out.iter().any(|s| *s != 0.0), "silent mode still has to mix");
+        assert!(
+            out.iter().any(|s| *s != 0.0),
+            "silent mode still has to mix"
+        );
     });
 }
 
@@ -956,7 +1627,10 @@ fn wav_bytes(frames: usize) -> Vec<u8> {
 #[test]
 fn sound_scripts_load_with_the_engine() {
     let (engine, dir) = engine_with_sound();
-    assert!(engine.audio.bank.script().get("test/beep").is_some(), "the script did not load");
+    assert!(
+        engine.audio.bank.script().get("test/beep").is_some(),
+        "the script did not load"
+    );
     let _ = std::fs::remove_dir_all(&dir);
 }
 
@@ -1015,12 +1689,21 @@ fn the_listener_follows_the_player() {
     let (mut engine, dir) = engine_with_sound();
     engine.load_map("testmap").unwrap();
 
-    let input = InputState { forward: 1.0, view_angles: Angles::ZERO, ..Default::default() };
-    for _ in 0..(2.0 / TICK) as usize { engine.tick(TICK, &input); }
+    let input = InputState {
+        forward: 1.0,
+        view_angles: Angles::ZERO,
+        ..Default::default()
+    };
+    for _ in 0..(2.0 / TICK) as usize {
+        engine.tick(TICK, &input);
+    }
 
     let ears = engine.audio.with_mixer(|m| m.listener.position);
     let eye = engine.player.movement.eye_position();
-    assert!((ears - eye).length() < 1.0, "ears at {ears:?}, head at {eye:?}");
+    assert!(
+        (ears - eye).length() < 1.0,
+        "ears at {ears:?}, head at {eye:?}"
+    );
     let _ = std::fs::remove_dir_all(&dir);
 }
 
@@ -1031,19 +1714,33 @@ fn an_ambient_generic_starts_with_the_map_and_can_be_stopped() {
     engine.load_map("testmap").unwrap();
 
     let id = engine.entities.spawn("ambient_generic");
-    engine.entities.get_mut(id).unwrap().fields.set(
-        "message",
-        kerosene_entity::Value::Text("test/beep".into()),
-    );
+    engine
+        .entities
+        .get_mut(id)
+        .unwrap()
+        .fields
+        .set("message", kerosene_entity::Value::Text("test/beep".into()));
     // Spawn runs the class's own start, which is what a map load does.
     kerosene_game::sound::register(&mut kerosene_entity::ClassRegistry::new());
-    engine.entities.accept_input(id, &InputEvent::new("PlaySound"));
+    engine
+        .entities
+        .accept_input(id, &InputEvent::new("PlaySound"));
     engine.take_entity_requests();
-    assert_eq!(engine.audio.with_mixer(|m| m.voice_count()), 1, "it did not start");
+    assert_eq!(
+        engine.audio.with_mixer(|m| m.voice_count()),
+        1,
+        "it did not start"
+    );
 
-    engine.entities.accept_input(id, &InputEvent::new("StopSound"));
+    engine
+        .entities
+        .accept_input(id, &InputEvent::new("StopSound"));
     engine.take_entity_requests();
-    assert_eq!(engine.audio.with_mixer(|m| m.voice_count()), 0, "it did not stop");
+    assert_eq!(
+        engine.audio.with_mixer(|m| m.voice_count()),
+        0,
+        "it did not stop"
+    );
     let _ = std::fs::remove_dir_all(&dir);
 }
 
@@ -1056,14 +1753,19 @@ fn an_ambient_generic_is_heard_from_where_it_is() {
     let id = engine.entities.spawn("ambient_generic");
     {
         let e = engine.entities.get_mut(id).unwrap();
-        e.fields.set("message", kerosene_entity::Value::Text("test/beep".into()));
+        e.fields
+            .set("message", kerosene_entity::Value::Text("test/beep".into()));
         e.origin = Vec3::new(4000.0, 0.0, 0.0);
     }
-    engine.entities.accept_input(id, &InputEvent::new("PlaySound"));
+    engine
+        .entities
+        .accept_input(id, &InputEvent::new("PlaySound"));
     engine.take_entity_requests();
 
     // Far away and off to one side: quiet, and not centred.
-    engine.audio.set_listener(Vec3::ZERO, Angles::ZERO.vectors());
+    engine
+        .audio
+        .set_listener(Vec3::ZERO, Angles::ZERO.vectors());
     let mut out = vec![0.0; 512 * 2];
     engine.audio.with_mixer(|m| m.mix(&mut out));
     let peak = out.iter().fold(0.0f32, |a, s| a.max(s.abs()));
@@ -1091,7 +1793,11 @@ fn loading_a_map_silences_the_one_before_it() {
     assert_eq!(engine.audio.with_mixer(|m| m.voice_count()), 1);
 
     engine.load_map("testmap").unwrap();
-    assert_eq!(engine.audio.with_mixer(|m| m.voice_count()), 0, "the last level is still playing");
+    assert_eq!(
+        engine.audio.with_mixer(|m| m.voice_count()),
+        0,
+        "the last level is still playing"
+    );
     let _ = std::fs::remove_dir_all(&dir);
 }
 
@@ -1108,7 +1814,9 @@ fn add_brush_entity(map: &mut Map, classname: &str, bounds: Aabb, material: &str
     let side_ids: Vec<u32> = (0..6).map(|_| map.next_id()).collect();
     let mut solid = Solid::cube(bounds, material);
     solid.id = solid_id;
-    for (s, sid) in solid.sides.iter_mut().zip(side_ids) { s.id = sid; }
+    for (s, sid) in solid.sides.iter_mut().zip(side_ids) {
+        s.id = sid;
+    }
 
     let mut entity = Entity::new(id, classname);
     entity.solids.push(solid);
@@ -1151,23 +1859,43 @@ fn engine_with(map: &Map, name: &str) -> (kerosene_engine::engine::Engine, std::
         content_paths: vec![dir.clone()],
         ..Default::default()
     });
-    engine.load_map("testmap").expect("the test map should load");
+    engine
+        .load_map("testmap")
+        .expect("the test map should load");
     (engine, dir)
 }
 
 fn door_progress(engine: &kerosene_engine::engine::Engine) -> f32 {
-    let id = *engine.entities.find_by_name("gate").first().expect("the map has a door");
+    let id = *engine
+        .entities
+        .find_by_name("gate")
+        .first()
+        .expect("the map has a door");
     kerosene_game::doors::door_progress(&engine.entities, id)
 }
 
 /// Hold the use key down for a moment while facing `yaw`, then let go.
 fn press_use(engine: &mut kerosene_engine::engine::Engine, yaw: f32, seconds: f32) {
-    let looking = Angles { pitch: 0.0, yaw, roll: 0.0 };
-    let held = InputState { use_key: true, view_angles: looking, ..Default::default() };
+    let looking = Angles {
+        pitch: 0.0,
+        yaw,
+        roll: 0.0,
+    };
+    let held = InputState {
+        use_key: true,
+        view_angles: looking,
+        ..Default::default()
+    };
     for _ in 0..(seconds / TICK).ceil() as usize {
         engine.tick(TICK, &held);
     }
-    engine.tick(TICK, &InputState { view_angles: looking, ..Default::default() });
+    engine.tick(
+        TICK,
+        &InputState {
+            view_angles: looking,
+            ..Default::default()
+        },
+    );
 }
 
 #[test]
@@ -1177,7 +1905,13 @@ fn pressing_use_while_looking_at_a_button_works_it() {
 
     press_use(&mut engine, 0.0, 0.1);
     for _ in 0..(1.0 / TICK) as usize {
-        engine.tick(TICK, &InputState { view_angles: Angles::ZERO, ..Default::default() });
+        engine.tick(
+            TICK,
+            &InputState {
+                view_angles: Angles::ZERO,
+                ..Default::default()
+            },
+        );
     }
 
     assert!(
@@ -1200,17 +1934,28 @@ fn holding_use_presses_once_rather_than_every_tick() {
     assert_eq!(door_progress(&engine), 0.0, "nothing is within reach");
 
     // Walk up to it, then hold use for half a second.
-    let walking = InputState { forward: 1.0, view_angles: Angles::ZERO, ..Default::default() };
+    let walking = InputState {
+        forward: 1.0,
+        view_angles: Angles::ZERO,
+        ..Default::default()
+    };
     for _ in 0..(2.0 / TICK) as usize {
         engine.tick(TICK, &walking);
     }
     press_use(&mut engine, 0.0, 0.5);
     for _ in 0..(2.0 / TICK) as usize {
-        engine.tick(TICK, &InputState { view_angles: Angles::ZERO, ..Default::default() });
+        engine.tick(
+            TICK,
+            &InputState {
+                view_angles: Angles::ZERO,
+                ..Default::default()
+            },
+        );
     }
 
     assert_eq!(
-        door_progress(&engine), 1.0,
+        door_progress(&engine),
+        1.0,
         "one press, so the door opened and stayed open"
     );
     let _ = std::fs::remove_dir_all(&dir);
@@ -1225,7 +1970,11 @@ fn using_a_wall_does_nothing_and_says_nothing() {
 
     press_use(&mut engine, 0.0, 0.2);
 
-    assert_eq!(engine.console.log().count(), before, "a missed use must not chatter");
+    assert_eq!(
+        engine.console.log().count(),
+        before,
+        "a missed use must not chatter"
+    );
     let _ = std::fs::remove_dir_all(&dir);
 }
 
@@ -1258,18 +2007,31 @@ fn a_button_can_switch_a_brush_out_of_the_world() {
     map.entities[shutter].set("targetname", "shutter");
 
     let (mut engine, dir) = engine_with(&map, "shutter");
-    let walking = InputState { forward: 1.0, view_angles: Angles::ZERO, ..Default::default() };
+    let walking = InputState {
+        forward: 1.0,
+        view_angles: Angles::ZERO,
+        ..Default::default()
+    };
 
     // The shutter blocks the corridor, so walking runs into it.
-    for _ in 0..(4.0 / TICK) as usize { engine.tick(TICK, &walking); }
+    for _ in 0..(4.0 / TICK) as usize {
+        engine.tick(TICK, &walking);
+    }
     let stopped_at = engine.player.movement.origin.x;
-    assert!(stopped_at < 300.0, "the shutter should be in the way, stopped at {stopped_at}");
+    assert!(
+        stopped_at < 300.0,
+        "the shutter should be in the way, stopped at {stopped_at}"
+    );
 
     // Start again, press the switch from the spawn -- which is where it is,
     // set into the wall beside it -- and walk the same corridor.
-    engine.load_map("testmap").expect("reloading the map should work");
+    engine
+        .load_map("testmap")
+        .expect("reloading the map should work");
     press_use(&mut engine, 90.0, 0.1);
-    for _ in 0..(6.0 / TICK) as usize { engine.tick(TICK, &walking); }
+    for _ in 0..(6.0 / TICK) as usize {
+        engine.tick(TICK, &walking);
+    }
 
     assert!(
         engine.player.movement.origin.x > 320.0,
@@ -1303,8 +2065,14 @@ fn corridor_with_bar(yaw: f32) -> Map {
 }
 
 fn walked_to(engine: &mut kerosene_engine::engine::Engine, seconds: f32) -> f32 {
-    let walking = InputState { forward: 1.0, view_angles: Angles::ZERO, ..Default::default() };
-    for _ in 0..(seconds / TICK) as usize { engine.tick(TICK, &walking); }
+    let walking = InputState {
+        forward: 1.0,
+        view_angles: Angles::ZERO,
+        ..Default::default()
+    };
+    for _ in 0..(seconds / TICK) as usize {
+        engine.tick(TICK, &walking);
+    }
     engine.player.movement.origin.x
 }
 
@@ -1312,7 +2080,10 @@ fn walked_to(engine: &mut kerosene_engine::engine::Engine, seconds: f32) -> f32 
 fn an_unturned_bar_blocks_the_corridor() {
     let (mut engine, dir) = engine_with(&corridor_with_bar(0.0), "bar-0");
     let reached = walked_to(&mut engine, 3.0);
-    assert!(reached < 250.0, "the bar should be in the way, walked to {reached}");
+    assert!(
+        reached < 250.0,
+        "the bar should be in the way, walked to {reached}"
+    );
     let _ = std::fs::remove_dir_all(&dir);
 }
 
@@ -1322,7 +2093,10 @@ fn a_bar_turned_a_quarter_turn_is_no_longer_in_the_way() {
     // centre. If the collision code ignored the angles this would still block.
     let (mut engine, dir) = engine_with(&corridor_with_bar(90.0), "bar-90");
     let reached = walked_to(&mut engine, 3.0);
-    assert!(reached > 300.0, "the bar should have swung clear, walked to {reached}");
+    assert!(
+        reached > 300.0,
+        "the bar should have swung clear, walked to {reached}"
+    );
     let _ = std::fs::remove_dir_all(&dir);
 }
 
@@ -1346,16 +2120,28 @@ fn a_turned_model_is_drawn_where_it_blocks() {
     // puts it at x 226..290, y 24..40. Both probes avoid the corridor's own
     // dividing wall (x 256..272 outside the y 32..96 doorway), so the only
     // thing either can be hitting is the bar.
-    let solid = Vec3::new(240.0, 32.0, 64.0);      // in the turned bar
-    let clear = Vec3::new(260.0, 50.0, 64.0);      // in the unturned one, in the doorway
+    let solid = Vec3::new(240.0, 32.0, 64.0); // in the turned bar
+    let clear = Vec3::new(260.0, 50.0, 64.0); // in the unturned one, in the doorway
     let probe = |at: Vec3| {
         world
-            .trace(at, at, Vec3::ZERO, Vec3::ZERO, kerosene_bsp::contents::MASK_PLAYER_SOLID)
+            .trace(
+                at,
+                at,
+                Vec3::ZERO,
+                Vec3::ZERO,
+                kerosene_bsp::contents::MASK_PLAYER_SOLID,
+            )
             .start_solid
     };
 
-    assert!(probe(solid), "the turned bar should be solid where it is drawn, at {solid:?}");
-    assert!(!probe(clear), "and not solid where it used to be, at {clear:?}");
+    assert!(
+        probe(solid),
+        "the turned bar should be solid where it is drawn, at {solid:?}"
+    );
+    assert!(
+        !probe(clear),
+        "and not solid where it used to be, at {clear:?}"
+    );
 
     // And the pose the renderer is handed is the one that produced those
     // answers, which is the invariant the two probes are evidence for.
@@ -1371,12 +2157,20 @@ fn a_rotating_brush_actually_turns_while_the_engine_runs() {
     map.entities[at].set("spawnflags", "1");
 
     let (mut engine, dir) = engine_with(&map, "bar-spin");
-    let idle = InputState { view_angles: Angles::ZERO, ..Default::default() };
-    for _ in 0..(1.0 / TICK) as usize { engine.tick(TICK, &idle); }
+    let idle = InputState {
+        view_angles: Angles::ZERO,
+        ..Default::default()
+    };
+    for _ in 0..(1.0 / TICK) as usize {
+        engine.tick(TICK, &idle);
+    }
 
     let bar = *engine.entities.find_by_name("bar").first().unwrap();
     let turned = engine.entities.get(bar).unwrap().angles.yaw;
-    assert!(turned > 60.0, "90 degrees a second should have turned it, got {turned}");
+    assert!(
+        turned > 60.0,
+        "90 degrees a second should have turned it, got {turned}"
+    );
     let _ = std::fs::remove_dir_all(&dir);
 }
 
@@ -1396,7 +2190,11 @@ fn walking_into_a_trigger_push_throws_the_player() {
     map.entities[at].set("speed", "500");
 
     let (mut engine, dir) = engine_with(&map, "push");
-    let walking = InputState { forward: 1.0, view_angles: Angles::ZERO, ..Default::default() };
+    let walking = InputState {
+        forward: 1.0,
+        view_angles: Angles::ZERO,
+        ..Default::default()
+    };
 
     let mut highest: f32 = 0.0;
     for _ in 0..(2.0 / TICK) as usize {
@@ -1404,7 +2202,10 @@ fn walking_into_a_trigger_push_throws_the_player() {
         highest = highest.max(engine.player.movement.origin.z);
     }
 
-    assert!(highest > 40.0, "should have been launched, only reached {highest}");
+    assert!(
+        highest > 40.0,
+        "should have been launched, only reached {highest}"
+    );
     let _ = std::fs::remove_dir_all(&dir);
 }
 
@@ -1423,7 +2224,11 @@ fn a_push_adds_to_the_speed_the_player_arrives_with() {
     map.entities[at].set("speed", "400");
 
     let (mut engine, dir) = engine_with(&map, "push-add");
-    let walking = InputState { forward: 1.0, view_angles: Angles::ZERO, ..Default::default() };
+    let walking = InputState {
+        forward: 1.0,
+        view_angles: Angles::ZERO,
+        ..Default::default()
+    };
 
     // The peak, not the end: a horizontal shove along the floor is braked by
     // ground friction within a few ticks, which is correct and is why a pad
@@ -1459,8 +2264,14 @@ fn a_trigger_teleport_moves_the_player_to_what_it_targets() {
     map.entities.push(destination);
 
     let (mut engine, dir) = engine_with(&map, "teleport");
-    let walking = InputState { forward: 1.0, view_angles: Angles::ZERO, ..Default::default() };
-    for _ in 0..(1.0 / TICK) as usize { engine.tick(TICK, &walking); }
+    let walking = InputState {
+        forward: 1.0,
+        view_angles: Angles::ZERO,
+        ..Default::default()
+    };
+    for _ in 0..(1.0 / TICK) as usize {
+        engine.tick(TICK, &walking);
+    }
 
     assert!(
         engine.player.movement.origin.x > 400.0,
@@ -1485,11 +2296,20 @@ fn a_teleport_with_no_destination_says_so_rather_than_moving_nowhere() {
     map.entities[at].set("target", "nowhere_at_all");
 
     let (mut engine, dir) = engine_with(&map, "teleport-broken");
-    let walking = InputState { forward: 1.0, view_angles: Angles::ZERO, ..Default::default() };
-    for _ in 0..(1.0 / TICK) as usize { engine.tick(TICK, &walking); }
+    let walking = InputState {
+        forward: 1.0,
+        view_angles: Angles::ZERO,
+        ..Default::default()
+    };
+    for _ in 0..(1.0 / TICK) as usize {
+        engine.tick(TICK, &walking);
+    }
 
     assert!(
-        engine.console.log().any(|l| l.text.contains("nowhere_at_all")),
+        engine
+            .console
+            .log()
+            .any(|l| l.text.contains("nowhere_at_all")),
         "the broken target should be named in the console"
     );
     let _ = std::fs::remove_dir_all(&dir);
@@ -1540,7 +2360,10 @@ fn the_suns_brightness_does_not_leak_into_the_sky_tint() {
 
     let (engine, dir) = engine_with(&map, "sky-bright");
     let sky = engine.level.as_ref().unwrap().sky_color;
-    assert!((sky.x - 0.5).abs() < 0.01, "brightness leaked into the tint: {sky:?}");
+    assert!(
+        (sky.x - 0.5).abs() < 0.01,
+        "brightness leaked into the tint: {sky:?}"
+    );
     let _ = std::fs::remove_dir_all(&dir);
 }
 
@@ -1566,10 +2389,19 @@ fn a_func_ladder_can_be_climbed_in_a_compiled_map() {
     // Only a fifth of a second: the corridor ceiling is at 128 and the player
     // is 72 tall, so there are 47 units of headroom and a full second of
     // climbing would spend most of it pressed against the roof.
-    let climbing = InputState { jump: true, view_angles: Angles::ZERO, ..Default::default() };
-    for _ in 0..(0.2 / TICK) as usize { engine.tick(TICK, &climbing); }
+    let climbing = InputState {
+        jump: true,
+        view_angles: Angles::ZERO,
+        ..Default::default()
+    };
+    for _ in 0..(0.2 / TICK) as usize {
+        engine.tick(TICK, &climbing);
+    }
 
-    assert!(engine.player.movement.on_ladder, "the player should be on the ladder");
+    assert!(
+        engine.player.movement.on_ladder,
+        "the player should be on the ladder"
+    );
     let climbed = engine.player.movement.origin.z - start;
     assert!(
         climbed > 30.0,
@@ -1593,8 +2425,14 @@ fn a_ladder_does_not_block_the_player() {
     map.entities[at].set("targetname", "climb");
 
     let (mut engine, dir) = engine_with(&map, "ladder-solid");
-    let walking = InputState { forward: 1.0, view_angles: Angles::ZERO, ..Default::default() };
-    for _ in 0..(3.0 / TICK) as usize { engine.tick(TICK, &walking); }
+    let walking = InputState {
+        forward: 1.0,
+        view_angles: Angles::ZERO,
+        ..Default::default()
+    };
+    for _ in 0..(3.0 / TICK) as usize {
+        engine.tick(TICK, &walking);
+    }
 
     assert!(
         engine.player.movement.origin.x > 200.0,
@@ -1627,7 +2465,10 @@ fn standing_in_a_trigger_hurt_costs_health_over_time() {
     let (mut engine, dir) = engine_with(&corridor_with_hurt("10"), "hurt");
     assert_eq!(engine.player.health, 100.0);
 
-    let idle = InputState { view_angles: Angles::ZERO, ..Default::default() };
+    let idle = InputState {
+        view_angles: Angles::ZERO,
+        ..Default::default()
+    };
     for _ in 0..(1.0 / TICK) as usize {
         engine.tick(TICK, &idle);
     }
@@ -1644,13 +2485,22 @@ fn standing_in_a_trigger_hurt_costs_health_over_time() {
 fn a_trigger_hurt_that_kills_respawns_the_player_rather_than_leaving_them_dead() {
     let (mut engine, dir) = engine_with(&corridor_with_hurt("400"), "kill");
 
-    let idle = InputState { view_angles: Angles::ZERO, ..Default::default() };
+    let idle = InputState {
+        view_angles: Angles::ZERO,
+        ..Default::default()
+    };
     for _ in 0..(0.5 / TICK) as usize {
         engine.tick(TICK, &idle);
     }
 
-    assert!(engine.console.log().any(|l| l.text.contains("died")), "death should be reported");
-    assert!(engine.player.health > 0.0, "and the player should be alive again");
+    assert!(
+        engine.console.log().any(|l| l.text.contains("died")),
+        "death should be reported"
+    );
+    assert!(
+        engine.player.health > 0.0,
+        "and the player should be alive again"
+    );
     let _ = std::fs::remove_dir_all(&dir);
 }
 
@@ -1661,12 +2511,18 @@ fn a_disabled_trigger_hurt_does_no_damage() {
     map.entities[at].set("startdisabled", "1");
     let (mut engine, dir) = engine_with(&map, "hurt-off");
 
-    let idle = InputState { view_angles: Angles::ZERO, ..Default::default() };
+    let idle = InputState {
+        view_angles: Angles::ZERO,
+        ..Default::default()
+    };
     for _ in 0..(1.0 / TICK) as usize {
         engine.tick(TICK, &idle);
     }
 
-    assert_eq!(engine.player.health, 100.0, "a disabled trigger must not hurt");
+    assert_eq!(
+        engine.player.health, 100.0,
+        "a disabled trigger must not hurt"
+    );
     let _ = std::fs::remove_dir_all(&dir);
 }
 
@@ -1677,7 +2533,11 @@ fn compiled_bytes(frames: usize) -> Vec<u8> {
     let samples = (0..frames)
         .map(|i| 0.5 * (std::f32::consts::TAU * 440.0 * i as f32 / 44100.0).sin())
         .collect();
-    let sound = kerosene_audio::wav::Sound { channels: 1, sample_rate: 44100, samples };
+    let sound = kerosene_audio::wav::Sound {
+        channels: 1,
+        sample_rate: 44100,
+        samples,
+    };
     kerosene_audio::compiled::encode(
         &sound,
         kerosene_audio::compiled::Encoding::Adpcm,
@@ -1693,9 +2553,17 @@ fn a_compiled_sound_loads_and_plays() {
     std::fs::write(dir.join("sound/test/beep.keroaud"), compiled_bytes(4800)).unwrap();
     engine.load_map("testmap").unwrap();
 
-    let handle = engine.audio.play(&engine.vfs.clone(), "test/beep", None, 1.0);
-    assert!(handle.is_some(), "a .keroaud should load where a .wav would");
-    assert!(engine.console.log().all(|l| !l.text.contains("beep")), "and quietly");
+    let handle = engine
+        .audio
+        .play(&engine.vfs.clone(), "test/beep", None, 1.0);
+    assert!(
+        handle.is_some(),
+        "a .keroaud should load where a .wav would"
+    );
+    assert!(
+        engine.console.log().all(|l| !l.text.contains("beep")),
+        "and quietly"
+    );
 
     let _ = std::fs::remove_dir_all(&dir);
 }
@@ -1709,8 +2577,15 @@ fn the_compiled_form_is_preferred_over_the_source() {
     std::fs::write(dir.join("sound/test/beep.keroaud"), compiled_bytes(1000)).unwrap();
     engine.load_map("testmap").unwrap();
 
-    let sound = engine.audio.sound(&engine.vfs.clone(), "test/beep").expect("it should load");
-    assert_eq!(sound.frames(), 1000, "the .keroaud should have won over the .wav");
+    let sound = engine
+        .audio
+        .sound(&engine.vfs.clone(), "test/beep")
+        .expect("it should load");
+    assert_eq!(
+        sound.frames(),
+        1000,
+        "the .keroaud should have won over the .wav"
+    );
 
     let _ = std::fs::remove_dir_all(&dir);
 }
@@ -1734,7 +2609,12 @@ fn a_broken_compiled_sound_is_reported_rather_than_silently_skipped() {
     std::fs::write(dir.join("sound/test/beep.keroaud"), b"not a keroaud at all").unwrap();
     engine.load_map("testmap").unwrap();
 
-    assert!(engine.audio.sound(&engine.vfs.clone(), "test/beep").is_none());
+    assert!(
+        engine
+            .audio
+            .sound(&engine.vfs.clone(), "test/beep")
+            .is_none()
+    );
     let _ = std::fs::remove_dir_all(&dir);
 }
 
@@ -1748,14 +2628,25 @@ fn a_sound_that_is_there_but_uncompiled_says_so_rather_than_missing() {
     std::fs::write(dir.join("sound/test/beep.flac"), b"fLaC not really").unwrap();
     engine.load_map("testmap").unwrap();
 
-    assert!(engine.audio.sound(&engine.vfs.clone(), "test/beep").is_none());
+    assert!(
+        engine
+            .audio
+            .sound(&engine.vfs.clone(), "test/beep")
+            .is_none()
+    );
 
     // Asserted on the message itself: it reaches the console through the log
     // relay, which a test does not install.
     let candidates = engine.audio.bank.candidates("test/beep");
     let said = kerosene_engine::audio::explain_missing(&engine.vfs, &candidates);
-    assert!(said.contains("beep.flac"), "the file that is there should be named: {said}");
-    assert!(said.contains("timbre build"), "and what to do about it: {said}");
+    assert!(
+        said.contains("beep.flac"),
+        "the file that is there should be named: {said}"
+    );
+    assert!(
+        said.contains("timbre build"),
+        "and what to do about it: {said}"
+    );
     let _ = std::fs::remove_dir_all(&dir);
 }
 
@@ -1766,11 +2657,18 @@ fn a_sound_named_with_capitals_is_found_on_a_case_sensitive_filesystem() {
     // and not only to audio: any texture, model or map with a capital in its
     // name had the same problem.
     let (mut engine, dir) = engine_with_sound();
-    std::fs::rename(dir.join("sound/test/beep.wav"), dir.join("sound/test/BeepLOUD.wav")).unwrap();
+    std::fs::rename(
+        dir.join("sound/test/beep.wav"),
+        dir.join("sound/test/BeepLOUD.wav"),
+    )
+    .unwrap();
     engine.load_map("testmap").unwrap();
 
     assert!(
-        engine.audio.sound(&engine.vfs.clone(), "test/BeepLOUD").is_some(),
+        engine
+            .audio
+            .sound(&engine.vfs.clone(), "test/BeepLOUD")
+            .is_some(),
         "a name with capitals must resolve to the file that has them"
     );
     let _ = std::fs::remove_dir_all(&dir);
@@ -1782,9 +2680,18 @@ fn a_name_in_the_wrong_case_still_finds_the_file() {
     // makes them so for free. A loose tree has to agree, or a game works from
     // a checkout and breaks the moment it is packed.
     let (mut engine, dir) = engine_with_sound();
-    std::fs::rename(dir.join("sound/test/beep.wav"), dir.join("sound/test/BeepLOUD.wav")).unwrap();
+    std::fs::rename(
+        dir.join("sound/test/beep.wav"),
+        dir.join("sound/test/BeepLOUD.wav"),
+    )
+    .unwrap();
     engine.load_map("testmap").unwrap();
 
-    assert!(engine.audio.sound(&engine.vfs.clone(), "test/beeploud").is_some());
+    assert!(
+        engine
+            .audio
+            .sound(&engine.vfs.clone(), "test/beeploud")
+            .is_some()
+    );
     let _ = std::fs::remove_dir_all(&dir);
 }

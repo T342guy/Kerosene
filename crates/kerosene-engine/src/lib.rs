@@ -16,8 +16,8 @@
 //! `Engine` simply not knowing what a surface is.
 
 pub mod audio;
-pub mod console_ui;
 pub mod collision;
+pub mod console_ui;
 pub mod engine;
 pub mod host;
 pub mod input;

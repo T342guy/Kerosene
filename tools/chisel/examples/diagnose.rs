@@ -50,7 +50,11 @@ fn main() {
     println!("schema       : {} classes", app.schema.len());
     println!("point classes: {:?}", app.point_classes());
     println!("brush classes: {:?}", app.brush_classes());
-    println!("materials    : {} -> {:?}", app.materials.len(), app.materials);
+    println!(
+        "materials    : {} -> {:?}",
+        app.materials.len(),
+        app.materials
+    );
 
     // Every material the editor offers, and whether there is a texture behind
     // it. A material with no texture draws as a flat colour, which is the
@@ -65,7 +69,11 @@ fn main() {
         "textures     : {} of {} materials have one{}",
         app.materials.len() - missing.len(),
         app.materials.len(),
-        if missing.is_empty() { String::new() } else { format!("; missing {missing:?}") },
+        if missing.is_empty() {
+            String::new()
+        } else {
+            format!("; missing {missing:?}")
+        },
     );
 
     // Which maps exist, and which of them the game could actually load. A
@@ -92,7 +100,10 @@ fn main() {
                 "  {class}: kind {:?}, {} keys {:?}",
                 spec.kind,
                 spec.keys.len(),
-                spec.keys.iter().map(|k| k.name.as_str()).collect::<Vec<_>>(),
+                spec.keys
+                    .iter()
+                    .map(|k| k.name.as_str())
+                    .collect::<Vec<_>>(),
             ),
             None => println!("  {class}: NOT IN SCHEMA"),
         }

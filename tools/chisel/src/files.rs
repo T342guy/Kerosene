@@ -57,7 +57,10 @@ pub fn resolve(typed: &str, content_root: &Path) -> Result<PathBuf, String> {
 /// Appended rather than replaced: `arena.v2` is a name someone chose, and
 /// turning it into `arena.keromap` would silently save over a different map.
 pub fn with_map_extension(path: &Path) -> PathBuf {
-    if path.extension().is_some_and(|e| e.eq_ignore_ascii_case(MAP_EXTENSION)) {
+    if path
+        .extension()
+        .is_some_and(|e| e.eq_ignore_ascii_case(MAP_EXTENSION))
+    {
         return path.to_path_buf();
     }
     let mut name = path.file_name().unwrap_or_default().to_os_string();
@@ -91,12 +94,17 @@ pub fn maps_in(content_root: &Path) -> Vec<PathBuf> {
 const MAX_DEPTH: usize = 3;
 
 fn collect(dir: &Path, depth: usize, out: &mut Vec<PathBuf>) {
-    if depth > MAX_DEPTH { return }
+    if depth > MAX_DEPTH {
+        return;
+    }
     for entry in std::fs::read_dir(dir).into_iter().flatten().flatten() {
         let path = entry.path();
         if path.is_dir() {
             collect(&path, depth + 1, out);
-        } else if path.extension().is_some_and(|e| e.eq_ignore_ascii_case(MAP_EXTENSION)) {
+        } else if path
+            .extension()
+            .is_some_and(|e| e.eq_ignore_ascii_case(MAP_EXTENSION))
+        {
             out.push(path);
         }
     }
@@ -115,7 +123,9 @@ pub fn move_map(from: &Path, to: &Path) -> std::io::Result<Vec<PathBuf>> {
     let mut moved = Vec::new();
     for extension in ARTEFACTS {
         let source = from.with_extension(extension);
-        if !source.is_file() { continue }
+        if !source.is_file() {
+            continue;
+        }
         let target = to.with_extension(extension);
         if std::fs::rename(&source, &target).is_ok() {
             moved.push(target);

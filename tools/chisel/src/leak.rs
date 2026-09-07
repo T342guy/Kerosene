@@ -10,8 +10,8 @@
 //! So Chisel loads it after a compile and draws it through every pane. Follow
 //! the line to the wall it passes through.
 
-use std::path::Path;
 use kerosene_math::Vec3;
+use std::path::Path;
 
 /// A loaded leak trace.
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -29,7 +29,9 @@ impl LeakTrace {
             .map(str::trim)
             .filter(|l| !l.is_empty() && !l.starts_with("//") && !l.starts_with('#'))
             .filter_map(|line| {
-                let mut n = line.split_whitespace().filter_map(|v| v.parse::<f32>().ok());
+                let mut n = line
+                    .split_whitespace()
+                    .filter_map(|v| v.parse::<f32>().ok());
                 Some(Vec3::new(n.next()?, n.next()?, n.next()?))
             })
             .collect();
@@ -46,10 +48,14 @@ impl LeakTrace {
         (trace.points.len() >= 2).then_some(trace)
     }
 
-    pub fn is_empty(&self) -> bool { self.points.len() < 2 }
+    pub fn is_empty(&self) -> bool {
+        self.points.len() < 2
+    }
 
     /// Where the leak starts -- the entity that could see out.
-    pub fn origin(&self) -> Option<Vec3> { self.points.first().copied() }
+    pub fn origin(&self) -> Option<Vec3> {
+        self.points.first().copied()
+    }
 }
 
 #[cfg(test)]
@@ -81,7 +87,10 @@ mod tests {
         // A partly readable trace still points at the hole, which is the whole
         // job. Failing the load would leave a person with nothing.
         let trace = LeakTrace::parse("1 2 3\nnot a point\n4 5\n7 8 9\n");
-        assert_eq!(trace.points, vec![Vec3::new(1.0, 2.0, 3.0), Vec3::new(7.0, 8.0, 9.0)]);
+        assert_eq!(
+            trace.points,
+            vec![Vec3::new(1.0, 2.0, 3.0), Vec3::new(7.0, 8.0, 9.0)]
+        );
     }
 
     #[test]

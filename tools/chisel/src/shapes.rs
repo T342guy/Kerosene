@@ -38,7 +38,13 @@ pub enum Shape {
 
 impl Shape {
     pub fn all() -> [Shape; 5] {
-        [Shape::Wedge, Shape::Cylinder, Shape::Cone, Shape::Arch, Shape::Stairs]
+        [
+            Shape::Wedge,
+            Shape::Cylinder,
+            Shape::Cone,
+            Shape::Arch,
+            Shape::Stairs,
+        ]
     }
 
     pub fn label(self) -> &'static str {
@@ -94,7 +100,11 @@ impl Default for Options {
         // Eight sides is Hammer's default and a good one: enough that a
         // pillar reads as round at arm's length, few enough that a room full
         // of them still compiles quickly.
-        Options { sides: 8, arc: 180.0, wall: 32.0 }
+        Options {
+            sides: 8,
+            arc: 180.0,
+            wall: 32.0,
+        }
     }
 }
 
@@ -122,10 +132,18 @@ impl Options {
 ///
 /// An empty result means the box was too small or too flat to hold the shape;
 /// the caller should say so rather than silently doing nothing.
-pub fn build(shape: Shape, bounds: Aabb, axis: usize, options: Options, material: &str) -> Vec<Solid> {
+pub fn build(
+    shape: Shape,
+    bounds: Aabb,
+    axis: usize,
+    options: Options,
+    material: &str,
+) -> Vec<Solid> {
     let options = options.sane();
     let size = bounds.size();
-    if size.x <= 0.0 || size.y <= 0.0 || size.z <= 0.0 { return Vec::new() }
+    if size.x <= 0.0 || size.y <= 0.0 || size.z <= 0.0 {
+        return Vec::new();
+    }
 
     match shape {
         Shape::Wedge => wedge(bounds, axis, material),
@@ -204,7 +222,12 @@ fn ring(bounds: Aabb, axis: usize, sides: u32, height: f32) -> Vec<Vec3> {
             // flat faces square to the world rather than corners poking out
             // of the box it was drawn in.
             let angle = std::f32::consts::TAU * (i as f32 + 0.5) / sides as f32;
-            at(axis, centre[a] + angle.cos() * ra, centre[b] + angle.sin() * rb, height)
+            at(
+                axis,
+                centre[a] + angle.cos() * ra,
+                centre[b] + angle.sin() * rb,
+                height,
+            )
         })
         .collect()
 }
@@ -241,7 +264,9 @@ fn arch(bounds: Aabb, axis: usize, options: Options, material: &str) -> Vec<Soli
     // -- and one the generator would build inside out. Held to just under the
     // radius so there is always a hole.
     let wall = options.wall.min(ra.min(rb) * 0.95);
-    if wall <= 0.0 { return Vec::new() }
+    if wall <= 0.0 {
+        return Vec::new();
+    }
 
     let sweep = options.arc.to_radians();
     let step = sweep / options.sides as f32;
@@ -273,7 +298,9 @@ fn arch(bounds: Aabb, axis: usize, options: Options, material: &str) -> Vec<Soli
             corner(to, wall),
             corner(from, wall),
         ];
-        if let Some(solid) = Solid::prism(&profile, axis, bounds.min[axis], bounds.max[axis], material) {
+        if let Some(solid) =
+            Solid::prism(&profile, axis, bounds.min[axis], bounds.max[axis], material)
+        {
             solids.push(solid);
         }
     }
@@ -291,9 +318,15 @@ fn stairs(bounds: Aabb, axis: usize, options: Options, material: &str) -> Vec<So
     let rise = bounds.size()[axis] / steps as f32;
     // Along the longer of the two cross-section axes, which is the direction
     // a staircase drawn as a long thin box obviously goes.
-    let (run_axis, wide_axis) = if bounds.size()[a] >= bounds.size()[b] { (a, b) } else { (b, a) };
+    let (run_axis, wide_axis) = if bounds.size()[a] >= bounds.size()[b] {
+        (a, b)
+    } else {
+        (b, a)
+    };
     let run = bounds.size()[run_axis] / steps as f32;
-    if rise <= 0.0 || run <= 0.0 { return Vec::new() }
+    if rise <= 0.0 || run <= 0.0 {
+        return Vec::new();
+    }
 
     let mut solids = Vec::new();
     for i in 0..steps {

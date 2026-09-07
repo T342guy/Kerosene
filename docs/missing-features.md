@@ -50,13 +50,22 @@ for completeness.
   engine: world brushes become static hulls, `func_detail` joins them, and
   moving brush entities (doors, shutters) become static bodies that follow
   their entity's pose, so a closed door blocks a thrown prop. `prop_physics`
-  entities get dynamic box bodies (from their model bounds), a
-  `prop_dynamic_spawner` drops them on demand, and the player collides with
-  them. The use key is a pick-up tool: aim at a prop and press use to carry
-  it, press again to launch it. `.keromdl` models render at their simulated
-  pose, and `phys_debug` draws the collision boxes. Still boxes only --
-  convex-hull props, joints, per-material friction and a launch-beams
-  gravity-gun are not there yet.
+  entities get dynamic box bodies (from their model bounds) whose **object
+  properties** -- `mass`, `friction`, `elasticity`, `pickable` -- decide how
+  heavy, grippy, bouncy and grabbable each one is, and a
+  `prop_dynamic_spawner` drops them on demand (inheriting those properties).
+  The player is in the simulation too, as a kinematic body, so props bounce
+  off them rather than through them, and walking into one shoves it: how far
+  is a contest between a fixed `phys_player_push_force` and the prop's own
+  `mass`, so a crate slides and a safe does not. The use key is a pick-up
+  tool: aim at a prop and press use to carry it, press use again to set it
+  down, or attack to throw it at `phys_launch_speed` plus whatever the player
+  was already doing. A carried prop
+  stays facing the player as they turn and rests against walls instead of
+  clipping through them. `.keromdl` models render at their simulated pose, and
+  `phys_debug` draws the collision boxes. Still boxes only -- convex-hull
+  props, joints, per-surface-material friction and a launch-beams gravity-gun
+  are not there yet.
 - **Ragdoll / skeletal physics.** None. Box3D has joints, but no skeleton
   attachment.
 - **Vehicles / wheeled physics.** None. Box3D has wheel joints, but no vehicle

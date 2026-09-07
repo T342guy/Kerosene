@@ -97,14 +97,18 @@ pub fn transformed_outline(
     for (entity, solid) in document.map.all_solids() {
         let moving = document.selection.solids.contains(&solid.id)
             || document.selection.entities.contains(&entity.id);
-        if !moving { continue }
+        if !moving {
+            continue;
+        }
         for (_, winding) in solid.face_windings() {
             polygons.push(winding.points.iter().map(|p| transform(*p)).collect());
         }
     }
 
     for entity in document.map.entities.iter().filter(|e| e.solids.is_empty()) {
-        if !document.selection.entities.contains(&entity.id) { continue }
+        if !document.selection.entities.contains(&entity.id) {
+            continue;
+        }
         let at = transform(entity.origin());
         const ARM: f32 = 8.0;
         for axis in 0..3 {
@@ -156,7 +160,11 @@ fn stroke_polygons(
             .collect();
         // A two-point "polygon" is a line, not a loop: closing it would draw
         // an entity marker's arms twice.
-        let last = if points.len() > 2 { points.len() } else { points.len().saturating_sub(1) };
+        let last = if points.len() > 2 {
+            points.len()
+        } else {
+            points.len().saturating_sub(1)
+        };
         for i in 0..last {
             painter.line_segment([points[i], points[(i + 1) % points.len()]], stroke);
         }
@@ -184,7 +192,9 @@ pub fn draw_2d(
     // Brushes, world first so entity brushes draw over them.
     for (entity, solid) in document.map.all_solids() {
         let bounds = solid.bounds();
-        if !viewport.shows(bounds) { continue; }
+        if !viewport.shows(bounds) {
+            continue;
+        }
 
         let selected = document.selection.solids.contains(&solid.id)
             || document.selection.entities.contains(&entity.id);
@@ -207,7 +217,11 @@ pub fn draw_2d(
         let origin = entity.origin();
         let selected = document.selection.entities.contains(&entity.id);
         let kind = crate::icons::Kind::of(entity.classname());
-        let color = if selected { colors::SELECTED } else { kind.colour() };
+        let color = if selected {
+            colors::SELECTED
+        } else {
+            kind.colour()
+        };
         let center = to_screen(origin);
         crate::icons::draw(painter, center, 7.0, kind, color);
         if selected {
@@ -242,7 +256,9 @@ pub fn draw_2d(
 
 /// Grid lines, coarsening automatically as the view zooms out.
 fn draw_grid(painter: &Painter, rect: Rect, viewport: &Viewport, document: &Document) {
-    let Some(spacing) = document.grid.draw_spacing(viewport.zoom) else { return };
+    let Some(spacing) = document.grid.draw_spacing(viewport.zoom) else {
+        return;
+    };
     let (h, v, _) = viewport.kind.axes();
     let bounds = viewport.visible_bounds();
 
@@ -257,7 +273,9 @@ fn draw_grid(painter: &Painter, rect: Rect, viewport: &Viewport, document: &Docu
         let world = i as f32 * spacing;
         let (x, _) = viewport.world_to_screen(axis_point(h, world));
         let x = rect.min.x + x;
-        if x < rect.min.x || x > rect.max.x { continue; }
+        if x < rect.min.x || x > rect.max.x {
+            continue;
+        }
         let color = grid_color(i, world);
         line(Pos2::new(x, rect.min.y), Pos2::new(x, rect.max.y), color);
     }
@@ -268,7 +286,9 @@ fn draw_grid(painter: &Painter, rect: Rect, viewport: &Viewport, document: &Docu
         let world = i as f32 * spacing;
         let (_, y) = viewport.world_to_screen(axis_point(v, world));
         let y = rect.min.y + y;
-        if y < rect.min.y || y > rect.max.y { continue; }
+        if y < rect.min.y || y > rect.max.y {
+            continue;
+        }
         let color = grid_color(i, world);
         line(Pos2::new(rect.min.x, y), Pos2::new(rect.max.x, y), color);
     }
@@ -324,10 +344,18 @@ fn draw_solid_outline(
 /// drawing it -- and an editor that knows and does not say is one you have to
 /// compile twice to trust.
 fn draw_motion(painter: &Painter, rect: Rect, viewport: &Viewport, document: &Document) {
-    let Some(motion) = crate::motion::of_selection(document) else { return };
+    let Some(motion) = crate::motion::of_selection(document) else {
+        return;
+    };
 
     let colour = colors::MOTION;
-    stroke_polygons(painter, rect, viewport, &motion.ghost, Stroke::new(1.0, colour));
+    stroke_polygons(
+        painter,
+        rect,
+        viewport,
+        &motion.ghost,
+        Stroke::new(1.0, colour),
+    );
 
     let to_screen = |world: Vec3| {
         let (x, y) = viewport.world_to_screen(world);
@@ -369,16 +397,24 @@ fn draw_resize_grips(
     document: &Document,
     tool: &Tool,
 ) {
-    if tool.kind != ToolKind::Select { return }
-    let Some(bounds) = document.resizable_bounds() else { return };
+    if tool.kind != ToolKind::Select {
+        return;
+    }
+    let Some(bounds) = document.resizable_bounds() else {
+        return;
+    };
     // Hidden mid-drag: the grips describe where the selection is, and during
     // a drag that is somewhere else.
-    if tool.drag.as_ref().is_some_and(|d| d.is_dragging) { return }
+    if tool.drag.as_ref().is_some_and(|d| d.is_dragging) {
+        return;
+    }
 
     for grip in crate::tools::Handle::all() {
         let (x, y) = viewport.world_to_screen(grip.world_position(bounds, viewport));
         let at = Pos2::new(rect.min.x + x, rect.min.y + y);
-        if !rect.contains(at) { continue }
+        if !rect.contains(at) {
+            continue;
+        }
 
         let box_ = Rect::from_center_size(at, Vec2::splat(crate::tools::HANDLE_SIZE));
         painter.rect_filled(box_, 0.0, colors::SELECTED);
@@ -400,21 +436,33 @@ fn draw_tool_preview(
     tool: &Tool,
 ) {
     let Some(drag) = &tool.drag else { return };
-    if !drag.is_dragging && !tool.kind.draws_a_box() { return; }
+    if !drag.is_dragging && !tool.kind.draws_a_box() {
+        return;
+    }
 
     // A select drag with a grip in hand is a resize. Show the shape it will
     // become and the size it will be, because "how big is it now" is the only
     // question anyone is asking while dragging a handle.
     if let (Some(grip), Some(from)) = (drag.grip, drag.from) {
         let minimum = document.grid.size;
-        let Some((anchor, factor)) =
-            crate::tools::resize_factor(from, viewport.kind.plane_axes(), grip, drag.current, minimum)
-        else {
+        let Some((anchor, factor)) = crate::tools::resize_factor(
+            from,
+            viewport.kind.plane_axes(),
+            grip,
+            drag.current,
+            minimum,
+        ) else {
             return;
         };
 
         let ghost = resize_outline(document, anchor, factor);
-        stroke_polygons(painter, rect, viewport, &ghost, Stroke::new(1.5, colors::TOOL_PREVIEW));
+        stroke_polygons(
+            painter,
+            rect,
+            viewport,
+            &ghost,
+            Stroke::new(1.5, colors::TOOL_PREVIEW),
+        );
 
         let (h, v, _) = viewport.kind.axes();
         let size = from.size() * factor;
@@ -439,8 +487,16 @@ fn draw_tool_preview(
     if tool.kind == ToolKind::Select {
         let delta = drag.delta();
         let ghost = ghost_outline(document, delta);
-        if ghost.is_empty() { return }
-        stroke_polygons(painter, rect, viewport, &ghost, Stroke::new(1.5, colors::TOOL_PREVIEW));
+        if ghost.is_empty() {
+            return;
+        }
+        stroke_polygons(
+            painter,
+            rect,
+            viewport,
+            &ghost,
+            Stroke::new(1.5, colors::TOOL_PREVIEW),
+        );
 
         let (h, v, _) = viewport.kind.axes();
         let anchor = viewport.world_to_screen(drag.current);
@@ -477,7 +533,13 @@ fn draw_tool_preview(
             .iter()
             .flat_map(|s| s.face_windings().into_iter().map(|(_, w)| w.points.clone()))
             .collect();
-        stroke_polygons(painter, rect, viewport, &outlines, Stroke::new(1.0, colors::TOOL_PREVIEW));
+        stroke_polygons(
+            painter,
+            rect,
+            viewport,
+            &outlines,
+            Stroke::new(1.0, colors::TOOL_PREVIEW),
+        );
 
         let (h, v, _) = viewport.kind.axes();
         let size = (max - min).abs();
@@ -490,7 +552,11 @@ fn draw_tool_preview(
                 kerosene_math::units::length_short(size[h]),
                 kerosene_math::units::length_short(size[v]),
                 solids.len(),
-                if solids.len() == 1 { "brush" } else { "brushes" },
+                if solids.len() == 1 {
+                    "brush"
+                } else {
+                    "brushes"
+                },
             ),
             egui::FontId::monospace(11.0),
             colors::TOOL_PREVIEW,
@@ -537,7 +603,9 @@ fn draw_tool_preview(
 /// one-unit gap in a large map from coordinates is not a reasonable thing to
 /// ask. Follow the line to the wall it goes through.
 fn draw_leak(painter: &Painter, rect: Rect, viewport: &Viewport, leak: &crate::leak::LeakTrace) {
-    if leak.is_empty() { return }
+    if leak.is_empty() {
+        return;
+    }
     let stroke = Stroke::new(2.0, colors::LEAK);
     let to_screen = |world: Vec3| {
         let (x, y) = viewport.world_to_screen(world);
@@ -639,7 +707,9 @@ pub fn texel_for(side: &kerosene_map::Side, point: Vec3) -> (f32, f32) {
 /// ceiling and side walls all have corners behind you, so whole walls vanish
 /// as the camera turns.
 pub fn clip_near(polygon: &[FaceVertex], near: f32) -> Vec<FaceVertex> {
-    if polygon.len() < 3 { return Vec::new(); }
+    if polygon.len() < 3 {
+        return Vec::new();
+    }
 
     let mut out: Vec<FaceVertex> = Vec::with_capacity(polygon.len() + 2);
     for i in 0..polygon.len() {
@@ -648,7 +718,9 @@ pub fn clip_near(polygon: &[FaceVertex], near: f32) -> Vec<FaceVertex> {
         let current_in = current.position.z >= near;
         let next_in = next.position.z >= near;
 
-        if current_in { out.push(current); }
+        if current_in {
+            out.push(current);
+        }
         // Emit a crossing point whenever the edge changes side.
         if current_in != next_in {
             let span = next.position.z - current.position.z;
@@ -662,9 +734,10 @@ pub fn clip_near(polygon: &[FaceVertex], near: f32) -> Vec<FaceVertex> {
                 // crossing, and would otherwise be emitted twice. A repeated
                 // point makes a zero-length edge, which is where stroke
                 // tessellation used to produce a spike across the screen.
-                if out.last().is_none_or(|last| {
-                    last.position.distance_squared(crossing.position) > 1e-12
-                }) {
+                if out
+                    .last()
+                    .is_none_or(|last| last.position.distance_squared(crossing.position) > 1e-12)
+                {
                     out.push(crossing);
                 }
             }
@@ -673,7 +746,10 @@ pub fn clip_near(polygon: &[FaceVertex], near: f32) -> Vec<FaceVertex> {
     // The same again across the wrap: the crossing on the last edge can land
     // exactly on the first vertex.
     if out.len() >= 2
-        && out[0].position.distance_squared(out.last().expect("checked").position) <= 1e-12
+        && out[0]
+            .position
+            .distance_squared(out.last().expect("checked").position)
+            <= 1e-12
     {
         out.pop();
     }
@@ -684,9 +760,15 @@ pub fn clip_near(polygon: &[FaceVertex], near: f32) -> Vec<FaceVertex> {
 pub fn clip_near_positions(polygon: &[Vec3], near: f32) -> Vec<Vec3> {
     let vertices: Vec<FaceVertex> = polygon
         .iter()
-        .map(|p| FaceVertex { position: *p, texel: (0.0, 0.0) })
+        .map(|p| FaceVertex {
+            position: *p,
+            texel: (0.0, 0.0),
+        })
         .collect();
-    clip_near(&vertices, near).into_iter().map(|v| v.position).collect()
+    clip_near(&vertices, near)
+        .into_iter()
+        .map(|v| v.position)
+        .collect()
 }
 
 /// One face of the document, ready to draw in the 3D pane.
@@ -713,7 +795,11 @@ pub struct VisibleFace {
 /// with a testable answer. Both of the bugs this function replaced were
 /// invisible to every other test in the editor and obvious the moment you
 /// turned the camera.
-pub fn visible_faces(document: &Document, eye: Vec3, basis: kerosene_math::Basis) -> Vec<VisibleFace> {
+pub fn visible_faces(
+    document: &Document,
+    eye: Vec3,
+    basis: kerosene_math::Basis,
+) -> Vec<VisibleFace> {
     let mut faces = Vec::new();
 
     for (entity, solid) in document.map.all_solids() {
@@ -723,23 +809,32 @@ pub fn visible_faces(document: &Document, eye: Vec3, basis: kerosene_math::Basis
         for (side, winding) in solid.face_windings() {
             let Some(plane) = side.plane() else { continue };
             // Back-face cull: a face pointing away is inside the brush.
-            if plane.normal.dot(eye - winding.center()) <= 0.0 { continue; }
+            if plane.normal.dot(eye - winding.center()) <= 0.0 {
+                continue;
+            }
 
             let camera = to_camera_space(&winding.points, eye, basis);
             let vertices: Vec<FaceVertex> = winding
                 .points
                 .iter()
                 .zip(camera)
-                .map(|(world, position)| FaceVertex { position, texel: texel_for(side, *world) })
+                .map(|(world, position)| FaceVertex {
+                    position,
+                    texel: texel_for(side, *world),
+                })
                 .collect();
             let polygon = clip_near(&vertices, NEAR);
-            if polygon.len() < 3 { continue; }
+            if polygon.len() < 3 {
+                continue;
+            }
 
             // Sort by the *farthest* vertex, not the average. A small object
             // standing on a large surface has a greater average depth than the
             // surface it sits on, so averaging sorts the surface later and
             // paints it straight over the object.
-            let depth = polygon.iter().fold(f32::MIN, |acc, v| acc.max(v.position.z));
+            let depth = polygon
+                .iter()
+                .fold(f32::MIN, |acc, v| acc.max(v.position.z));
             let face_selected = document.selection.faces.contains(&(solid.id, side.id));
             faces.push(VisibleFace {
                 polygon,
@@ -753,7 +848,11 @@ pub fn visible_faces(document: &Document, eye: Vec3, basis: kerosene_math::Basis
         }
     }
 
-    faces.sort_by(|a, b| b.depth.partial_cmp(&a.depth).unwrap_or(std::cmp::Ordering::Equal));
+    faces.sort_by(|a, b| {
+        b.depth
+            .partial_cmp(&a.depth)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
     faces
 }
 
@@ -766,7 +865,11 @@ pub fn apply_action(document: &mut Document, viewport: &Viewport, action: ToolAc
         ToolAction::CreateBlock(bounds) => {
             document.create_block(bounds.min, bounds.max);
         }
-        ToolAction::CreateShape { bounds, shape, options } => {
+        ToolAction::CreateShape {
+            bounds,
+            shape,
+            options,
+        } => {
             // Snapped, and along the axis the view cannot see, so a shape
             // lands on the grid like everything else and stands the way the
             // pane it was drawn in implies.
@@ -799,7 +902,9 @@ pub fn apply_action(document: &mut Document, viewport: &Viewport, action: ToolAc
             }
         }
         ToolAction::PickAt(point, add) => {
-            if !add { document.selection.clear(); }
+            if !add {
+                document.selection.clear();
+            }
 
             // Entities take priority: they are drawn on top and are smaller
             // targets, so a click near one almost always means the entity.
@@ -816,7 +921,9 @@ pub fn apply_action(document: &mut Document, viewport: &Viewport, action: ToolAc
                     .find(|(_, s)| s.id == id)
                     .map(|(e, _)| (e.id, e.is_brush_entity() && e.classname() != "worldspawn"));
                 match owner {
-                    Some((entity_id, true)) => toggle(&mut document.selection.entities, entity_id, add),
+                    Some((entity_id, true)) => {
+                        toggle(&mut document.selection.entities, entity_id, add)
+                    }
                     _ => toggle(&mut document.selection.solids, id, add),
                 }
             }
@@ -841,7 +948,11 @@ pub fn framing_bounds(document: &Document) -> Aabb {
         .filter(|b| !b.is_empty())
         .unwrap_or_else(|| {
             let all = document.map.bounds();
-            if all.is_empty() { Aabb::new(Vec3::splat(-512.0), Vec3::splat(512.0)) } else { all }
+            if all.is_empty() {
+                Aabb::new(Vec3::splat(-512.0), Vec3::splat(512.0))
+            } else {
+                all
+            }
         })
 }
 
@@ -853,7 +964,11 @@ mod tests {
     fn setup() -> (Document, Viewport) {
         let mut document = Document::new();
         document.grid.size = 16.0;
-        let viewport = Viewport { size: (800.0, 600.0), zoom: 1.0, ..Viewport::new(ViewportKind::Top) };
+        let viewport = Viewport {
+            size: (800.0, 600.0),
+            zoom: 1.0,
+            ..Viewport::new(ViewportKind::Top)
+        };
         (document, viewport)
     }
 
@@ -863,7 +978,11 @@ mod tests {
         let id = document.create_block(Vec3::ZERO, Vec3::splat(64.0));
         document.selection.clear();
 
-        apply_action(&mut document, &viewport, ToolAction::PickAt(Vec3::new(32.0, 32.0, 0.0), false));
+        apply_action(
+            &mut document,
+            &viewport,
+            ToolAction::PickAt(Vec3::new(32.0, 32.0, 0.0), false),
+        );
         assert_eq!(document.selection.solids.len(), 1);
         assert!(document.selection.solids.contains(&id));
     }
@@ -872,7 +991,11 @@ mod tests {
     fn picking_empty_space_clears_the_selection() {
         let (mut document, viewport) = setup();
         document.create_block(Vec3::ZERO, Vec3::splat(64.0));
-        apply_action(&mut document, &viewport, ToolAction::PickAt(Vec3::new(900.0, 900.0, 0.0), false));
+        apply_action(
+            &mut document,
+            &viewport,
+            ToolAction::PickAt(Vec3::new(900.0, 900.0, 0.0), false),
+        );
         assert!(document.selection.is_empty());
     }
 
@@ -883,13 +1006,25 @@ mod tests {
         let b = document.create_block(Vec3::new(128.0, 0.0, 0.0), Vec3::new(192.0, 64.0, 64.0));
         document.selection.clear();
 
-        apply_action(&mut document, &viewport, ToolAction::PickAt(Vec3::new(32.0, 32.0, 0.0), false));
-        apply_action(&mut document, &viewport, ToolAction::PickAt(Vec3::new(160.0, 32.0, 0.0), true));
+        apply_action(
+            &mut document,
+            &viewport,
+            ToolAction::PickAt(Vec3::new(32.0, 32.0, 0.0), false),
+        );
+        apply_action(
+            &mut document,
+            &viewport,
+            ToolAction::PickAt(Vec3::new(160.0, 32.0, 0.0), true),
+        );
         assert_eq!(document.selection.solids.len(), 2);
         assert!(document.selection.solids.contains(&a) && document.selection.solids.contains(&b));
 
         // Shift-clicking the same thing again removes it.
-        apply_action(&mut document, &viewport, ToolAction::PickAt(Vec3::new(160.0, 32.0, 0.0), true));
+        apply_action(
+            &mut document,
+            &viewport,
+            ToolAction::PickAt(Vec3::new(160.0, 32.0, 0.0), true),
+        );
         assert_eq!(document.selection.solids.len(), 1);
     }
 
@@ -901,7 +1036,11 @@ mod tests {
         let door = document.tie_to_entity("func_door").unwrap();
         document.selection.clear();
 
-        apply_action(&mut document, &viewport, ToolAction::PickAt(Vec3::new(32.0, 32.0, 0.0), false));
+        apply_action(
+            &mut document,
+            &viewport,
+            ToolAction::PickAt(Vec3::new(32.0, 32.0, 0.0), false),
+        );
         assert!(document.selection.entities.contains(&door));
         assert!(document.selection.solids.is_empty());
     }
@@ -913,7 +1052,11 @@ mod tests {
         let light = document.create_entity("light", Vec3::new(64.0, 64.0, 64.0));
         document.selection.clear();
 
-        apply_action(&mut document, &viewport, ToolAction::PickAt(Vec3::new(64.0, 64.0, 0.0), false));
+        apply_action(
+            &mut document,
+            &viewport,
+            ToolAction::PickAt(Vec3::new(64.0, 64.0, 0.0), false),
+        );
         assert!(document.selection.entities.contains(&light));
     }
 
@@ -922,8 +1065,19 @@ mod tests {
         let (mut document, viewport) = setup();
         let id = document.create_block(Vec3::ZERO, Vec3::splat(64.0));
         document.current_material = "dev/wall".into();
-        apply_action(&mut document, &viewport, ToolAction::ApplyMaterialAt(Vec3::new(32.0, 32.0, 0.0)));
-        assert!(document.find_solid(id).unwrap().sides.iter().all(|s| s.material == "dev/wall"));
+        apply_action(
+            &mut document,
+            &viewport,
+            ToolAction::ApplyMaterialAt(Vec3::new(32.0, 32.0, 0.0)),
+        );
+        assert!(
+            document
+                .find_solid(id)
+                .unwrap()
+                .sides
+                .iter()
+                .all(|s| s.material == "dev/wall")
+        );
     }
 
     // ---- the move ghost --------------------------------------------------
@@ -966,7 +1120,10 @@ mod tests {
                 max = max.max(*p);
             }
         }
-        assert!((min - (before.min + delta)).length() < 1e-3, "ghost is not at the destination");
+        assert!(
+            (min - (before.min + delta)).length() < 1e-3,
+            "ghost is not at the destination"
+        );
         assert!((max - (before.max + delta)).length() < 1e-3);
     }
 
@@ -978,7 +1135,10 @@ mod tests {
         assert_eq!(ghost.len(), 6, "only the selected box, not both");
         for polygon in &ghost {
             for p in polygon {
-                assert!(p.x <= 64.0 + 1e-3, "a brush that is not selected was drawn as moving");
+                assert!(
+                    p.x <= 64.0 + 1e-3,
+                    "a brush that is not selected was drawn as moving"
+                );
             }
         }
     }
@@ -1010,7 +1170,9 @@ mod tests {
         let (mut document, a, b) = two_brushes();
         document.selection.solids.insert(a);
         document.selection.solids.insert(b);
-        let entity = document.tie_to_entity("func_door").expect("brushes tie to an entity");
+        let entity = document
+            .tie_to_entity("func_door")
+            .expect("brushes tie to an entity");
 
         document.selection.clear();
         document.selection.entities.insert(entity);
@@ -1033,7 +1195,10 @@ mod tests {
         document.create_block(Vec3::splat(500.0), Vec3::splat(600.0));
         // Only the first is selected, from create_block.
         document.selection.clear();
-        document.selection.solids.insert(document.map.world.solids[0].id);
+        document
+            .selection
+            .solids
+            .insert(document.map.world.solids[0].id);
         let bounds = framing_bounds(&document);
         assert_eq!(bounds.max, Vec3::splat(64.0));
     }
@@ -1044,51 +1209,83 @@ mod tests {
     fn a_resize_action_scales_the_selection_and_holds_the_far_side_still() {
         let (mut document, a, _) = two_brushes();
         document.selection.solids.insert(a);
-        let viewport = Viewport { size: (800.0, 600.0), zoom: 1.0, ..Viewport::new(ViewportKind::Top) };
+        let viewport = Viewport {
+            size: (800.0, 600.0),
+            zoom: 1.0,
+            ..Viewport::new(ViewportKind::Top)
+        };
         let from = document.selection_bounds().unwrap();
 
-        apply_action(&mut document, &viewport, ToolAction::Resize {
-            from,
-            grip: crate::tools::Handle { h: 1, v: 1 },
-            to: Vec3::new(128.0, 128.0, 0.0),
-        });
+        apply_action(
+            &mut document,
+            &viewport,
+            ToolAction::Resize {
+                from,
+                grip: crate::tools::Handle { h: 1, v: 1 },
+                to: Vec3::new(128.0, 128.0, 0.0),
+            },
+        );
 
         let after = document.selection_bounds().unwrap();
         assert_eq!(after.min, Vec3::ZERO, "the anchored corner stayed put");
-        assert_eq!(after.max, Vec3::new(128.0, 128.0, 64.0), "z is not on screen and did not move");
+        assert_eq!(
+            after.max,
+            Vec3::new(128.0, 128.0, 64.0),
+            "z is not on screen and did not move"
+        );
     }
 
     #[test]
     fn a_resize_is_one_undo_step() {
         let (mut document, a, _) = two_brushes();
         document.selection.solids.insert(a);
-        let viewport = Viewport { size: (800.0, 600.0), zoom: 1.0, ..Viewport::new(ViewportKind::Top) };
+        let viewport = Viewport {
+            size: (800.0, 600.0),
+            zoom: 1.0,
+            ..Viewport::new(ViewportKind::Top)
+        };
         let before = document.selection_bounds().unwrap();
 
-        apply_action(&mut document, &viewport, ToolAction::Resize {
-            from: before,
-            grip: crate::tools::Handle { h: 1, v: 1 },
-            to: Vec3::new(128.0, 128.0, 0.0),
-        });
+        apply_action(
+            &mut document,
+            &viewport,
+            ToolAction::Resize {
+                from: before,
+                grip: crate::tools::Handle { h: 1, v: 1 },
+                to: Vec3::new(128.0, 128.0, 0.0),
+            },
+        );
         assert_eq!(document.undo_label(), Some("resize"));
 
         document.undo();
-        assert_eq!(document.selection_bounds().unwrap(), before, "undo puts it back exactly");
+        assert_eq!(
+            document.selection_bounds().unwrap(),
+            before,
+            "undo puts it back exactly"
+        );
     }
 
     #[test]
     fn a_resize_leaves_everything_that_is_not_selected_alone() {
         let (mut document, a, b) = two_brushes();
         document.selection.solids.insert(a);
-        let viewport = Viewport { size: (800.0, 600.0), zoom: 1.0, ..Viewport::new(ViewportKind::Top) };
+        let viewport = Viewport {
+            size: (800.0, 600.0),
+            zoom: 1.0,
+            ..Viewport::new(ViewportKind::Top)
+        };
         let untouched = document.find_solid(b).unwrap().bounds();
         let from = document.selection_bounds().unwrap();
 
-        apply_action(&mut document, &viewport, ToolAction::Resize {
-            from,
-            grip: crate::tools::Handle { h: 1, v: 1 },
-            to: Vec3::new(512.0, 512.0, 0.0),
-        });
+        apply_action(
+            &mut document,
+            &viewport,
+            ToolAction::Resize {
+                from,
+                grip: crate::tools::Handle { h: 1, v: 1 },
+                to: Vec3::new(512.0, 512.0, 0.0),
+            },
+        );
 
         assert_eq!(document.find_solid(b).unwrap().bounds(), untouched);
     }
@@ -1097,14 +1294,22 @@ mod tests {
     fn a_resized_brush_is_still_a_brush_the_compiler_will_take() {
         let (mut document, a, _) = two_brushes();
         document.selection.solids.insert(a);
-        let viewport = Viewport { size: (800.0, 600.0), zoom: 1.0, ..Viewport::new(ViewportKind::Front) };
+        let viewport = Viewport {
+            size: (800.0, 600.0),
+            zoom: 1.0,
+            ..Viewport::new(ViewportKind::Front)
+        };
         let from = document.selection_bounds().unwrap();
 
-        apply_action(&mut document, &viewport, ToolAction::Resize {
-            from,
-            grip: crate::tools::Handle { h: -1, v: 1 },
-            to: Vec3::new(-256.0, 0.0, 192.0),
-        });
+        apply_action(
+            &mut document,
+            &viewport,
+            ToolAction::Resize {
+                from,
+                grip: crate::tools::Handle { h: -1, v: 1 },
+                to: Vec3::new(-256.0, 0.0, 192.0),
+            },
+        );
 
         assert!(document.problems().is_empty(), "{:?}", document.problems());
     }
@@ -1115,16 +1320,25 @@ mod tests {
         // lies, and the only reason to draw one is to be believed.
         let (mut document, a, _) = two_brushes();
         document.selection.solids.insert(a);
-        let viewport = Viewport { size: (800.0, 600.0), zoom: 1.0, ..Viewport::new(ViewportKind::Top) };
+        let viewport = Viewport {
+            size: (800.0, 600.0),
+            zoom: 1.0,
+            ..Viewport::new(ViewportKind::Top)
+        };
         let from = document.selection_bounds().unwrap();
         let grip = crate::tools::Handle { h: 1, v: 1 };
         let to = Vec3::new(128.0, 128.0, 0.0);
 
-        let (anchor, factor) = crate::tools::resize_factor(from, viewport.kind.plane_axes(), grip, to, 16.0).unwrap();
+        let (anchor, factor) =
+            crate::tools::resize_factor(from, viewport.kind.plane_axes(), grip, to, 16.0).unwrap();
         let preview = resize_outline(&document, anchor, factor);
         let predicted = bounds_of(&preview);
 
-        apply_action(&mut document, &viewport, ToolAction::Resize { from, grip, to });
+        apply_action(
+            &mut document,
+            &viewport,
+            ToolAction::Resize { from, grip, to },
+        );
         assert_eq!(predicted, document.selection_bounds().unwrap());
     }
 
@@ -1132,7 +1346,9 @@ mod tests {
     fn bounds_of(polygons: &[Vec<Vec3>]) -> Aabb {
         let mut bounds = Aabb::EMPTY;
         for polygon in polygons {
-            for p in polygon { bounds.add_point(*p); }
+            for p in polygon {
+                bounds.add_point(*p);
+            }
         }
         bounds
     }
@@ -1142,16 +1358,31 @@ mod tests {
         let mut document = Document::new();
         document.grid.size = 16.0;
         document.map.world.solids.clear();
-        let viewport = Viewport { size: (800.0, 600.0), zoom: 1.0, ..Viewport::new(ViewportKind::Top) };
+        let viewport = Viewport {
+            size: (800.0, 600.0),
+            zoom: 1.0,
+            ..Viewport::new(ViewportKind::Top)
+        };
 
-        apply_action(&mut document, &viewport, ToolAction::CreateShape {
-            bounds: Aabb::new(Vec3::ZERO, Vec3::splat(256.0)),
-            shape: crate::shapes::Shape::Arch,
-            options: crate::shapes::Options { sides: 8, ..Default::default() },
-        });
+        apply_action(
+            &mut document,
+            &viewport,
+            ToolAction::CreateShape {
+                bounds: Aabb::new(Vec3::ZERO, Vec3::splat(256.0)),
+                shape: crate::shapes::Shape::Arch,
+                options: crate::shapes::Options {
+                    sides: 8,
+                    ..Default::default()
+                },
+            },
+        );
 
         assert_eq!(document.map.world.solids.len(), 8);
-        assert_eq!(document.selection.solids.len(), 8, "and it is selected, ready to be moved");
+        assert_eq!(
+            document.selection.solids.len(),
+            8,
+            "and it is selected, ready to be moved"
+        );
         assert!(document.problems().is_empty(), "{:?}", document.problems());
 
         // One press of ctrl-Z takes back the whole arch.
@@ -1166,12 +1397,20 @@ mod tests {
             let mut document = Document::new();
             document.grid.size = 16.0;
             document.map.world.solids.clear();
-            let viewport = Viewport { size: (800.0, 600.0), zoom: 1.0, ..Viewport::new(kind) };
-            apply_action(&mut document, &viewport, ToolAction::CreateShape {
-                bounds,
-                shape: crate::shapes::Shape::Cylinder,
-                options: crate::shapes::Options::default(),
-            });
+            let viewport = Viewport {
+                size: (800.0, 600.0),
+                zoom: 1.0,
+                ..Viewport::new(kind)
+            };
+            apply_action(
+                &mut document,
+                &viewport,
+                ToolAction::CreateShape {
+                    bounds,
+                    shape: crate::shapes::Shape::Cylinder,
+                    options: crate::shapes::Options::default(),
+                },
+            );
             document.map.world.solids[0].bounds().size()
         };
 
@@ -1192,13 +1431,21 @@ mod tests {
         document.grid.size = 16.0;
         document.map.world.solids.clear();
         document.current_material = "tools/clip".into();
-        let viewport = Viewport { size: (800.0, 600.0), zoom: 1.0, ..Viewport::new(ViewportKind::Top) };
+        let viewport = Viewport {
+            size: (800.0, 600.0),
+            zoom: 1.0,
+            ..Viewport::new(ViewportKind::Top)
+        };
 
-        apply_action(&mut document, &viewport, ToolAction::CreateShape {
-            bounds: Aabb::new(Vec3::ZERO, Vec3::splat(256.0)),
-            shape: crate::shapes::Shape::Cylinder,
-            options: crate::shapes::Options::default(),
-        });
+        apply_action(
+            &mut document,
+            &viewport,
+            ToolAction::CreateShape {
+                bounds: Aabb::new(Vec3::ZERO, Vec3::splat(256.0)),
+                shape: crate::shapes::Shape::Cylinder,
+                options: crate::shapes::Options::default(),
+            },
+        );
 
         let solid = &document.map.world.solids[0];
         assert!(solid.sides.iter().all(|s| s.material == "tools/clip"));
@@ -1212,13 +1459,21 @@ mod tests {
         let mut document = Document::new();
         document.grid.size = 16.0;
         document.map.world.solids.clear();
-        let viewport = Viewport { size: (800.0, 600.0), zoom: 1.0, ..Viewport::new(ViewportKind::Top) };
+        let viewport = Viewport {
+            size: (800.0, 600.0),
+            zoom: 1.0,
+            ..Viewport::new(ViewportKind::Top)
+        };
 
-        apply_action(&mut document, &viewport, ToolAction::CreateShape {
-            bounds: Aabb::new(Vec3::ZERO, Vec3::new(256.0, 256.0, 0.0)),
-            shape: crate::shapes::Shape::Cylinder,
-            options: crate::shapes::Options::default(),
-        });
+        apply_action(
+            &mut document,
+            &viewport,
+            ToolAction::CreateShape {
+                bounds: Aabb::new(Vec3::ZERO, Vec3::new(256.0, 256.0, 0.0)),
+                shape: crate::shapes::Shape::Cylinder,
+                options: crate::shapes::Options::default(),
+            },
+        );
 
         assert_eq!(document.map.world.solids.len(), 1);
         assert_eq!(document.map.world.solids[0].bounds().size().z, 16.0);
@@ -1232,18 +1487,25 @@ mod tests {
         let mut document = Document::new();
         document.grid.snap = false;
         document.map.world.solids.clear();
-        let viewport = Viewport { size: (800.0, 600.0), zoom: 1.0, ..Viewport::new(ViewportKind::Top) };
+        let viewport = Viewport {
+            size: (800.0, 600.0),
+            zoom: 1.0,
+            ..Viewport::new(ViewportKind::Top)
+        };
 
-        apply_action(&mut document, &viewport, ToolAction::CreateShape {
-            bounds: Aabb::new(Vec3::ZERO, Vec3::new(256.0, 256.0, 0.0)),
-            shape: crate::shapes::Shape::Cylinder,
-            options: crate::shapes::Options::default(),
-        });
+        apply_action(
+            &mut document,
+            &viewport,
+            ToolAction::CreateShape {
+                bounds: Aabb::new(Vec3::ZERO, Vec3::new(256.0, 256.0, 0.0)),
+                shape: crate::shapes::Shape::Cylinder,
+                options: crate::shapes::Options::default(),
+            },
+        );
 
         assert!(document.map.world.solids.is_empty());
         assert_eq!(document.undo_depth(), 0, "and nothing to undo");
     }
-
 }
 
 #[cfg(test)]
@@ -1299,7 +1561,10 @@ mod view_tests {
             Vec3::new(-10.0, 10.0, 200.0),
         ];
         let clipped = clip_near_positions(&quad, NEAR);
-        assert!(clipped.len() >= 3, "the visible half should survive, got {clipped:?}");
+        assert!(
+            clipped.len() >= 3,
+            "the visible half should survive, got {clipped:?}"
+        );
         assert!(
             clipped.iter().all(|p| p.z >= NEAR - 1e-4),
             "nothing may remain behind the near plane: {clipped:?}"
@@ -1339,7 +1604,10 @@ mod view_tests {
         let clipped = clip_near_positions(&quad, NEAR);
         assert_eq!(clipped.len(), 4, "{clipped:?}");
         for pair in clipped.windows(2) {
-            assert!(pair[0].distance_squared(pair[1]) > 1e-12, "a point was repeated: {clipped:?}");
+            assert!(
+                pair[0].distance_squared(pair[1]) > 1e-12,
+                "a point was repeated: {clipped:?}"
+            );
         }
         assert!(
             clipped[0].distance_squared(*clipped.last().expect("not empty")) > 1e-12,
@@ -1372,7 +1640,11 @@ mod view_tests {
                 Vec3::new(-10.0, 10.0, z),
             ];
             for p in clip_near_positions(&quad, NEAR) {
-                assert!(p.z >= NEAR - 1e-4, "z = {} slipped through for start {z}", p.z);
+                assert!(
+                    p.z >= NEAR - 1e-4,
+                    "z = {} slipped through for start {z}",
+                    p.z
+                );
                 assert!((p.x / p.z).is_finite() && (p.y / p.z).is_finite());
             }
         }
@@ -1411,7 +1683,10 @@ mod view_tests {
         let basis = basis_for(180.0, 0.0);
 
         let faces = visible_faces(&document, eye, basis);
-        assert!(!faces.is_empty(), "the wall in front of the camera vanished");
+        assert!(
+            !faces.is_empty(),
+            "the wall in front of the camera vanished"
+        );
         for face in &faces {
             assert!(face.polygon.iter().all(|v| v.position.z >= NEAR - 1e-4));
         }
@@ -1429,7 +1704,10 @@ mod view_tests {
             let faces = visible_faces(&document, eye, basis_for(yaw as f32, 0.0));
             fewest = fewest.min(faces.len());
         }
-        assert!(fewest >= 3, "only {fewest} faces visible at the worst angle");
+        assert!(
+            fewest >= 3,
+            "only {fewest} faces visible at the worst angle"
+        );
     }
 
     // ---- draw order ------------------------------------------------------
@@ -1455,10 +1733,8 @@ mod view_tests {
             Vec3::new(-512.0, -100.0, -16.0),
             Vec3::new(512.0, 900.0, 0.0),
         );
-        let crate_id = document.create_block(
-            Vec3::new(-32.0, 400.0, 0.0),
-            Vec3::new(32.0, 440.0, 64.0),
-        );
+        let crate_id =
+            document.create_block(Vec3::new(-32.0, 400.0, 0.0), Vec3::new(32.0, 440.0, 64.0));
         document.selection.clear();
         document.selection.solids.insert(crate_id);
 
@@ -1507,7 +1783,11 @@ mod view_tests {
         // Outside a lone box, at most three of its six faces can be seen.
         let mut document = Document::new();
         document.create_block(Vec3::ZERO, Vec3::splat(64.0));
-        let faces = visible_faces(&document, Vec3::new(-300.0, -300.0, 200.0), basis_for(45.0, 20.0));
+        let faces = visible_faces(
+            &document,
+            Vec3::new(-300.0, -300.0, 200.0),
+            basis_for(45.0, 20.0),
+        );
         assert!(faces.len() <= 3, "{} faces visible on a cube", faces.len());
         assert!(!faces.is_empty());
     }
@@ -1531,13 +1811,29 @@ mod view_tests {
         let basis = basis_for(0.0, 0.0);
         // Yaw 0 looks down +X, and +Y is left.
         let points = to_camera_space(
-            &[Vec3::new(100.0, 0.0, 0.0), Vec3::new(0.0, 50.0, 0.0), Vec3::new(0.0, 0.0, 50.0)],
+            &[
+                Vec3::new(100.0, 0.0, 0.0),
+                Vec3::new(0.0, 50.0, 0.0),
+                Vec3::new(0.0, 0.0, 50.0),
+            ],
             Vec3::ZERO,
             basis,
         );
-        assert!((points[0].z - 100.0).abs() < 1e-4, "forward should land on +z: {:?}", points[0]);
-        assert!(points[1].x < 0.0, "world +Y is to the left, so camera -x: {:?}", points[1]);
-        assert!((points[2].y - 50.0).abs() < 1e-4, "world +Z is up: {:?}", points[2]);
+        assert!(
+            (points[0].z - 100.0).abs() < 1e-4,
+            "forward should land on +z: {:?}",
+            points[0]
+        );
+        assert!(
+            points[1].x < 0.0,
+            "world +Y is to the left, so camera -x: {:?}",
+            points[1]
+        );
+        assert!(
+            (points[2].y - 50.0).abs() < 1e-4,
+            "world +Z is up: {:?}",
+            points[2]
+        );
     }
 
     #[test]
@@ -1549,5 +1845,4 @@ mod view_tests {
         let faces = visible_faces(&document, viewport.eye, viewport.angles.vectors());
         assert!(!faces.is_empty(), "the default 3D view shows nothing");
     }
-
 }

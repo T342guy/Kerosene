@@ -16,12 +16,14 @@ use crate::engine::{Engine, EngineConfig, report_unhandled, take_console_request
 use crate::input::InputSystem;
 use crate::physics::is_physics_prop;
 use kerosene_console::ConsoleUi;
+use kerosene_math::Pose;
+use kerosene_render::gpu::{
+    CameraUniform, GpuModel, LineVertex, MAX_MODELS, MapResources, Renderer, load_model,
+};
+use kerosene_render::{Camera, FrameStats, LightmapAtlas, WorldMesh};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
-use kerosene_math::Pose;
-use kerosene_render::gpu::{CameraUniform, LineVertex, MapResources, Renderer, GpuModel, MAX_MODELS, load_model};
-use kerosene_render::{Camera, FrameStats, LightmapAtlas, WorldMesh};
 use wgpu::util::DeviceExt;
 use winit::application::ApplicationHandler;
 use winit::event::{DeviceEvent, DeviceId, ElementState, MouseButton, WindowEvent};
@@ -95,7 +97,9 @@ pub fn run(config: EngineConfig) -> anyhow::Result<()> {
 
 impl ApplicationHandler for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        if self.gfx.is_some() { return; }
+        if self.gfx.is_some() {
+            return;
+        }
         match pollster::block_on(create_gfx(event_loop, &self.config)) {
             Ok(gfx) => {
                 self.gfx = Some(gfx);
@@ -141,8 +145,13 @@ impl ApplicationHandler for App {
         {
             let response = gfx.egui_state.on_window_event(&gfx.window, &event);
             let swallow = response.consumed
-                && !matches!(event, WindowEvent::RedrawRequested | WindowEvent::CloseRequested);
-            if swallow { return }
+                && !matches!(
+                    event,
+                    WindowEvent::RedrawRequested | WindowEvent::CloseRequested
+                );
+            if swallow {
+                return;
+            }
         }
 
         match event {
@@ -153,7 +162,8 @@ impl ApplicationHandler for App {
                     gfx.config.width = size.width.max(1);
                     gfx.config.height = size.height.max(1);
                     gfx.surface.configure(&gfx.device, &gfx.config);
-                    gfx.renderer.ensure_depth(&gfx.device, gfx.config.width, gfx.config.height);
+                    gfx.renderer
+                        .ensure_depth(&gfx.device, gfx.config.width, gfx.config.height);
                 }
             }
 
@@ -168,12 +178,16 @@ impl ApplicationHandler for App {
 
             WindowEvent::KeyboardInput { event, .. } => {
                 let pressed = event.state == ElementState::Pressed;
-                if event.repeat { return; }
+                if event.repeat {
+                    return;
+                }
 
                 // Held movement keys must not stay held while the console
                 // has the keyboard, or the player walks the whole time it is
                 // open.
-                if self.console_ui.open { return }
+                if self.console_ui.open {
+                    return;
+                }
                 if let PhysicalKey::Code(code) = event.physical_key
                     && let Some(name) = key_name(code)
                     && let Some(command) = self.input.key_event(name, pressed)
@@ -183,8 +197,13 @@ impl ApplicationHandler for App {
             }
 
             WindowEvent::MouseInput { state, button, .. } => {
-                if self.console_ui.open { return }
-                if button == MouseButton::Left && state == ElementState::Pressed && !self.mouse_captured {
+                if self.console_ui.open {
+                    return;
+                }
+                if button == MouseButton::Left
+                    && state == ElementState::Pressed
+                    && !self.mouse_captured
+                {
                     // Clicking the window takes the mouse, the way every game
                     // does; escape gives it back.
                     self.set_mouse_capture(true);
@@ -265,7 +284,11 @@ impl App {
     fn set_mouse_capture(&mut self, capture: bool) {
         let Some(gfx) = &self.gfx else { return };
         self.mouse_captured = capture;
-        let mode = if capture { CursorGrabMode::Locked } else { CursorGrabMode::None };
+        let mode = if capture {
+            CursorGrabMode::Locked
+        } else {
+            CursorGrabMode::None
+        };
         // Locked is unavailable on some platforms; confined is the next best
         // thing, and failing at both is not worth stopping over.
         if gfx.window.set_cursor_grab(mode).is_err() && capture {
@@ -328,11 +351,14 @@ impl App {
             &atlas,
             &self.engine.vfs,
         );
-        let frame_bind_group =
-            gfx.renderer.create_frame_bind_group(&gfx.device, &resources.lightmap_view);
+        let frame_bind_group = gfx
+            .renderer
+            .create_frame_bind_group(&gfx.device, &resources.lightmap_view);
 
         for missing in &resources.missing_materials {
-            self.engine.console.warn(format!("missing material: {missing}"));
+            self.engine
+                .console
+                .warn(format!("missing material: {missing}"));
         }
         self.engine.console.print(format!(
             "{} surfaces, {} triangles, {} materials, lightmap atlas {:.0}% full",
@@ -362,8 +388,11 @@ impl App {
             Err(wgpu::SurfaceError::OutOfMemory) => return,
             Err(_) => return,
         };
-        let view = frame.texture.create_view(&wgpu::TextureViewDescriptor::default());
-        gfx.renderer.ensure_depth(&gfx.device, gfx.config.width, gfx.config.height);
+        let view = frame
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
+        gfx.renderer
+            .ensure_depth(&gfx.device, gfx.config.width, gfx.config.height);
 
         // Interpolate between the last two simulation states, so the view is
         // smooth on a display refreshing faster than the tick rate.
@@ -395,7 +424,9 @@ impl App {
         let mut poses = vec![Pose::IDENTITY; MAX_MODELS];
         let mut next_slot = 1usize;
         for (model, pose) in &brush_models {
-            if *model < MAX_MODELS { poses[*model] = *pose; }
+            if *model < MAX_MODELS {
+                poses[*model] = *pose;
+            }
             next_slot = next_slot.max(model + 1);
         }
 
@@ -404,9 +435,15 @@ impl App {
         // drawn exactly where the simulation put it.
         let mut props: Vec<(usize, String)> = Vec::new();
         for entity in self.engine.entities.iter() {
-            if !is_physics_prop(&entity.classname) { continue; }
-            let Some(name) = entity.fields.text("model") else { continue };
-            if next_slot >= MAX_MODELS { break; }
+            if !is_physics_prop(&entity.classname) {
+                continue;
+            }
+            let Some(name) = entity.fields.text("model") else {
+                continue;
+            };
+            if next_slot >= MAX_MODELS {
+                break;
+            }
             poses[next_slot] = Pose::new(entity.origin, entity.angles);
             props.push((next_slot, name.to_string()));
             next_slot += 1;
@@ -415,9 +452,19 @@ impl App {
 
         // Upload any prop model we have not seen yet, once.
         for name in props.iter().map(|(_, n)| n) {
-            if self.model_cache.contains_key(name) { continue; }
-            match load_model(&gfx.device, &gfx.queue, &gfx.renderer, &self.engine.vfs, name) {
-                Some(model) => { self.model_cache.insert(name.clone(), model); }
+            if self.model_cache.contains_key(name) {
+                continue;
+            }
+            match load_model(
+                &gfx.device,
+                &gfx.queue,
+                &gfx.renderer,
+                &self.engine.vfs,
+                name,
+            ) {
+                Some(model) => {
+                    self.model_cache.insert(name.clone(), model);
+                }
                 None => self.engine.console.warn(format!("missing model: {name}")),
             }
         }
@@ -430,8 +477,14 @@ impl App {
                 .iter()
                 .flat_map(|l| {
                     [
-                        LineVertex { position: l.a.to_array(), color: l.color },
-                        LineVertex { position: l.b.to_array(), color: l.color },
+                        LineVertex {
+                            position: l.a.to_array(),
+                            color: l.color,
+                        },
+                        LineVertex {
+                            position: l.b.to_array(),
+                            color: l.color,
+                        },
                     ]
                 })
                 .collect()
@@ -440,16 +493,19 @@ impl App {
         };
         let line_count = line_vertices.len() as u32;
         let line_buffer = (!line_vertices.is_empty()).then(|| {
-            gfx.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("debug lines"),
-                contents: bytemuck::cast_slice(&line_vertices),
-                usage: wgpu::BufferUsages::VERTEX,
-            })
+            gfx.device
+                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("debug lines"),
+                    contents: bytemuck::cast_slice(&line_vertices),
+                    usage: wgpu::BufferUsages::VERTEX,
+                })
         });
 
         let mut encoder = gfx
             .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("frame") });
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("frame"),
+            });
 
         {
             let depth_view = gfx.renderer.depth_view().expect("depth buffer exists");
@@ -459,7 +515,12 @@ impl App {
                     view: &view,
                     resolve_target: None,
                     ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color { r: 0.02, g: 0.02, b: 0.04, a: 1.0 }),
+                        load: wgpu::LoadOp::Clear(wgpu::Color {
+                            r: 0.02,
+                            g: 0.02,
+                            b: 0.04,
+                            a: 1.0,
+                        }),
                         store: wgpu::StoreOp::Store,
                     },
                 })],
@@ -483,7 +544,8 @@ impl App {
                         // "cull nothing", and the models are drawn below.
                         map.mesh.world_surfaces()
                     } else {
-                        map.mesh.visible_surfaces(&level.bsp, camera.position, &camera.frustum())
+                        map.mesh
+                            .visible_surfaces(&level.bsp, camera.position, &camera.frustum())
                     };
                     self.stats = gfx.renderer.draw_world(
                         &mut pass,
@@ -530,7 +592,12 @@ impl App {
 
                     // The physics debug overlay, drawn last so it sits on top.
                     if let Some(buffer) = &line_buffer {
-                        gfx.renderer.draw_lines(&mut pass, &map.frame_bind_group, buffer, line_count);
+                        gfx.renderer.draw_lines(
+                            &mut pass,
+                            &map.frame_bind_group,
+                            buffer,
+                            line_count,
+                        );
                     }
 
                     self.stats.cluster = level.bsp.point_cluster(camera.position);
@@ -556,9 +623,13 @@ impl App {
 
     /// Periodic `r_speeds` output.
     fn report_speeds(&mut self, real_dt: f32) {
-        if !self.engine.console.bool("r_speeds") { return; }
+        if !self.engine.console.bool("r_speeds") {
+            return;
+        }
         self.since_report += real_dt;
-        if self.since_report < 1.0 { return; }
+        if self.since_report < 1.0 {
+            return;
+        }
         self.since_report = 0.0;
 
         let s = self.stats;
@@ -591,17 +662,20 @@ fn draw_console(
     let output = gfx.egui.run(input, |ctx| {
         crate::console_ui::draw(ctx, console_ui, console);
     });
-    gfx.egui_state.handle_platform_output(&gfx.window, output.platform_output);
+    gfx.egui_state
+        .handle_platform_output(&gfx.window, output.platform_output);
 
     let triangles = gfx.egui.tessellate(output.shapes, output.pixels_per_point);
     for (id, delta) in &output.textures_delta.set {
-        gfx.egui_renderer.update_texture(&gfx.device, &gfx.queue, *id, delta);
+        gfx.egui_renderer
+            .update_texture(&gfx.device, &gfx.queue, *id, delta);
     }
     let descriptor = egui_wgpu::ScreenDescriptor {
         size_in_pixels: [gfx.config.width, gfx.config.height],
         pixels_per_point: output.pixels_per_point,
     };
-    gfx.egui_renderer.update_buffers(&gfx.device, &gfx.queue, encoder, &triangles, &descriptor);
+    gfx.egui_renderer
+        .update_buffers(&gfx.device, &gfx.queue, encoder, &triangles, &descriptor);
 
     {
         let mut pass = encoder
@@ -611,7 +685,10 @@ fn draw_console(
                     view,
                     resolve_target: None,
                     // Load, not clear: the game is behind it.
-                    ops: wgpu::Operations { load: wgpu::LoadOp::Load, store: wgpu::StoreOp::Store },
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Store,
+                    },
                 })],
                 depth_stencil_attachment: None,
                 timestamp_writes: None,
@@ -629,7 +706,10 @@ fn draw_console(
 async fn create_gfx(event_loop: &ActiveEventLoop, config: &EngineConfig) -> anyhow::Result<Gfx> {
     let attributes = Window::default_attributes()
         .with_title("Kerosene")
-        .with_inner_size(winit::dpi::LogicalSize::new(config.window_width, config.window_height));
+        .with_inner_size(winit::dpi::LogicalSize::new(
+            config.window_width,
+            config.window_height,
+        ));
     let window = Arc::new(event_loop.create_window(attributes)?);
 
     let gpu = kerosene_config::gpu::open(
@@ -696,7 +776,17 @@ async fn create_gfx(event_loop: &ActiveEventLoop, config: &EngineConfig) -> anyh
     // meant to be in front of everything.
     let egui_renderer = egui_wgpu::Renderer::new(&device, format, None, 1, false);
 
-    Ok(Gfx { window, surface, device, queue, config, renderer, egui, egui_state, egui_renderer })
+    Ok(Gfx {
+        window,
+        surface,
+        device,
+        queue,
+        config,
+        renderer,
+        egui,
+        egui_state,
+        egui_renderer,
+    })
 }
 
 /// Map a physical key to the name bindings use.
@@ -706,14 +796,42 @@ async fn create_gfx(event_loop: &ActiveEventLoop, config: &EngineConfig) -> anyh
 fn key_name(code: KeyCode) -> Option<&'static str> {
     use KeyCode::*;
     Some(match code {
-        KeyA => "a", KeyB => "b", KeyC => "c", KeyD => "d", KeyE => "e",
-        KeyF => "f", KeyG => "g", KeyH => "h", KeyI => "i", KeyJ => "j",
-        KeyK => "k", KeyL => "l", KeyM => "m", KeyN => "n", KeyO => "o",
-        KeyP => "p", KeyQ => "q", KeyR => "r", KeyS => "s", KeyT => "t",
-        KeyU => "u", KeyV => "v", KeyW => "w", KeyX => "x", KeyY => "y",
+        KeyA => "a",
+        KeyB => "b",
+        KeyC => "c",
+        KeyD => "d",
+        KeyE => "e",
+        KeyF => "f",
+        KeyG => "g",
+        KeyH => "h",
+        KeyI => "i",
+        KeyJ => "j",
+        KeyK => "k",
+        KeyL => "l",
+        KeyM => "m",
+        KeyN => "n",
+        KeyO => "o",
+        KeyP => "p",
+        KeyQ => "q",
+        KeyR => "r",
+        KeyS => "s",
+        KeyT => "t",
+        KeyU => "u",
+        KeyV => "v",
+        KeyW => "w",
+        KeyX => "x",
+        KeyY => "y",
         KeyZ => "z",
-        Digit0 => "0", Digit1 => "1", Digit2 => "2", Digit3 => "3", Digit4 => "4",
-        Digit5 => "5", Digit6 => "6", Digit7 => "7", Digit8 => "8", Digit9 => "9",
+        Digit0 => "0",
+        Digit1 => "1",
+        Digit2 => "2",
+        Digit3 => "3",
+        Digit4 => "4",
+        Digit5 => "5",
+        Digit6 => "6",
+        Digit7 => "7",
+        Digit8 => "8",
+        Digit9 => "9",
         Space => "space",
         ControlLeft | ControlRight => "ctrl",
         ShiftLeft | ShiftRight => "shift",
@@ -722,8 +840,18 @@ fn key_name(code: KeyCode) -> Option<&'static str> {
         Tab => "tab",
         Backquote => "`",
         Escape => "escape",
-        F1 => "f1", F2 => "f2", F3 => "f3", F4 => "f4", F5 => "f5", F6 => "f6",
-        F7 => "f7", F8 => "f8", F9 => "f9", F10 => "f10", F11 => "f11", F12 => "f12",
+        F1 => "f1",
+        F2 => "f2",
+        F3 => "f3",
+        F4 => "f4",
+        F5 => "f5",
+        F6 => "f6",
+        F7 => "f7",
+        F8 => "f8",
+        F9 => "f9",
+        F10 => "f10",
+        F11 => "f11",
+        F12 => "f12",
         _ => return None,
     })
 }
@@ -747,14 +875,26 @@ mod tests {
         // focused text field claims every keystroke: the console kept the key
         // that closes it, and the backtick that opened it was typed into the
         // prompt so that every command after it began with a `.
-        assert_eq!(intercepted(KeyCode::Backquote, false), Some(Intercepted::ToggleConsole));
-        assert_eq!(intercepted(KeyCode::Backquote, true), Some(Intercepted::ToggleConsole));
+        assert_eq!(
+            intercepted(KeyCode::Backquote, false),
+            Some(Intercepted::ToggleConsole)
+        );
+        assert_eq!(
+            intercepted(KeyCode::Backquote, true),
+            Some(Intercepted::ToggleConsole)
+        );
     }
 
     #[test]
     fn escape_closes_the_console_when_it_is_open_and_frees_the_mouse_when_it_is_not() {
-        assert_eq!(intercepted(KeyCode::Escape, true), Some(Intercepted::ToggleConsole));
-        assert_eq!(intercepted(KeyCode::Escape, false), Some(Intercepted::ReleaseMouse));
+        assert_eq!(
+            intercepted(KeyCode::Escape, true),
+            Some(Intercepted::ToggleConsole)
+        );
+        assert_eq!(
+            intercepted(KeyCode::Escape, false),
+            Some(Intercepted::ReleaseMouse)
+        );
     }
 
     #[test]
@@ -762,11 +902,24 @@ mod tests {
         // Everything the console needs must reach it, or typing into it is
         // full of holes that are maddening to find.
         for code in [
-            KeyCode::KeyW, KeyCode::KeyN, KeyCode::Enter, KeyCode::Tab,
-            KeyCode::ArrowUp, KeyCode::ArrowDown, KeyCode::PageUp, KeyCode::PageDown,
-            KeyCode::Backspace, KeyCode::Space, KeyCode::Digit1, KeyCode::Semicolon,
+            KeyCode::KeyW,
+            KeyCode::KeyN,
+            KeyCode::Enter,
+            KeyCode::Tab,
+            KeyCode::ArrowUp,
+            KeyCode::ArrowDown,
+            KeyCode::PageUp,
+            KeyCode::PageDown,
+            KeyCode::Backspace,
+            KeyCode::Space,
+            KeyCode::Digit1,
+            KeyCode::Semicolon,
         ] {
-            assert_eq!(intercepted(code, true), None, "{code:?} must reach the console");
+            assert_eq!(
+                intercepted(code, true),
+                None,
+                "{code:?} must reach the console"
+            );
         }
     }
 }

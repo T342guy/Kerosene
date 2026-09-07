@@ -48,7 +48,13 @@ fn a_tool_brush_says_what_the_tool_does() {
 fn what_it_says_is_what_the_compiler_will_do() {
     // Read from Cleave's table rather than from a copy, so the two cannot
     // drift apart.
-    for material in ["dev/grid", "tools/clip", "tools/trigger", "tools/nodraw", "tools/water"] {
+    for material in [
+        "dev/grid",
+        "tools/clip",
+        "tools/trigger",
+        "tools/nodraw",
+        "tools/water",
+    ] {
         let info = BrushInfo::of_selection(&one_brush(material)).unwrap();
         assert_eq!(
             info.compiles_as,
@@ -95,9 +101,16 @@ fn brushes_tied_to_a_class_are_described_by_it() {
     let mut document = one_brush("dev/door");
     document.tie_to_entity("func_door");
     // Tying selects the entity; select its brushes to ask about them.
-    let ids: Vec<u32> = document.map.entities.iter().flat_map(|e| e.solids.iter().map(|s| s.id)).collect();
+    let ids: Vec<u32> = document
+        .map
+        .entities
+        .iter()
+        .flat_map(|e| e.solids.iter().map(|s| s.id))
+        .collect();
     document.selection.clear();
-    for id in ids { document.selection.solids.insert(id); }
+    for id in ids {
+        document.selection.solids.insert(id);
+    }
 
     let info = BrushInfo::of_selection(&document).unwrap();
     assert_eq!(info.classname.as_deref(), Some("func_door"));
@@ -115,12 +128,19 @@ fn a_world_brush_is_not_called_a_worldspawn() {
 fn a_selection_spanning_two_classes_claims_neither() {
     let mut document = one_brush("dev/door");
     document.tie_to_entity("func_door");
-    let tied: Vec<u32> = document.map.entities.iter().flat_map(|e| e.solids.iter().map(|s| s.id)).collect();
+    let tied: Vec<u32> = document
+        .map
+        .entities
+        .iter()
+        .flat_map(|e| e.solids.iter().map(|s| s.id))
+        .collect();
 
     let wall = document.create_block(Vec3::new(512.0, 0.0, 0.0), Vec3::new(640.0, 96.0, 64.0));
     document.selection.clear();
     document.selection.solids.insert(wall);
-    for id in tied { document.selection.solids.insert(id); }
+    for id in tied {
+        document.selection.solids.insert(id);
+    }
 
     let info = BrushInfo::of_selection(&document).unwrap();
     assert_eq!(info.brushes, 2);
@@ -155,7 +175,10 @@ fn selecting_a_brush_entity_describes_its_brushes() {
     // selected" would be the same split this panel exists to remove.
     let mut document = one_brush("dev/door");
     document.set_brush_class(Some("func_door"));
-    assert!(document.selection.solids.is_empty(), "the entity is what is selected");
+    assert!(
+        document.selection.solids.is_empty(),
+        "the entity is what is selected"
+    );
 
     let info = BrushInfo::of_selection(&document).expect("the door is what we are looking at");
     assert_eq!(info.brushes, 1);
@@ -170,7 +193,11 @@ fn a_trigger_reports_itself_as_a_region_rather_than_a_wall() {
 
     let info = BrushInfo::of_selection(&document).unwrap();
     assert_eq!(info.materials, vec!["tools/trigger"]);
-    assert!(info.compiles_as.starts_with("a trigger volume"), "{}", info.compiles_as);
+    assert!(
+        info.compiles_as.starts_with("a trigger volume"),
+        "{}",
+        info.compiles_as
+    );
 }
 
 #[test]

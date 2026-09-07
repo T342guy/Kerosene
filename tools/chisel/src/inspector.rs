@@ -47,7 +47,9 @@ impl PropertyRow {
         self.value.as_deref().unwrap_or(&self.default)
     }
 
-    pub fn is_set(&self) -> bool { self.value.is_some() }
+    pub fn is_set(&self) -> bool {
+        self.value.is_some()
+    }
 }
 
 /// Build the rows for an entity: every key its class defines, then every key
@@ -73,8 +75,12 @@ pub fn rows(spec: Option<&ClassSpec>, entity: &Entity) -> Vec<PropertyRow> {
     for (key, value) in &entity.properties {
         // `classname` is the entity's identity, changed by retying rather than
         // by typing, so it is shown as a heading instead of as a row.
-        if key.eq_ignore_ascii_case("classname") { continue }
-        if rows.iter().any(|r| r.key.eq_ignore_ascii_case(key)) { continue }
+        if key.eq_ignore_ascii_case("classname") {
+            continue;
+        }
+        if rows.iter().any(|r| r.key.eq_ignore_ascii_case(key)) {
+            continue;
+        }
         rows.push(PropertyRow {
             key: key.clone(),
             label: key.clone(),
@@ -99,8 +105,12 @@ pub fn rows(spec: Option<&ClassSpec>, entity: &Entity) -> Vec<PropertyRow> {
 pub fn apply(entity: &mut Entity, rows: &[PropertyRow]) {
     for row in rows {
         match &row.value {
-            Some(value) => { entity.set(&row.key, value.clone()); }
-            None => { entity.remove(&row.key); }
+            Some(value) => {
+                entity.set(&row.key, value.clone());
+            }
+            None => {
+                entity.remove(&row.key);
+            }
         }
     }
 }
@@ -128,8 +138,12 @@ pub fn target_names(document: &Document) -> Vec<String> {
 pub fn inputs_for_target(schema: &Schema, document: &Document, target: &str) -> Vec<String> {
     let mut inputs: Vec<String> = Vec::new();
     for entity in document.map.all_entities() {
-        if entity.targetname() != Some(target) { continue }
-        let Some(spec) = schema.get(entity.classname()) else { continue };
+        if entity.targetname() != Some(target) {
+            continue;
+        }
+        let Some(spec) = schema.get(entity.classname()) else {
+            continue;
+        };
         for input in &spec.inputs {
             if !inputs.iter().any(|i| i.eq_ignore_ascii_case(&input.name)) {
                 inputs.push(input.name.clone());
@@ -145,7 +159,9 @@ pub fn inputs_for_target(schema: &Schema, document: &Document, target: &str) -> 
 /// because a light can be brighter than white, and clamping it into a byte
 /// would quietly cap every bright light in a map at the same value.
 pub fn parse_color(text: &str) -> ([u8; 3], f32) {
-    let mut parts = text.split_whitespace().filter_map(|p| p.parse::<f32>().ok());
+    let mut parts = text
+        .split_whitespace()
+        .filter_map(|p| p.parse::<f32>().ok());
     let r = parts.next().unwrap_or(255.0);
     let g = parts.next().unwrap_or(255.0);
     let b = parts.next().unwrap_or(255.0);
@@ -163,16 +179,30 @@ pub fn format_color(rgb: [u8; 3], brightness: f32) -> String {
     )
 }
 
-fn clamp_byte(v: f32) -> u8 { v.clamp(0.0, 255.0) as u8 }
+fn clamp_byte(v: f32) -> u8 {
+    v.clamp(0.0, 255.0) as u8
+}
 
 /// Parse a vector keyvalue, tolerating the several ways one gets written.
 pub fn parse_vec3(text: &str) -> [f32; 3] {
     let cleaned: String = text
         .chars()
-        .map(|c| if c == ',' || c == '[' || c == ']' || c == '(' || c == ')' { ' ' } else { c })
+        .map(|c| {
+            if c == ',' || c == '[' || c == ']' || c == '(' || c == ')' {
+                ' '
+            } else {
+                c
+            }
+        })
         .collect();
-    let mut parts = cleaned.split_whitespace().filter_map(|p| p.parse::<f32>().ok());
-    [parts.next().unwrap_or(0.0), parts.next().unwrap_or(0.0), parts.next().unwrap_or(0.0)]
+    let mut parts = cleaned
+        .split_whitespace()
+        .filter_map(|p| p.parse::<f32>().ok());
+    [
+        parts.next().unwrap_or(0.0),
+        parts.next().unwrap_or(0.0),
+        parts.next().unwrap_or(0.0),
+    ]
 }
 
 pub fn format_vec3(v: [f32; 3]) -> String {

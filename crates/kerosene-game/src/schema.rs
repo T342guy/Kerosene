@@ -81,6 +81,30 @@ base
     input { "name" "Toggle" }
 }
 
+// Physical object properties shared by everything with a rigid body. These
+// are the reason a crate is heavy and a sheet of ice is not: the game reads
+// them rather than hardcoding what a prop feels like.
+base
+{
+    "name" "PhysicsBody"
+    key {
+        "name" "mass" "label" "Mass (kg)" "type" "float"
+        "help" "How heavy it is. Left blank, its mass is derived from the model's size at a wood-like density."
+    }
+    key {
+        "name" "friction" "label" "Friction" "type" "float" "default" "0.8"
+        "help" "How much it resists sliding. 0 is ice, 1 is rubber."
+    }
+    key {
+        "name" "elasticity" "label" "Bounciness" "type" "float" "default" "0.1"
+        "help" "How much it bounces. 0 drops dead, 1 rebounds almost fully."
+    }
+    key {
+        "name" "pickable" "label" "Can be picked up" "type" "bool" "default" "1"
+        "help" "Whether the pick-up tool can grab it. A prop glued down should set this to 0."
+    }
+}
+
 // -------------------------------------------------------------- the world --
 
 class
@@ -123,7 +147,7 @@ class
 class
 {
     "name" "prop_physics"
-    "base" "Entity" "base" "Point" "base" "Angles"
+    "base" "Entity" "base" "Point" "base" "Angles" "base" "PhysicsBody"
     "help" "A model with a rigid body: it falls, bounces off walls and settles. Spawned by a prop_dynamic_spawner, or dropped in with phys_spawn."
     key { "name" "model" "label" "Model" "type" "model" }
     key {
@@ -139,8 +163,8 @@ class
 class
 {
     "name" "prop_dynamic_spawner"
-    "base" "Entity" "base" "Point" "base" "Angles"
-    "help" "Spawns physics props on demand. The engine's way to rain crates or drop a barrel when something fires it, with no scripting."
+    "base" "Entity" "base" "Point" "base" "Angles" "base" "PhysicsBody"
+    "help" "Spawns physics props on demand. The engine's way to rain crates or drop a barrel when something fires it, with no scripting. Its object properties are copied onto every prop it spawns."
     key { "name" "model" "label" "Prop model" "type" "model" "default" "props/cube"
           "help" "The model each spawned prop uses." }
     key { "name" "spawncount" "label" "Props per trigger" "type" "float" "default" "1"

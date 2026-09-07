@@ -37,7 +37,10 @@ pub fn pack(id: EntityId) -> u64 {
 /// Read a handle back. The generation is checked by the caller, through
 /// [`kerosene_entity::EntityWorld::exists`].
 pub fn unpack(packed: u64) -> EntityId {
-    EntityId { index: packed as u32, generation: (packed >> 32) as u32 }
+    EntityId {
+        index: packed as u32,
+        generation: (packed >> 32) as u32,
+    }
 }
 
 impl Engine {
@@ -51,7 +54,11 @@ impl Engine {
         let mut view = WorldView {
             time: self.time,
             tick: self.tick_count,
-            map: self.level.as_ref().map(|l| l.name.clone()).unwrap_or_default(),
+            map: self
+                .level
+                .as_ref()
+                .map(|l| l.name.clone())
+                .unwrap_or_default(),
             ..Default::default()
         };
 
@@ -59,7 +66,8 @@ impl Engine {
             view.entities.push(entity_view(entity));
         }
         for cvar in self.console.cvars() {
-            view.cvars.insert(cvar.name.clone(), cvar.string().to_string());
+            view.cvars
+                .insert(cvar.name.clone(), cvar.string().to_string());
         }
         view.player = self
             .player
@@ -72,7 +80,10 @@ impl Engine {
 
     /// Run script source against the current world, and apply what it asks
     /// for.
-    pub fn run_script(&mut self, source: &str) -> Result<Option<String>, kerosene_script::ScriptError> {
+    pub fn run_script(
+        &mut self,
+        source: &str,
+    ) -> Result<Option<String>, kerosene_script::ScriptError> {
         let view = self.script_view();
         self.script.set_view(view);
         let result = self.script.run(source);
@@ -87,7 +98,9 @@ impl Engine {
 
     /// Call a script function, if it is defined, against the current world.
     pub fn call_script_hook(&mut self, name: &str, args: Vec<rhai::Dynamic>) {
-        if !self.script.has_function(name) { return }
+        if !self.script.has_function(name) {
+            return;
+        }
         let view = self.script_view();
         self.script.set_view(view);
         let result = self.script.call_hook(name, args);
@@ -137,7 +150,9 @@ impl Engine {
     pub fn load_map_script(&mut self, map: &str) {
         self.script.clear();
         let path = script_path(map);
-        let Ok(source) = self.vfs.read_string(&path) else { return };
+        let Ok(source) = self.vfs.read_string(&path) else {
+            return;
+        };
         match self.script.load(&path, &source) {
             Ok(()) => {
                 let actions = self.script.take_actions();
@@ -160,12 +175,18 @@ impl Engine {
                 // Queued rather than executed: a script running inside a
                 // command must not run more commands underneath it.
                 ScriptAction::Command(text) => self.console.enqueue(text),
-                ScriptAction::FireInput { target, input, parameter, delay } => {
+                ScriptAction::FireInput {
+                    target,
+                    input,
+                    parameter,
+                    delay,
+                } => {
                     let target = match kerosene_script::parse_id_target(&target) {
                         Some(packed) => Target::Handle(unpack(packed)),
                         None => Target::Named(target),
                     };
-                    self.entities.queue_input(target, &input, &parameter, delay, None, None);
+                    self.entities
+                        .queue_input(target, &input, &parameter, delay, None, None);
                 }
                 ScriptAction::SetField { entity, key, value } => {
                     let id = unpack(entity);
@@ -177,14 +198,20 @@ impl Engine {
                     let id = unpack(entity);
                     if let Some(e) = self.entities.get_mut(id) {
                         e.origin = origin;
-                        e.fields.set("origin", kerosene_entity::Value::Vector(origin));
+                        e.fields
+                            .set("origin", kerosene_entity::Value::Vector(origin));
                     }
                 }
                 ScriptAction::Kill { entity } => self.entities.remove(unpack(entity)),
-                ScriptAction::PlaySound { name, position, volume } => {
+                ScriptAction::PlaySound {
+                    name,
+                    position,
+                    volume,
+                } => {
                     let vfs = self.vfs.clone();
                     if self.audio.play(&vfs, &name, position, volume).is_none() {
-                        self.console.warn(format!("script: could not play `{name}`"));
+                        self.console
+                            .warn(format!("script: could not play `{name}`"));
                     }
                 }
                 ScriptAction::StopAllSounds => self.audio.stop_all(),
@@ -217,7 +244,8 @@ impl Engine {
                 kerosene_entity::host_requests::SCRIPT_CALL => {
                     let name = request.payload;
                     if !self.script.has_function(&name) {
-                        self.console.error(format!("logic_script: no function named `{name}`"));
+                        self.console
+                            .error(format!("logic_script: no function named `{name}`"));
                         continue;
                     }
                     // A hook may take the caller's name or take nothing;
@@ -249,7 +277,9 @@ impl Engine {
                         self.console.warn("Sleep: not a physics prop");
                     }
                 }
-                other => self.console.warn(format!("unknown entity request `{other}`")),
+                other => self
+                    .console
+                    .warn(format!("unknown entity request `{other}`")),
             }
         }
     }
@@ -262,7 +292,9 @@ impl Engine {
     /// again. Without that, a looping ambience could be started but never
     /// silenced, which is the worst of the two failure modes.
     pub fn play_entity_sound(&mut self, id: kerosene_entity::EntityId, name: &str) {
-        let Some(entity) = self.entities.get(id) else { return };
+        let Some(entity) = self.entities.get(id) else {
+            return;
+        };
         let everywhere = entity.has_spawnflag(kerosene_game::sound::SF_EVERYWHERE);
         let origin = entity.origin;
         // `volume` is what it is called. `health` is what Source calls it, and
@@ -276,7 +308,9 @@ impl Engine {
         let looping = entity.fields.bool("looping", true);
 
         let vfs = self.vfs.clone();
-        let Some(sound) = self.audio.sound(&vfs, name) else { return };
+        let Some(sound) = self.audio.sound(&vfs, name) else {
+            return;
+        };
         let (_, mut params) = self.audio.bank.resolve(name);
         params.position = (!everywhere).then_some(origin);
         params.volume *= volume;
@@ -289,13 +323,18 @@ impl Engine {
 
         let handle = self.audio.with_mixer(|mixer| mixer.play(sound, params));
         if let Some(e) = self.entities.get_mut(id) {
-            e.fields.set("__voice", kerosene_entity::Value::Int(handle.0 as i32));
+            e.fields
+                .set("__voice", kerosene_entity::Value::Int(handle.0 as i32));
         }
     }
 
     /// Stop whatever an entity started.
     pub fn stop_entity_sound(&mut self, id: kerosene_entity::EntityId) {
-        let handle = self.entities.get(id).map(|e| e.fields.i32("__voice", 0)).unwrap_or(0);
+        let handle = self
+            .entities
+            .get(id)
+            .map(|e| e.fields.i32("__voice", 0))
+            .unwrap_or(0);
         if handle > 0 {
             self.audio.stop(kerosene_audio::SoundHandle(handle as u64));
         }

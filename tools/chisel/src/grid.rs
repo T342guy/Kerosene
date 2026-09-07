@@ -30,25 +30,39 @@ pub struct Grid {
 }
 
 impl Default for Grid {
-    fn default() -> Self { Grid { size: DEFAULT_SIZE, visible: true, snap: true } }
+    fn default() -> Self {
+        Grid {
+            size: DEFAULT_SIZE,
+            visible: true,
+            snap: true,
+        }
+    }
 }
 
 impl Grid {
     /// Snap one coordinate.
     pub fn snap_value(&self, v: f32) -> f32 {
-        if !self.snap || self.size <= 0.0 { return v; }
+        if !self.snap || self.size <= 0.0 {
+            return v;
+        }
         (v / self.size).round() * self.size
     }
 
     pub fn snap_point(&self, p: Vec3) -> Vec3 {
-        Vec3::new(self.snap_value(p.x), self.snap_value(p.y), self.snap_value(p.z))
+        Vec3::new(
+            self.snap_value(p.x),
+            self.snap_value(p.y),
+            self.snap_value(p.z),
+        )
     }
 
     /// Snap outward, so a box never shrinks below the geometry it was drawn
     /// around. Dragging out a brush and having it come back smaller than the
     /// rubber band is maddening.
     pub fn snap_box(&self, min: Vec3, max: Vec3) -> (Vec3, Vec3) {
-        if !self.snap || self.size <= 0.0 { return (min, max); }
+        if !self.snap || self.size <= 0.0 {
+            return (min, max);
+        }
         let floor = |v: f32| (v / self.size).floor() * self.size;
         let ceil = |v: f32| (v / self.size).ceil() * self.size;
         let lo = Vec3::new(floor(min.x), floor(min.y), floor(min.z));
@@ -88,11 +102,15 @@ impl Grid {
     /// it then is a grey wash that hides the geometry rather than helping
     /// place it.
     pub fn draw_spacing(&self, pixels_per_unit: f32) -> Option<f32> {
-        if !self.visible { return None; }
+        if !self.visible {
+            return None;
+        }
         let mut spacing = self.size;
         while spacing * pixels_per_unit < 4.0 {
             spacing *= 2.0;
-            if spacing > SIZES[SIZES.len() - 1] { return None; }
+            if spacing > SIZES[SIZES.len() - 1] {
+                return None;
+            }
         }
         Some(spacing)
     }
@@ -104,7 +122,10 @@ mod tests {
 
     #[test]
     fn snapping_rounds_to_the_nearest_line() {
-        let grid = Grid { size: 16.0, ..Default::default() };
+        let grid = Grid {
+            size: 16.0,
+            ..Default::default()
+        };
         assert_eq!(grid.snap_value(0.0), 0.0);
         assert_eq!(grid.snap_value(7.0), 0.0);
         assert_eq!(grid.snap_value(9.0), 16.0);
@@ -114,13 +135,20 @@ mod tests {
 
     #[test]
     fn snapping_can_be_turned_off() {
-        let grid = Grid { size: 16.0, snap: false, ..Default::default() };
+        let grid = Grid {
+            size: 16.0,
+            snap: false,
+            ..Default::default()
+        };
         assert_eq!(grid.snap_value(7.3), 7.3);
     }
 
     #[test]
     fn boxes_snap_outward_so_a_brush_never_shrinks() {
-        let grid = Grid { size: 16.0, ..Default::default() };
+        let grid = Grid {
+            size: 16.0,
+            ..Default::default()
+        };
         let (lo, hi) = grid.snap_box(Vec3::new(1.0, 1.0, 1.0), Vec3::new(30.0, 30.0, 30.0));
         assert_eq!(lo, Vec3::ZERO);
         assert_eq!(hi, Vec3::splat(32.0));
@@ -130,14 +158,20 @@ mod tests {
     fn a_flat_drag_still_produces_a_solid_brush() {
         // Dragging out a zero-thickness box must not create a brush that
         // encloses no volume; the compiler would simply drop it.
-        let grid = Grid { size: 16.0, ..Default::default() };
+        let grid = Grid {
+            size: 16.0,
+            ..Default::default()
+        };
         let (lo, hi) = grid.snap_box(Vec3::new(0.0, 0.0, 0.0), Vec3::new(64.0, 64.0, 0.0));
         assert!(hi.z - lo.z >= 16.0, "z was {} to {}", lo.z, hi.z);
     }
 
     #[test]
     fn grid_sizes_step_through_powers_of_two() {
-        let mut grid = Grid { size: 16.0, ..Default::default() };
+        let mut grid = Grid {
+            size: 16.0,
+            ..Default::default()
+        };
         grid.coarser();
         assert_eq!(grid.size, 32.0);
         grid.finer();
@@ -147,7 +181,10 @@ mod tests {
 
     #[test]
     fn stepping_stops_at_the_ends_rather_than_wrapping() {
-        let mut grid = Grid { size: SIZES[0], ..Default::default() };
+        let mut grid = Grid {
+            size: SIZES[0],
+            ..Default::default()
+        };
         grid.finer();
         assert_eq!(grid.size, SIZES[0]);
 
@@ -158,17 +195,26 @@ mod tests {
 
     #[test]
     fn the_drawn_grid_coarsens_rather_than_becoming_a_grey_wash() {
-        let grid = Grid { size: 1.0, ..Default::default() };
+        let grid = Grid {
+            size: 1.0,
+            ..Default::default()
+        };
         // Zoomed right out, a 1-unit grid would be sub-pixel.
         let spacing = grid.draw_spacing(0.05).expect("some spacing");
-        assert!(spacing >= 64.0, "spacing {spacing} is still too fine to draw");
+        assert!(
+            spacing >= 64.0,
+            "spacing {spacing} is still too fine to draw"
+        );
         // Zoomed in, it draws at its real size.
         assert_eq!(grid.draw_spacing(20.0), Some(1.0));
     }
 
     #[test]
     fn a_hidden_grid_draws_nothing() {
-        let grid = Grid { visible: false, ..Default::default() };
+        let grid = Grid {
+            visible: false,
+            ..Default::default()
+        };
         assert_eq!(grid.draw_spacing(10.0), None);
     }
 }

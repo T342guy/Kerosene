@@ -30,12 +30,18 @@ fn colour(level: LogLevel) -> Color32 {
 
 /// Draw the console, and run whatever was typed into it.
 pub fn draw(ctx: &egui::Context, ui_state: &mut ConsoleUi, console: &mut Console) {
-    if !ui_state.open { return }
+    if !ui_state.open {
+        return;
+    }
 
     let height = ctx.screen_rect().height() * HEIGHT;
     egui::TopBottomPanel::top("console")
         .exact_height(height)
-        .frame(egui::Frame::new().fill(Color32::from_rgba_unmultiplied(8, 10, 14, 235)).inner_margin(8.0))
+        .frame(
+            egui::Frame::new()
+                .fill(Color32::from_rgba_unmultiplied(8, 10, 14, 235))
+                .inner_margin(8.0),
+        )
         .show(ctx, |ui| {
             // Keys the text field must not see. Consumed before it is built,
             // because egui gives a focused TextEdit first refusal otherwise
@@ -51,11 +57,21 @@ pub fn draw(ctx: &egui::Context, ui_state: &mut ConsoleUi, console: &mut Console
                 )
             });
 
-            if up { ui_state.history_previous(console); }
-            if down { ui_state.history_next(console); }
-            if tab { ui_state.complete(console); }
-            if page_up { ui_state.scroll_up(console.log_len()); }
-            if page_down { ui_state.scroll_down(); }
+            if up {
+                ui_state.history_previous(console);
+            }
+            if down {
+                ui_state.history_next(console);
+            }
+            if tab {
+                ui_state.complete(console);
+            }
+            if page_up {
+                ui_state.scroll_up(console.log_len());
+            }
+            if page_down {
+                ui_state.scroll_down();
+            }
 
             // The prompt is laid out first, upward from the bottom, so the
             // scrollback gets exactly the room that is left rather than a
@@ -72,9 +88,13 @@ pub fn draw(ctx: &egui::Context, ui_state: &mut ConsoleUi, console: &mut Console
                             .desired_width(f32::INFINITY)
                             .hint_text("type a command; tab completes, up walks back"),
                     );
-                    if text != ui_state.input { ui_state.set_input(text); }
+                    if text != ui_state.input {
+                        ui_state.set_input(text);
+                    }
                     // The caret belongs in the input from the moment it opens.
-                    if !response.has_focus() { response.request_focus(); }
+                    if !response.has_focus() {
+                        response.request_focus();
+                    }
                 });
 
                 // Candidates, so cycling with tab shows what is being cycled.
@@ -121,7 +141,13 @@ mod tests {
     use egui::{Event, Key, Modifiers, RawInput};
 
     fn press(key: Key) -> Event {
-        Event::Key { key, physical_key: None, pressed: true, repeat: false, modifiers: Modifiers::NONE }
+        Event::Key {
+            key,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+            modifiers: Modifiers::NONE,
+        }
     }
 
     /// An open console, and a frame drawn with the given events in it.
@@ -144,14 +170,21 @@ mod tests {
         }
 
         fn frame(&mut self, events: Vec<Event>) {
-            let input = RawInput { events, ..Default::default() };
+            let input = RawInput {
+                events,
+                ..Default::default()
+            };
             let ui = &mut self.ui;
             let console = &mut self.console;
             let _ = self.ctx.run(input, |ctx| draw(ctx, ui, console));
         }
 
         fn said(&self) -> String {
-            self.console.log().map(|l| l.text.as_str()).collect::<Vec<_>>().join("\n")
+            self.console
+                .log()
+                .map(|l| l.text.as_str())
+                .collect::<Vec<_>>()
+                .join("\n")
         }
     }
 
@@ -170,7 +203,10 @@ mod tests {
         harness.ui.set_input("ech");
         harness.frame(vec![press(Key::Tab)]);
 
-        assert_eq!(harness.ui.input, "echo ", "completed, with a space ready for an argument");
+        assert_eq!(
+            harness.ui.input, "echo ",
+            "completed, with a space ready for an argument"
+        );
     }
 
     #[test]
@@ -183,7 +219,11 @@ mod tests {
         harness.frame(vec![press(Key::Tab)]);
         harness.frame(vec![Event::Text("x".into())]);
 
-        assert!(harness.ui.input.starts_with("echo"), "still typing into it: {:?}", harness.ui.input);
+        assert!(
+            harness.ui.input.starts_with("echo"),
+            "still typing into it: {:?}",
+            harness.ui.input
+        );
     }
 
     #[test]
@@ -215,6 +255,10 @@ mod tests {
     fn an_unknown_command_is_reported_rather_than_ignored() {
         let mut harness = Harness::open();
         harness.frame(vec![Event::Text("wibble".into()), press(Key::Enter)]);
-        assert!(harness.said().to_lowercase().contains("wibble"), "{}", harness.said());
+        assert!(
+            harness.said().to_lowercase().contains("wibble"),
+            "{}",
+            harness.said()
+        );
     }
 }

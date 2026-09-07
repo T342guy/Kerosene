@@ -13,12 +13,12 @@
 //! the entity so the renderer draws the prop exactly where the simulation put
 //! it.
 
-use std::collections::HashMap;
 use kerosene_bsp::{Bsp, contents};
 use kerosene_entity::{EntityId, EntityWorld};
 use kerosene_math::{Aabb, Angles, ON_EPSILON, Quat, Vec3, Winding};
 use kerosene_rigid::{Body, RigidWorld};
 use kerosene_vfs::Vfs;
+use std::collections::HashMap;
 
 /// A dynamic body, plus the model bounds that told it how big to be.
 struct PropBody {
@@ -46,6 +46,22 @@ pub struct PhysicsProps {
     movers: HashMap<usize, Mover>,
     /// Static world body count, for reporting.
     static_bodies: usize,
+    /// The player, as the simulation sees them.
+    player: Option<PlayerBody>,
+}
+
+/// The player's presence in the rigid world.
+///
+/// Without one the player was a hole in the simulation: props fell through
+/// them, and no amount of walking into a crate moved it, because nothing the
+/// player did ever reached the solver. It is kinematic rather than dynamic --
+/// the player's own movement code is the authority on where they are, and a
+/// dynamic body would be shoved around by the very props it is meant to shove.
+struct PlayerBody {
+    body: Body,
+    /// Half-extents the body was built with. Ducking changes the hull, and a
+    /// body cannot be resized, so a change means building a new one.
+    half_extent: Vec3,
 }
 
 impl PhysicsProps {
@@ -55,6 +71,7 @@ impl PhysicsProps {
             props: HashMap::new(),
             movers: HashMap::new(),
             static_bodies: 0,
+            player: None,
         }
     }
 
@@ -71,13 +88,25 @@ impl PhysicsProps {
     pub fn build_static_world(&mut self, bsp: &Bsp, entities: &EntityWorld) {
         self.static_bodies = 0;
         for (i, brush) in bsp.brushes.iter().enumerate() {
-            if brush.contents & contents::SOLID == 0 { continue; }
-            if brush.contents & contents::MOVEABLE != 0 { continue; }
-            if brush.contents & (contents::PLAYER_CLIP | contents::MONSTER_CLIP) != 0 { continue; }
+            if brush.contents & contents::SOLID == 0 {
+                continue;
+            }
+            if brush.contents & contents::MOVEABLE != 0 {
+                continue;
+            }
+            if brush.contents & (contents::PLAYER_CLIP | contents::MONSTER_CLIP) != 0 {
+                continue;
+            }
 
-            let Some(points) = brush_vertices(bsp, brush) else { continue };
+            let Some(points) = brush_vertices(bsp, brush) else {
+                continue;
+            };
             // Static hulls live in world coordinates already.
-            if self.rigid.add_static_hull(&points, Vec3::ZERO, Quat::IDENTITY).is_none() {
+            if self
+                .rigid
+                .add_static_hull(&points, Vec3::ZERO, Quat::IDENTITY)
+                .is_none()
+            {
                 log::debug!("physics: skipped degenerate world brush {i}");
             } else {
                 self.static_bodies += 1;
@@ -88,19 +117,35 @@ impl PhysicsProps {
         // door built from multiple brushes) placed at its current pose, and
         // `sync_and_step` moves the bodies when the entity moves.
         for entity in entities.iter() {
-            let Some(model) = entity.brush_model else { continue };
-            if model == 0 { continue; }
+            let Some(model) = entity.brush_model else {
+                continue;
+            };
+            if model == 0 {
+                continue;
+            }
 
             let mut bodies = Vec::new();
             for &brush_index in &model_brush_indices(bsp, model) {
-                let Some(brush) = bsp.brushes.get(brush_index) else { continue };
-                if brush.contents & contents::MOVEABLE == 0 { continue; }
-                if brush.contents & contents::SOLID == 0 { continue; }
-                let Some(points) = brush_vertices(bsp, brush) else { continue };
+                let Some(brush) = bsp.brushes.get(brush_index) else {
+                    continue;
+                };
+                if brush.contents & contents::MOVEABLE == 0 {
+                    continue;
+                }
+                if brush.contents & contents::SOLID == 0 {
+                    continue;
+                }
+                let Some(points) = brush_vertices(bsp, brush) else {
+                    continue;
+                };
                 // Brushes are compiled in world coordinates; the body's local
                 // space is centred on the pivot so the entity's angles turn
                 // the body about the same point the renderer does.
-                let pivot = bsp.models.get(model).map(|m| m.bounds().center()).unwrap_or(Vec3::ZERO);
+                let pivot = bsp
+                    .models
+                    .get(model)
+                    .map(|m| m.bounds().center())
+                    .unwrap_or(Vec3::ZERO);
                 let local: Vec<Vec3> = points.iter().map(|&p| p - pivot).collect();
                 let rotation = Quat::from_mat3(&entity.angles.to_mat3());
                 let position = entity.origin + pivot;
@@ -109,7 +154,11 @@ impl PhysicsProps {
                 }
             }
             if !bodies.is_empty() {
-                let pivot = bsp.models.get(model).map(|m| m.bounds().center()).unwrap_or(Vec3::ZERO);
+                let pivot = bsp
+                    .models
+                    .get(model)
+                    .map(|m| m.bounds().center())
+                    .unwrap_or(Vec3::ZERO);
                 self.movers.insert(model, Mover { bodies, pivot });
             }
         }
@@ -135,6 +184,9 @@ impl PhysicsProps {
         }
 
         // Give every physics prop without a body one, shaped from its model.
+        // The body's mass, friction and bounciness come from the entity's
+        // object properties (`mass`, `friction`, `elasticity`) so a designer
+        // can make a heavy crate or a slippery one without touching code.
         let new: Vec<(EntityId, Aabb)> = entities
             .iter()
             .filter(|e| is_physics_prop(&e.classname))
@@ -154,17 +206,37 @@ impl PhysicsProps {
             let rotation = Quat::from_mat3(&angles.to_mat3());
             let center = bounds.center();
             let half_extent = (bounds.size() * 0.5).max(Vec3::splat(0.5));
+            let material = entities
+                .get(id)
+                .map(|e| prop_material(e, half_extent))
+                .unwrap_or_default();
             // The body sits at the model's visual centre, so an off-centre
             // model still rests where it draws.
-            let body = self.rigid.add_dynamic_box(half_extent, origin + rotation * center, rotation);
-            self.props.insert(id, PropBody { body, center, half_extent });
+            let body = self.rigid.add_dynamic_box_material(
+                half_extent,
+                origin + rotation * center,
+                rotation,
+                material,
+            );
+            self.props.insert(
+                id,
+                PropBody {
+                    body,
+                    center,
+                    half_extent,
+                },
+            );
         }
 
         // Moving brush entities follow their entity's pose, so a door that
         // opened or closed this tick blocks (or stops blocking) immediately.
         for entity in entities.iter() {
-            let Some(model) = entity.brush_model else { continue };
-            let Some(mover) = self.movers.get(&model) else { continue };
+            let Some(model) = entity.brush_model else {
+                continue;
+            };
+            let Some(mover) = self.movers.get(&model) else {
+                continue;
+            };
             let rotation = Quat::from_mat3(&entity.angles.to_mat3());
             let position = entity.origin + mover.pivot;
             for &body in &mover.bodies {
@@ -186,22 +258,33 @@ impl PhysicsProps {
     }
 
     /// Number of dynamic prop bodies currently simulated.
-    pub fn prop_count(&self) -> usize { self.props.len() }
+    pub fn prop_count(&self) -> usize {
+        self.props.len()
+    }
 
     /// Number of static world hulls added at map load.
-    pub fn static_body_count(&self) -> usize { self.static_bodies }
+    pub fn static_body_count(&self) -> usize {
+        self.static_bodies
+    }
 
     /// Number of moving brush entities (doors, shutters) with bodies.
-    pub fn mover_count(&self) -> usize { self.movers.len() }
+    pub fn mover_count(&self) -> usize {
+        self.movers.len()
+    }
 
     /// Total bodies in the simulation (static world plus movers plus props).
-    pub fn body_count(&self) -> usize { self.rigid.body_count() }
+    pub fn body_count(&self) -> usize {
+        self.rigid.body_count()
+    }
 
     /// Apply an instantaneous impulse to one prop's centre of mass, in world
     /// space -- a shot, a kick, an explosion.
     pub fn apply_impulse(&mut self, id: EntityId, impulse: Vec3) -> bool {
         match self.props.get(&id) {
-            Some(prop) => { self.rigid.apply_impulse(prop.body, impulse); true }
+            Some(prop) => {
+                self.rigid.apply_impulse(prop.body, impulse);
+                true
+            }
             None => false,
         }
     }
@@ -209,14 +292,19 @@ impl PhysicsProps {
     /// Wake one prop with a small upward nudge, so a `Wake` input is visibly
     /// a reaction rather than nothing.
     pub fn wake(&mut self, id: EntityId) -> bool {
-        let Some(prop) = self.props.get(&id) else { return false };
-        self.rigid.apply_impulse(prop.body, Vec3::new(0.0, 0.0, 120.0));
+        let Some(prop) = self.props.get(&id) else {
+            return false;
+        };
+        self.rigid
+            .apply_impulse(prop.body, Vec3::new(0.0, 0.0, 120.0));
         true
     }
 
     /// Stop one prop dead, as `Sleep` asks.
     pub fn sleep(&mut self, id: EntityId) -> bool {
-        let Some(prop) = self.props.get(&id) else { return false };
+        let Some(prop) = self.props.get(&id) else {
+            return false;
+        };
         self.rigid.set_linear_velocity(prop.body, Vec3::ZERO);
         self.rigid.set_angular_velocity(prop.body, Vec3::ZERO);
         true
@@ -235,18 +323,7 @@ impl PhysicsProps {
     pub fn prop_aabbs(&self) -> Vec<Aabb> {
         let mut out = Vec::with_capacity(self.props.len());
         for prop in self.props.values() {
-            let (position, rotation) = self.rigid.body_transform(prop.body);
-            let h = prop.half_extent;
-            let mut aabb = Aabb::EMPTY;
-            for i in 0..8 {
-                let local = Vec3::new(
-                    if i & 1 == 0 { -h.x } else { h.x },
-                    if i & 2 == 0 { -h.y } else { h.y },
-                    if i & 4 == 0 { -h.z } else { h.z },
-                );
-                aabb.add_point(position + rotation * local);
-            }
-            out.push(aabb);
+            out.push(prop_aabb(&self.rigid, prop));
         }
         out
     }
@@ -254,11 +331,27 @@ impl PhysicsProps {
     /// The nearest prop whose box a ray from `start` along `dir` hits within
     /// `range`, plus its rotation at that moment.
     ///
-    /// Used by the pick-up tool: aim at a prop and press use.
-    pub fn pick_prop(&self, start: Vec3, dir: Vec3, range: f32) -> Option<(EntityId, Quat)> {
+    /// Used by the pick-up tool: aim at a prop and press use. A prop whose
+    /// `pickable` object property is off is skipped, so a crate a designer
+    /// glued down cannot be scooped up.
+    pub fn pick_prop(
+        &self,
+        start: Vec3,
+        dir: Vec3,
+        range: f32,
+        entities: &EntityWorld,
+    ) -> Option<(EntityId, Quat)> {
         let end = start + dir * range;
         let mut best: Option<(f32, EntityId)> = None;
         for (&id, prop) in &self.props {
+            // A prop marked unpickable is not a candidate, whatever is behind
+            // it stays reachable because the ray simply continues past it.
+            if entities
+                .get(id)
+                .is_some_and(|e| !e.fields.bool("pickable", true))
+            {
+                continue;
+            }
             let (position, rotation) = self.rigid.body_transform(prop.body);
             let h = prop.half_extent;
             let mut aabb = Aabb::EMPTY;
@@ -274,12 +367,18 @@ impl PhysicsProps {
                 kerosene_physics::sweep_point_vs_box(start, end, aabb.min, aabb.max)
             {
                 let distance = t * range;
-                if best.map_or(true, |(bd, _)| distance < bd) {
+                if best.is_none_or(|(bd, _)| distance < bd) {
                     best = Some((distance, id));
                 }
             }
         }
         best.map(|(_, id)| (id, self.rigid.body_transform(self.props[&id].body).1))
+    }
+
+    /// The collision box half-extents of one prop, for placing it without
+    /// pushing it through a wall.
+    pub fn prop_half_extent(&self, id: EntityId) -> Option<Vec3> {
+        self.props.get(&id).map(|p| p.half_extent)
     }
 
     /// Hold a prop still at `position` (its model centre) and update its
@@ -291,7 +390,9 @@ impl PhysicsProps {
         rotation: Quat,
         entities: &mut EntityWorld,
     ) {
-        let Some(prop) = self.props.get(&id) else { return };
+        let Some(prop) = self.props.get(&id) else {
+            return;
+        };
         self.rigid.set_body_transform(prop.body, position, rotation);
         self.rigid.set_linear_velocity(prop.body, Vec3::ZERO);
         self.rigid.set_angular_velocity(prop.body, Vec3::ZERO);
@@ -300,6 +401,117 @@ impl PhysicsProps {
             e.origin = origin;
             e.angles = Angles::from_quat(rotation);
         }
+    }
+
+    /// Put the player into the simulation where they now stand, moving at
+    /// `push_velocity`.
+    ///
+    /// Called every tick, after the player's own movement has run and before
+    /// the world is stepped, so props meet the player where the player
+    /// actually is.
+    ///
+    /// `push_velocity` is what the player is *trying* to do, not only what
+    /// they managed. The two differ exactly when it matters: props are solid
+    /// to the player's hull trace, so walking into a crate stops the player
+    /// dead and leaves them with no velocity at all. Handing the solver that
+    /// zero would mean leaning on a crate could never move it. Handing it the
+    /// attempted velocity shoves the crate at walking pace, and the player
+    /// follows it as it goes.
+    pub fn sync_player(&mut self, origin: Vec3, mins: Vec3, maxs: Vec3, push_velocity: Vec3) {
+        let half_extent = ((maxs - mins) * 0.5).max(Vec3::splat(0.5));
+        let center = origin + (mins + maxs) * 0.5;
+
+        // Ducking changes the hull, and a body's shape is fixed once built.
+        let rebuild = match &self.player {
+            Some(p) => (p.half_extent - half_extent).length() > 0.01,
+            None => true,
+        };
+        if rebuild {
+            if let Some(old) = self.player.take() {
+                self.rigid.destroy_body(old.body);
+            }
+            let body = self
+                .rigid
+                .add_kinematic_box(half_extent, center, Quat::IDENTITY);
+            self.player = Some(PlayerBody { body, half_extent });
+        }
+
+        let Some(player) = &self.player else { return };
+        self.rigid
+            .set_body_transform(player.body, center, Quat::IDENTITY);
+        self.rigid.set_linear_velocity(player.body, push_velocity);
+    }
+
+    /// Shove the props the player is leaning on.
+    ///
+    /// Being solid is not the same as being able to push. The player's body is
+    /// kinematic, which means the solver treats it as infinitely massive: it
+    /// would shove a half-tonne crate down a corridor exactly as fast as an
+    /// empty carton, which is worse than not pushing at all. So the pushing is
+    /// done here instead, as a force a person can exert -- light things move
+    /// readily, heavy things barely budge, and the difference is the prop's
+    /// own `mass` keyvalue rather than a rule about which props are pushable.
+    ///
+    /// Capped at `max_speed` because you cannot push something faster than you
+    /// can walk: past that the player would be shoved along by their own crate.
+    ///
+    /// Returns how many props were touched, for the benefit of tests.
+    pub fn push_props(
+        &mut self,
+        player: Aabb,
+        direction: Vec3,
+        force: f32,
+        max_speed: f32,
+        dt: f32,
+    ) -> usize {
+        if direction.length_squared() < 1e-6 || force <= 0.0 {
+            return 0;
+        }
+        // A little slack, because a prop the player is walking into is stopped
+        // just short of them by their own hull trace and never quite overlaps.
+        let reach = Aabb::new(player.min - Vec3::splat(2.0), player.max + Vec3::splat(2.0));
+
+        let bodies: Vec<Body> = self
+            .props
+            .values()
+            .filter(|prop| reach.intersects(&prop_aabb(&self.rigid, prop)))
+            .map(|prop| prop.body)
+            .collect();
+
+        for body in &bodies {
+            let mass = self.rigid.mass(*body);
+            if mass <= 0.0 {
+                continue;
+            }
+            let along = self.rigid.linear_velocity(*body).dot(direction);
+            let room = (max_speed - along).max(0.0);
+            let gain = (force * dt / mass).min(room);
+            if gain > 0.0 {
+                self.rigid.apply_impulse(*body, direction * gain * mass);
+            }
+        }
+        bodies.len()
+    }
+
+    /// Release a prop at a given world velocity -- a throw, or a plain drop
+    /// with whatever the player was already carrying it at.
+    ///
+    /// A velocity rather than an impulse, because a throw is a throw: the
+    /// launch used to be a fixed impulse, which divides by mass, so the same
+    /// press sent a light crate across the room and barely nudged a heavy one.
+    /// What a player means by "throw this" is a speed.
+    pub fn launch_prop(&mut self, id: EntityId, velocity: Vec3) -> bool {
+        let Some(prop) = self.props.get(&id) else {
+            return false;
+        };
+        // Explicitly, before the velocity: a carried prop has been held
+        // perfectly still and is asleep, and setting a velocity only wakes a
+        // body when that velocity is non-zero -- so a prop dropped while
+        // standing still would hang in the air.
+        self.rigid.set_awake(prop.body, true);
+        self.rigid.set_linear_velocity(prop.body, velocity);
+        self.rigid.set_angular_velocity(prop.body, Vec3::ZERO);
+        true
     }
 
     /// Wireframe boxes for every prop, for the in-game physics debug view.
@@ -318,7 +530,11 @@ impl PhysicsProps {
                 corners[i] = position + rotation * local;
             }
             for (a, b) in BOX_EDGES {
-                lines.push(DebugLine { a: corners[a], b: corners[b], color: [0.2, 1.0, 0.3] });
+                lines.push(DebugLine {
+                    a: corners[a],
+                    b: corners[b],
+                    color: [0.2, 1.0, 0.3],
+                });
             }
         }
         lines
@@ -326,12 +542,51 @@ impl PhysicsProps {
 }
 
 impl Default for PhysicsProps {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 /// Whether a class is a physics prop (a dynamic rigid body).
 pub fn is_physics_prop(classname: &str) -> bool {
     classname.eq_ignore_ascii_case("prop_physics")
+}
+
+/// Read the physical material a prop's object properties describe.
+///
+/// `mass` is kilograms; the prop's box volume turns it into a density for
+/// Box3D. `friction` and `elasticity` are the usual 0..1 physical
+/// coefficients. Any key left unset falls back to a wood crate.
+/// The world-space axis-aligned bounds of one prop's oriented box.
+fn prop_aabb(rigid: &RigidWorld, prop: &PropBody) -> Aabb {
+    let (position, rotation) = rigid.body_transform(prop.body);
+    let h = prop.half_extent;
+    let mut aabb = Aabb::EMPTY;
+    for i in 0..8 {
+        let local = Vec3::new(
+            if i & 1 == 0 { -h.x } else { h.x },
+            if i & 2 == 0 { -h.y } else { h.y },
+            if i & 4 == 0 { -h.z } else { h.z },
+        );
+        aabb.add_point(position + rotation * local);
+    }
+    aabb
+}
+
+fn prop_material(e: &kerosene_entity::Entity, half_extent: Vec3) -> kerosene_rigid::BodyMaterial {
+    let mass_kg = e.fields.f32("mass", -1.0);
+    let friction = e.fields.f32("friction", 0.8);
+    let restitution = e.fields.f32("elasticity", 0.1);
+    let mut material = kerosene_rigid::BodyMaterial {
+        density: kerosene_rigid::BodyMaterial::wood().density,
+        friction,
+        restitution,
+    };
+    if mass_kg > 0.0 {
+        let volume = half_extent.x * half_extent.y * half_extent.z * 8.0;
+        material.density = kerosene_rigid::BodyMaterial::density_for_mass(mass_kg, volume);
+    }
+    material
 }
 
 /// A wireframe segment for the debug overlay.
@@ -344,8 +599,18 @@ pub struct DebugLine {
 
 /// The 12 edges of a box, as corner index pairs.
 const BOX_EDGES: [(usize, usize); 12] = [
-    (0, 1), (0, 2), (0, 4), (1, 3), (1, 5), (2, 3),
-    (2, 6), (3, 7), (4, 5), (4, 6), (5, 7), (6, 7),
+    (0, 1),
+    (0, 2),
+    (0, 4),
+    (1, 3),
+    (1, 5),
+    (2, 3),
+    (2, 6),
+    (3, 7),
+    (4, 5),
+    (4, 6),
+    (5, 7),
+    (6, 7),
 ];
 
 /// The unique vertices of one BSP brush, computed by clipping each face's base
@@ -357,19 +622,25 @@ fn brush_vertices(bsp: &Bsp, brush: &kerosene_bsp::Brush) -> Option<Vec<Vec3>> {
         let plane = bsp.planes.get(side.plane as usize)?.to_plane();
         planes.push(plane);
     }
-    if planes.len() < 4 { return None; }
+    if planes.len() < 4 {
+        return None;
+    }
 
     let mut points = Vec::new();
     for (i, plane) in planes.iter().enumerate() {
         let mut w = Winding::base_for_plane(plane);
         for (j, other) in planes.iter().enumerate() {
-            if i == j { continue; }
+            if i == j {
+                continue;
+            }
             // Keep the half of the brush we are inside: the other face's
             // plane, flipped to point inward.
             w = w.clipped(&other.flipped(), ON_EPSILON)?;
         }
         w.remove_collinear();
-        if w.is_tiny() { continue; }
+        if w.is_tiny() {
+            continue;
+        }
         points.extend(w.points);
     }
 
@@ -386,11 +657,15 @@ fn brush_vertices(bsp: &Bsp, brush: &kerosene_bsp::Brush) -> Option<Vec<Vec3>> {
 /// entities). A brush model's head node is a single leaf whose leafbrushes
 /// reference exactly its brushes.
 fn model_brush_indices(bsp: &Bsp, model: usize) -> Vec<usize> {
-    let Some(m) = bsp.models.get(model) else { return Vec::new() };
+    let Some(m) = bsp.models.get(model) else {
+        return Vec::new();
+    };
     let kerosene_bsp::Child::Leaf(leaf) = kerosene_bsp::decode_child(m.head_node) else {
         return Vec::new();
     };
-    let Some(leaf) = bsp.leaves.get(leaf) else { return Vec::new() };
+    let Some(leaf) = bsp.leaves.get(leaf) else {
+        return Vec::new();
+    };
     let first = leaf.first_leafbrush as usize;
     let count = leaf.num_leafbrushes as usize;
     (first..first + count)
@@ -409,6 +684,7 @@ fn model_bounds(vfs: &Vfs, name: &str) -> Option<Aabb> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use kerosene_entity::Entity;
 
     #[test]
     fn physics_props_are_recognised_by_class() {
@@ -426,6 +702,56 @@ mod tests {
             degree[a] += 1;
             degree[b] += 1;
         }
-        assert!(degree.iter().all(|&d| d == 3), "corners degrees: {degree:?}");
+        assert!(
+            degree.iter().all(|&d| d == 3),
+            "corners degrees: {degree:?}"
+        );
+    }
+
+    #[test]
+    fn object_properties_become_the_body_material() {
+        // A designer writes `mass`, `friction` and `elasticity`; the engine
+        // turns them into the rigid body's material.
+        let mut e = Entity {
+            id: kerosene_entity::EntityId {
+                index: 0,
+                generation: 0,
+            },
+            classname: "prop_physics".into(),
+            fields: kerosene_entity::Fields::new(),
+            origin: Vec3::ZERO,
+            angles: Angles::ZERO,
+            connections: Vec::new(),
+            next_think: None,
+            brush_model: None,
+            pending_removal: false,
+        };
+        let half = Vec3::new(8.0, 8.0, 8.0);
+        let volume = half.x * half.y * half.z * 8.0;
+
+        // Unset keys fall back to wood.
+        let wood = prop_material(&e, half);
+        assert_eq!(wood.friction, 0.8);
+        assert_eq!(wood.restitution, 0.1);
+
+        e.fields.set("friction", kerosene_entity::Value::Float(0.2));
+        e.fields
+            .set("elasticity", kerosene_entity::Value::Float(0.9));
+        let slippery = prop_material(&e, half);
+        assert_eq!(slippery.friction, 0.2);
+        assert_eq!(slippery.restitution, 0.9);
+
+        // A set mass turns into the density that makes that total mass.
+        e.fields.set("mass", kerosene_entity::Value::Float(64.0));
+        let heavy = prop_material(&e, half);
+        assert!((heavy.density - 64.0 / volume).abs() < 1e-6);
+
+        // Zero or negative mass means "derive it", not "weightless".
+        e.fields.set("mass", kerosene_entity::Value::Float(0.0));
+        let derived = prop_material(&e, half);
+        assert_eq!(
+            derived.density,
+            kerosene_rigid::BodyMaterial::wood().density
+        );
     }
 }

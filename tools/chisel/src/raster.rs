@@ -24,8 +24,8 @@
 use crate::document::Document;
 use crate::draw::{self, colors};
 use crate::textures::{Texture, TextureCache};
-use std::sync::Arc;
 use kerosene_math::{Basis, Vec3};
+use std::sync::Arc;
 
 /// An RGBA image, ready to hand to egui.
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -39,7 +39,11 @@ impl Image {
     /// A blank image. Public so a second rasteriser -- the model previewer
     /// -- can produce the same kind of picture without a copy of this.
     pub fn new(width: usize, height: usize, fill: [u8; 4]) -> Image {
-        Image { width, height, pixels: vec![fill; width * height] }
+        Image {
+            width,
+            height,
+            pixels: vec![fill; width * height],
+        }
     }
 
     pub fn pixel(&self, x: usize, y: usize) -> [u8; 4] {
@@ -88,7 +92,9 @@ fn shading_for(normal: Vec3) -> f32 {
 /// one nobody sees, so it stays solid.
 pub fn opacity_for(material: &str) -> f32 {
     let lower = material.to_ascii_lowercase();
-    let Some(tool) = lower.strip_prefix("tools/") else { return 1.0 };
+    let Some(tool) = lower.strip_prefix("tools/") else {
+        return 1.0;
+    };
     match tool {
         // Solid geometry that happens not to be drawn.
         "nodraw" | "invisible" | "skybox" | "sky" => 1.0,
@@ -126,7 +132,12 @@ impl Shading {
     }
 
     pub fn all() -> [Shading; 4] {
-        [Shading::Textured, Shading::Flat, Shading::Shaded, Shading::Walkmap]
+        [
+            Shading::Textured,
+            Shading::Flat,
+            Shading::Shaded,
+            Shading::Walkmap,
+        ]
     }
 }
 
@@ -144,7 +155,10 @@ pub struct Settings<'a> {
 impl Settings<'_> {
     /// Untextured grey. What the pane looked like before textures existed.
     pub fn shaded_only() -> Settings<'static> {
-        Settings { shading: Shading::Shaded, resolve: None }
+        Settings {
+            shading: Shading::Shaded,
+            resolve: None,
+        }
     }
 }
 
@@ -159,7 +173,15 @@ pub fn render(
     width: usize,
     height: usize,
 ) -> Image {
-    render_with(document, eye, basis, fov, width, height, &mut Settings::shaded_only())
+    render_with(
+        document,
+        eye,
+        basis,
+        fov,
+        width,
+        height,
+        &mut Settings::shaded_only(),
+    )
 }
 
 /// Draw a document, with textures if there are any.
@@ -173,7 +195,9 @@ pub fn render_with(
     settings: &mut Settings<'_>,
 ) -> Image {
     let mut image = Image::new(width.max(1), height.max(1), background_rgba());
-    if width == 0 || height == 0 { return image }
+    if width == 0 || height == 0 {
+        return image;
+    }
 
     // 1/z, not z: it interpolates linearly in screen space, which is what
     // makes a depth buffer correct across a perspective projection. Zero is
@@ -184,7 +208,9 @@ pub fn render_with(
     let mut face_at = vec![0u32; image.pixels.len()];
 
     let aspect = width as f32 / height as f32;
-    let half_y = (kerosene_render::vertical_fov(fov, aspect) * 0.5).tan().max(1e-4);
+    let half_y = (kerosene_render::vertical_fov(fov, aspect) * 0.5)
+        .tan()
+        .max(1e-4);
     let half_x = half_y * aspect;
 
     let project = |camera: Vec3| -> [f32; 3] {
@@ -201,7 +227,10 @@ pub fn render_with(
     // world goes down first and the volumes on top. Within each group the
     // depth buffer still decides; this only orders the two passes.
     faces.sort_by(|a, b| {
-        let (a_solid, b_solid) = (opacity_for(&a.material) >= 1.0, opacity_for(&b.material) >= 1.0);
+        let (a_solid, b_solid) = (
+            opacity_for(&a.material) >= 1.0,
+            opacity_for(&b.material) >= 1.0,
+        );
         b_solid.cmp(&a_solid).then(b.depth.total_cmp(&a.depth))
     });
 
@@ -239,7 +268,9 @@ pub fn render_with(
             },
         };
         // Flat mode wants the average, not the pixels.
-        let texture = (settings.shading == Shading::Textured).then_some(resolved).flatten();
+        let texture = (settings.shading == Shading::Textured)
+            .then_some(resolved)
+            .flatten();
 
         let vertices: Vec<Vertex> = face
             .polygon
@@ -250,11 +281,20 @@ pub fn render_with(
                     Some(t) => (t.width() as f32, t.height() as f32),
                     None => (1.0, 1.0),
                 };
-                Vertex { screen, uv: (v.texel.0 / w, v.texel.1 / h) }
+                Vertex {
+                    screen,
+                    uv: (v.texel.0 / w, v.texel.1 / h),
+                }
             })
             .collect();
 
-        let surface = Surface { texture: texture.clone(), flat, shade, tint, opacity };
+        let surface = Surface {
+            texture: texture.clone(),
+            flat,
+            shade,
+            tint,
+            opacity,
+        };
         // A convex polygon fans from any vertex.
         for i in 1..vertices.len().saturating_sub(1) {
             triangle(
@@ -296,7 +336,9 @@ struct Surface {
 }
 
 impl Surface {
-    fn is_opaque(&self) -> bool { self.opacity >= 1.0 }
+    fn is_opaque(&self) -> bool {
+        self.opacity >= 1.0
+    }
 
     fn finish(&self, colour: [u8; 3]) -> [u8; 4] {
         let mut out = [
@@ -324,10 +366,14 @@ fn triangle(
     surface: &Surface,
     face: u32,
 ) {
-    if v.iter().any(|p| p.screen.iter().any(|c| !c.is_finite())) { return }
+    if v.iter().any(|p| p.screen.iter().any(|c| !c.is_finite())) {
+        return;
+    }
 
     let mut area = edge(v[0].screen, v[1].screen, [v[2].screen[0], v[2].screen[1]]);
-    if area == 0.0 { return }
+    if area == 0.0 {
+        return;
+    }
     // Both windings arrive here -- clipping does not preserve one -- so flip
     // rather than cull. Facing was already decided in world space.
     if area < 0.0 {
@@ -336,13 +382,31 @@ fn triangle(
     }
 
     let (w, h) = (image.width as f32, image.height as f32);
-    let min_x = v.iter().fold(f32::MAX, |a, p| a.min(p.screen[0])).floor().max(0.0) as usize;
-    let max_x =
-        (v.iter().fold(f32::MIN, |a, p| a.max(p.screen[0])).ceil().min(w - 1.0)).max(0.0) as usize;
-    let min_y = v.iter().fold(f32::MAX, |a, p| a.min(p.screen[1])).floor().max(0.0) as usize;
-    let max_y =
-        (v.iter().fold(f32::MIN, |a, p| a.max(p.screen[1])).ceil().min(h - 1.0)).max(0.0) as usize;
-    if min_x > max_x || min_y > max_y { return }
+    let min_x = v
+        .iter()
+        .fold(f32::MAX, |a, p| a.min(p.screen[0]))
+        .floor()
+        .max(0.0) as usize;
+    let max_x = (v
+        .iter()
+        .fold(f32::MIN, |a, p| a.max(p.screen[0]))
+        .ceil()
+        .min(w - 1.0))
+    .max(0.0) as usize;
+    let min_y = v
+        .iter()
+        .fold(f32::MAX, |a, p| a.min(p.screen[1]))
+        .floor()
+        .max(0.0) as usize;
+    let max_y = (v
+        .iter()
+        .fold(f32::MIN, |a, p| a.max(p.screen[1]))
+        .ceil()
+        .min(h - 1.0))
+    .max(0.0) as usize;
+    if min_x > max_x || min_y > max_y {
+        return;
+    }
 
     // Which mip to read, chosen once per triangle.
     //
@@ -361,7 +425,11 @@ fn triangle(
         // `area` is twice the screen-space area; both are, so the ratio is
         // right and the factors of two cancel.
         let ratio = texel_area / area.max(1e-6);
-        if !ratio.is_finite() || ratio <= 1.0 { 0 } else { (ratio.log2() * 0.5).round().max(0.0) as usize }
+        if !ratio.is_finite() || ratio <= 1.0 {
+            0
+        } else {
+            (ratio.log2() * 0.5).round().max(0.0) as usize
+        }
     });
 
     // Perspective-correct interpolation: u/z and v/z are linear in screen
@@ -388,13 +456,17 @@ fn triangle(
             let w0 = edge(v[1].screen, v[2].screen, p);
             let w1 = edge(v[2].screen, v[0].screen, p);
             let w2 = edge(v[0].screen, v[1].screen, p);
-            if w0 < -eps || w1 < -eps || w2 < -eps { continue }
+            if w0 < -eps || w1 < -eps || w2 < -eps {
+                continue;
+            }
 
             // 1/z is linear in screen space, so this interpolation is exact.
             let inv_z =
                 (w0 * v[0].screen[2] + w1 * v[1].screen[2] + w2 * v[2].screen[2]) * inv_area;
             let at = y * image.width + x;
-            if inv_z <= depth[at] { continue }
+            if inv_z <= depth[at] {
+                continue;
+            }
             // A see-through face does not take the depth buffer: two of them
             // overlapping should both show, and something further away behind
             // one of them must not be erased by it.
@@ -460,10 +532,14 @@ fn outline(image: &mut Image, face_at: &[u32]) {
             let here = face_at[at];
             // Only darken geometry: an edge against the background would draw
             // a halo outside the shape.
-            if here == 0 { continue }
+            if here == 0 {
+                continue;
+            }
             let right = if x + 1 < w { face_at[at + 1] } else { here };
             let below = if y + 1 < h { face_at[at + w] } else { here };
-            if here == right && here == below { continue }
+            if here == right && here == below {
+                continue;
+            }
             // Safe to do in place: the decision reads `face_at`, which this
             // does not touch.
             let p = &mut image.pixels[at];
@@ -486,9 +562,13 @@ fn markers(
     const RADIUS: i64 = 4;
     for entity in document.map.entities.iter().filter(|e| e.solids.is_empty()) {
         let camera = draw::to_camera_space(&[entity.origin()], eye, basis);
-        if camera[0].z < draw::NEAR { continue }
+        if camera[0].z < draw::NEAR {
+            continue;
+        }
         let p = project(camera[0]);
-        if !p[0].is_finite() || !p[1].is_finite() { continue }
+        if !p[0].is_finite() || !p[1].is_finite() {
+            continue;
+        }
 
         // The same colour the 2D panes give this family of entity, so a
         // light is amber in every pane and picking it out of the 3D view does
@@ -505,11 +585,17 @@ fn markers(
         for dy in -RADIUS..=RADIUS {
             for dx in -RADIUS..=RADIUS {
                 // A hollow square: a filled one hides what it is marking.
-                if dx.abs() != RADIUS && dy.abs() != RADIUS { continue }
+                if dx.abs() != RADIUS && dy.abs() != RADIUS {
+                    continue;
+                }
                 let (x, y) = (cx + dx, cy + dy);
-                if x < 0 || y < 0 || x >= image.width as i64 || y >= image.height as i64 { continue }
+                if x < 0 || y < 0 || x >= image.width as i64 || y >= image.height as i64 {
+                    continue;
+                }
                 let at = y as usize * image.width + x as usize;
-                if p[2] < depth[at] { continue }
+                if p[2] < depth[at] {
+                    continue;
+                }
                 depth[at] = p[2];
                 image.pixels[at] = color;
             }

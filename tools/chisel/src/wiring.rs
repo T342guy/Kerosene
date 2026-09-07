@@ -47,7 +47,10 @@ pub fn events(connections: &[Connection]) -> Vec<Event> {
     for (index, connection) in connections.iter().enumerate() {
         match events.iter_mut().find(|e| e.name == connection.output) {
             Some(event) => event.steps.push(index),
-            None => events.push(Event { name: connection.output.clone(), steps: vec![index] }),
+            None => events.push(Event {
+                name: connection.output.clone(),
+                steps: vec![index],
+            }),
         }
     }
     for event in &mut events {

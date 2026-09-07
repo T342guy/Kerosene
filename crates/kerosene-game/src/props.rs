@@ -13,7 +13,7 @@
 //! a barrel when a door opens without any scripting.
 
 use kerosene_entity::io::InputEvent;
-use kerosene_entity::{ClassDef, ClassRegistry, EntityId, EntityWorld, Value};
+use kerosene_entity::{ClassDef, ClassRegistry, EntityId, EntityWorld, Fields, Value};
 use kerosene_math::Vec3;
 
 /// Spawnflag: `prop_dynamic_spawner` fires once when the map starts.
@@ -93,7 +93,7 @@ fn spawn_batch(world: &mut EntityWorld, id: EntityId) {
         // A deterministic jitter so a batch of crates drops as a loose pile
         // instead of a perfectly interpenetrating stack.
         let jitter = jitter(i, spread);
-        let spawned = spawn_prop(world, &model, origin + jitter);
+        let spawned = spawn_prop(world, &model, origin + jitter, &spawner.fields);
 
         if let Some(e) = world.get_mut(spawned) {
             // Slightly rotated so two cubes never settle into the same corner.
@@ -109,14 +109,26 @@ fn spawn_batch(world: &mut EntityWorld, id: EntityId) {
 }
 
 /// Create a `prop_physics` entity with a model, for the spawner.
-fn spawn_prop(world: &mut EntityWorld, model: &str, origin: Vec3) -> EntityId {
+///
+/// The spawner's object properties (`mass`, `friction`, `elasticity`,
+/// `pickable`) are copied onto the prop, so a designer sets them once on the
+/// spawner and every prop it drops obeys them.
+fn spawn_prop(world: &mut EntityWorld, model: &str, origin: Vec3, spawner: &Fields) -> EntityId {
     let id = world.spawn("prop_physics");
     if let Some(e) = world.get_mut(id) {
         e.origin = origin;
         e.fields.set("model", Value::Text(model.to_string()));
+        for key in SPAWNED_PHYS_KEYS {
+            if let Some(value) = spawner.get(key) {
+                e.fields.set(key, value.clone());
+            }
+        }
     }
     id
 }
+
+/// The object properties a spawned prop inherits from its spawner.
+const SPAWNED_PHYS_KEYS: [&str; 4] = ["mass", "friction", "elasticity", "pickable"];
 
 /// A small deterministic spread, in world units.
 fn jitter(i: usize, spread: f32) -> Vec3 {

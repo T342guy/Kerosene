@@ -48,7 +48,13 @@ impl ToolKind {
     /// their shortcuts run in, so the list reads 1, 2, 3, 4, 5 down the side
     /// rather than sending the eye hunting for the number it wants.
     pub fn all() -> [ToolKind; 5] {
-        [ToolKind::Select, ToolKind::Block, ToolKind::Entity, ToolKind::Texture, ToolKind::Shape]
+        [
+            ToolKind::Select,
+            ToolKind::Block,
+            ToolKind::Entity,
+            ToolKind::Texture,
+            ToolKind::Shape,
+        ]
     }
 
     /// Whether this tool draws a box out and turns it into geometry.
@@ -85,14 +91,22 @@ impl TextureMode {
 
     pub fn describe(self) -> &'static str {
         match self {
-            TextureMode::Selection => "A click selects; nothing is applied. Use the face panel's \"apply current\" to paint.",
-            TextureMode::ApplyDoubleClick => "A click selects; a double-click applies the current material.",
+            TextureMode::Selection => {
+                "A click selects; nothing is applied. Use the face panel's \"apply current\" to paint."
+            }
+            TextureMode::ApplyDoubleClick => {
+                "A click selects; a double-click applies the current material."
+            }
             TextureMode::AlwaysApply => "A click selects and applies the current material.",
         }
     }
 
     pub fn all() -> [TextureMode; 3] {
-        [TextureMode::Selection, TextureMode::ApplyDoubleClick, TextureMode::AlwaysApply]
+        [
+            TextureMode::Selection,
+            TextureMode::ApplyDoubleClick,
+            TextureMode::AlwaysApply,
+        ]
     }
 
     pub fn next(self) -> TextureMode {
@@ -176,10 +190,14 @@ impl Drag {
         Aabb::new(self.start.min(self.current), self.start.max(self.current))
     }
 
-    pub fn delta(&self) -> Vec3 { self.current - self.start }
+    pub fn delta(&self) -> Vec3 {
+        self.current - self.start
+    }
 
     /// Whether this drag is resizing rather than moving.
-    pub fn is_resize(&self) -> bool { self.grip.is_some() }
+    pub fn is_resize(&self) -> bool {
+        self.grip.is_some()
+    }
 }
 
 /// Pixels a pointer must travel before a click becomes a drag.
@@ -224,7 +242,9 @@ impl Tool {
     /// Pointer pressed in a viewport.
     pub fn press(&mut self, document: &Document, viewport: &Viewport, x: f32, y: f32) {
         let depth = default_depth(document, viewport);
-        let world = document.grid.snap_point(viewport.screen_to_world(x, y, depth));
+        let world = document
+            .grid
+            .snap_point(viewport.screen_to_world(x, y, depth));
         self.drag_origin_px = (x, y);
 
         // Pressing on one of the selection's grips resizes it; pressing
@@ -253,10 +273,15 @@ impl Tool {
     pub fn drag_to(&mut self, document: &Document, viewport: &Viewport, x: f32, y: f32) {
         let Some(drag) = &mut self.drag else { return };
         let depth = drag.start[viewport.kind.axes().2];
-        drag.current = document.grid.snap_point(viewport.screen_to_world(x, y, depth));
+        drag.current = document
+            .grid
+            .snap_point(viewport.screen_to_world(x, y, depth));
 
-        let moved = ((x - self.drag_origin_px.0).powi(2) + (y - self.drag_origin_px.1).powi(2)).sqrt();
-        if moved > DRAG_THRESHOLD { drag.is_dragging = true; }
+        let moved =
+            ((x - self.drag_origin_px.0).powi(2) + (y - self.drag_origin_px.1).powi(2)).sqrt();
+        if moved > DRAG_THRESHOLD {
+            drag.is_dragging = true;
+        }
     }
 
     /// Pointer released. Returns what the caller should do.
@@ -264,11 +289,15 @@ impl Tool {
         let drag = self.drag.take()?;
         Some(match self.kind {
             ToolKind::Block => {
-                if !drag.is_dragging { return None; }
+                if !drag.is_dragging {
+                    return None;
+                }
                 ToolAction::CreateBlock(drag.bounds())
             }
             ToolKind::Shape => {
-                if !drag.is_dragging { return None; }
+                if !drag.is_dragging {
+                    return None;
+                }
                 ToolAction::CreateShape {
                     bounds: drag.bounds(),
                     shape: self.shape,
@@ -278,9 +307,11 @@ impl Tool {
             ToolKind::Entity => ToolAction::CreateEntity(self.entity_class.clone(), drag.start),
             ToolKind::Texture => ToolAction::ApplyMaterialAt(drag.start),
             ToolKind::Select => match (drag.grip, drag.from) {
-                (Some(grip), Some(from)) if drag.is_dragging => {
-                    ToolAction::Resize { from, grip, to: drag.current }
-                }
+                (Some(grip), Some(from)) if drag.is_dragging => ToolAction::Resize {
+                    from,
+                    grip,
+                    to: drag.current,
+                },
                 _ if drag.is_dragging => ToolAction::Move(drag.delta()),
                 // A click on a grip with no drag behind it is a click, and
                 // clicking is how you select something else.
@@ -289,7 +320,9 @@ impl Tool {
         })
     }
 
-    pub fn cancel(&mut self) { self.drag = None; }
+    pub fn cancel(&mut self) {
+        self.drag = None;
+    }
 }
 
 /// What a finished drag asks the editor to do.
@@ -312,7 +345,11 @@ pub enum ToolAction {
     /// Carries where the selection started rather than a finished scale
     /// factor, so the ratio is worked out once, against the size the drag
     /// began at, by the code that has the viewport to work it out in.
-    Resize { from: Aabb, grip: Handle, to: Vec3 },
+    Resize {
+        from: Aabb,
+        grip: Handle,
+        to: Vec3,
+    },
     CreateEntity(String, Vec3),
     ApplyMaterialAt(Vec3),
     Move(Vec3),
@@ -373,7 +410,10 @@ impl Handle {
     /// Dragging the right edge must hold the left edge still. Anything else
     /// and the brush walks across the level while you resize it.
     pub fn opposite(self) -> Handle {
-        Handle { h: -self.h, v: -self.v }
+        Handle {
+            h: -self.h,
+            v: -self.v,
+        }
     }
 
     /// A short description, for the status bar.
@@ -403,7 +443,9 @@ pub fn handle_at(bounds: Aabb, viewport: &Viewport, x: f32, y: f32) -> Option<Ha
     for grip in Handle::all() {
         let (hx, hy) = viewport.world_to_screen(grip.world_position(bounds, viewport));
         let distance = ((hx - x).powi(2) + (hy - y).powi(2)).sqrt();
-        if distance > HANDLE_GRAB { continue }
+        if distance > HANDLE_GRAB {
+            continue;
+        }
 
         // A corner beats an edge at equal distance; otherwise nearest wins.
         let corner = grip.h != 0 && grip.v != 0;
@@ -436,7 +478,9 @@ pub fn resize_factor(
     let mut factor = Vec3::ONE;
 
     for (axis, side) in [(h, grip.h), (v, grip.v)] {
-        if side == 0 { continue }
+        if side == 0 {
+            continue;
+        }
         let was = pick(bounds.min[axis], bounds.max[axis], side) - anchor[axis];
         if was.abs() < f32::EPSILON {
             // The selection is already flat on this axis, so there is no
@@ -466,7 +510,9 @@ pub fn resize_factor(
 /// another lands beside it rather than at the origin. That is the behaviour
 /// that makes building in 2D views practical.
 fn default_depth(document: &Document, viewport: &Viewport) -> f32 {
-    if !viewport.kind.is_2d() { return 0.0; }
+    if !viewport.kind.is_2d() {
+        return 0.0;
+    }
     let axis = viewport.kind.axes().2;
     match document.selection_bounds() {
         Some(bounds) => bounds.min[axis],
@@ -486,8 +532,12 @@ pub fn pick_solid_2d(document: &Document, point: Vec3, viewport: &Viewport) -> O
         let bounds = solid.bounds();
         // Only the two axes the view shows: the third is depth, and a 2D view
         // selects through the whole level.
-        if point[h] < bounds.min[h] || point[h] > bounds.max[h] { continue; }
-        if point[v] < bounds.min[v] || point[v] > bounds.max[v] { continue; }
+        if point[h] < bounds.min[h] || point[h] > bounds.max[h] {
+            continue;
+        }
+        if point[v] < bounds.min[v] || point[v] > bounds.max[v] {
+            continue;
+        }
 
         let area = (bounds.size()[h] * bounds.size()[v]).max(1.0);
         if best.is_none_or(|(best_area, _)| area < best_area) {
@@ -506,9 +556,10 @@ pub fn pick_entity_2d(document: &Document, point: Vec3, viewport: &Viewport) -> 
     let mut best: Option<(f32, u32)> = None;
     for entity in document.map.entities.iter().filter(|e| e.solids.is_empty()) {
         let origin = entity.origin();
-        let distance =
-            ((origin[h] - point[h]).powi(2) + (origin[v] - point[v]).powi(2)).sqrt();
-        if distance > reach { continue; }
+        let distance = ((origin[h] - point[h]).powi(2) + (origin[v] - point[v]).powi(2)).sqrt();
+        if distance > reach {
+            continue;
+        }
         if best.is_none_or(|(d, _)| distance < d) {
             best = Some((distance, entity.id));
         }
@@ -520,7 +571,9 @@ pub fn pick_entity_2d(document: &Document, point: Vec3, viewport: &Viewport) -> 
 pub fn pick_solid_3d(document: &Document, origin: Vec3, direction: Vec3) -> Option<u32> {
     let mut best: Option<(f32, u32)> = None;
     for (_, solid) in document.map.all_solids() {
-        let Some(distance) = ray_box(origin, direction, solid.bounds()) else { continue };
+        let Some(distance) = ray_box(origin, direction, solid.bounds()) else {
+            continue;
+        };
         if best.is_none_or(|(d, _)| distance < d) {
             best = Some((distance, solid.id));
         }
@@ -535,23 +588,25 @@ pub fn pick_solid_3d(document: &Document, origin: Vec3, direction: Vec3) -> Opti
 /// about which of six faces you meant. Back-facing polygons are skipped, so
 /// clicking a wall from inside a room picks the wall you can see and not the
 /// one behind you.
-pub fn pick_face_3d(
-    document: &Document,
-    origin: Vec3,
-    direction: Vec3,
-) -> Option<(u32, u32)> {
+pub fn pick_face_3d(document: &Document, origin: Vec3, direction: Vec3) -> Option<(u32, u32)> {
     let mut best: Option<(f32, (u32, u32))> = None;
     for (_, solid) in document.map.all_solids() {
         for (side, winding) in solid.face_windings() {
             let Some(plane) = side.plane() else { continue };
             let facing = plane.normal.dot(direction);
             // Only faces turned towards the ray, and never one it runs along.
-            if facing >= -1e-6 { continue }
+            if facing >= -1e-6 {
+                continue;
+            }
 
             let distance = -(plane.normal.dot(origin) - plane.dist) / facing;
-            if distance < 0.0 { continue }
+            if distance < 0.0 {
+                continue;
+            }
             let hit = origin + direction * distance;
-            if !winding_contains(&winding, plane.normal, hit) { continue }
+            if !winding_contains(&winding, plane.normal, hit) {
+                continue;
+            }
             if best.is_none_or(|(d, _)| distance < d) {
                 best = Some((distance, (solid.id, side.id)));
             }
@@ -572,14 +627,18 @@ pub fn pick_face_3d(
 /// two faces rather than for neither.
 fn winding_contains(winding: &Winding, normal: Vec3, point: Vec3) -> bool {
     let n = winding.points.len();
-    if n < 3 { return false }
+    if n < 3 {
+        return false;
+    }
 
     let mut sign = 0.0f32;
     for i in 0..n {
         let a = winding.points[i];
         let b = winding.points[(i + 1) % n];
         let side = (b - a).cross(point - a).dot(normal);
-        if side.abs() <= 0.05 { continue }
+        if side.abs() <= 0.05 {
+            continue;
+        }
         if sign == 0.0 {
             sign = side.signum();
         } else if side.signum() != sign {
@@ -597,14 +656,21 @@ mod tests {
     fn setup() -> (Document, Viewport) {
         let mut document = Document::new();
         document.grid.size = 16.0;
-        let viewport = Viewport { size: (800.0, 600.0), zoom: 1.0, ..Viewport::new(ViewportKind::Top) };
+        let viewport = Viewport {
+            size: (800.0, 600.0),
+            zoom: 1.0,
+            ..Viewport::new(ViewportKind::Top)
+        };
         (document, viewport)
     }
 
     #[test]
     fn dragging_the_block_tool_asks_for_a_brush() {
         let (document, viewport) = setup();
-        let mut tool = Tool { kind: ToolKind::Block, ..Tool::new() };
+        let mut tool = Tool {
+            kind: ToolKind::Block,
+            ..Tool::new()
+        };
         tool.press(&document, &viewport, 400.0, 300.0);
         tool.drag_to(&document, &viewport, 500.0, 200.0);
 
@@ -620,7 +686,10 @@ mod tests {
     fn a_click_with_the_block_tool_creates_nothing() {
         // Otherwise every stray click leaves a one-grid-unit brush behind.
         let (document, viewport) = setup();
-        let mut tool = Tool { kind: ToolKind::Block, ..Tool::new() };
+        let mut tool = Tool {
+            kind: ToolKind::Block,
+            ..Tool::new()
+        };
         tool.press(&document, &viewport, 400.0, 300.0);
         tool.drag_to(&document, &viewport, 401.0, 300.0);
         assert_eq!(tool.release(false), None);
@@ -632,7 +701,10 @@ mod tests {
         let mut tool = Tool::new();
         tool.press(&document, &viewport, 400.0, 300.0);
         tool.drag_to(&document, &viewport, 401.0, 301.0);
-        assert!(matches!(tool.release(false), Some(ToolAction::PickAt(_, false))));
+        assert!(matches!(
+            tool.release(false),
+            Some(ToolAction::PickAt(_, false))
+        ));
     }
 
     #[test]
@@ -652,13 +724,19 @@ mod tests {
         let (document, viewport) = setup();
         let mut tool = Tool::new();
         tool.press(&document, &viewport, 400.0, 300.0);
-        assert!(matches!(tool.release(true), Some(ToolAction::PickAt(_, true))));
+        assert!(matches!(
+            tool.release(true),
+            Some(ToolAction::PickAt(_, true))
+        ));
     }
 
     #[test]
     fn switching_tools_abandons_the_drag_in_progress() {
         let (document, viewport) = setup();
-        let mut tool = Tool { kind: ToolKind::Block, ..Tool::new() };
+        let mut tool = Tool {
+            kind: ToolKind::Block,
+            ..Tool::new()
+        };
         tool.press(&document, &viewport, 400.0, 300.0);
         tool.set_kind(ToolKind::Select);
         assert!(tool.drag.is_none());
@@ -670,7 +748,10 @@ mod tests {
         let (mut document, viewport) = setup();
         document.create_block(Vec3::new(0.0, 0.0, 128.0), Vec3::new(64.0, 64.0, 192.0));
 
-        let mut tool = Tool { kind: ToolKind::Block, ..Tool::new() };
+        let mut tool = Tool {
+            kind: ToolKind::Block,
+            ..Tool::new()
+        };
         tool.press(&document, &viewport, 400.0, 300.0);
         tool.drag_to(&document, &viewport, 500.0, 200.0);
         match tool.release(false) {
@@ -694,30 +775,46 @@ mod tests {
     fn picking_prefers_the_smaller_brush() {
         // A detail brush inside a room brush is the one you meant to click.
         let (mut document, viewport) = setup();
-        document.create_block(Vec3::new(-256.0, -256.0, 0.0), Vec3::new(256.0, 256.0, 128.0));
+        document.create_block(
+            Vec3::new(-256.0, -256.0, 0.0),
+            Vec3::new(256.0, 256.0, 128.0),
+        );
         let small = document.create_block(Vec3::new(0.0, 0.0, 0.0), Vec3::new(32.0, 32.0, 32.0));
-        assert_eq!(pick_solid_2d(&document, Vec3::new(16.0, 16.0, 0.0), &viewport), Some(small));
+        assert_eq!(
+            pick_solid_2d(&document, Vec3::new(16.0, 16.0, 0.0), &viewport),
+            Some(small)
+        );
     }
 
     #[test]
     fn clicking_empty_space_picks_nothing() {
         let (mut document, viewport) = setup();
         document.create_block(Vec3::ZERO, Vec3::splat(64.0));
-        assert_eq!(pick_solid_2d(&document, Vec3::new(1000.0, 1000.0, 0.0), &viewport), None);
+        assert_eq!(
+            pick_solid_2d(&document, Vec3::new(1000.0, 1000.0, 0.0), &viewport),
+            None
+        );
     }
 
     #[test]
     fn point_entities_can_be_picked_near_their_origin() {
         let (mut document, viewport) = setup();
         let id = document.create_entity("light", Vec3::new(100.0, 100.0, 0.0));
-        assert_eq!(pick_entity_2d(&document, Vec3::new(104.0, 104.0, 0.0), &viewport), Some(id));
-        assert_eq!(pick_entity_2d(&document, Vec3::new(400.0, 400.0, 0.0), &viewport), None);
+        assert_eq!(
+            pick_entity_2d(&document, Vec3::new(104.0, 104.0, 0.0), &viewport),
+            Some(id)
+        );
+        assert_eq!(
+            pick_entity_2d(&document, Vec3::new(400.0, 400.0, 0.0), &viewport),
+            None
+        );
     }
 
     #[test]
     fn the_3d_ray_picks_the_nearest_brush() {
         let mut document = Document::new();
-        let near = document.create_block(Vec3::new(100.0, -32.0, -32.0), Vec3::new(164.0, 32.0, 32.0));
+        let near =
+            document.create_block(Vec3::new(100.0, -32.0, -32.0), Vec3::new(164.0, 32.0, 32.0));
         document.create_block(Vec3::new(400.0, -32.0, -32.0), Vec3::new(464.0, 32.0, 32.0));
         assert_eq!(pick_solid_3d(&document, Vec3::ZERO, Vec3::X), Some(near));
         assert_eq!(pick_solid_3d(&document, Vec3::ZERO, -Vec3::X), None);
@@ -747,9 +844,20 @@ mod tests {
     fn every_grip_is_a_side_or_a_corner_and_never_the_middle() {
         let grips: Vec<Handle> = Handle::all().collect();
         assert_eq!(grips.len(), 8);
-        assert!(!grips.contains(&Handle { h: 0, v: 0 }), "the middle is a move, not a resize");
-        assert_eq!(grips.iter().filter(|g| g.h != 0 && g.v != 0).count(), 4, "four corners");
-        assert_eq!(grips.iter().filter(|g| g.h == 0 || g.v == 0).count(), 4, "four edges");
+        assert!(
+            !grips.contains(&Handle { h: 0, v: 0 }),
+            "the middle is a move, not a resize"
+        );
+        assert_eq!(
+            grips.iter().filter(|g| g.h != 0 && g.v != 0).count(),
+            4,
+            "four corners"
+        );
+        assert_eq!(
+            grips.iter().filter(|g| g.h == 0 || g.v == 0).count(),
+            4,
+            "four edges"
+        );
     }
 
     #[test]
@@ -777,7 +885,8 @@ mod tests {
     fn pressing_on_a_grip_takes_hold_of_it() {
         let (document, viewport, bounds) = with_a_selected_box();
         let mut tool = Tool::new();
-        let (x, y) = viewport.world_to_screen(Handle { h: 1, v: 1 }.world_position(bounds, &viewport));
+        let (x, y) =
+            viewport.world_to_screen(Handle { h: 1, v: 1 }.world_position(bounds, &viewport));
 
         tool.press(&document, &viewport, x, y);
         assert_eq!(tool.drag.unwrap().grip, Some(Handle { h: 1, v: 1 }));
@@ -799,8 +908,12 @@ mod tests {
         // Dragging a corner with the block tool draws a brush there, which is
         // what the block tool is for.
         let (document, viewport, bounds) = with_a_selected_box();
-        let mut tool = Tool { kind: ToolKind::Block, ..Tool::new() };
-        let (x, y) = viewport.world_to_screen(Handle { h: 1, v: 1 }.world_position(bounds, &viewport));
+        let mut tool = Tool {
+            kind: ToolKind::Block,
+            ..Tool::new()
+        };
+        let (x, y) =
+            viewport.world_to_screen(Handle { h: 1, v: 1 }.world_position(bounds, &viewport));
 
         tool.press(&document, &viewport, x, y);
         assert_eq!(tool.drag.unwrap().grip, None);
@@ -815,7 +928,8 @@ mod tests {
         let bounds = document.selection_bounds().unwrap();
         let mut tool = Tool::new();
 
-        let (x, y) = viewport.world_to_screen(Handle { h: 1, v: 1 }.world_position(bounds, &viewport));
+        let (x, y) =
+            viewport.world_to_screen(Handle { h: 1, v: 1 }.world_position(bounds, &viewport));
         tool.press(&document, &viewport, x, y);
         assert_eq!(tool.drag.unwrap().grip, None, "entities cannot be resized");
     }
@@ -830,7 +944,8 @@ mod tests {
         let bounds = document.selection_bounds().unwrap();
         let mut tool = Tool::new();
 
-        let (x, y) = viewport.world_to_screen(Handle { h: 1, v: 1 }.world_position(bounds, &viewport));
+        let (x, y) =
+            viewport.world_to_screen(Handle { h: 1, v: 1 }.world_position(bounds, &viewport));
         tool.press(&document, &viewport, x, y);
         assert_eq!(tool.drag.unwrap().grip, None, "entities cannot be resized");
     }
@@ -843,15 +958,25 @@ mod tests {
         document.create_block(Vec3::ZERO, Vec3::splat(128.0));
         let bounds = document.selection_bounds().unwrap();
 
-        let top_view = Viewport { size: (800.0, 600.0), zoom: 1.0, ..Viewport::new(ViewportKind::Top) };
+        let top_view = Viewport {
+            size: (800.0, 600.0),
+            zoom: 1.0,
+            ..Viewport::new(ViewportKind::Top)
+        };
         let mut top = Tool::new();
-        let (x, y) = top_view.world_to_screen(Handle { h: 1, v: 1 }.world_position(bounds, &top_view));
+        let (x, y) =
+            top_view.world_to_screen(Handle { h: 1, v: 1 }.world_position(bounds, &top_view));
         top.press(&document, &top_view, x, y);
         assert_eq!(top.drag.unwrap().axes, Some((0, 1)));
 
-        let front_view = Viewport { size: (800.0, 600.0), zoom: 1.0, ..Viewport::new(ViewportKind::Front) };
+        let front_view = Viewport {
+            size: (800.0, 600.0),
+            zoom: 1.0,
+            ..Viewport::new(ViewportKind::Front)
+        };
         let mut front = Tool::new();
-        let (x, y) = front_view.world_to_screen(Handle { h: 1, v: 1 }.world_position(bounds, &front_view));
+        let (x, y) =
+            front_view.world_to_screen(Handle { h: 1, v: 1 }.world_position(bounds, &front_view));
         front.press(&document, &front_view, x, y);
         assert_eq!(front.drag.unwrap().axes, Some((0, 2)));
     }
@@ -870,7 +995,8 @@ mod tests {
     fn dragging_a_grip_asks_for_a_resize() {
         let (document, viewport, bounds) = with_a_selected_box();
         let mut tool = Tool::new();
-        let (x, y) = viewport.world_to_screen(Handle { h: 1, v: 1 }.world_position(bounds, &viewport));
+        let (x, y) =
+            viewport.world_to_screen(Handle { h: 1, v: 1 }.world_position(bounds, &viewport));
 
         tool.press(&document, &viewport, x, y);
         tool.drag_to(&document, &viewport, x + 128.0, y - 128.0);
@@ -888,7 +1014,8 @@ mod tests {
     fn a_click_on_a_grip_selects_rather_than_resizing_by_nothing() {
         let (document, viewport, bounds) = with_a_selected_box();
         let mut tool = Tool::new();
-        let (x, y) = viewport.world_to_screen(Handle { h: 1, v: 1 }.world_position(bounds, &viewport));
+        let (x, y) =
+            viewport.world_to_screen(Handle { h: 1, v: 1 }.world_position(bounds, &viewport));
 
         tool.press(&document, &viewport, x, y);
         assert!(matches!(tool.release(false), Some(ToolAction::PickAt(..))));
@@ -900,8 +1027,13 @@ mod tests {
         let grip = Handle { h: 1, v: 1 };
         let to = Vec3::new(256.0, 256.0, 0.0);
 
-        let (anchor, factor) = resize_factor(bounds, viewport.kind.plane_axes(), grip, to, 16.0).unwrap();
-        assert_eq!(anchor, Vec3::new(0.0, 0.0, 64.0), "the opposite corner holds still");
+        let (anchor, factor) =
+            resize_factor(bounds, viewport.kind.plane_axes(), grip, to, 16.0).unwrap();
+        assert_eq!(
+            anchor,
+            Vec3::new(0.0, 0.0, 64.0),
+            "the opposite corner holds still"
+        );
         assert_eq!(factor.x, 2.0);
         assert_eq!(factor.y, 2.0);
         assert_eq!(factor.z, 1.0, "the axis the view cannot see is untouched");
@@ -913,7 +1045,8 @@ mod tests {
         let grip = Handle { h: 1, v: 0 };
         let to = Vec3::new(64.0, 999.0, 0.0);
 
-        let (_, factor) = resize_factor(bounds, viewport.kind.plane_axes(), grip, to, 16.0).unwrap();
+        let (_, factor) =
+            resize_factor(bounds, viewport.kind.plane_axes(), grip, to, 16.0).unwrap();
         assert_eq!(factor.x, 0.5);
         assert_eq!(factor.y, 1.0, "an edge grip does not touch the other axis");
     }
@@ -926,8 +1059,12 @@ mod tests {
         let grip = Handle { h: 1, v: 1 };
         let to = Vec3::new(-500.0, -500.0, 0.0);
 
-        let (anchor, factor) = resize_factor(bounds, viewport.kind.plane_axes(), grip, to, 16.0).unwrap();
-        assert!(factor.x > 0.0 && factor.y > 0.0, "never inverted: {factor:?}");
+        let (anchor, factor) =
+            resize_factor(bounds, viewport.kind.plane_axes(), grip, to, 16.0).unwrap();
+        assert!(
+            factor.x > 0.0 && factor.y > 0.0,
+            "never inverted: {factor:?}"
+        );
         let size = bounds.size() * factor;
         assert_eq!(size.x, 16.0, "clamped to one grid square");
         assert_eq!(size.y, 16.0);
@@ -948,7 +1085,14 @@ mod tests {
         let flat = Aabb::new(Vec3::ZERO, Vec3::new(0.0, 128.0, 128.0));
         let grip = Handle { h: 1, v: 1 };
 
-        let (_, factor) = resize_factor(flat, viewport.kind.plane_axes(), grip, Vec3::new(64.0, 256.0, 0.0), 16.0).unwrap();
+        let (_, factor) = resize_factor(
+            flat,
+            viewport.kind.plane_axes(),
+            grip,
+            Vec3::new(64.0, 256.0, 0.0),
+            16.0,
+        )
+        .unwrap();
         assert!(factor.x.is_finite(), "{factor:?}");
         assert_eq!(factor.x, 1.0);
         assert_eq!(factor.y, 2.0);
@@ -962,7 +1106,11 @@ mod tests {
             assert_eq!(handle_at(bounds, &viewport, x, y), Some(grip), "{grip:?}");
         }
         let (cx, cy) = viewport.world_to_screen(bounds.center());
-        assert_eq!(handle_at(bounds, &viewport, cx, cy), None, "the middle is not a grip");
+        assert_eq!(
+            handle_at(bounds, &viewport, cx, cy),
+            None,
+            "the middle is not a grip"
+        );
     }
 
     #[test]
@@ -970,7 +1118,10 @@ mod tests {
         // At a low zoom the three grips overlap, and the corner is the one
         // anybody clicking there meant.
         let (_, viewport, bounds) = with_a_selected_box();
-        let tiny = Viewport { zoom: 0.02, ..viewport };
+        let tiny = Viewport {
+            zoom: 0.02,
+            ..viewport
+        };
         let corner = Handle { h: 1, v: 1 };
         let (x, y) = tiny.world_to_screen(corner.world_position(bounds, &tiny));
 
@@ -989,7 +1140,11 @@ mod tests {
         tool.drag_to(&document, &viewport, 600.0, 100.0);
 
         match tool.release(false) {
-            Some(ToolAction::CreateShape { bounds, shape, options }) => {
+            Some(ToolAction::CreateShape {
+                bounds,
+                shape,
+                options,
+            }) => {
                 assert_eq!(shape, crate::shapes::Shape::Arch);
                 assert!(bounds.size().x > 0.0);
                 assert_eq!(options, crate::shapes::Options::default());
@@ -1001,7 +1156,10 @@ mod tests {
     #[test]
     fn a_click_with_the_shape_tool_creates_nothing() {
         let (document, viewport) = setup();
-        let mut tool = Tool { kind: ToolKind::Shape, ..Tool::new() };
+        let mut tool = Tool {
+            kind: ToolKind::Shape,
+            ..Tool::new()
+        };
         tool.press(&document, &viewport, 400.0, 300.0);
         assert_eq!(tool.release(false), None);
     }
@@ -1012,7 +1170,11 @@ mod tests {
         // make one of the two tools unreachable.
         let mut seen = std::collections::HashSet::new();
         for kind in ToolKind::all() {
-            assert!(seen.insert(kind.shortcut()), "{} reuses a shortcut", kind.label());
+            assert!(
+                seen.insert(kind.shortcut()),
+                "{} reuses a shortcut",
+                kind.label()
+            );
         }
     }
 
@@ -1026,7 +1188,11 @@ mod tests {
             assert!(!mode.describe().is_empty());
             mode = mode.next();
         }
-        assert_eq!(mode, TextureMode::default(), "three modes, back to the start");
+        assert_eq!(
+            mode,
+            TextureMode::default(),
+            "three modes, back to the start"
+        );
     }
 
     #[test]
@@ -1038,7 +1204,6 @@ mod tests {
             assert!(!target.describe().is_empty());
         }
     }
-
 }
 
 #[cfg(test)]
@@ -1118,9 +1283,16 @@ mod face_picking_tests {
             .expect("a sealed room has a wall in every direction");
 
         let solid = document.find_solid(hit.0).expect("the brush exists");
-        let side = solid.sides.iter().find(|s| s.id == hit.1).expect("the side exists");
+        let side = solid
+            .sides
+            .iter()
+            .find(|s| s.id == hit.1)
+            .expect("the side exists");
         let normal = side.plane().unwrap().normal;
-        assert!(normal.x < -0.9, "picked a face turned away from the camera: {normal:?}");
+        assert!(
+            normal.x < -0.9,
+            "picked a face turned away from the camera: {normal:?}"
+        );
     }
 
     #[test]
@@ -1149,5 +1321,4 @@ mod face_picking_tests {
         }
         assert_eq!(picked.len(), 6, "some faces are unreachable: {picked:?}");
     }
-
 }

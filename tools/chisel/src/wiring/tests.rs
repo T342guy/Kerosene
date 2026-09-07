@@ -36,7 +36,11 @@ fn steps_are_shown_in_the_order_they_will_fire() {
         wire("OnStartTouch", "lights", "Disable", 0.2),
     ];
     let events = events(&wires);
-    let order: Vec<&str> = events[0].steps.iter().map(|i| wires[*i].target.as_str()).collect();
+    let order: Vec<&str> = events[0]
+        .steps
+        .iter()
+        .map(|i| wires[*i].target.as_str())
+        .collect();
     assert_eq!(order, vec!["door", "lights", "siren"]);
 }
 
@@ -98,10 +102,16 @@ fn a_then_carries_the_target_forward() {
 
 #[test]
 fn a_then_on_an_event_with_nothing_on_it_yet_starts_blank() {
-    let event = Event { name: "OnTrigger".into(), steps: Vec::new() };
+    let event = Event {
+        name: "OnTrigger".into(),
+        steps: Vec::new(),
+    };
     let next = then(&[], &event);
     assert_eq!(next.output, "OnTrigger");
-    assert_eq!(next.delay, 0.0, "the first step of a sequence waits for nothing");
+    assert_eq!(
+        next.delay, 0.0,
+        "the first step of a sequence waits for nothing"
+    );
     assert!(next.target.is_empty());
 }
 
@@ -131,7 +141,9 @@ fn an_ordinary_event_has_no_opposite() {
 
 #[test]
 fn every_opposite_is_mutual() {
-    for name in ["OnTrue", "OnFalse", "OnHitMax", "OnHitMin", "OnOpen", "OnClose"] {
+    for name in [
+        "OnTrue", "OnFalse", "OnHitMax", "OnHitMin", "OnOpen", "OnClose",
+    ] {
         let other = opposite_of(name).unwrap_or_else(|| panic!("{name} has no opposite"));
         assert_eq!(opposite_of(other), Some(name), "{name} <-> {other}");
     }

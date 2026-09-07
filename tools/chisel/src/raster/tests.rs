@@ -9,9 +9,9 @@
 
 use super::*;
 use crate::app::starter_document;
-use std::collections::HashSet;
 use kerosene_map::{Solid, WalkmapRule};
 use kerosene_math::{Aabb, Angles};
+use std::collections::HashSet;
 
 const W: usize = 160;
 const H: usize = 120;
@@ -75,9 +75,17 @@ fn a_wall_behind_another_wall_never_shows_through_it() {
 
     // Near: a long slab beside the camera, stretching from just ahead to far
     // away, so it spans almost the whole depth range of the scene.
-    brush(&mut document, Vec3::new(-200.0, 40.0, -100.0), Vec3::new(2000.0, 60.0, 100.0));
+    brush(
+        &mut document,
+        Vec3::new(-200.0, 40.0, -100.0),
+        Vec3::new(2000.0, 60.0, 100.0),
+    );
     // Far: a small panel, directly behind the near slab from this viewpoint.
-    let hidden = brush(&mut document, Vec3::new(400.0, 80.0, -20.0), Vec3::new(440.0, 100.0, 20.0));
+    let hidden = brush(
+        &mut document,
+        Vec3::new(400.0, 80.0, -20.0),
+        Vec3::new(440.0, 100.0, 20.0),
+    );
     document.selection.solids.insert(hidden);
 
     // Look along +X with the slab filling the left of the view.
@@ -108,12 +116,27 @@ fn something_poking_through_a_wall_is_not_painted_over_by_it() {
     // it, so the half that should be in plain view vanishes.
     let mut document = Document::new();
     document.map.world.solids.clear();
-    let rod = brush(&mut document, Vec3::new(100.0, -20.0, -20.0), Vec3::new(600.0, 20.0, 20.0));
-    brush(&mut document, Vec3::new(380.0, -200.0, -200.0), Vec3::new(400.0, 200.0, 200.0));
+    let rod = brush(
+        &mut document,
+        Vec3::new(100.0, -20.0, -20.0),
+        Vec3::new(600.0, 20.0, 20.0),
+    );
+    brush(
+        &mut document,
+        Vec3::new(380.0, -200.0, -200.0),
+        Vec3::new(400.0, 200.0, 200.0),
+    );
     document.selection.solids.insert(rod);
 
     // Look down the rod from slightly above, so its top face is in view.
-    let image = render(&document, Vec3::new(0.0, 0.0, 90.0), basis_for(0.0, 30.0), FOV, W, H);
+    let image = render(
+        &document,
+        Vec3::new(0.0, 0.0, 90.0),
+        basis_for(0.0, 30.0),
+        FOV,
+        W,
+        H,
+    );
 
     // Specifically the rod's *top* face, which is the one that reaches past
     // the wall and so sorts as the farthest thing in the scene. Its end cap is
@@ -123,7 +146,10 @@ fn something_poking_through_a_wall_is_not_painted_over_by_it() {
         any_pixel(&image, shade(Vec3::Z, true)),
         "the wall was painted over the length of rod in front of it"
     );
-    assert!(any_pixel(&image, shade(-Vec3::X, false)), "the wall itself is missing");
+    assert!(
+        any_pixel(&image, shade(-Vec3::X, false)),
+        "the wall itself is missing"
+    );
 }
 
 // ---- the reported symptom: stray lines at certain angles ------------------
@@ -179,12 +205,19 @@ fn a_face_clipped_at_the_near_plane_stays_inside_the_pane() {
     // completes and every pixel is one of the colours it should be.
     let mut document = Document::new();
     document.map.world.solids.clear();
-    brush(&mut document, Vec3::new(-4000.0, -20.0, -4000.0), Vec3::new(4000.0, 20.0, 4000.0));
+    brush(
+        &mut document,
+        Vec3::new(-4000.0, -20.0, -4000.0),
+        Vec3::new(4000.0, 20.0, 4000.0),
+    );
 
     for yaw in (0..360).step_by(7) {
         let image = render_at(&document, Vec3::new(0.0, 0.0, 0.0), yaw as f32, 0.0);
         assert_eq!(image.pixels.len(), W * H, "the buffer changed size");
-        assert!(image.pixels.iter().all(|p| p[3] == 255), "a pixel lost its alpha");
+        assert!(
+            image.pixels.iter().all(|p| p[3] == 255),
+            "a pixel lost its alpha"
+        );
     }
 }
 
@@ -202,9 +235,17 @@ fn an_empty_document_is_all_background() {
 fn geometry_behind_the_camera_is_not_drawn() {
     let mut document = Document::new();
     document.map.world.solids.clear();
-    brush(&mut document, Vec3::new(-600.0, -100.0, -100.0), Vec3::new(-400.0, 100.0, 100.0));
+    brush(
+        &mut document,
+        Vec3::new(-600.0, -100.0, -100.0),
+        Vec3::new(-400.0, 100.0, 100.0),
+    );
     let image = render_at(&document, Vec3::ZERO, 0.0, 0.0);
-    assert_eq!(image.covered(), 0, "something behind the camera was drawn in front of it");
+    assert_eq!(
+        image.covered(),
+        0,
+        "something behind the camera was drawn in front of it"
+    );
 }
 
 #[test]
@@ -212,13 +253,25 @@ fn a_nearer_face_wins_the_pixel_whatever_order_it_arrives_in() {
     // Straight down the middle: two panels, one squarely behind the other.
     let mut document = Document::new();
     document.map.world.solids.clear();
-    let near = brush(&mut document, Vec3::new(200.0, -50.0, -50.0), Vec3::new(220.0, 50.0, 50.0));
-    brush(&mut document, Vec3::new(400.0, -50.0, -50.0), Vec3::new(420.0, 50.0, 50.0));
+    let near = brush(
+        &mut document,
+        Vec3::new(200.0, -50.0, -50.0),
+        Vec3::new(220.0, 50.0, 50.0),
+    );
+    brush(
+        &mut document,
+        Vec3::new(400.0, -50.0, -50.0),
+        Vec3::new(420.0, 50.0, 50.0),
+    );
     document.selection.solids.insert(near);
 
     let image = render_at(&document, Vec3::ZERO, 0.0, 0.0);
     let centre = image.pixel(W / 2, H / 2);
-    assert_eq!(centre, shade(-Vec3::X, true), "the near panel should own the centre pixel");
+    assert_eq!(
+        centre,
+        shade(-Vec3::X, true),
+        "the near panel should own the centre pixel"
+    );
 }
 
 #[test]
@@ -226,7 +279,11 @@ fn point_entities_are_marked_but_do_not_show_through_walls() {
     let mut document = Document::new();
     document.map.world.solids.clear();
     // A wall at x = 300, and a light hidden behind it at x = 500.
-    brush(&mut document, Vec3::new(300.0, -200.0, -200.0), Vec3::new(320.0, 200.0, 200.0));
+    brush(
+        &mut document,
+        Vec3::new(300.0, -200.0, -200.0),
+        Vec3::new(320.0, 200.0, 200.0),
+    );
     let id = document.map.next_id();
     let mut light = kerosene_map::Entity::new(id, "light");
     light.set_origin(Vec3::new(500.0, 0.0, 0.0));
@@ -239,12 +296,18 @@ fn point_entities_are_marked_but_do_not_show_through_walls() {
     let marker = [c.r(), c.g(), c.b(), 255];
 
     let image = render_at(&document, Vec3::ZERO, 0.0, 0.0);
-    assert!(!any_pixel(&image, marker), "a light behind a wall was drawn through it");
+    assert!(
+        !any_pixel(&image, marker),
+        "a light behind a wall was drawn through it"
+    );
 
     // Move it in front and it appears.
     document.map.entities[0].set_origin(Vec3::new(150.0, 0.0, 0.0));
     let image = render_at(&document, Vec3::ZERO, 0.0, 0.0);
-    assert!(any_pixel(&image, marker), "a light in plain view was not drawn");
+    assert!(
+        any_pixel(&image, marker),
+        "a light in plain view was not drawn"
+    );
 }
 
 #[test]
@@ -263,7 +326,10 @@ fn two_kinds_of_entity_are_marked_in_two_different_colours() {
     let image = render_at(&document, Vec3::ZERO, 0.0, 0.0);
     for class in ["light", "info_player_start"] {
         let c = crate::icons::Kind::of(class).colour();
-        assert!(any_pixel(&image, [c.r(), c.g(), c.b(), 255]), "{class} was not marked");
+        assert!(
+            any_pixel(&image, [c.r(), c.g(), c.b(), 255]),
+            "{class} was not marked"
+        );
     }
 }
 
@@ -282,17 +348,25 @@ fn faces_are_outlined_where_they_meet() {
         .iter()
         .filter(|p| **p != background_rgba() && !plain.contains(p))
         .count();
-    assert!(darkened > 0, "no outlines were drawn between the walls of the room");
+    assert!(
+        darkened > 0,
+        "no outlines were drawn between the walls of the room"
+    );
 }
 
 #[test]
 fn a_zero_sized_pane_does_not_panic() {
     let document = starter_document();
-    let image = render(&document, Vec3::new(256.0, 256.0, 64.0), basis_for(0.0, 0.0), FOV, 0, 0);
+    let image = render(
+        &document,
+        Vec3::new(256.0, 256.0, 64.0),
+        basis_for(0.0, 0.0),
+        FOV,
+        0,
+        0,
+    );
     assert_eq!(image.pixels.len(), 1, "clamped to something drawable");
 }
-
-
 
 // ---- textures -------------------------------------------------------------
 
@@ -305,7 +379,11 @@ fn split() -> Arc<Texture> {
     let black = [0, 0, 0, 255];
     let white = [255, 255, 255, 255];
     Arc::new(Texture {
-        mips: vec![Level { width: 2, height: 1, pixels: vec![white, black] }],
+        mips: vec![Level {
+            width: 2,
+            height: 1,
+            pixels: vec![white, black],
+        }],
         average: [128, 128, 128],
     })
 }
@@ -315,7 +393,11 @@ fn checker() -> Arc<Texture> {
     let a = [255, 0, 0, 255];
     let b = [0, 0, 255, 255];
     Arc::new(Texture {
-        mips: vec![Level { width: 2, height: 2, pixels: vec![a, b, b, a] }],
+        mips: vec![Level {
+            width: 2,
+            height: 2,
+            pixels: vec![a, b, b, a],
+        }],
         average: [128, 0, 128],
     })
 }
@@ -328,24 +410,47 @@ fn render_textured(
     texture: Arc<Texture>,
 ) -> Image {
     let mut resolve = move |_: &str| Some(Arc::clone(&texture));
-    let mut settings =
-        Settings { shading: Shading::Textured, resolve: Some(&mut resolve) };
-    render_with(document, eye, basis_for(yaw, pitch), FOV, W, H, &mut settings)
+    let mut settings = Settings {
+        shading: Shading::Textured,
+        resolve: Some(&mut resolve),
+    };
+    render_with(
+        document,
+        eye,
+        basis_for(yaw, pitch),
+        FOV,
+        W,
+        H,
+        &mut settings,
+    )
 }
 
 #[test]
 fn a_textured_face_shows_more_than_one_colour() {
     let mut document = Document::new();
     document.map.world.solids.clear();
-    brush(&mut document, Vec3::new(300.0, -300.0, -300.0), Vec3::new(320.0, 300.0, 300.0));
+    brush(
+        &mut document,
+        Vec3::new(300.0, -300.0, -300.0),
+        Vec3::new(320.0, 300.0, 300.0),
+    );
 
     let flat = render_at(&document, Vec3::ZERO, 0.0, 0.0);
     let textured = render_textured(&document, Vec3::ZERO, 0.0, 0.0, checker());
 
     let distinct = |image: &Image| {
-        image.pixels.iter().filter(|p| **p != background_rgba()).collect::<HashSet<_>>().len()
+        image
+            .pixels
+            .iter()
+            .filter(|p| **p != background_rgba())
+            .collect::<HashSet<_>>()
+            .len()
     };
-    assert_eq!(distinct(&flat), 1, "the untextured wall should be one colour");
+    assert_eq!(
+        distinct(&flat),
+        1,
+        "the untextured wall should be one colour"
+    );
     assert!(distinct(&textured) > 1, "the texture was not sampled");
 }
 
@@ -375,7 +480,11 @@ fn texture_coordinates_are_perspective_correct() {
     // compressing towards the horizon.
     let mut document = Document::new();
     document.map.world.solids.clear();
-    brush(&mut document, Vec3::new(0.0, -400.0, -32.0), Vec3::new(4000.0, 400.0, 0.0));
+    brush(
+        &mut document,
+        Vec3::new(0.0, -400.0, -32.0),
+        Vec3::new(4000.0, 400.0, 0.0),
+    );
 
     // A texture that repeats along the floor, so the spacing of the repeats
     // is readable off the image.
@@ -387,9 +496,13 @@ fn texture_coordinates_are_perspective_correct() {
     let mut last: Option<u8> = None;
     for y in 0..H {
         let p = image.pixel(column, y);
-        if p == background_rgba() { continue }
+        if p == background_rgba() {
+            continue;
+        }
         let bright = if p[0] > 100 { 1 } else { 0 };
-        if last.is_some_and(|l| l != bright) { flips.push(y); }
+        if last.is_some_and(|l| l != bright) {
+            flips.push(y);
+        }
         last = Some(bright);
     }
     assert!(flips.len() >= 4, "not enough stripes to measure: {flips:?}");
@@ -411,17 +524,35 @@ fn a_material_with_no_texture_behind_it_is_a_colour_not_a_hole() {
     // colour is a much better answer than a black hole.
     let mut document = Document::new();
     document.map.world.solids.clear();
-    brush(&mut document, Vec3::new(300.0, -300.0, -300.0), Vec3::new(320.0, 300.0, 300.0));
+    brush(
+        &mut document,
+        Vec3::new(300.0, -300.0, -300.0),
+        Vec3::new(320.0, 300.0, 300.0),
+    );
 
     let mut resolve = |_: &str| None;
-    let mut settings = Settings { shading: Shading::Textured, resolve: Some(&mut resolve) };
-    let image = render_with(&document, Vec3::ZERO, basis_for(0.0, 0.0), FOV, W, H, &mut settings);
+    let mut settings = Settings {
+        shading: Shading::Textured,
+        resolve: Some(&mut resolve),
+    };
+    let image = render_with(
+        &document,
+        Vec3::ZERO,
+        basis_for(0.0, 0.0),
+        FOV,
+        W,
+        H,
+        &mut settings,
+    );
     assert!(image.covered() > 0, "nothing was drawn at all");
 
     let expected = crate::textures::TextureCache::fallback_colour("dev/grid");
     let centre = image.pixel(W / 2, H / 2);
     // Shaded, so not equal -- but the same hue, and not black.
-    assert!(centre[0] > 0 || centre[1] > 0 || centre[2] > 0, "a black hole");
+    assert!(
+        centre[0] > 0 || centre[1] > 0 || centre[2] > 0,
+        "a black hole"
+    );
     let _ = expected;
 }
 
@@ -430,16 +561,39 @@ fn flat_mode_uses_the_average_rather_than_the_pixels() {
     // The point of flat mode: shape is readable when a texture is busy.
     let mut document = Document::new();
     document.map.world.solids.clear();
-    brush(&mut document, Vec3::new(300.0, -300.0, -300.0), Vec3::new(320.0, 300.0, 300.0));
+    brush(
+        &mut document,
+        Vec3::new(300.0, -300.0, -300.0),
+        Vec3::new(320.0, 300.0, 300.0),
+    );
 
     let texture = checker();
     let mut resolve = |_: &str| Some(Arc::clone(&texture));
-    let mut settings = Settings { shading: Shading::Flat, resolve: Some(&mut resolve) };
-    let image = render_with(&document, Vec3::ZERO, basis_for(0.0, 0.0), FOV, W, H, &mut settings);
+    let mut settings = Settings {
+        shading: Shading::Flat,
+        resolve: Some(&mut resolve),
+    };
+    let image = render_with(
+        &document,
+        Vec3::ZERO,
+        basis_for(0.0, 0.0),
+        FOV,
+        W,
+        H,
+        &mut settings,
+    );
 
-    let distinct: HashSet<[u8; 4]> =
-        image.pixels.iter().filter(|p| **p != background_rgba()).copied().collect();
-    assert_eq!(distinct.len(), 1, "flat mode drew texture detail: {distinct:?}");
+    let distinct: HashSet<[u8; 4]> = image
+        .pixels
+        .iter()
+        .filter(|p| **p != background_rgba())
+        .copied()
+        .collect();
+    assert_eq!(
+        distinct.len(),
+        1,
+        "flat mode drew texture detail: {distinct:?}"
+    );
 }
 
 #[test]
@@ -449,18 +603,39 @@ fn walkmap_mode_colours_each_face_by_its_rule() {
     // changes rule must change colour even though its texture does not.
     let mut document = Document::new();
     document.map.world.solids.clear();
-    let id = brush(&mut document, Vec3::new(300.0, -300.0, -300.0), Vec3::new(320.0, 300.0, 300.0));
+    let id = brush(
+        &mut document,
+        Vec3::new(300.0, -300.0, -300.0),
+        Vec3::new(320.0, 300.0, 300.0),
+    );
 
     let render_walkmap = |document: &Document| {
         let mut resolve = |_: &str| None;
-        let mut settings = Settings { shading: Shading::Walkmap, resolve: Some(&mut resolve) };
-        render_with(document, Vec3::ZERO, basis_for(0.0, 0.0), FOV, W, H, &mut settings)
+        let mut settings = Settings {
+            shading: Shading::Walkmap,
+            resolve: Some(&mut resolve),
+        };
+        render_with(
+            document,
+            Vec3::ZERO,
+            basis_for(0.0, 0.0),
+            FOV,
+            W,
+            H,
+            &mut settings,
+        )
     };
 
     let allow = render_walkmap(&document);
     let centre = allow.pixel(W / 2, H / 2);
-    assert!(centre[0] > 0 || centre[1] > 0 || centre[2] > 0, "nothing drawn");
-    assert!(centre[1] >= centre[0], "allow should be green-dominant, got {centre:?}");
+    assert!(
+        centre[0] > 0 || centre[1] > 0 || centre[2] > 0,
+        "nothing drawn"
+    );
+    assert!(
+        centre[1] >= centre[0],
+        "allow should be green-dominant, got {centre:?}"
+    );
 
     // Change the face the camera can see from allow to deny; the colour must
     // move from green to red, with no change to material or texture.
@@ -483,9 +658,15 @@ fn walkmap_mode_colours_each_face_by_its_rule() {
         .walkmap = WalkmapRule::Deny;
 
     let deny = render_walkmap(&document);
-    assert_ne!(allow.pixels, deny.pixels, "the rule change recoloured nothing");
+    assert_ne!(
+        allow.pixels, deny.pixels,
+        "the rule change recoloured nothing"
+    );
     let centre = deny.pixel(W / 2, H / 2);
-    assert!(centre[0] > centre[1], "deny should be red-dominant, got {centre:?}");
+    assert!(
+        centre[0] > centre[1],
+        "deny should be red-dominant, got {centre:?}"
+    );
 }
 
 #[test]
@@ -494,23 +675,38 @@ fn a_selected_face_is_tinted_rather_than_painted_over() {
     // thing you are usually looking at while you select it.
     let mut document = Document::new();
     document.map.world.solids.clear();
-    let id = brush(&mut document, Vec3::new(300.0, -300.0, -300.0), Vec3::new(320.0, 300.0, 300.0));
+    let id = brush(
+        &mut document,
+        Vec3::new(300.0, -300.0, -300.0),
+        Vec3::new(320.0, 300.0, 300.0),
+    );
 
     let plain = render_textured(&document, Vec3::ZERO, 0.0, 0.0, checker());
     document.selection.solids.insert(id);
     let selected = render_textured(&document, Vec3::ZERO, 0.0, 0.0, checker());
 
     assert_ne!(plain.pixels, selected.pixels, "selecting changed nothing");
-    let distinct: HashSet<[u8; 4]> =
-        selected.pixels.iter().filter(|p| **p != background_rgba()).copied().collect();
-    assert!(distinct.len() > 1, "the texture was painted over: {distinct:?}");
+    let distinct: HashSet<[u8; 4]> = selected
+        .pixels
+        .iter()
+        .filter(|p| **p != background_rgba())
+        .copied()
+        .collect();
+    assert!(
+        distinct.len() > 1,
+        "the texture was painted over: {distinct:?}"
+    );
 }
 
 #[test]
 fn selecting_one_face_marks_that_face_and_not_its_brush() {
     let mut document = Document::new();
     document.map.world.solids.clear();
-    let id = brush(&mut document, Vec3::new(300.0, -300.0, -300.0), Vec3::new(320.0, 300.0, 300.0));
+    let id = brush(
+        &mut document,
+        Vec3::new(300.0, -300.0, -300.0),
+        Vec3::new(320.0, 300.0, 300.0),
+    );
     // The face the camera can actually see: the one whose normal points back
     // at it. A back-facing side is culled and would prove nothing.
     let side = document
@@ -526,7 +722,10 @@ fn selecting_one_face_marks_that_face_and_not_its_brush() {
     let faces = crate::draw::visible_faces(&document, Vec3::ZERO, basis_for(0.0, 0.0));
     let marked = faces.iter().filter(|f| f.face_selected).count();
     assert_eq!(marked, 1, "{} faces came back marked", marked);
-    assert!(faces.iter().all(|f| !f.selected), "the whole brush was marked instead");
+    assert!(
+        faces.iter().all(|f| !f.selected),
+        "the whole brush was marked instead"
+    );
 }
 
 // ---- the reported symptom: trigger brushes are not semi-clear -------------
@@ -542,7 +741,11 @@ fn brush_with(document: &mut Document, min: Vec3, max: Vec3, material: &str) -> 
 fn flat_texture(rgb: [u8; 3]) -> Arc<Texture> {
     let pixel = [rgb[0], rgb[1], rgb[2], 255];
     Arc::new(Texture {
-        mips: vec![Level { width: 1, height: 1, pixels: vec![pixel] }],
+        mips: vec![Level {
+            width: 1,
+            height: 1,
+            pixels: vec![pixel],
+        }],
         average: rgb,
     })
 }
@@ -560,8 +763,19 @@ fn render_coloured(document: &Document) -> Image {
             [30, 60, 200]
         }))
     };
-    let mut settings = Settings { shading: Shading::Flat, resolve: Some(&mut resolve) };
-    render_with(document, Vec3::ZERO, basis_for(0.0, 0.0), FOV, W, H, &mut settings)
+    let mut settings = Settings {
+        shading: Shading::Flat,
+        resolve: Some(&mut resolve),
+    };
+    render_with(
+        document,
+        Vec3::ZERO,
+        basis_for(0.0, 0.0),
+        FOV,
+        W,
+        H,
+        &mut settings,
+    )
 }
 
 fn wall(document: &mut Document) {
@@ -597,14 +811,25 @@ fn tool_volumes_are_see_through_and_world_materials_are_not() {
     // The whole point: a trigger is a region, not a wall. Drawn opaque it
     // hides the room it is sitting in, which makes a level with triggers in
     // it impossible to work in.
-    for tool in ["tools/trigger", "tools/clip", "tools/hint", "tools/skip", "tools/water"] {
+    for tool in [
+        "tools/trigger",
+        "tools/clip",
+        "tools/hint",
+        "tools/skip",
+        "tools/water",
+    ] {
         assert!(opacity_for(tool) < 1.0, "{tool} is drawn solid");
     }
     // `nodraw` is a wall nobody sees, not a volume, so it stays solid -- and
     // so does anything outside `tools/`.
-    for solid in
-        ["tools/nodraw", "tools/invisible", "tools/skybox", "tools/sky", "dev/grid", "dev/wall"]
-    {
+    for solid in [
+        "tools/nodraw",
+        "tools/invisible",
+        "tools/skybox",
+        "tools/sky",
+        "dev/grid",
+        "dev/wall",
+    ] {
         assert_eq!(opacity_for(solid), 1.0, "{solid} was made see-through");
     }
     // The prefix is a directory, not a spelling.
@@ -696,8 +921,10 @@ fn the_world_is_drawn_before_the_volumes() {
 
     let mut faces = crate::draw::visible_faces(&document, Vec3::ZERO, basis_for(0.0, 0.0));
     faces.sort_by(|a, b| {
-        let (a_solid, b_solid) =
-            (opacity_for(&a.material) >= 1.0, opacity_for(&b.material) >= 1.0);
+        let (a_solid, b_solid) = (
+            opacity_for(&a.material) >= 1.0,
+            opacity_for(&b.material) >= 1.0,
+        );
         b_solid.cmp(&a_solid).then(b.depth.total_cmp(&a.depth))
     });
     let first_volume = faces.iter().position(|f| opacity_for(&f.material) < 1.0);
@@ -705,7 +932,10 @@ fn the_world_is_drawn_before_the_volumes() {
     let (Some(first_volume), Some(last_solid)) = (first_volume, last_solid) else {
         panic!("the scene needs both a solid face and a volume face");
     };
-    assert!(last_solid < first_volume, "a volume sorted before the world");
+    assert!(
+        last_solid < first_volume,
+        "a volume sorted before the world"
+    );
 }
 
 #[test]
@@ -713,7 +943,11 @@ fn blending_is_a_mix_and_stays_opaque() {
     let black = [0, 0, 0, 255];
     let white = [255, 255, 255, 255];
     assert_eq!(blend(black, white, 0.0), black, "alpha 0 changed the pixel");
-    assert_eq!(blend(black, white, 1.0), white, "alpha 1 did not take the colour");
+    assert_eq!(
+        blend(black, white, 1.0),
+        white,
+        "alpha 1 did not take the colour"
+    );
     let mid = blend(black, white, 0.5);
     assert!((120..=136).contains(&mid[0]), "half way is {mid:?}");
     // The pane is handed to egui as an image; a hole in it is a hole in the

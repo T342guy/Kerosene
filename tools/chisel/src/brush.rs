@@ -42,7 +42,9 @@ impl BrushInfo {
         // door, and a panel that then said "nothing selected" would be the
         // same split this panel exists to remove.
         let selected = document.selected_solid_ids();
-        if selected.is_empty() { return None }
+        if selected.is_empty() {
+            return None;
+        }
 
         let mut bounds = Aabb::EMPTY;
         let mut materials: Vec<String> = Vec::new();
@@ -52,7 +54,9 @@ impl BrushInfo {
         let mut mixed = false;
 
         for (entity, solid) in document.map.all_solids() {
-            if !selected.contains(&solid.id) { continue }
+            if !selected.contains(&solid.id) {
+                continue;
+            }
             brushes += 1;
             faces += solid.sides.len();
             let b = solid.bounds();
@@ -73,7 +77,9 @@ impl BrushInfo {
                 }
             }
         }
-        if brushes == 0 { return None }
+        if brushes == 0 {
+            return None;
+        }
 
         // Only when every selected brush agrees. A selection spanning a door
         // and a wall has no single class, and naming one of them would be a
@@ -130,7 +136,9 @@ impl BrushInfo {
 /// A door is textured like a door, and only a designer knows which door.
 pub fn material_for_class(classname: &str) -> Option<&'static str> {
     let lower = classname.to_lowercase();
-    if lower.starts_with("trigger_") { return Some("tools/trigger") }
+    if lower.starts_with("trigger_") {
+        return Some("tools/trigger");
+    }
     match lower.as_str() {
         "func_areaportal" | "func_occluder" => Some("tools/nodraw"),
         // A ladder is invisible by definition, so texturing it by hand is a
@@ -142,7 +150,9 @@ pub fn material_for_class(classname: &str) -> Option<&'static str> {
 
 fn all_one_material(solid: &Solid) -> bool {
     let mut sides = solid.sides.iter();
-    let Some(first) = sides.next() else { return true };
+    let Some(first) = sides.next() else {
+        return true;
+    };
     sides.all(|s| s.material == first.material)
 }
 

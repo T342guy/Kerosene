@@ -26,18 +26,27 @@ fn a_shipped_material_loads_with_its_mip_chain() {
     let texture = cache.get(&vfs, "dev/grid").expect("dev/grid loads");
     assert_eq!(texture.width(), 256);
     assert_eq!(texture.height(), 256);
-    assert!(texture.mips.len() > 1, "no mip chain: {} levels", texture.mips.len());
+    assert!(
+        texture.mips.len() > 1,
+        "no mip chain: {} levels",
+        texture.mips.len()
+    );
 
     // Each level is half the last, and its pixels match its dimensions.
     for pair in texture.mips.windows(2) {
         assert!(pair[1].width <= pair[0].width);
-        assert_eq!(pair[1].pixels.len(), (pair[1].width * pair[1].height) as usize);
+        assert_eq!(
+            pair[1].pixels.len(),
+            (pair[1].width * pair[1].height) as usize
+        );
     }
 }
 
 #[test]
 fn a_texture_is_loaded_once_and_kept() {
-    if !built() { return }
+    if !built() {
+        return;
+    }
     let vfs = content();
     let mut cache = TextureCache::new();
     let first = cache.get(&vfs, "dev/grid").unwrap();
@@ -48,7 +57,9 @@ fn a_texture_is_loaded_once_and_kept() {
 
 #[test]
 fn names_are_matched_without_regard_to_case_or_a_leading_slash() {
-    if !built() { return }
+    if !built() {
+        return;
+    }
     let vfs = content();
     let mut cache = TextureCache::new();
     cache.get(&vfs, "dev/grid").unwrap();
@@ -73,7 +84,9 @@ fn a_material_that_is_not_there_fails_once_and_says_why() {
 
 #[test]
 fn clearing_makes_a_rebuilt_texture_show_up() {
-    if !built() { return }
+    if !built() {
+        return;
+    }
     let vfs = content();
     let mut cache = TextureCache::new();
     cache.get(&vfs, "dev/grid").unwrap();
@@ -90,7 +103,11 @@ fn checker() -> Texture {
     let w = [255, 255, 255, 255];
     let b = [0, 0, 0, 255];
     Texture {
-        mips: vec![Level { width: 2, height: 2, pixels: vec![w, b, b, w] }],
+        mips: vec![Level {
+            width: 2,
+            height: 2,
+            pixels: vec![w, b, b, w],
+        }],
         average: [128, 128, 128],
     }
 }
@@ -110,7 +127,10 @@ fn coordinates_wrap_rather_than_clamping() {
     // what a measurement texture is for.
     let texture = checker();
     assert_eq!(texture.sample(1.25, 0.25, 0), texture.sample(0.25, 0.25, 0));
-    assert_eq!(texture.sample(-0.75, 0.25, 0), texture.sample(0.25, 0.25, 0));
+    assert_eq!(
+        texture.sample(-0.75, 0.25, 0),
+        texture.sample(0.25, 0.25, 0)
+    );
     assert_eq!(texture.sample(7.75, 5.75, 0), texture.sample(0.75, 0.75, 0));
 }
 
@@ -135,7 +155,14 @@ fn a_missing_texture_gets_a_colour_derived_from_its_name() {
 fn a_fallback_colour_is_never_mistakeable_for_a_lighting_bug() {
     // Nearly black or nearly white reads as broken lighting rather than as a
     // missing texture.
-    for name in ["a", "dev/grid", "tools/nodraw", "props/crate_wood", "", "zzzz/zzzz"] {
+    for name in [
+        "a",
+        "dev/grid",
+        "tools/nodraw",
+        "props/crate_wood",
+        "",
+        "zzzz/zzzz",
+    ] {
         let [r, g, b] = TextureCache::fallback_colour(name);
         for channel in [r, g, b] {
             assert!((96..=160).contains(&channel), "{name} gave {r},{g},{b}");
@@ -155,13 +182,18 @@ fn the_average_of_a_material_falls_back_when_it_cannot_be_loaded() {
 
 #[test]
 fn the_average_of_a_real_texture_is_a_real_average() {
-    if !built() { return }
+    if !built() {
+        return;
+    }
     let vfs = content();
     let mut cache = TextureCache::new();
     // dev/grid is a grey checkerboard: its mean is grey and not extreme.
     let [r, g, b] = cache.average(&vfs, "dev/grid");
     assert!((60..=200).contains(&r), "{r},{g},{b}");
-    assert!(r.abs_diff(g) < 24 && g.abs_diff(b) < 24, "not grey: {r},{g},{b}");
+    assert!(
+        r.abs_diff(g) < 24 && g.abs_diff(b) < 24,
+        "not grey: {r},{g},{b}"
+    );
 }
 
 // ---- choosing a mip to draw at a known size --------------------------------
@@ -171,11 +203,20 @@ fn chain(top: u32) -> Texture {
     let mut mips = Vec::new();
     let mut size = top;
     loop {
-        mips.push(Level { width: size, height: size, pixels: vec![[0; 4]; (size * size) as usize] });
-        if size == 1 { break }
+        mips.push(Level {
+            width: size,
+            height: size,
+            pixels: vec![[0; 4]; (size * size) as usize],
+        });
+        if size == 1 {
+            break;
+        }
         size /= 2;
     }
-    Texture { mips, average: [0; 3] }
+    Texture {
+        mips,
+        average: [0; 3],
+    }
 }
 
 #[test]
@@ -186,7 +227,11 @@ fn a_swatch_is_drawn_from_a_mip_at_least_as_big_as_itself() {
     let texture = chain(256);
     assert_eq!(texture.level_for_size(128).width, 128);
     assert_eq!(texture.level_for_size(64).width, 64);
-    assert_eq!(texture.level_for_size(48).width, 64, "just big enough, not just too small");
+    assert_eq!(
+        texture.level_for_size(48).width,
+        64,
+        "just big enough, not just too small"
+    );
 }
 
 #[test]

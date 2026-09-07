@@ -53,7 +53,9 @@ impl Justify {
 /// Returned in texels rather than normalised, because the texture's size is
 /// not known here and every operation below works in texels anyway.
 pub fn texel_bounds(side: &Side, winding: &Winding) -> Option<((f32, f32), (f32, f32))> {
-    if winding.points.is_empty() { return None }
+    if winding.points.is_empty() {
+        return None;
+    }
     let mut min = (f32::MAX, f32::MAX);
     let mut max = (f32::MIN, f32::MIN);
     for point in &winding.points {
@@ -67,7 +69,11 @@ pub fn texel_bounds(side: &Side, winding: &Winding) -> Option<((f32, f32), (f32,
 
 /// Multiply both scales, keeping the texture anchored where it is.
 pub fn scale_by(side: &mut Side, factor_u: f32, factor_v: f32) {
-    set_scale(side, side.uaxis.scale * factor_u, side.vaxis.scale * factor_v);
+    set_scale(
+        side,
+        side.uaxis.scale * factor_u,
+        side.vaxis.scale * factor_v,
+    );
 }
 
 /// Set the scales outright.
@@ -82,7 +88,11 @@ pub fn set_scale(side: &mut Side, u: f32, v: f32) {
 }
 
 fn clean_scale(v: f32) -> f32 {
-    if !v.is_finite() || v.abs() < 1e-4 { 0.25 } else { v.clamp(-1024.0, 1024.0) }
+    if !v.is_finite() || v.abs() < 1e-4 {
+        0.25
+    } else {
+        v.clamp(-1024.0, 1024.0)
+    }
 }
 
 /// Move the texture across the face, in texels.
@@ -123,7 +133,10 @@ pub fn rotate_by(side: &mut Side, plane: &Plane, winding: &Winding, degrees: f32
 /// What every face starts with, and what makes the faces of a long wall share
 /// a continuous texture rather than each starting over.
 pub fn align_to_world(side: &mut Side, plane: &Plane) {
-    let scale = (side.uaxis.scale.abs().max(1e-4), side.vaxis.scale.abs().max(1e-4));
+    let scale = (
+        side.uaxis.scale.abs().max(1e-4),
+        side.vaxis.scale.abs().max(1e-4),
+    );
     let (mut u, mut v) = kerosene_map::texture::default_axes_for_plane(plane, 0.25);
     u.scale = scale.0;
     v.scale = scale.1;
@@ -142,10 +155,16 @@ pub fn align_to_face(side: &mut Side, plane: &Plane) {
     let normal = plane.normal;
     // Any vector not parallel to the normal gives a starting tangent; the
     // world axis the face is least aligned with is the stablest choice.
-    let helper = if normal.z.abs() < 0.9 { Vec3::Z } else { Vec3::X };
+    let helper = if normal.z.abs() < 0.9 {
+        Vec3::Z
+    } else {
+        Vec3::X
+    };
     let u = normal.cross(helper).normalize_or_zero();
     let v = normal.cross(u).normalize_or_zero();
-    if u.length_squared() < 0.5 || v.length_squared() < 0.5 { return }
+    if u.length_squared() < 0.5 || v.length_squared() < 0.5 {
+        return;
+    }
 
     side.uaxis = TextureAxis::new(u, 0.0, side.uaxis.scale.abs().max(1e-4));
     side.vaxis = TextureAxis::new(v, 0.0, side.vaxis.scale.abs().max(1e-4));
@@ -165,7 +184,9 @@ pub fn justify(side: &mut Side, winding: &Winding, how: Justify, texture: (u32, 
         }
     }
 
-    let Some((min, max)) = texel_bounds(side, winding) else { return };
+    let Some((min, max)) = texel_bounds(side, winding) else {
+        return;
+    };
     let (du, dv) = match how {
         Justify::Left | Justify::Fit => (-min.0, 0.0),
         Justify::Right => (width - max.0, 0.0),
@@ -177,7 +198,11 @@ pub fn justify(side: &mut Side, winding: &Winding, how: Justify, texture: (u32, 
         ),
     };
     // Fit wants both axes at the corner, not just the one.
-    let (du, dv) = if how == Justify::Fit { (-min.0, -min.1) } else { (du, dv) };
+    let (du, dv) = if how == Justify::Fit {
+        (-min.0, -min.1)
+    } else {
+        (du, dv)
+    };
     shift_by(side, du, dv);
 }
 
@@ -191,7 +216,9 @@ fn axis_span(side: &Side, winding: &Winding) -> (f32, f32) {
         min = (min.0.min(u), min.1.min(v));
         max = (max.0.max(u), max.1.max(v));
     }
-    if winding.points.is_empty() { return (0.0, 0.0) }
+    if winding.points.is_empty() {
+        return (0.0, 0.0);
+    }
     (max.0 - min.0, max.1 - min.1)
 }
 

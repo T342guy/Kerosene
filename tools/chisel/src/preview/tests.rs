@@ -8,11 +8,19 @@ fn cube() -> Model {
     let mut model = Model::new();
     let h = 32.0;
     let corners = [
-        Vec3::new(-h, -h, -h), Vec3::new(h, -h, -h), Vec3::new(h, h, -h), Vec3::new(-h, h, -h),
-        Vec3::new(-h, -h, h), Vec3::new(h, -h, h), Vec3::new(h, h, h), Vec3::new(-h, h, h),
+        Vec3::new(-h, -h, -h),
+        Vec3::new(h, -h, -h),
+        Vec3::new(h, h, -h),
+        Vec3::new(-h, h, -h),
+        Vec3::new(-h, -h, h),
+        Vec3::new(h, -h, h),
+        Vec3::new(h, h, h),
+        Vec3::new(-h, h, h),
     ];
     for c in corners {
-        model.vertices.push(Vertex::rigid(c, c.normalize(), [0.0, 0.0]));
+        model
+            .vertices
+            .push(Vertex::rigid(c, c.normalize(), [0.0, 0.0]));
     }
     // Wound the way `.keromdl` stores triangles: counter-clockwise seen from
     // the front, so the raw cross product of two edges points *out* of the
@@ -66,7 +74,11 @@ fn a_model_fills_enough_of_the_picture_to_be_worth_looking_at() {
     // Framed too far away is as useless as running off the edge.
     let image = model(&cube(), 64, 30.0, -20.0);
     let fraction = drawn(&image) as f32 / (64.0 * 64.0);
-    assert!(fraction > 0.10, "only {:.0}% of the picture is model", fraction * 100.0);
+    assert!(
+        fraction > 0.10,
+        "only {:.0}% of the picture is model",
+        fraction * 100.0
+    );
 }
 
 #[test]
@@ -83,7 +95,9 @@ fn a_model_that_is_a_long_way_from_the_origin_is_still_framed() {
     // assumed the origin would show an empty box for half of them.
     let mut far = cube();
     for v in &mut far.vertices {
-        for i in 0..3 { v.position[i] += 4000.0 }
+        for i in 0..3 {
+            v.position[i] += 4000.0
+        }
     }
     far.bounds = Aabb::new(Vec3::splat(4000.0 - 32.0), Vec3::splat(4000.0 + 32.0));
 
@@ -101,9 +115,24 @@ fn nearer_surfaces_win() {
 
     // The lit top of the cube is brighter than its shadowed sides, and would
     // not be if a back face had painted over it.
-    let brightest = image.pixels.iter().filter(|p| **p != BACKGROUND).map(|p| p[0]).max().unwrap();
-    let darkest = image.pixels.iter().filter(|p| **p != BACKGROUND).map(|p| p[0]).min().unwrap();
-    assert!(brightest > darkest, "nothing is shaded: {brightest} vs {darkest}");
+    let brightest = image
+        .pixels
+        .iter()
+        .filter(|p| **p != BACKGROUND)
+        .map(|p| p[0])
+        .max()
+        .unwrap();
+    let darkest = image
+        .pixels
+        .iter()
+        .filter(|p| **p != BACKGROUND)
+        .map(|p| p[0])
+        .min()
+        .unwrap();
+    assert!(
+        brightest > darkest,
+        "nothing is shaded: {brightest} vs {darkest}"
+    );
 }
 
 #[test]
@@ -124,11 +153,17 @@ fn the_shipped_model_renders() {
     // should fail here rather than in a screenshot nobody takes.
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../content/models/props/crate.keromdl");
-    let Ok(bytes) = std::fs::read(&path) else { return };
+    let Ok(bytes) = std::fs::read(&path) else {
+        return;
+    };
     let crate_model = Model::from_bytes(&bytes).expect("the shipped model loads");
 
     let image = model(&crate_model, 96, 35.0, -20.0);
-    assert!(drawn(&image) > 500, "the crate rendered {} pixels", drawn(&image));
+    assert!(
+        drawn(&image) > 500,
+        "the crate rendered {} pixels",
+        drawn(&image)
+    );
 }
 
 // ---- which way round a triangle is ----------------------------------------
@@ -150,10 +185,16 @@ fn facing_triangle(reversed: bool) -> Model {
     ];
     let mut model = Model::new();
     for c in corners {
-        model.vertices.push(Vertex::rigid(c, Vec3::NEG_X, [0.0, 0.0]));
+        model
+            .vertices
+            .push(Vertex::rigid(c, Vec3::NEG_X, [0.0, 0.0]));
     }
     // Counter-clockwise from the front (outward normal -X) unless reversed.
-    model.indices = if reversed { vec![0, 1, 2] } else { vec![0, 2, 1] };
+    model.indices = if reversed {
+        vec![0, 1, 2]
+    } else {
+        vec![0, 2, 1]
+    };
     model.bounds = Aabb::new(Vec3::new(-1.0, -h, -h), Vec3::new(1.0, h, h));
     model
 }
@@ -161,7 +202,11 @@ fn facing_triangle(reversed: bool) -> Model {
 #[test]
 fn a_triangle_facing_the_camera_is_drawn() {
     let image = model(&facing_triangle(false), 64, 0.0, 0.0);
-    assert!(drawn(&image) > 100, "a front face was culled: {} pixels", drawn(&image));
+    assert!(
+        drawn(&image) > 100,
+        "a front face was culled: {} pixels",
+        drawn(&image)
+    );
 }
 
 #[test]
@@ -181,11 +226,21 @@ fn the_fixture_is_wound_the_way_the_real_format_is() {
     // long as it was.
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../content/models/props/crate.keromdl");
-    let Ok(bytes) = std::fs::read(&path) else { return };
+    let Ok(bytes) = std::fs::read(&path) else {
+        return;
+    };
     let real = Model::from_bytes(&bytes).unwrap();
 
-    assert_eq!(raw_normals_point_outward(&real), 12, "the format stores them counter-clockwise");
-    assert_eq!(raw_normals_point_outward(&cube()), 12, "and so must the fixture");
+    assert_eq!(
+        raw_normals_point_outward(&real),
+        12,
+        "the format stores them counter-clockwise"
+    );
+    assert_eq!(
+        raw_normals_point_outward(&cube()),
+        12,
+        "and so must the fixture"
+    );
 }
 
 /// How many triangles have `(b-a) x (c-a)` pointing away from the centre.
@@ -219,5 +274,9 @@ fn a_solid_model_shows_three_shades_from_a_corner() {
         .collect();
     shades.sort_unstable();
     shades.dedup();
-    assert!(shades.len() >= 3, "only {} shades: {shades:?}", shades.len());
+    assert!(
+        shades.len() >= 3,
+        "only {} shades: {shades:?}",
+        shades.len()
+    );
 }

@@ -59,7 +59,11 @@ fn every_family_has_a_name_and_a_colour_of_its_own() {
     let mut labels = Vec::new();
     for kind in Kind::all() {
         assert!(!kind.label().is_empty());
-        assert!(!labels.contains(&kind.label()), "{} reuses a name", kind.label());
+        assert!(
+            !labels.contains(&kind.label()),
+            "{} reuses a name",
+            kind.label()
+        );
         labels.push(kind.label());
 
         let c = kind.colour();
@@ -110,14 +114,24 @@ fn an_icon_stays_inside_the_radius_it_was_given() {
 
     for kind in Kind::all() {
         let shapes = frame_shapes(|ui| draw(ui.painter(), centre, 12.0, kind, kind.colour()));
-        assert!(shapes.len() > baseline.len(), "{} drew nothing", kind.label());
+        assert!(
+            shapes.len() > baseline.len(),
+            "{} drew nothing",
+            kind.label()
+        );
 
         // A stroke has width, so the box is the radius plus a little.
         let allowed = egui::Rect::from_center_size(centre, egui::Vec2::splat(12.0 * 2.0 + 6.0));
         for shape in &shapes[baseline.len()..] {
             let bounds = shape.visual_bounding_rect();
-            if bounds.is_negative() { continue }
-            assert!(allowed.contains_rect(bounds), "{} overflows: {bounds:?}", kind.label());
+            if bounds.is_negative() {
+                continue;
+            }
+            assert!(
+                allowed.contains_rect(bounds),
+                "{} overflows: {bounds:?}",
+                kind.label()
+            );
         }
     }
 }

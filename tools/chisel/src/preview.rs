@@ -33,7 +33,9 @@ const LIGHT: Vec3 = Vec3::new(-0.5, -0.6, 0.62);
 /// one call work for a doorframe and a teacup.
 pub fn model(model: &Model, size: usize, yaw: f32, pitch: f32) -> Image {
     let mut image = Image::new(size, size, BACKGROUND);
-    if size == 0 || model.indices.len() < 3 { return image }
+    if size == 0 || model.indices.len() < 3 {
+        return image;
+    }
 
     let bounds = model.bounds;
     let centre = bounds.center();
@@ -65,13 +67,17 @@ pub fn model(model: &Model, size: usize, yaw: f32, pitch: f32) -> Image {
         // `.keromdl` stores triangles counter-clockwise as seen from the
         // front -- the same convention the GPU renderer culls by -- so the
         // raw cross product already points out of the model.
-        let normal = (corners[1] - corners[0]).cross(corners[2] - corners[0]).normalize_or_zero();
+        let normal = (corners[1] - corners[0])
+            .cross(corners[2] - corners[0])
+            .normalize_or_zero();
         let shade = 0.35 + 0.65 * normal.dot(light).max(0.0);
 
         // Back-face culling in world space rather than by the sign of the
         // screen-space area: it does not depend on which way the projection
         // happens to flip handedness, so it stays right if the camera does.
-        if normal.dot(eye - corners[0]) <= 0.0 { continue }
+        if normal.dot(eye - corners[0]) <= 0.0 {
+            continue;
+        }
 
         let projected: Vec<[f32; 3]> = corners
             .iter()
@@ -101,13 +107,25 @@ pub fn model(model: &Model, size: usize, yaw: f32, pitch: f32) -> Image {
 /// camera convention. Facing is settled before we get here.
 fn fill(image: &mut Image, depth: &mut [f32], p: &[[f32; 3]], shade: f32) {
     let area = edge(p[0], p[1], [p[2][0], p[2][1]]);
-    if area == 0.0 { return }
+    if area == 0.0 {
+        return;
+    }
     let sign = area.signum();
     let area = area.abs();
 
-    let min_x = p.iter().map(|v| v[0]).fold(f32::MAX, f32::min).floor().max(0.0) as usize;
+    let min_x = p
+        .iter()
+        .map(|v| v[0])
+        .fold(f32::MAX, f32::min)
+        .floor()
+        .max(0.0) as usize;
     let max_x = (p.iter().map(|v| v[0]).fold(f32::MIN, f32::max).ceil() as usize).min(image.width);
-    let min_y = p.iter().map(|v| v[1]).fold(f32::MAX, f32::min).floor().max(0.0) as usize;
+    let min_y = p
+        .iter()
+        .map(|v| v[1])
+        .fold(f32::MAX, f32::min)
+        .floor()
+        .max(0.0) as usize;
     let max_y = (p.iter().map(|v| v[1]).fold(f32::MIN, f32::max).ceil() as usize).min(image.height);
 
     for y in min_y..max_y {
@@ -116,11 +134,15 @@ fn fill(image: &mut Image, depth: &mut [f32], p: &[[f32; 3]], shade: f32) {
             let w0 = edge(p[1], p[2], at) * sign;
             let w1 = edge(p[2], p[0], at) * sign;
             let w2 = edge(p[0], p[1], at) * sign;
-            if w0 < 0.0 || w1 < 0.0 || w2 < 0.0 { continue }
+            if w0 < 0.0 || w1 < 0.0 || w2 < 0.0 {
+                continue;
+            }
 
             let inv_z = (w0 * p[0][2] + w1 * p[1][2] + w2 * p[2][2]) / area;
             let index = y * image.width + x;
-            if inv_z <= depth[index] { continue }
+            if inv_z <= depth[index] {
+                continue;
+            }
             depth[index] = inv_z;
 
             let value = (200.0 * shade) as u8;

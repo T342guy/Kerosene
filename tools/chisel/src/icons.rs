@@ -40,12 +40,24 @@ impl Kind {
     /// and a class nobody anticipated still gets a shape rather than nothing.
     pub fn of(classname: &str) -> Kind {
         let name = classname.to_ascii_lowercase();
-        if name.starts_with("light") { return Kind::Light }
-        if name.starts_with("ambient_") || name.contains("sound") { return Kind::Sound }
-        if name.contains("script") { return Kind::Script }
-        if name.starts_with("logic_") || name.starts_with("math_") { return Kind::Logic }
-        if name.starts_with("point_message") || name.contains("message") { return Kind::Message }
-        if name.starts_with("prop_") { return Kind::Prop }
+        if name.starts_with("light") {
+            return Kind::Light;
+        }
+        if name.starts_with("ambient_") || name.contains("sound") {
+            return Kind::Sound;
+        }
+        if name.contains("script") {
+            return Kind::Script;
+        }
+        if name.starts_with("logic_") || name.starts_with("math_") {
+            return Kind::Logic;
+        }
+        if name.starts_with("point_message") || name.contains("message") {
+            return Kind::Message;
+        }
+        if name.starts_with("prop_") {
+            return Kind::Prop;
+        }
         match name.as_str() {
             "info_player_start" => Kind::Player,
             "info_target" => Kind::Target,
@@ -90,8 +102,15 @@ impl Kind {
     /// Every family, for a legend.
     pub fn all() -> [Kind; 9] {
         [
-            Kind::Light, Kind::Player, Kind::Sound, Kind::Logic, Kind::Script,
-            Kind::Message, Kind::Prop, Kind::Target, Kind::Other,
+            Kind::Light,
+            Kind::Player,
+            Kind::Sound,
+            Kind::Logic,
+            Kind::Script,
+            Kind::Message,
+            Kind::Prop,
+            Kind::Target,
+            Kind::Other,
         ]
     }
 }
@@ -119,9 +138,27 @@ pub fn draw(painter: &egui::Painter, at: Pos2, radius: f32, kind: Kind, colour: 
         // A person: a head and shoulders.
         Kind::Player => {
             painter.circle_stroke(at - Vec2::new(0.0, r * 0.45), r * 0.35, stroke);
-            painter.line_segment([at - Vec2::new(r * 0.6, -r * 0.8), at + Vec2::new(0.0, -r * 0.1)], stroke);
-            painter.line_segment([at + Vec2::new(r * 0.6, r * 0.8), at + Vec2::new(0.0, -r * 0.1)], stroke);
-            painter.line_segment([at - Vec2::new(r * 0.6, -r * 0.8), at + Vec2::new(r * 0.6, r * 0.8)], stroke);
+            painter.line_segment(
+                [
+                    at - Vec2::new(r * 0.6, -r * 0.8),
+                    at + Vec2::new(0.0, -r * 0.1),
+                ],
+                stroke,
+            );
+            painter.line_segment(
+                [
+                    at + Vec2::new(r * 0.6, r * 0.8),
+                    at + Vec2::new(0.0, -r * 0.1),
+                ],
+                stroke,
+            );
+            painter.line_segment(
+                [
+                    at - Vec2::new(r * 0.6, -r * 0.8),
+                    at + Vec2::new(r * 0.6, r * 0.8),
+                ],
+                stroke,
+            );
         }
         // A speaker: a cone with sound coming out of it.
         Kind::Sound => {
@@ -137,7 +174,10 @@ pub fn draw(painter: &egui::Painter, at: Pos2, radius: f32, kind: Kind, colour: 
             for (i, scale) in [0.45f32, 0.8].iter().enumerate() {
                 let x = r * (0.4 + i as f32 * 0.3);
                 painter.line_segment(
-                    [at + Vec2::new(x, -r * scale * 0.6), at + Vec2::new(x, r * scale * 0.6)],
+                    [
+                        at + Vec2::new(x, -r * scale * 0.6),
+                        at + Vec2::new(x, r * scale * 0.6),
+                    ],
                     stroke,
                 );
             }
@@ -168,7 +208,10 @@ pub fn draw(painter: &egui::Painter, at: Pos2, radius: f32, kind: Kind, colour: 
         // A speech bubble.
         Kind::Message => {
             painter.rect_stroke(
-                egui::Rect::from_center_size(at - Vec2::new(0.0, r * 0.2), Vec2::new(r * 1.8, r * 1.1)),
+                egui::Rect::from_center_size(
+                    at - Vec2::new(0.0, r * 0.2),
+                    Vec2::new(r * 1.8, r * 1.1),
+                ),
                 r * 0.25,
                 stroke,
                 egui::StrokeKind::Middle,
@@ -186,13 +229,20 @@ pub fn draw(painter: &egui::Painter, at: Pos2, radius: f32, kind: Kind, colour: 
         Kind::Prop => {
             let s = r * 0.62;
             let back = Vec2::new(r * 0.35, -r * 0.35);
-            let front = egui::Rect::from_center_size(at + Vec2::new(-r * 0.15, r * 0.15), Vec2::splat(s * 2.0));
+            let front = egui::Rect::from_center_size(
+                at + Vec2::new(-r * 0.15, r * 0.15),
+                Vec2::splat(s * 2.0),
+            );
             painter.rect_stroke(front, 0.0, stroke, egui::StrokeKind::Middle);
             painter.line_segment([front.left_top(), front.left_top() + back], stroke);
             painter.line_segment([front.right_top(), front.right_top() + back], stroke);
             painter.line_segment([front.right_bottom(), front.right_bottom() + back], stroke);
             painter.add(egui::Shape::line(
-                vec![front.left_top() + back, front.right_top() + back, front.right_bottom() + back],
+                vec![
+                    front.left_top() + back,
+                    front.right_top() + back,
+                    front.right_bottom() + back,
+                ],
                 stroke,
             ));
         }

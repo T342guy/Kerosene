@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
 use super::*;
 
-fn doc() -> Document { Document::new() }
+fn doc() -> Document {
+    Document::new()
+}
 
 fn block(doc: &mut Document, lo: f32, hi: f32) -> u32 {
     doc.create_block(Vec3::splat(lo), Vec3::splat(hi))
@@ -39,7 +41,10 @@ fn blocks_snap_to_the_grid() {
 fn every_object_gets_a_unique_id() {
     let mut d = doc();
     for i in 0..5 {
-        d.create_block(Vec3::splat(i as f32 * 64.0), Vec3::splat(i as f32 * 64.0 + 32.0));
+        d.create_block(
+            Vec3::splat(i as f32 * 64.0),
+            Vec3::splat(i as f32 * 64.0 + 32.0),
+        );
     }
     d.create_entity("light", Vec3::ZERO);
 
@@ -131,7 +136,11 @@ fn every_edit_is_undoable() {
     d.delete_selection();
 
     while d.undo().is_some() {}
-    assert_eq!(d.map.to_text(), before, "undoing everything should restore the empty map");
+    assert_eq!(
+        d.map.to_text(),
+        before,
+        "undoing everything should restore the empty map"
+    );
 }
 
 #[test]
@@ -155,7 +164,11 @@ fn deleting_nothing_does_not_touch_the_history() {
     let depth = d.undo_depth();
     d.selection.clear();
     assert_eq!(d.delete_selection(), 0);
-    assert_eq!(d.undo_depth(), depth, "a no-op must not fill the undo stack");
+    assert_eq!(
+        d.undo_depth(),
+        depth,
+        "a no-op must not fill the undo stack"
+    );
 }
 
 #[test]
@@ -178,7 +191,10 @@ fn moving_a_point_entity_moves_its_origin() {
     let mut d = doc();
     let id = d.create_entity("info_player_start", Vec3::new(0.0, 0.0, 16.0));
     d.move_selection(Vec3::new(64.0, 0.0, 0.0));
-    assert_eq!(d.find_entity(id).unwrap().origin(), Vec3::new(64.0, 0.0, 16.0));
+    assert_eq!(
+        d.find_entity(id).unwrap().origin(),
+        Vec3::new(64.0, 0.0, 16.0)
+    );
 }
 
 #[test]
@@ -198,7 +214,13 @@ fn applying_a_material_covers_a_whole_selected_brush() {
     let id = block(&mut d, 0.0, 64.0);
     d.current_material = "dev/wall".into();
     assert_eq!(d.apply_material(), 6);
-    assert!(d.find_solid(id).unwrap().sides.iter().all(|s| s.material == "dev/wall"));
+    assert!(
+        d.find_solid(id)
+            .unwrap()
+            .sides
+            .iter()
+            .all(|s| s.material == "dev/wall")
+    );
 }
 
 #[test]
@@ -221,7 +243,13 @@ fn applying_a_walkmap_rule_covers_a_whole_selected_brush() {
     let mut d = doc();
     let id = block(&mut d, 0.0, 64.0);
     assert_eq!(d.apply_walkmap(WalkmapRule::Deny), 6);
-    assert!(d.find_solid(id).unwrap().sides.iter().all(|s| s.walkmap == WalkmapRule::Deny));
+    assert!(
+        d.find_solid(id)
+            .unwrap()
+            .sides
+            .iter()
+            .all(|s| s.walkmap == WalkmapRule::Deny)
+    );
 }
 
 #[test]
@@ -231,7 +259,11 @@ fn applying_a_material_to_a_selected_brush_entity_retextures_it() {
     let mut d = doc();
     block(&mut d, 0.0, 64.0);
     let entity = d.tie_to_entity("func_door").unwrap();
-    assert_eq!(d.map.world.solids.len(), 0, "the brush should have left the world");
+    assert_eq!(
+        d.map.world.solids.len(),
+        0,
+        "the brush should have left the world"
+    );
 
     // `tie_to_entity` selects the new entity.
     assert_eq!(d.selection.entities.len(), 1);
@@ -239,7 +271,11 @@ fn applying_a_material_to_a_selected_brush_entity_retextures_it() {
     assert_eq!(d.apply_material(), 6);
 
     let door = d.find_entity(entity).unwrap();
-    assert!(door.solids.iter().all(|s| s.sides.iter().all(|x| x.material == "dev/wall")));
+    assert!(
+        door.solids
+            .iter()
+            .all(|s| s.sides.iter().all(|x| x.material == "dev/wall"))
+    );
 }
 
 #[test]
@@ -253,7 +289,11 @@ fn applying_a_walkmap_rule_to_one_face_leaves_the_others() {
     assert_eq!(d.apply_walkmap(WalkmapRule::Avoid), 1);
     let solid = d.find_solid(id).unwrap();
     assert_eq!(solid.sides[0].walkmap, WalkmapRule::Avoid);
-    assert!(solid.sides[1..].iter().all(|s| s.walkmap == WalkmapRule::Allow));
+    assert!(
+        solid.sides[1..]
+            .iter()
+            .all(|s| s.walkmap == WalkmapRule::Allow)
+    );
 }
 
 #[test]
@@ -268,8 +308,20 @@ fn a_walkmap_rule_is_one_undo_step_for_a_whole_selection() {
     let depth = d.undo_depth();
     d.apply_walkmap(WalkmapRule::Always);
     assert_eq!(d.undo_depth(), depth + 1, "two brushes, one undo step");
-    assert!(d.find_solid(a).unwrap().sides.iter().all(|s| s.walkmap == WalkmapRule::Always));
-    assert!(d.find_solid(b).unwrap().sides.iter().all(|s| s.walkmap == WalkmapRule::Always));
+    assert!(
+        d.find_solid(a)
+            .unwrap()
+            .sides
+            .iter()
+            .all(|s| s.walkmap == WalkmapRule::Always)
+    );
+    assert!(
+        d.find_solid(b)
+            .unwrap()
+            .sides
+            .iter()
+            .all(|s| s.walkmap == WalkmapRule::Always)
+    );
 }
 
 #[test]
@@ -282,8 +334,13 @@ fn tying_brushes_to_an_entity_moves_them_out_of_the_world() {
     d.selection.solids.insert(a);
     d.selection.solids.insert(b);
 
-    let entity = d.tie_to_entity("func_door").expect("should create an entity");
-    assert!(d.map.world.solids.is_empty(), "the brushes should have left the world");
+    let entity = d
+        .tie_to_entity("func_door")
+        .expect("should create an entity");
+    assert!(
+        d.map.world.solids.is_empty(),
+        "the brushes should have left the world"
+    );
     let door = d.find_entity(entity).unwrap();
     assert_eq!(door.classname(), "func_door");
     assert_eq!(door.solids.len(), 2);
@@ -301,7 +358,10 @@ fn untying_puts_the_brushes_back() {
     d.selection.entities.insert(entity);
     assert_eq!(d.untie_to_world(), 1);
     assert_eq!(d.map.world.solids.len(), 1);
-    assert!(d.find_entity(entity).is_none(), "the emptied entity should be gone");
+    assert!(
+        d.find_entity(entity).is_none(),
+        "the emptied entity should be gone"
+    );
 }
 
 #[test]
@@ -327,7 +387,9 @@ fn selection_bounds_cover_everything_selected() {
 fn a_point_entity_still_has_bounds_to_grab() {
     let mut d = doc();
     d.create_entity("light", Vec3::new(100.0, 100.0, 100.0));
-    let bounds = d.selection_bounds().expect("a point entity needs something to drag");
+    let bounds = d
+        .selection_bounds()
+        .expect("a point entity needs something to drag");
     assert!(bounds.size().length() > 0.0);
     assert!(bounds.contains_point(Vec3::splat(100.0)));
 }
@@ -364,7 +426,10 @@ fn a_brush_entity_is_not_resizable() {
     assert!(d.selection.entities.contains(&entity));
     assert!(d.selection.solids.is_empty());
     assert!(d.selection_bounds().is_some(), "the door still has bounds");
-    assert!(d.resizable_bounds().is_none(), "a door is configured, not stretched");
+    assert!(
+        d.resizable_bounds().is_none(),
+        "a door is configured, not stretched"
+    );
 }
 
 #[test]
@@ -414,8 +479,13 @@ fn two_cubes_with_one_selected() -> (Document, u32, u32) {
     let a = document.create_block(Vec3::ZERO, Vec3::splat(64.0));
     let b = document.create_block(Vec3::new(256.0, 0.0, 0.0), Vec3::new(320.0, 64.0, 64.0));
     document.selection.clear();
-    let sides: Vec<u32> =
-        document.find_solid(a).unwrap().sides.iter().map(|s| s.id).collect();
+    let sides: Vec<u32> = document
+        .find_solid(a)
+        .unwrap()
+        .sides
+        .iter()
+        .map(|s| s.id)
+        .collect();
     for side in sides {
         document.selection.faces.insert((a, side));
     }
@@ -431,11 +501,21 @@ fn an_edit_reaches_every_selected_face_and_no_others() {
     assert_eq!(changed, 6, "a cube has six faces");
 
     assert!(
-        document.find_solid(a).unwrap().sides.iter().all(|s| s.uaxis.offset == 8.0),
+        document
+            .find_solid(a)
+            .unwrap()
+            .sides
+            .iter()
+            .all(|s| s.uaxis.offset == 8.0),
         "not every selected face moved"
     );
     assert!(
-        document.find_solid(b).unwrap().sides.iter().all(|s| s.uaxis.offset == 0.0),
+        document
+            .find_solid(b)
+            .unwrap()
+            .sides
+            .iter()
+            .all(|s| s.uaxis.offset == 0.0),
         "an unselected brush was edited"
     );
 }
@@ -452,7 +532,12 @@ fn editing_a_whole_selection_is_one_undo_step() {
 
     document.undo();
     assert!(
-        document.find_solid(a).unwrap().sides.iter().all(|s| s.uaxis.offset == 0.0),
+        document
+            .find_solid(a)
+            .unwrap()
+            .sides
+            .iter()
+            .all(|s| s.uaxis.offset == 0.0),
         "one undo did not take the whole edit back"
     );
 }
@@ -464,8 +549,15 @@ fn editing_with_nothing_selected_does_nothing_and_costs_no_undo() {
     document.selection.clear();
     let before = document.undo_depth();
 
-    assert_eq!(document.edit_faces("shift", |side, _, _| side.uaxis.offset = 99.0), 0);
-    assert_eq!(document.undo_depth(), before, "an empty edit pushed an undo step");
+    assert_eq!(
+        document.edit_faces("shift", |side, _, _| side.uaxis.offset = 99.0),
+        0
+    );
+    assert_eq!(
+        document.undo_depth(),
+        before,
+        "an empty edit pushed an undo step"
+    );
 }
 
 #[test]
@@ -497,8 +589,16 @@ fn an_edit_is_handed_the_faces_own_shape() {
     let edited = solid.sides.iter().find(|s| s.id == side).unwrap();
     let (_, winding) = crate::faces::winding_of(solid, side).unwrap();
     let (min, max) = crate::faces::texel_bounds(edited, &winding).unwrap();
-    assert!((max.0 - min.0 - 256.0).abs() < 1e-1, "u span {}", max.0 - min.0);
-    assert!((max.1 - min.1 - 256.0).abs() < 1e-1, "v span {}", max.1 - min.1);
+    assert!(
+        (max.0 - min.0 - 256.0).abs() < 1e-1,
+        "u span {}",
+        max.0 - min.0
+    );
+    assert!(
+        (max.1 - min.1 - 256.0).abs() < 1e-1,
+        "v span {}",
+        max.1 - min.1
+    );
 }
 
 #[test]
@@ -506,10 +606,16 @@ fn the_selected_faces_come_back_in_a_stable_order() {
     // A panel showing "the first selected face" has to show the same one from
     // frame to frame.
     let (document, _, _) = two_cubes_with_one_selected();
-    let first: Vec<(u32, u32)> =
-        document.selected_face_specs().iter().map(|f| (f.solid, f.side.id)).collect();
-    let again: Vec<(u32, u32)> =
-        document.selected_face_specs().iter().map(|f| (f.solid, f.side.id)).collect();
+    let first: Vec<(u32, u32)> = document
+        .selected_face_specs()
+        .iter()
+        .map(|f| (f.solid, f.side.id))
+        .collect();
+    let again: Vec<(u32, u32)> = document
+        .selected_face_specs()
+        .iter()
+        .map(|f| (f.solid, f.side.id))
+        .collect();
     assert_eq!(first, again);
     assert_eq!(first.len(), 6);
     assert_eq!(document.selected_face_count(), 6);
@@ -554,8 +660,15 @@ fn setting_a_class_makes_the_brushes_into_one_entity() {
 
     assert!(d.map.world.solids.is_empty(), "it left the world");
     assert_eq!(d.map.entities.len(), 1);
-    assert_eq!(d.selected_brush_class().map(|(_, c)| c), Some("func_door".into()));
-    assert_eq!(d.selection.entities.len(), 1, "and the entity is what is selected");
+    assert_eq!(
+        d.selected_brush_class().map(|(_, c)| c),
+        Some("func_door".into())
+    );
+    assert_eq!(
+        d.selection.entities.len(),
+        1,
+        "and the entity is what is selected"
+    );
 }
 
 #[test]
@@ -579,10 +692,16 @@ fn changing_the_class_is_one_step_not_two() {
 
     assert!(d.set_brush_class(Some("func_door")));
     assert_eq!(d.undo_depth(), depth + 1);
-    assert_eq!(d.selected_brush_class().map(|(_, c)| c), Some("func_door".into()));
+    assert_eq!(
+        d.selected_brush_class().map(|(_, c)| c),
+        Some("func_door".into())
+    );
 
     d.undo();
-    assert_eq!(d.selected_brush_class().map(|(_, c)| c), Some("trigger_multiple".into()));
+    assert_eq!(
+        d.selected_brush_class().map(|(_, c)| c),
+        Some("trigger_multiple".into())
+    );
 }
 
 #[test]
@@ -593,7 +712,11 @@ fn changing_the_class_keeps_the_name_and_the_wiring() {
     let id = d.selected_brush_class().unwrap().0;
     if let Some(e) = d.find_entity_mut(id) {
         e.set("targetname", "gate_trigger");
-        e.connections.push(kerosene_map::Connection::new("OnStartTouch", "gate", "Open"));
+        e.connections.push(kerosene_map::Connection::new(
+            "OnStartTouch",
+            "gate",
+            "Open",
+        ));
     }
 
     d.set_brush_class(Some("func_door"));
@@ -627,7 +750,10 @@ fn a_trigger_textures_itself_so_it_is_not_a_visible_block_in_a_doorway() {
     let id = d.selected_brush_class().unwrap().0;
     let entity = d.find_entity(id).unwrap();
     assert!(
-        entity.solids[0].sides.iter().all(|s| s.material == "tools/trigger"),
+        entity.solids[0]
+            .sides
+            .iter()
+            .all(|s| s.material == "tools/trigger"),
         "a trigger has to be invisible"
     );
 }
@@ -644,7 +770,12 @@ fn a_door_keeps_whatever_it_was_textured_with() {
     d.set_brush_class(Some("func_door"));
     let entity_id = d.selected_brush_class().unwrap().0;
     let entity = d.find_entity(entity_id).unwrap();
-    assert!(entity.solids[0].sides.iter().all(|s| s.material == "dev/door"));
+    assert!(
+        entity.solids[0]
+            .sides
+            .iter()
+            .all(|s| s.material == "dev/door")
+    );
 }
 
 #[test]
@@ -656,12 +787,23 @@ fn selecting_a_brush_entity_is_the_same_as_selecting_its_brushes() {
     let by_entity = d.selected_solid_ids();
 
     let entity_id = d.selected_brush_class().unwrap().0;
-    let solids: Vec<u32> = d.find_entity(entity_id).unwrap().solids.iter().map(|s| s.id).collect();
+    let solids: Vec<u32> = d
+        .find_entity(entity_id)
+        .unwrap()
+        .solids
+        .iter()
+        .map(|s| s.id)
+        .collect();
     d.selection.clear();
-    for id in &solids { d.selection.solids.insert(*id); }
+    for id in &solids {
+        d.selection.solids.insert(*id);
+    }
 
     assert_eq!(d.selected_solid_ids(), by_entity);
-    assert_eq!(d.selected_brush_class().map(|(_, c)| c), Some("func_door".into()));
+    assert_eq!(
+        d.selected_brush_class().map(|(_, c)| c),
+        Some("func_door".into())
+    );
 }
 
 #[test]
@@ -676,10 +818,14 @@ fn a_selection_spanning_two_entities_has_no_single_class() {
     d.set_brush_class(Some("trigger_once"));
 
     d.selection.clear();
-    for id in first { d.selection.solids.insert(id); }
+    for id in first {
+        d.selection.solids.insert(id);
+    }
     for e in &d.map.entities {
         if e.classname() == "trigger_once" {
-            for s in &e.solids { d.selection.solids.insert(s.id); }
+            for s in &e.solids {
+                d.selection.solids.insert(s.id);
+            }
         }
     }
     assert_eq!(d.selected_brush_class(), None);

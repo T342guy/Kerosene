@@ -16,7 +16,11 @@ fn cube_face(normal: Vec3) -> (Solid, u32, Plane, Winding) {
 }
 
 fn side_mut(solid: &mut Solid, id: u32) -> &mut Side {
-    solid.sides.iter_mut().find(|s| s.id == id).expect("the side exists")
+    solid
+        .sides
+        .iter_mut()
+        .find(|s| s.id == id)
+        .expect("the side exists")
 }
 
 // ---- scale ---------------------------------------------------------------
@@ -84,10 +88,16 @@ fn rotating_turns_the_axes_within_the_face() {
     rotate_by(side_mut(&mut solid, id), &plane, &winding, 90.0);
     let after = side_mut(&mut solid, id).uaxis.axis;
 
-    assert!(before.dot(after).abs() < 1e-3, "not a quarter turn: {before:?} to {after:?}");
+    assert!(
+        before.dot(after).abs() < 1e-3,
+        "not a quarter turn: {before:?} to {after:?}"
+    );
     // Still in the face's plane: a texture axis with a normal component
     // projects the texture through the surface.
-    assert!(after.dot(plane.normal).abs() < 1e-4, "the axis left the plane");
+    assert!(
+        after.dot(plane.normal).abs() < 1e-4,
+        "the axis left the plane"
+    );
     assert!((side_mut(&mut solid, id).rotation - 90.0).abs() < 1e-3);
 }
 
@@ -96,7 +106,10 @@ fn rotation_pivots_about_the_face_not_the_world_origin() {
     // A face a long way from the origin would otherwise fling its texture
     // somewhere unreachable the moment it was rotated.
     let mut solid = Solid::cube(
-        Aabb::new(Vec3::new(4000.0, 4000.0, 0.0), Vec3::new(4064.0, 4064.0, 64.0)),
+        Aabb::new(
+            Vec3::new(4000.0, 4000.0, 0.0),
+            Vec3::new(4064.0, 4064.0, 64.0),
+        ),
         "dev/grid",
     );
     let id = solid
@@ -123,8 +136,14 @@ fn rotation_pivots_about_the_face_not_the_world_origin() {
             centre.dot(s.vaxis.axis) / s.vaxis.safe_scale() + s.vaxis.offset,
         )
     };
-    assert!((after.0 - before.0).abs() < 1e-2, "u moved: {before:?} to {after:?}");
-    assert!((after.1 - before.1).abs() < 1e-2, "v moved: {before:?} to {after:?}");
+    assert!(
+        (after.0 - before.0).abs() < 1e-2,
+        "u moved: {before:?} to {after:?}"
+    );
+    assert!(
+        (after.1 - before.1).abs() < 1e-2,
+        "v moved: {before:?} to {after:?}"
+    );
 }
 
 #[test]
@@ -136,7 +155,10 @@ fn four_quarter_turns_come_back_to_where_it_started() {
     }
     let after = side_mut(&mut solid, id).uaxis.axis;
     assert!((after - before).length() < 1e-3, "{before:?} to {after:?}");
-    assert!(side_mut(&mut solid, id).rotation.abs() < 1e-3, "the angle did not wrap");
+    assert!(
+        side_mut(&mut solid, id).rotation.abs() < 1e-3,
+        "the angle did not wrap"
+    );
 }
 
 // ---- alignment -----------------------------------------------------------
@@ -174,16 +196,31 @@ fn aligning_to_the_face_puts_both_axes_in_its_plane() {
     align_to_face(side_mut(&mut solid, id), &plane);
 
     let side = side_mut(&mut solid, id);
-    assert!(side.uaxis.axis.dot(plane.normal).abs() < 1e-4, "u left the plane");
-    assert!(side.vaxis.axis.dot(plane.normal).abs() < 1e-4, "v left the plane");
-    assert!(side.uaxis.axis.dot(side.vaxis.axis).abs() < 1e-4, "the axes are not square");
+    assert!(
+        side.uaxis.axis.dot(plane.normal).abs() < 1e-4,
+        "u left the plane"
+    );
+    assert!(
+        side.vaxis.axis.dot(plane.normal).abs() < 1e-4,
+        "v left the plane"
+    );
+    assert!(
+        side.uaxis.axis.dot(side.vaxis.axis).abs() < 1e-4,
+        "the axes are not square"
+    );
     assert!((side.uaxis.axis.length() - 1.0).abs() < 1e-4);
 }
 
 #[test]
 fn aligning_to_the_face_works_for_every_facing_including_straight_up() {
     // The helper vector has to be chosen so the cross product never vanishes.
-    for normal in [Vec3::Z, -Vec3::Z, Vec3::X, -Vec3::Y, Vec3::new(1.0, 1.0, 1.0).normalize()] {
+    for normal in [
+        Vec3::Z,
+        -Vec3::Z,
+        Vec3::X,
+        -Vec3::Y,
+        Vec3::new(1.0, 1.0, 1.0).normalize(),
+    ] {
         let plane = Plane::new(normal, 0.0);
         let mut solid = Solid::cube(Aabb::new(Vec3::ZERO, Vec3::splat(64.0)), "dev/grid");
         let id = solid.sides[0].id;
@@ -204,16 +241,32 @@ fn fitting_makes_the_texture_span_the_face_exactly_once() {
     justify(side_mut(&mut solid, id), &winding, Justify::Fit, (256, 256));
 
     let (min, max) = texel_bounds(side_mut(&mut solid, id), &winding).unwrap();
-    assert!(min.0.abs() < 1e-2 && min.1.abs() < 1e-2, "not at the corner: {min:?}");
-    assert!((max.0 - 256.0).abs() < 1e-1, "u spans {} texels", max.0 - min.0);
-    assert!((max.1 - 256.0).abs() < 1e-1, "v spans {} texels", max.1 - min.1);
+    assert!(
+        min.0.abs() < 1e-2 && min.1.abs() < 1e-2,
+        "not at the corner: {min:?}"
+    );
+    assert!(
+        (max.0 - 256.0).abs() < 1e-1,
+        "u spans {} texels",
+        max.0 - min.0
+    );
+    assert!(
+        (max.1 - 256.0).abs() < 1e-1,
+        "v spans {} texels",
+        max.1 - min.1
+    );
 }
 
 #[test]
 fn justifying_left_puts_the_texture_at_the_faces_edge() {
     let (mut solid, id, _, winding) = cube_face(Vec3::Z);
     shift_by(side_mut(&mut solid, id), 137.0, 0.0);
-    justify(side_mut(&mut solid, id), &winding, Justify::Left, (256, 256));
+    justify(
+        side_mut(&mut solid, id),
+        &winding,
+        Justify::Left,
+        (256, 256),
+    );
     let (min, _) = texel_bounds(side_mut(&mut solid, id), &winding).unwrap();
     assert!(min.0.abs() < 1e-2, "{min:?}");
 }
@@ -221,7 +274,12 @@ fn justifying_left_puts_the_texture_at_the_faces_edge() {
 #[test]
 fn justifying_right_puts_its_far_edge_on_the_textures() {
     let (mut solid, id, _, winding) = cube_face(Vec3::Z);
-    justify(side_mut(&mut solid, id), &winding, Justify::Right, (256, 256));
+    justify(
+        side_mut(&mut solid, id),
+        &winding,
+        Justify::Right,
+        (256, 256),
+    );
     let (_, max) = texel_bounds(side_mut(&mut solid, id), &winding).unwrap();
     assert!((max.0 - 256.0).abs() < 1e-2, "{max:?}");
 }
@@ -229,7 +287,12 @@ fn justifying_right_puts_its_far_edge_on_the_textures() {
 #[test]
 fn justifying_to_the_centre_leaves_equal_margins() {
     let (mut solid, id, _, winding) = cube_face(Vec3::Z);
-    justify(side_mut(&mut solid, id), &winding, Justify::Centre, (256, 256));
+    justify(
+        side_mut(&mut solid, id),
+        &winding,
+        Justify::Centre,
+        (256, 256),
+    );
     let (min, max) = texel_bounds(side_mut(&mut solid, id), &winding).unwrap();
     let left = min.0;
     let right = 256.0 - max.0;
@@ -242,7 +305,12 @@ fn justifying_only_touches_the_axis_it_is_about() {
     let (mut solid, id, _, winding) = cube_face(Vec3::Z);
     shift_by(side_mut(&mut solid, id), 0.0, 21.0);
     let before = side_mut(&mut solid, id).vaxis.offset;
-    justify(side_mut(&mut solid, id), &winding, Justify::Left, (256, 256));
+    justify(
+        side_mut(&mut solid, id),
+        &winding,
+        Justify::Left,
+        (256, 256),
+    );
     assert_eq!(side_mut(&mut solid, id).vaxis.offset, before);
 }
 
@@ -262,8 +330,16 @@ fn fitting_a_face_that_is_not_square_still_fits_both_ways() {
     justify(side_mut(&mut solid, id), &winding, Justify::Fit, (256, 256));
 
     let (min, max) = texel_bounds(side_mut(&mut solid, id), &winding).unwrap();
-    assert!((max.0 - min.0 - 256.0).abs() < 1e-1, "u span {}", max.0 - min.0);
-    assert!((max.1 - min.1 - 256.0).abs() < 1e-1, "v span {}", max.1 - min.1);
+    assert!(
+        (max.0 - min.0 - 256.0).abs() < 1e-1,
+        "u span {}",
+        max.0 - min.0
+    );
+    assert!(
+        (max.1 - min.1 - 256.0).abs() < 1e-1,
+        "v span {}",
+        max.1 - min.1
+    );
 }
 
 // ---- the shape of a face -------------------------------------------------

@@ -7,7 +7,9 @@ fn schema() -> Schema {
     crate::classes::load(&root).schema
 }
 
-fn door() -> Entity { Entity::new(7, "func_door") }
+fn door() -> Entity {
+    Entity::new(7, "func_door")
+}
 
 #[test]
 fn a_freshly_placed_entity_still_shows_every_key_its_class_reads() {
@@ -17,10 +19,20 @@ fn a_freshly_placed_entity_still_shows_every_key_its_class_reads() {
     let schema = schema();
     let rows = rows(schema.get("func_door"), &door());
     let keys: Vec<&str> = rows.iter().map(|r| r.key.as_str()).collect();
-    for expected in ["targetname", "spawnflags", "movedir", "speed", "lip", "locked"] {
+    for expected in [
+        "targetname",
+        "spawnflags",
+        "movedir",
+        "speed",
+        "lip",
+        "locked",
+    ] {
         assert!(keys.contains(&expected), "{expected} missing from {keys:?}");
     }
-    assert!(rows.iter().all(|r| !r.is_set()), "nothing is set on a fresh entity");
+    assert!(
+        rows.iter().all(|r| !r.is_set()),
+        "nothing is set on a fresh entity"
+    );
 }
 
 #[test]
@@ -28,9 +40,44 @@ fn an_unset_key_offers_the_games_default_without_writing_it() {
     let schema = schema();
     let rows = rows(schema.get("func_door"), &door());
     let speed = rows.iter().find(|r| r.key == "speed").unwrap();
-    assert_eq!(speed.text(), "100", "the default is what the game would use");
+    assert_eq!(
+        speed.text(),
+        "100",
+        "the default is what the game would use"
+    );
     assert_eq!(speed.value, None, "but the entity has not been given one");
     assert_eq!(speed.kind, KeyKind::Float);
+}
+
+#[test]
+fn physics_props_offer_their_object_properties() {
+    // The pick-up tool and the spawner read `mass`, `friction`, `elasticity`
+    // and `pickable` off the entity rather than hardcoding them. If the
+    // inspector stops listing one, a designer loses the only way to set it.
+    let schema = schema();
+    for class in ["prop_physics", "prop_dynamic_spawner"] {
+        let entity = Entity::new(1, class);
+        let rows = rows(schema.get(class), &entity);
+        let keys: Vec<&str> = rows.iter().map(|r| r.key.as_str()).collect();
+        for expected in ["mass", "friction", "elasticity", "pickable"] {
+            assert!(
+                keys.contains(&expected),
+                "{class} should offer `{expected}` in its object properties, got {keys:?}"
+            );
+        }
+        let mass = rows.iter().find(|r| r.key == "mass").unwrap();
+        assert_eq!(mass.kind, KeyKind::Float, "mass edits as a number");
+        let pickable = rows.iter().find(|r| r.key == "pickable").unwrap();
+        assert_eq!(
+            pickable.kind,
+            KeyKind::Boolean,
+            "pickable edits as a checkbox"
+        );
+        assert_eq!(
+            pickable.default, "1",
+            "a prop is pickable unless a designer says otherwise"
+        );
+    }
 }
 
 #[test]
@@ -50,9 +97,16 @@ fn class_keys_come_before_the_ones_only_this_entity_has() {
     let mut entity = door();
     entity.set("some_mod_key", "value");
     let rows = rows(schema.get("func_door"), &entity);
-    let described: Vec<&str> =
-        rows.iter().filter(|r| r.described).map(|r| r.key.as_str()).collect();
-    assert_eq!(described.first(), Some(&"targetname"), "inherited keys lead");
+    let described: Vec<&str> = rows
+        .iter()
+        .filter(|r| r.described)
+        .map(|r| r.key.as_str())
+        .collect();
+    assert_eq!(
+        described.first(),
+        Some(&"targetname"),
+        "inherited keys lead"
+    );
     assert_eq!(rows.last().unwrap().key, "some_mod_key");
     assert!(!rows.last().unwrap().described);
 }
@@ -97,7 +151,11 @@ fn applying_rows_writes_set_keys_and_removes_unset_ones() {
     apply(&mut entity, &rows);
 
     assert_eq!(entity.get("speed"), Some("250"));
-    assert_eq!(entity.get("lip"), None, "clearing a row removes the key rather than writing the default");
+    assert_eq!(
+        entity.get("lip"),
+        None,
+        "clearing a row removes the key rather than writing the default"
+    );
     assert_eq!(entity.classname(), "func_door", "identity survives");
 }
 
@@ -117,7 +175,10 @@ fn choices_and_flags_carry_their_labels() {
     let rows = rows(schema.get("func_door"), &door());
     let flags = rows.iter().find(|r| r.key == "spawnflags").unwrap();
     assert_eq!(flags.kind, KeyKind::Flags);
-    assert_eq!(flags.choices, vec![("1".to_string(), "Starts open".to_string())]);
+    assert_eq!(
+        flags.choices,
+        vec![("1".to_string(), "Starts open".to_string())]
+    );
 }
 
 #[test]
@@ -144,8 +205,14 @@ fn the_inputs_offered_are_the_ones_the_target_actually_accepts() {
     let inputs = inputs_for_target(&schema, &document, "score");
     assert!(inputs.iter().any(|i| i == "Add"));
     assert!(inputs.iter().any(|i| i == "SetValue"));
-    assert!(inputs.iter().any(|i| i == "Kill"), "the universal inputs are offered too");
-    assert!(!inputs.iter().any(|i| i == "Open"), "a counter is not a door");
+    assert!(
+        inputs.iter().any(|i| i == "Kill"),
+        "the universal inputs are offered too"
+    );
+    assert!(
+        !inputs.iter().any(|i| i == "Open"),
+        "a counter is not a door"
+    );
 }
 
 #[test]

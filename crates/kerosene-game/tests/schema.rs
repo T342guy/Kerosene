@@ -173,6 +173,8 @@ fn the_keys_the_game_reads_are_all_offered() {
         ("light_environment", &["_light", "_ambient", "pitch"][..]),
         ("worldspawn", &["skyname"][..]),
         ("prop_static", &["model"][..]),
+        ("prop_physics", &["model", "mass", "friction", "elasticity", "pickable"][..]),
+        ("prop_dynamic_spawner", &["model", "mass", "friction", "elasticity", "pickable"][..]),
     ] {
         let spec = schema.get(class).unwrap_or_else(|| panic!("{class} is in the schema"));
         for key in keys {

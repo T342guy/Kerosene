@@ -13,7 +13,9 @@ fn scratch(name: &str) -> PathBuf {
 }
 
 fn touch(path: &Path) {
-    if let Some(parent) = path.parent() { std::fs::create_dir_all(parent).unwrap(); }
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).unwrap();
+    }
     std::fs::write(path, "").unwrap();
 }
 
@@ -76,25 +78,37 @@ fn an_empty_name_is_refused_rather_than_guessed_at() {
 #[test]
 fn a_name_cannot_climb_out_of_the_project() {
     let error = resolve("../../secret", Path::new("/content")).unwrap_err();
-    assert!(error.contains(".."), "expected the error to name the problem: {error}");
+    assert!(
+        error.contains(".."),
+        "expected the error to name the problem: {error}"
+    );
 }
 
 #[test]
 fn surrounding_space_is_not_part_of_a_name() {
     let root = Path::new("/content");
-    assert_eq!(resolve("  arena \t", root).unwrap(), root.join("maps/arena.keromap"));
+    assert_eq!(
+        resolve("  arena \t", root).unwrap(),
+        root.join("maps/arena.keromap")
+    );
 }
 
 #[test]
 fn a_map_in_the_project_is_labelled_by_its_place_in_it() {
     let root = Path::new("/projects/game/content");
-    assert_eq!(label(&root.join("maps/arena.keromap"), root), "maps/arena.keromap");
+    assert_eq!(
+        label(&root.join("maps/arena.keromap"), root),
+        "maps/arena.keromap"
+    );
 }
 
 #[test]
 fn a_map_outside_the_project_is_labelled_in_full() {
     let root = Path::new("/projects/game/content");
-    assert_eq!(label(Path::new("/elsewhere/mine.keromap"), root), "/elsewhere/mine.keromap");
+    assert_eq!(
+        label(Path::new("/elsewhere/mine.keromap"), root),
+        "/elsewhere/mine.keromap"
+    );
 }
 
 #[test]
@@ -106,7 +120,13 @@ fn maps_are_listed_from_the_project_including_subdirectories() {
     touch(&root.join("maps/notes.txt"));
 
     let found = maps_in(&root);
-    assert_eq!(found, vec![root.join("maps/arena.keromap"), root.join("maps/chapter1/start.keromap")]);
+    assert_eq!(
+        found,
+        vec![
+            root.join("maps/arena.keromap"),
+            root.join("maps/chapter1/start.keromap")
+        ]
+    );
 
     let _ = std::fs::remove_dir_all(&root);
 }
@@ -131,8 +151,14 @@ fn renaming_takes_the_compiled_map_with_it() {
 
     assert!(to.is_file());
     assert!(!from.exists());
-    assert!(root.join("maps/new.kerobsp").is_file(), "the compiled map follows its source");
-    assert!(!root.join("maps/old.kerobsp").exists(), "and does not stay behind under the old name");
+    assert!(
+        root.join("maps/new.kerobsp").is_file(),
+        "the compiled map follows its source"
+    );
+    assert!(
+        !root.join("maps/old.kerobsp").exists(),
+        "and does not stay behind under the old name"
+    );
     assert_eq!(moved.len(), 2);
 
     let _ = std::fs::remove_dir_all(&root);

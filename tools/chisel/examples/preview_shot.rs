@@ -16,7 +16,10 @@ use kerosene_math::{Angles, Vec3};
 
 fn main() -> Result<()> {
     let args: Vec<String> = std::env::args().skip(1).collect();
-    let map = args.first().map(String::as_str).unwrap_or("content/maps/kero_start.keromap");
+    let map = args
+        .first()
+        .map(String::as_str)
+        .unwrap_or("content/maps/kero_start.keromap");
     let out = args.get(1).map(String::as_str).unwrap_or("preview.png");
     let number = |i: usize, fallback: f32| -> f32 {
         args.get(i).and_then(|v| v.parse().ok()).unwrap_or(fallback)
@@ -38,7 +41,10 @@ fn main() -> Result<()> {
 
     let (w, h) = (960usize, 600usize);
     let mut resolve = |material: &str| cache.get(&vfs, material);
-    let mut settings = Settings { shading: Shading::Textured, resolve: Some(&mut resolve) };
+    let mut settings = Settings {
+        shading: Shading::Textured,
+        resolve: Some(&mut resolve),
+    };
     let image = chisel::raster::render_with(
         &document,
         eye,
@@ -49,10 +55,18 @@ fn main() -> Result<()> {
         &mut settings,
     );
 
-    let flat: Vec<u8> = image.pixels.iter().flat_map(|p| [p[0], p[1], p[2]]).collect();
+    let flat: Vec<u8> = image
+        .pixels
+        .iter()
+        .flat_map(|p| [p[0], p[1], p[2]])
+        .collect();
     image::RgbImage::from_raw(w as u32, h as u32, flat)
         .expect("dimensions match")
         .save(out)?;
-    println!("wrote {out} ({} textures, {} problems)", cache.len(), cache.problem_count());
+    println!(
+        "wrote {out} ({} textures, {} problems)",
+        cache.len(),
+        cache.problem_count()
+    );
     Ok(())
 }

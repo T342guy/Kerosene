@@ -12,10 +12,10 @@
 //! that is subtly wrong corrupts the level silently.
 
 use crate::grid::Grid;
-use std::collections::HashSet;
-use std::path::PathBuf;
 use kerosene_map::{Entity, Map, Side, Solid, WalkmapRule};
 use kerosene_math::{Aabb, Plane, Vec3, Winding};
+use std::collections::HashSet;
+use std::path::PathBuf;
 
 /// How many undo steps to keep.
 pub const MAX_UNDO: usize = 128;
@@ -50,7 +50,9 @@ impl Selection {
 pub struct EditLabel(pub String);
 
 impl EditLabel {
-    pub fn new(text: impl Into<String>) -> Self { EditLabel(text.into()) }
+    pub fn new(text: impl Into<String>) -> Self {
+        EditLabel(text.into())
+    }
 }
 
 struct Snapshot {
@@ -81,7 +83,9 @@ pub struct Document {
 }
 
 impl Default for Document {
-    fn default() -> Self { Document::new() }
+    fn default() -> Self {
+        Document::new()
+    }
 }
 
 impl Document {
@@ -102,7 +106,11 @@ impl Document {
     pub fn open(path: PathBuf) -> anyhow::Result<Document> {
         let text = std::fs::read_to_string(&path)?;
         let map = Map::parse(&text)?;
-        Ok(Document { map, path: Some(path), ..Document::new() })
+        Ok(Document {
+            map,
+            path: Some(path),
+            ..Document::new()
+        })
     }
 
     pub fn save(&mut self, path: Option<PathBuf>) -> anyhow::Result<PathBuf> {
@@ -118,7 +126,9 @@ impl Document {
         Ok(target)
     }
 
-    pub fn is_modified(&self) -> bool { self.modified }
+    pub fn is_modified(&self) -> bool {
+        self.modified
+    }
 
     /// Treat the map as it stands as a starting point rather than as work.
     ///
@@ -127,12 +137,20 @@ impl Document {
     /// asks whether to throw away a room nobody made, every time -- and a
     /// question that is always wrong is one people learn to click through,
     /// including the time it is right.
-    pub fn mark_clean(&mut self) { self.modified = false; }
+    pub fn mark_clean(&mut self) {
+        self.modified = false;
+    }
 
     /// A counter that changes whenever the map does. See [`Document::revision`].
-    pub fn revision(&self) -> u64 { self.revision }
-    pub fn undo_depth(&self) -> usize { self.undo.len() }
-    pub fn redo_depth(&self) -> usize { self.redo.len() }
+    pub fn revision(&self) -> u64 {
+        self.revision
+    }
+    pub fn undo_depth(&self) -> usize {
+        self.undo.len()
+    }
+    pub fn redo_depth(&self) -> usize {
+        self.redo.len()
+    }
 
     /// Name of the change that would be undone next.
     pub fn undo_label(&self) -> Option<&str> {
@@ -143,13 +161,19 @@ impl Document {
     ///
     /// The snapshot is taken *before* the closure runs, so undo restores the
     /// state the user was looking at when they started.
-    pub fn apply<T>(&mut self, label: impl Into<String>, edit: impl FnOnce(&mut Document) -> T) -> T {
+    pub fn apply<T>(
+        &mut self,
+        label: impl Into<String>,
+        edit: impl FnOnce(&mut Document) -> T,
+    ) -> T {
         self.undo.push(Snapshot {
             map: self.map.clone(),
             selection: self.selection.clone(),
             label: EditLabel::new(label),
         });
-        if self.undo.len() > MAX_UNDO { self.undo.remove(0); }
+        if self.undo.len() > MAX_UNDO {
+            self.undo.remove(0);
+        }
         // A new edit invalidates anything that was redoable.
         self.redo.clear();
         self.modified = true;
@@ -202,7 +226,9 @@ impl Document {
     /// one thing a person made and sixteen presses of ctrl-Z to take it back
     /// is not undo, it is punishment.
     pub fn create_shape(&mut self, solids: Vec<Solid>, label: &str) -> Vec<u32> {
-        if solids.is_empty() { return Vec::new() }
+        if solids.is_empty() {
+            return Vec::new();
+        }
         let label = label.to_string();
         self.apply(format!("create {label}"), move |doc| {
             doc.selection.clear();
@@ -234,7 +260,9 @@ impl Document {
 
     /// Delete everything selected.
     pub fn delete_selection(&mut self) -> usize {
-        if self.selection.is_empty() { return 0; }
+        if self.selection.is_empty() {
+            return 0;
+        }
         self.apply("delete", |doc| {
             let solids = doc.selection.solids.clone();
             let entities = doc.selection.entities.clone();
@@ -244,9 +272,9 @@ impl Document {
                 entity.solids.retain(|s| !solids.contains(&s.id));
             }
             // A brush entity with no brushes left is a ghost; remove it too.
-            doc.map
-                .entities
-                .retain(|e| !entities.contains(&e.id) && !(e.solids.is_empty() && e.get("origin").is_none()));
+            doc.map.entities.retain(|e| {
+                !entities.contains(&e.id) && !(e.solids.is_empty() && e.get("origin").is_none())
+            });
 
             let count = solids.len() + entities.len();
             doc.selection.clear();
@@ -256,28 +284,35 @@ impl Document {
 
     /// Move everything selected.
     pub fn move_selection(&mut self, delta: Vec3) {
-        if self.selection.is_empty() || delta == Vec3::ZERO { return; }
+        if self.selection.is_empty() || delta == Vec3::ZERO {
+            return;
+        }
         let delta = self.grid.snap_point(delta);
-        if delta == Vec3::ZERO { return; }
+        if delta == Vec3::ZERO {
+            return;
+        }
 
         self.apply("move", |doc| {
             let solids = doc.selection.solids.clone();
             let entities = doc.selection.entities.clone();
 
             for solid in doc.map.world.solids.iter_mut() {
-                if solids.contains(&solid.id) { solid.translate(delta); }
+                if solids.contains(&solid.id) {
+                    solid.translate(delta);
+                }
             }
             for entity in doc.map.entities.iter_mut() {
                 let selected = entities.contains(&entity.id);
                 for solid in entity.solids.iter_mut() {
                     // A brush entity moves as a unit when the entity is
                     // selected, or brush by brush when its brushes are.
-                    if selected || solids.contains(&solid.id) { solid.translate(delta); }
-                }
-                if selected
-                    && let Some(origin) = entity.get_vec3("origin") {
-                        entity.set_origin(origin + delta);
+                    if selected || solids.contains(&solid.id) {
+                        solid.translate(delta);
                     }
+                }
+                if selected && let Some(origin) = entity.get_vec3("origin") {
+                    entity.set_origin(origin + delta);
+                }
             }
         });
     }
@@ -293,27 +328,33 @@ impl Document {
     /// rather than scaled: scaling a group of lights should spread them out,
     /// not leave them where they were while the walls slide past.
     pub fn scale_selection(&mut self, anchor: Vec3, factor: Vec3) {
-        if self.selection.is_empty() || factor == Vec3::ONE { return }
+        if self.selection.is_empty() || factor == Vec3::ONE {
+            return;
+        }
         // Zero collapses a brush to nothing, and there is no undoing that in
         // any way a person would recognise as undoing -- the brush is still
         // there, and infinitely thin.
-        if factor.x == 0.0 || factor.y == 0.0 || factor.z == 0.0 { return }
+        if factor.x == 0.0 || factor.y == 0.0 || factor.z == 0.0 {
+            return;
+        }
 
         self.apply("resize", |doc| {
             let solids = doc.selection.solids.clone();
             let entities = doc.selection.entities.clone();
 
             for solid in doc.map.world.solids.iter_mut() {
-                if solids.contains(&solid.id) { solid.scale(anchor, factor); }
+                if solids.contains(&solid.id) {
+                    solid.scale(anchor, factor);
+                }
             }
             for entity in doc.map.entities.iter_mut() {
                 let selected = entities.contains(&entity.id);
                 for solid in entity.solids.iter_mut() {
-                    if selected || solids.contains(&solid.id) { solid.scale(anchor, factor); }
+                    if selected || solids.contains(&solid.id) {
+                        solid.scale(anchor, factor);
+                    }
                 }
-                if selected
-                    && let Some(origin) = entity.get_vec3("origin")
-                {
+                if selected && let Some(origin) = entity.get_vec3("origin") {
                     entity.set_origin(anchor + (origin - anchor) * factor);
                 }
             }
@@ -364,7 +405,9 @@ impl Document {
 
             for solid in all_solids_mut(&mut doc.map) {
                 if solids.contains(&solid.id) {
-                    for side in &mut solid.sides { side.walkmap = rule; }
+                    for side in &mut solid.sides {
+                        side.walkmap = rule;
+                    }
                     changed += solid.sides.len();
                     continue;
                 }
@@ -381,7 +424,9 @@ impl Document {
 
     // ---- face editing ----------------------------------------------------
 
-    pub fn selected_face_count(&self) -> usize { self.selection.faces.len() }
+    pub fn selected_face_count(&self) -> usize {
+        self.selection.faces.len()
+    }
 
     /// The selected faces, each with the plane and winding it sits on.
     ///
@@ -392,7 +437,9 @@ impl Document {
         let mut out = Vec::with_capacity(self.selection.faces.len());
         for (_, solid) in self.map.all_solids() {
             for side in &solid.sides {
-                if !self.selection.faces.contains(&(solid.id, side.id)) { continue }
+                if !self.selection.faces.contains(&(solid.id, side.id)) {
+                    continue;
+                }
                 let Some((plane, winding)) = crate::faces::winding_of(solid, side.id) else {
                     continue;
                 };
@@ -424,7 +471,9 @@ impl Document {
         label: impl Into<String>,
         edit: impl Fn(&mut Side, &Plane, &Winding),
     ) -> usize {
-        if self.selection.faces.is_empty() { return 0 }
+        if self.selection.faces.is_empty() {
+            return 0;
+        }
 
         // Worked out first: `all_solids_mut` hands out one solid at a time, and
         // a face's winding needs the whole solid.
@@ -433,15 +482,21 @@ impl Document {
             .into_iter()
             .map(|f| ((f.solid, f.side.id), (f.plane, f.winding)))
             .collect();
-        if shapes.is_empty() { return 0 }
+        if shapes.is_empty() {
+            return 0;
+        }
 
         self.apply(label, move |doc| {
             let faces = doc.selection.faces.clone();
             let mut changed = 0;
             for solid in all_solids_mut(&mut doc.map) {
                 for side in solid.sides.iter_mut() {
-                    if !faces.contains(&(solid.id, side.id)) { continue }
-                    let Some((plane, winding)) = shapes.get(&(solid.id, side.id)) else { continue };
+                    if !faces.contains(&(solid.id, side.id)) {
+                        continue;
+                    }
+                    let Some((plane, winding)) = shapes.get(&(solid.id, side.id)) else {
+                        continue;
+                    };
                     edit(side, plane, winding);
                     changed += 1;
                 }
@@ -455,7 +510,9 @@ impl Document {
     /// This is how a designer makes a door: build the brush in the world, then
     /// tie it to a `func_door`.
     pub fn tie_to_entity(&mut self, classname: &str) -> Option<u32> {
-        if self.selection.solids.is_empty() { return None; }
+        if self.selection.solids.is_empty() {
+            return None;
+        }
         let classname = classname.to_string();
         self.apply(format!("tie to {classname}"), move |doc| {
             let selected = doc.selection.solids.clone();
@@ -479,7 +536,9 @@ impl Document {
                     }
                 });
             }
-            if moved.is_empty() { return None; }
+            if moved.is_empty() {
+                return None;
+            }
 
             let id = doc.map.next_id();
             let mut entity = Entity::new(id, &classname);
@@ -512,11 +571,17 @@ impl Document {
     /// The brush entity the selection belongs to, if it belongs to exactly one.
     pub fn selected_brush_class(&self) -> Option<(u32, String)> {
         let ids = self.selected_solid_ids();
-        if ids.is_empty() { return None }
+        if ids.is_empty() {
+            return None;
+        }
         let mut found: Option<(u32, String)> = None;
         for entity in &self.map.entities {
-            if entity.solids.is_empty() { continue }
-            if !entity.solids.iter().any(|s| ids.contains(&s.id)) { continue }
+            if entity.solids.is_empty() {
+                continue;
+            }
+            if !entity.solids.iter().any(|s| ids.contains(&s.id)) {
+                continue;
+            }
             match &found {
                 // Two different entities: no single answer.
                 Some((id, _)) if *id != entity.id => return None,
@@ -539,7 +604,9 @@ impl Document {
     /// silently breaks every output wired to it.
     pub fn set_brush_class(&mut self, class: Option<&str>) -> bool {
         let ids = self.selected_solid_ids();
-        if ids.is_empty() { return false }
+        if ids.is_empty() {
+            return false;
+        }
         let current = self.selected_brush_class();
 
         match (class, &current) {
@@ -564,14 +631,28 @@ impl Document {
             let mut connections = Vec::new();
 
             doc.map.world.solids.retain(|s| {
-                if ids.contains(&s.id) { moved.push(s.clone()); false } else { true }
+                if ids.contains(&s.id) {
+                    moved.push(s.clone());
+                    false
+                } else {
+                    true
+                }
             });
             doc.map.entities.retain_mut(|e| {
-                if e.solids.is_empty() { return true }
+                if e.solids.is_empty() {
+                    return true;
+                }
                 let mine = e.solids.iter().any(|s| ids.contains(&s.id));
-                if !mine { return true }
+                if !mine {
+                    return true;
+                }
                 e.solids.retain(|s| {
-                    if ids.contains(&s.id) { moved.push(s.clone()); false } else { true }
+                    if ids.contains(&s.id) {
+                        moved.push(s.clone());
+                        false
+                    } else {
+                        true
+                    }
                 });
                 if e.solids.is_empty() {
                     // Its keys and wiring come with the brushes.
@@ -581,7 +662,9 @@ impl Document {
                 }
                 true
             });
-            if moved.is_empty() { return false }
+            if moved.is_empty() {
+                return false;
+            }
 
             doc.selection.clear();
             match class {
@@ -596,13 +679,17 @@ impl Document {
                     // says so now, rather than leaving a trigger visible and
                     // solid until someone remembers to texture it.
                     if let Some(material) = crate::brush::material_for_class(&class) {
-                        for solid in &mut moved { solid.set_material(material) }
+                        for solid in &mut moved {
+                            solid.set_material(material)
+                        }
                     }
 
                     let id = doc.map.next_id();
                     let mut entity = Entity::new(id, &class);
                     for (key, value) in keys {
-                        if key == "classname" { continue }
+                        if key == "classname" {
+                            continue;
+                        }
                         entity.set(&key, value);
                     }
                     entity.connections = connections;
@@ -617,13 +704,17 @@ impl Document {
 
     /// Move a brush entity's brushes back into the world.
     pub fn untie_to_world(&mut self) -> usize {
-        if self.selection.entities.is_empty() { return 0; }
+        if self.selection.entities.is_empty() {
+            return 0;
+        }
         self.apply("move to world", |doc| {
             let selected = doc.selection.entities.clone();
             let mut freed = Vec::new();
 
             doc.map.entities.retain_mut(|e| {
-                if !selected.contains(&e.id) || e.solids.is_empty() { return true; }
+                if !selected.contains(&e.id) || e.solids.is_empty() {
+                    return true;
+                }
                 freed.append(&mut e.solids);
                 false
             });
@@ -677,7 +768,9 @@ impl Document {
         (!bounds.is_empty()).then_some(bounds)
     }
 
-    pub fn find_solid(&self, id: u32) -> Option<&Solid> { self.map.find_solid(id) }
+    pub fn find_solid(&self, id: u32) -> Option<&Solid> {
+        self.map.find_solid(id)
+    }
 
     pub fn find_entity(&self, id: u32) -> Option<&Entity> {
         self.map.all_entities().find(|e| e.id == id)
@@ -706,7 +799,11 @@ impl Document {
             .and_then(|p| p.file_name())
             .map(|n| n.to_string_lossy().into_owned())
             .unwrap_or_else(|| "untitled".to_string());
-        if self.modified { format!("{name} *") } else { name }
+        if self.modified {
+            format!("{name} *")
+        } else {
+            name
+        }
     }
 }
 

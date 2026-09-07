@@ -135,7 +135,12 @@ impl CompileJob {
             let _ = run_compile(&map, &settings, &sender);
         });
 
-        CompileJob { receiver, log: Vec::new(), finished: false, failed: false }
+        CompileJob {
+            receiver,
+            log: Vec::new(),
+            finished: false,
+            failed: false,
+        }
     }
 
     /// Collect whatever the compile has produced since the last call.
@@ -193,7 +198,9 @@ fn run_compile(
     if settings.run_materials {
         let _ = sender.send(CompileMessage::Stage("alchemy".into()));
         match alchemy::build_textures(&settings.content_root) {
-            Ok(build) => { let _ = sender.send(CompileMessage::Line(format!("  {build}"))); }
+            Ok(build) => {
+                let _ = sender.send(CompileMessage::Line(format!("  {build}")));
+            }
             Err(e) => {
                 let _ = sender.send(CompileMessage::Failed(format!("alchemy: {e:#}")));
                 return Err(());
@@ -203,12 +210,16 @@ fn run_compile(
 
     // Cleave.
     let mut args = vec![map.display().to_string()];
-    if settings.ignore_leaks { args.push("--ignore-leaks".into()); }
+    if settings.ignore_leaks {
+        args.push("--ignore-leaks".into());
+    }
     stage("cleave", &args, sender)?;
 
     if settings.run_vis {
         let mut args = vec![compiled.display().to_string()];
-        if settings.fast_vis { args.push("--fast".into()); }
+        if settings.fast_vis {
+            args.push("--fast".into());
+        }
         stage("umbra", &args, sender)?;
     }
 
@@ -226,24 +237,25 @@ fn run_compile(
     let _ = sender.send(CompileMessage::Finished(compiled.clone()));
 
     if settings.run_after
-        && let Some(name) = compiled.file_stem().and_then(|s| s.to_str()) {
-            let _ = sender.send(CompileMessage::Stage(format!("launching {name}")));
-            // Detached, so the editor does not block on the game and closing
-            // the game does not take the editor with it. The content root is
-            // handed over explicitly: the editor already knows which tree
-            // this map belongs to, and letting the game work it out again --
-            // from a working directory it inherited from the editor, which
-            // inherited it from a shell -- is how a map compiled here comes
-            // to be launched against a content tree somewhere else.
-            let _ = tool_command("kerosene")
-                .arg("--content")
-                .arg(&settings.content_root)
-                .arg("+map")
-                .arg(name)
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .spawn();
-        }
+        && let Some(name) = compiled.file_stem().and_then(|s| s.to_str())
+    {
+        let _ = sender.send(CompileMessage::Stage(format!("launching {name}")));
+        // Detached, so the editor does not block on the game and closing
+        // the game does not take the editor with it. The content root is
+        // handed over explicitly: the editor already knows which tree
+        // this map belongs to, and letting the game work it out again --
+        // from a working directory it inherited from the editor, which
+        // inherited it from a shell -- is how a map compiled here comes
+        // to be launched against a content tree somewhere else.
+        let _ = tool_command("kerosene")
+            .arg("--content")
+            .arg(&settings.content_root)
+            .arg("+map")
+            .arg(name)
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn();
+    }
 
     Ok(())
 }
@@ -283,7 +295,9 @@ fn stage(tool: &str, args: &[String], sender: &Sender<CompileMessage>) -> Result
     match child.wait() {
         Ok(status) if status.success() => Ok(()),
         Ok(status) => {
-            let _ = sender.send(CompileMessage::Failed(format!("{tool} exited with {status}")));
+            let _ = sender.send(CompileMessage::Failed(format!(
+                "{tool} exited with {status}"
+            )));
             Err(())
         }
         Err(e) => {
@@ -327,7 +341,11 @@ pub fn tool_command(name: &str) -> Command {
 pub fn tool_path(name: &str) -> Option<PathBuf> {
     let exe = std::env::current_exe().ok()?;
     let dir = exe.parent()?;
-    let candidate = dir.join(if cfg!(windows) { format!("{name}.exe") } else { name.to_string() });
+    let candidate = dir.join(if cfg!(windows) {
+        format!("{name}.exe")
+    } else {
+        name.to_string()
+    });
     candidate.is_file().then_some(candidate)
 }
 
@@ -344,7 +362,12 @@ pub fn available_tools() -> Vec<(&'static str, bool)> {
                 true
             } else {
                 tool_path(name).is_some()
-                    || Command::new(name).arg("--help").stdout(Stdio::null()).stderr(Stdio::null()).status().is_ok()
+                    || Command::new(name)
+                        .arg("--help")
+                        .stdout(Stdio::null())
+                        .stderr(Stdio::null())
+                        .status()
+                        .is_ok()
             };
             (name, found)
         })
@@ -385,8 +408,14 @@ mod tests {
             ..Default::default()
         };
         settings.set_quality(Quality::Fast);
-        assert!(settings.ignore_leaks, "a leaking map was told to build anyway");
-        assert!(!settings.run_materials, "a preset overrode the material stage");
+        assert!(
+            settings.ignore_leaks,
+            "a leaking map was told to build anyway"
+        );
+        assert!(
+            !settings.run_materials,
+            "a preset overrode the material stage"
+        );
         assert!(!settings.run_after);
         assert!(!settings.run_vis);
         assert!(!settings.run_lighting);
@@ -402,8 +431,13 @@ mod tests {
     fn ignoring_leaks_reaches_the_command_line() {
         // The checkbox is only meaningful if the flag arrives at cleave.
         let mut args = vec!["map.keromap".to_string()];
-        let settings = CompileSettings { ignore_leaks: true, ..Default::default() };
-        if settings.ignore_leaks { args.push("--ignore-leaks".into()); }
+        let settings = CompileSettings {
+            ignore_leaks: true,
+            ..Default::default()
+        };
+        if settings.ignore_leaks {
+            args.push("--ignore-leaks".into());
+        }
         assert!(args.iter().any(|a| a == "--ignore-leaks"));
     }
 
@@ -453,7 +487,12 @@ mod tests {
     #[test]
     fn a_failure_ends_the_job() {
         let (sender, receiver) = channel();
-        let mut job = CompileJob { receiver, log: Vec::new(), finished: false, failed: false };
+        let mut job = CompileJob {
+            receiver,
+            log: Vec::new(),
+            finished: false,
+            failed: false,
+        };
         sender.send(CompileMessage::Failed("leak".into())).unwrap();
         job.poll();
         assert!(job.failed && job.finished);

@@ -12,10 +12,10 @@
 //! and one without, and only one of those would ever be tested. Here, a
 //! missing device costs the last hop to the speakers and nothing else.
 
-use std::sync::{Arc, Mutex};
 use kerosene_audio::{Mixer, Sound, SoundBank, SoundHandle, SoundParams, SoundScript};
 use kerosene_math::{Basis, Vec3};
 use kerosene_vfs::Vfs;
+use std::sync::{Arc, Mutex};
 
 /// The sample rate used when there is no device to ask.
 const HEADLESS_RATE: u32 = 48_000;
@@ -30,7 +30,9 @@ pub struct AudioSystem {
 }
 
 impl Default for AudioSystem {
-    fn default() -> Self { AudioSystem::silent() }
+    fn default() -> Self {
+        AudioSystem::silent()
+    }
 }
 
 impl AudioSystem {
@@ -90,7 +92,9 @@ impl AudioSystem {
         }
     }
 
-    pub fn mixer(&self) -> &Arc<Mutex<Mixer>> { &self.mixer }
+    pub fn mixer(&self) -> &Arc<Mutex<Mixer>> {
+        &self.mixer
+    }
 
     /// Do something with the mixer.
     ///
@@ -143,8 +147,12 @@ impl AudioSystem {
     /// sounds a game ships, and decoding all of them to play three is work
     /// nobody asked for.
     pub fn sound(&mut self, vfs: &Vfs, name: &str) -> Option<Arc<Sound>> {
-        if let Some(sound) = self.bank.get(name) { return Some(sound) }
-        if self.bank.already_missing(name) { return None }
+        if let Some(sound) = self.bank.get(name) {
+            return Some(sound);
+        }
+        if self.bank.already_missing(name) {
+            return None;
+        }
 
         // Every form the name might be, not one guessed path. Guessing was
         // what reported `sound/ambient/track.wav` missing when the file on
@@ -232,5 +240,8 @@ pub fn explain_missing(vfs: &kerosene_vfs::Vfs, candidates: &[String]) -> String
              Run `timbre build` to compile it."
         );
     }
-    format!("none of {} was found in any search path", candidates.join(", "))
+    format!(
+        "none of {} was found in any search path",
+        candidates.join(", ")
+    )
 }

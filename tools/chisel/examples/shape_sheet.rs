@@ -14,14 +14,19 @@ use chisel::shapes::{Options, Shape};
 use kerosene_math::{Aabb, Vec3};
 
 fn main() -> anyhow::Result<()> {
-    let out = std::env::args().nth(1).unwrap_or_else(|| "shapes.png".into());
+    let out = std::env::args()
+        .nth(1)
+        .unwrap_or_else(|| "shapes.png".into());
 
     let mut document = chisel::Document::new();
     document.map.world.solids.clear();
 
     // A floor to stand them on, so the shapes read as objects in a room
     // rather than as diagrams floating in the dark.
-    document.create_block(Vec3::new(-128.0, -128.0, -16.0), Vec3::new(1800.0, 1000.0, 0.0));
+    document.create_block(
+        Vec3::new(-128.0, -128.0, -16.0),
+        Vec3::new(1800.0, 1000.0, 0.0),
+    );
 
     // Two rows: drawn from the top, and drawn from the front. Which pane a
     // shape is drawn in decides which way it stands, and that rule is far
@@ -49,12 +54,27 @@ fn main() -> anyhow::Result<()> {
     let eye = Vec3::new(middle.x, middle.y - back, middle.z + back * 0.60);
     let angles = kerosene_math::Angles::from_direction(middle - eye);
 
-    let mut settings = Settings { shading: Shading::Flat, resolve: None };
-    let image = render_with(&document, eye, angles.vectors(), 75.0, 1400, 600, &mut settings);
+    let mut settings = Settings {
+        shading: Shading::Flat,
+        resolve: None,
+    };
+    let image = render_with(
+        &document,
+        eye,
+        angles.vectors(),
+        75.0,
+        1400,
+        600,
+        &mut settings,
+    );
 
     let mut buffer = image::RgbaImage::new(image.width as u32, image.height as u32);
     for (i, p) in image.pixels.iter().enumerate() {
-        buffer.put_pixel((i % image.width) as u32, (i / image.width) as u32, image::Rgba(*p));
+        buffer.put_pixel(
+            (i % image.width) as u32,
+            (i / image.width) as u32,
+            image::Rgba(*p),
+        );
     }
     buffer.save(&out)?;
     println!("wrote {out}");

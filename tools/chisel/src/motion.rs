@@ -53,7 +53,9 @@ fn moving_brushes(document: &Document, entity: &kerosene_map::Entity) -> Option<
         bounds.add_point(b.min);
         bounds.add_point(b.max);
     }
-    if bounds.is_empty() { return None }
+    if bounds.is_empty() {
+        return None;
+    }
 
     let lip = entity
         .get("lip")
@@ -80,7 +82,9 @@ fn facing(entity: &kerosene_map::Entity) -> Option<Motion> {
     // Stored as pitch, yaw, roll -- the order the file writes them, which is
     // not the order a vector reads in.
     let a = kerosene_math::Angles::new(angles.x, angles.y, angles.z);
-    if a.pitch == 0.0 && a.yaw == 0.0 && a.roll == 0.0 { return None }
+    if a.pitch == 0.0 && a.yaw == 0.0 && a.roll == 0.0 {
+        return None;
+    }
 
     let at = entity.origin();
     let forward = a.forward();
@@ -107,7 +111,9 @@ pub fn axis_words(dir: Vec3) -> String {
     ];
     let dir = dir.normalize_or_zero();
     for (axis, name) in NAMED {
-        if dir.dot(axis) > 0.999 { return name.to_string() }
+        if dir.dot(axis) > 0.999 {
+            return name.to_string();
+        }
     }
     format!(
         "{} {} {}",

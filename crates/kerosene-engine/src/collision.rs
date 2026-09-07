@@ -41,15 +41,25 @@ impl<'a> LevelCollision<'a> {
     pub fn new(bsp: &'a Bsp, entities: &EntityWorld) -> LevelCollision<'a> {
         let mut movers = Vec::new();
         for entity in entities.iter() {
-            let Some(model) = entity.brush_model else { continue };
+            let Some(model) = entity.brush_model else {
+                continue;
+            };
             // Model 0 is the world, already traced directly.
-            if model == 0 { continue; }
+            if model == 0 {
+                continue;
+            }
 
             let class = entity.classname.to_lowercase();
-            if class.starts_with("trigger_") { continue; }
-            if class == "func_detail" || class == "func_illusionary" { continue; }
+            if class.starts_with("trigger_") {
+                continue;
+            }
+            if class == "func_detail" || class == "func_illusionary" {
+                continue;
+            }
             // A disabled func_brush is not there.
-            if entity.fields.bool("disabled", false) { continue; }
+            if entity.fields.bool("disabled", false) {
+                continue;
+            }
 
             movers.push(Mover {
                 model,
@@ -61,7 +71,9 @@ impl<'a> LevelCollision<'a> {
         LevelCollision { bsp, movers }
     }
 
-    pub fn mover_count(&self) -> usize { self.movers.len() }
+    pub fn mover_count(&self) -> usize {
+        self.movers.len()
+    }
 
     /// Trace against the world and every mover, keeping the nearest hit.
     ///
@@ -87,7 +99,9 @@ impl<'a> LevelCollision<'a> {
                 maxs,
                 mask,
             );
-            if hit.start_solid { best.start_solid = true; }
+            if hit.start_solid {
+                best.start_solid = true;
+            }
             if hit.fraction < best.fraction {
                 best.fraction = hit.fraction;
                 best.plane = hit.plane;
@@ -124,7 +138,9 @@ impl CollisionWorld for LevelCollision<'_> {
         // which is a brush entity that nothing collides with, is found at all.
         for mover in &self.movers {
             let local = mover.pose.to_local(point);
-            let Some(model) = self.bsp.models.get(mover.model) else { continue };
+            let Some(model) = self.bsp.models.get(mover.model) else {
+                continue;
+            };
             if model.bounds().contains_point(local) {
                 let trace = self.bsp.trace_model(
                     mover.model,
@@ -134,7 +150,9 @@ impl CollisionWorld for LevelCollision<'_> {
                     Vec3::ZERO,
                     contents::MASK_PLAYER_SOLID | contents::MASK_VOLUMES,
                 );
-                if trace.start_solid { out |= trace.contents; }
+                if trace.start_solid {
+                    out |= trace.contents;
+                }
             }
         }
         out
@@ -154,8 +172,15 @@ pub struct PlayerCollision<'a> {
 }
 
 impl<'a> PlayerCollision<'a> {
-    pub fn new(bsp: &'a Bsp, entities: &EntityWorld, props: &'a PhysicsProps) -> PlayerCollision<'a> {
-        PlayerCollision { level: LevelCollision::new(bsp, entities), props }
+    pub fn new(
+        bsp: &'a Bsp,
+        entities: &EntityWorld,
+        props: &'a PhysicsProps,
+    ) -> PlayerCollision<'a> {
+        PlayerCollision {
+            level: LevelCollision::new(bsp, entities),
+            props,
+        }
     }
 
     /// Sweep the player hull against the prop boxes, keeping the nearest hit.
@@ -176,7 +201,10 @@ impl<'a> PlayerCollision<'a> {
             {
                 if fraction < best.fraction {
                     best.fraction = fraction;
-                    best.plane = Some(Plane::new(normal, normal.dot(start + (end - start) * fraction)));
+                    best.plane = Some(Plane::new(
+                        normal,
+                        normal.dot(start + (end - start) * fraction),
+                    ));
                     best.contents = contents::SOLID;
                 }
             }
@@ -186,7 +214,11 @@ impl<'a> PlayerCollision<'a> {
                 best.contents |= contents::SOLID;
             }
         }
-        best.endpos = if best.fraction >= 1.0 { end } else { start + (end - start) * best.fraction };
+        best.endpos = if best.fraction >= 1.0 {
+            end
+        } else {
+            start + (end - start) * best.fraction
+        };
         best
     }
 }
@@ -201,7 +233,9 @@ impl CollisionWorld for PlayerCollision<'_> {
         };
 
         let mut best = self.level.trace(start, end, mins, maxs, mask);
-        if prop.start_solid { best.start_solid = true; }
+        if prop.start_solid {
+            best.start_solid = true;
+        }
         if prop.fraction < best.fraction {
             best.fraction = prop.fraction;
             best.plane = prop.plane;

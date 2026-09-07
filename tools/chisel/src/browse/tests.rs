@@ -91,7 +91,10 @@ fn an_empty_search_keeps_everything() {
 #[test]
 fn filtering_keeps_the_order() {
     let list = paths(&["dev/wall", "dev/grid", "tools/grid_clip"]);
-    assert_eq!(filtered(&list, "grid"), paths(&["dev/grid", "tools/grid_clip"]));
+    assert_eq!(
+        filtered(&list, "grid"),
+        paths(&["dev/grid", "tools/grid_clip"])
+    );
 }
 
 #[test]

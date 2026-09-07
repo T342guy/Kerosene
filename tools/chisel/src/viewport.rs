@@ -110,7 +110,9 @@ impl ViewportKind {
         }
     }
 
-    pub fn is_2d(self) -> bool { self != ViewportKind::Perspective }
+    pub fn is_2d(self) -> bool {
+        self != ViewportKind::Perspective
+    }
 }
 
 /// One pane.
@@ -164,7 +166,9 @@ impl Viewport {
     /// flat view is centred on wherever the camera was. Losing your place on
     /// every switch is what makes people stop using the other views.
     pub fn set_kind(&mut self, kind: ViewportKind) {
-        if kind == self.kind { return }
+        if kind == self.kind {
+            return;
+        }
         match (self.kind.is_2d(), kind.is_2d()) {
             (true, false) => self.eye = self.center - self.angles.forward() * 512.0,
             (false, true) => self.center = self.eye + self.angles.forward() * 256.0,
@@ -218,7 +222,9 @@ impl Viewport {
     /// Zooming about the centre instead makes the thing you were looking at
     /// slide away, which is the single most irritating thing an editor can do.
     pub fn zoom_at(&mut self, factor: f32, screen_x: f32, screen_y: f32) {
-        if !self.kind.is_2d() { return; }
+        if !self.kind.is_2d() {
+            return;
+        }
         let before = self.screen_to_world(screen_x, screen_y, 0.0);
         self.zoom = (self.zoom * factor).clamp(MIN_ZOOM, MAX_ZOOM);
         let after = self.screen_to_world(screen_x, screen_y, 0.0);
@@ -237,7 +243,9 @@ impl Viewport {
 
     /// Frame a bounding box, with a little margin.
     pub fn focus_on(&mut self, bounds: Aabb) {
-        if bounds.is_empty() { return; }
+        if bounds.is_empty() {
+            return;
+        }
         self.center = bounds.center();
         if !self.kind.is_2d() {
             // Back off far enough that the box fits in the view.
@@ -287,7 +295,9 @@ impl Viewport {
 
     /// Whether a box is at least partly visible in a 2D pane.
     pub fn shows(&self, bounds: Aabb) -> bool {
-        if !self.kind.is_2d() { return true; }
+        if !self.kind.is_2d() {
+            return true;
+        }
         self.visible_bounds().intersects(&bounds)
     }
 }
@@ -299,16 +309,22 @@ pub fn ray_box(origin: Vec3, direction: Vec3, bounds: Aabb) -> Option<f32> {
 
     for axis in 0..3 {
         if direction[axis].abs() < 1e-9 {
-            if origin[axis] < bounds.min[axis] || origin[axis] > bounds.max[axis] { return None; }
+            if origin[axis] < bounds.min[axis] || origin[axis] > bounds.max[axis] {
+                return None;
+            }
             continue;
         }
         let inv = 1.0 / direction[axis];
         let mut t0 = (bounds.min[axis] - origin[axis]) * inv;
         let mut t1 = (bounds.max[axis] - origin[axis]) * inv;
-        if t0 > t1 { std::mem::swap(&mut t0, &mut t1); }
+        if t0 > t1 {
+            std::mem::swap(&mut t0, &mut t1);
+        }
         enter = enter.max(t0);
         exit = exit.min(t1);
-        if enter > exit { return None; }
+        if enter > exit {
+            return None;
+        }
     }
     (exit >= 0.0).then_some(enter)
 }
@@ -318,16 +334,26 @@ mod tests {
     use super::*;
 
     fn pane(kind: ViewportKind) -> Viewport {
-        Viewport { size: (800.0, 600.0), zoom: 1.0, ..Viewport::new(kind) }
+        Viewport {
+            size: (800.0, 600.0),
+            zoom: 1.0,
+            ..Viewport::new(kind)
+        }
     }
 
     #[test]
     fn opposite_views_show_the_same_plane_from_the_other_side() {
         for kind in ViewportKind::all() {
-            if !kind.is_2d() { continue }
+            if !kind.is_2d() {
+                continue;
+            }
             let other = kind.opposite();
             assert_ne!(other, kind, "{kind:?} has no opposite");
-            assert_eq!(other.axes(), kind.axes(), "{kind:?} and its opposite show different axes");
+            assert_eq!(
+                other.axes(),
+                kind.axes(),
+                "{kind:?} and its opposite show different axes"
+            );
             assert_eq!(
                 other.h_sign(),
                 -kind.h_sign(),
@@ -352,15 +378,24 @@ mod tests {
             let (bx, _) = b.world_to_screen(point);
             let middle = a.size.0 * 0.5;
             assert!(ax > middle, "{kind:?} should show +{h} to the right");
-            assert!(bx < middle, "{:?} should show +{h} to the left", kind.opposite());
-            assert!((ax - middle + (bx - middle)).abs() < 1e-3, "not a mirror image");
+            assert!(
+                bx < middle,
+                "{:?} should show +{h} to the left",
+                kind.opposite()
+            );
+            assert!(
+                (ax - middle + (bx - middle)).abs() < 1e-3,
+                "not a mirror image"
+            );
         }
     }
 
     #[test]
     fn a_click_in_an_opposite_view_still_unprojects_to_where_it_was() {
         for kind in ViewportKind::all() {
-            if !kind.is_2d() { continue }
+            if !kind.is_2d() {
+                continue;
+            }
             let view = pane(kind);
             let (h, v, _) = kind.axes();
             let mut point = Vec3::ZERO;
@@ -368,22 +403,36 @@ mod tests {
             point[v] = 91.0;
             let (x, y) = view.world_to_screen(point);
             let back = view.screen_to_world(x, y, 0.0);
-            assert!((back[h] - point[h]).abs() < 1e-3, "{kind:?} horizontal round trip");
-            assert!((back[v] - point[v]).abs() < 1e-3, "{kind:?} vertical round trip");
+            assert!(
+                (back[h] - point[h]).abs() < 1e-3,
+                "{kind:?} horizontal round trip"
+            );
+            assert!(
+                (back[v] - point[v]).abs() < 1e-3,
+                "{kind:?} vertical round trip"
+            );
         }
     }
 
     #[test]
     fn panning_moves_the_view_the_way_the_pointer_went_in_every_kind() {
         for kind in ViewportKind::all() {
-            if !kind.is_2d() { continue }
+            if !kind.is_2d() {
+                continue;
+            }
             let mut view = pane(kind);
             let under_cursor = view.screen_to_world(100.0, 100.0, 0.0);
             view.pan(40.0, 25.0);
             let now = view.screen_to_world(140.0, 125.0, 0.0);
             let (h, v, _) = kind.axes();
-            assert!((now[h] - under_cursor[h]).abs() < 1e-3, "{kind:?} horizontal pan drifted");
-            assert!((now[v] - under_cursor[v]).abs() < 1e-3, "{kind:?} vertical pan drifted");
+            assert!(
+                (now[h] - under_cursor[h]).abs() < 1e-3,
+                "{kind:?} horizontal pan drifted"
+            );
+            assert!(
+                (now[v] - under_cursor[v]).abs() < 1e-3,
+                "{kind:?} vertical pan drifted"
+            );
         }
     }
 
@@ -394,7 +443,10 @@ mod tests {
         view.set_kind(ViewportKind::Perspective);
         // The camera is behind the point it was centred on, looking at it.
         let to_centre = Vec3::new(500.0, 300.0, 64.0) - view.eye;
-        assert!(to_centre.length() > 1.0, "the camera landed on top of the target");
+        assert!(
+            to_centre.length() > 1.0,
+            "the camera landed on top of the target"
+        );
         assert!(
             to_centre.normalize().dot(view.angles.forward()) > 0.99,
             "the camera is not looking at what the flat view was showing"
@@ -435,7 +487,10 @@ mod tests {
         view.angles = Angles::new(0.0, 0.0, 0.0);
         let one = view.fly_step(1.0, 0.0, 0.0, 100.0);
         let two = view.fly_step(1.0, 1.0, 0.0, 100.0);
-        assert!((one.length() - two.length()).abs() < 1e-3, "diagonal flying was faster");
+        assert!(
+            (one.length() - two.length()).abs() < 1e-3,
+            "diagonal flying was faster"
+        );
     }
 
     #[test]
@@ -450,7 +505,10 @@ mod tests {
         view.angles = Angles::new(20.0, 145.0, 0.0);
         let side = view.fly_step(0.0, 1.0, 0.0, 1.0);
         assert!(side.dot(view.angles.forward()).abs() < 1e-3);
-        assert!(side.z.abs() < 1e-3, "strafing should stay level, went {side:?}");
+        assert!(
+            side.z.abs() < 1e-3,
+            "strafing should stay level, went {side:?}"
+        );
     }
 
     #[test]
@@ -465,7 +523,10 @@ mod tests {
         for kind in [ViewportKind::Top, ViewportKind::Front, ViewportKind::Right] {
             let v = pane(kind);
             let (x, y) = v.world_to_screen(v.center);
-            assert!((x - 400.0).abs() < 1e-3 && (y - 300.0).abs() < 1e-3, "{kind:?}");
+            assert!(
+                (x - 400.0).abs() < 1e-3 && (y - 300.0).abs() < 1e-3,
+                "{kind:?}"
+            );
         }
     }
 
@@ -476,7 +537,10 @@ mod tests {
         let v = pane(ViewportKind::Top);
         let (_, up) = v.world_to_screen(Vec3::new(0.0, 100.0, 0.0));
         let (_, down) = v.world_to_screen(Vec3::new(0.0, -100.0, 0.0));
-        assert!(up < down, "moving +Y should move up the screen: {up} vs {down}");
+        assert!(
+            up < down,
+            "moving +Y should move up the screen: {up} vs {down}"
+        );
     }
 
     #[test]
@@ -487,7 +551,10 @@ mod tests {
             let (x, y) = v.world_to_screen(world);
             let (_, _, d) = kind.axes();
             let back = v.screen_to_world(x, y, world[d]);
-            assert!((back - world).length() < 1e-3, "{kind:?}: {back:?} vs {world:?}");
+            assert!(
+                (back - world).length() < 1e-3,
+                "{kind:?}: {back:?} vs {world:?}"
+            );
         }
     }
 
@@ -499,16 +566,23 @@ mod tests {
         let before = v.screen_to_world(cursor_x, cursor_y, 0.0);
         v.zoom_at(2.0, cursor_x, cursor_y);
         let after = v.screen_to_world(cursor_x, cursor_y, 0.0);
-        assert!((before - after).length() < 1e-3, "{before:?} moved to {after:?}");
+        assert!(
+            (before - after).length() < 1e-3,
+            "{before:?} moved to {after:?}"
+        );
         assert_eq!(v.zoom, 2.0);
     }
 
     #[test]
     fn zoom_is_clamped() {
         let mut v = pane(ViewportKind::Top);
-        for _ in 0..50 { v.zoom_at(2.0, 400.0, 300.0); }
+        for _ in 0..50 {
+            v.zoom_at(2.0, 400.0, 300.0);
+        }
         assert_eq!(v.zoom, MAX_ZOOM);
-        for _ in 0..100 { v.zoom_at(0.5, 400.0, 300.0); }
+        for _ in 0..100 {
+            v.zoom_at(0.5, 400.0, 300.0);
+        }
         assert_eq!(v.zoom, MIN_ZOOM);
     }
 
@@ -527,14 +601,20 @@ mod tests {
         // A brush far away along the view axis must still be visible and
         // selectable; otherwise a top view only shows one slab of the level.
         let v = pane(ViewportKind::Top);
-        let far_below = Aabb::new(Vec3::new(-10.0, -10.0, -8000.0), Vec3::new(10.0, 10.0, -7000.0));
+        let far_below = Aabb::new(
+            Vec3::new(-10.0, -10.0, -8000.0),
+            Vec3::new(10.0, 10.0, -7000.0),
+        );
         assert!(v.shows(far_below));
     }
 
     #[test]
     fn a_box_outside_the_pane_is_not_shown() {
         let v = pane(ViewportKind::Top);
-        let away = Aabb::new(Vec3::new(5000.0, 5000.0, 0.0), Vec3::new(5100.0, 5100.0, 10.0));
+        let away = Aabb::new(
+            Vec3::new(5000.0, 5000.0, 0.0),
+            Vec3::new(5100.0, 5100.0, 10.0),
+        );
         assert!(!v.shows(away));
     }
 
@@ -576,8 +656,14 @@ mod tests {
         let bounds = Aabb::new(Vec3::new(100.0, -50.0, -50.0), Vec3::new(200.0, 50.0, 50.0));
         let hit = ray_box(Vec3::ZERO, Vec3::X, bounds).expect("should hit");
         assert!((hit - 100.0).abs() < 1e-3);
-        assert!(ray_box(Vec3::ZERO, -Vec3::X, bounds).is_none(), "behind the ray");
-        assert!(ray_box(Vec3::ZERO, Vec3::Y, bounds).is_none(), "missing entirely");
+        assert!(
+            ray_box(Vec3::ZERO, -Vec3::X, bounds).is_none(),
+            "behind the ray"
+        );
+        assert!(
+            ray_box(Vec3::ZERO, Vec3::Y, bounds).is_none(),
+            "missing entirely"
+        );
     }
 
     #[test]

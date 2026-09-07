@@ -10,7 +10,9 @@ fn door_document(keys: &[(&str, &str)]) -> Document {
     document.selection.solids.insert(id);
     let entity = document.tie_to_entity("func_door").unwrap();
     if let Some(e) = document.find_entity_mut(entity) {
-        for (k, v) in keys { e.set(k, *v); }
+        for (k, v) in keys {
+            e.set(k, *v);
+        }
     }
     document.selection.clear();
     document.selection.entities.insert(entity);
@@ -90,14 +92,22 @@ fn a_lip_bigger_than_the_door_still_leaves_it_moving() {
 fn a_point_entity_with_angles_shows_which_way_it_faces() {
     let mut document = Document::new();
     let id = document.create_entity("light_spot", Vec3::new(64.0, 64.0, 128.0));
-    if let Some(e) = document.find_entity_mut(id) { e.set("angles", "0 90 0"); }
+    if let Some(e) = document.find_entity_mut(id) {
+        e.set("angles", "0 90 0");
+    }
     document.selection.clear();
     document.selection.entities.insert(id);
 
     let motion = of_selection(&document).expect("it faces somewhere");
-    assert!(motion.ghost.is_empty(), "a point entity has no shape to ghost");
+    assert!(
+        motion.ghost.is_empty(),
+        "a point entity has no shape to ghost"
+    );
     let direction = (motion.arrow.1 - motion.arrow.0).normalize();
-    assert!((direction - Vec3::Y).length() < 0.01, "yaw 90 faces +Y: {direction:?}");
+    assert!(
+        (direction - Vec3::Y).length() < 0.01,
+        "yaw 90 faces +Y: {direction:?}"
+    );
     assert!(motion.label.contains("+Y"), "{}", motion.label);
 }
 
@@ -107,7 +117,9 @@ fn an_entity_facing_straight_ahead_is_not_annotated() {
     // on nearly every entity in the map.
     let mut document = Document::new();
     let id = document.create_entity("info_player_start", Vec3::ZERO);
-    if let Some(e) = document.find_entity_mut(id) { e.set("angles", "0 0 0"); }
+    if let Some(e) = document.find_entity_mut(id) {
+        e.set("angles", "0 0 0");
+    }
     document.selection.clear();
     document.selection.entities.insert(id);
     assert!(of_selection(&document).is_none());
@@ -117,7 +129,10 @@ fn an_entity_facing_straight_ahead_is_not_annotated() {
 fn the_axes_are_named_where_they_have_names() {
     assert!(axis_words(Vec3::Z).contains("+Z"));
     assert!(axis_words(Vec3::NEG_Y).contains("-Y"));
-    assert!(axis_words(Vec3::new(0.0, 0.0, 5.0)).contains("+Z"), "length does not matter");
+    assert!(
+        axis_words(Vec3::new(0.0, 0.0, 5.0)).contains("+Z"),
+        "length does not matter"
+    );
     // And a diagonal is given as numbers rather than as a wrong guess.
     let diagonal = axis_words(Vec3::new(1.0, 1.0, 0.0));
     assert!(!diagonal.contains('X'), "{diagonal}");

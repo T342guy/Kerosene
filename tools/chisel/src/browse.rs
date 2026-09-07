@@ -34,7 +34,10 @@ pub fn folders(paths: &[String]) -> Vec<Folder> {
         };
         match folders.iter_mut().find(|f| f.name == name) {
             Some(folder) => folder.items.push(path.clone()),
-            None => folders.push(Folder { name, items: vec![path.clone()] }),
+            None => folders.push(Folder {
+                name,
+                items: vec![path.clone()],
+            }),
         }
     }
     folders.sort_by(|a, b| match (a.name.is_empty(), b.name.is_empty()) {
@@ -65,8 +68,14 @@ pub fn matches(path: &str, query: &str) -> bool {
 
 /// Filter a list, keeping the order.
 pub fn filtered(paths: &[String], query: &str) -> Vec<String> {
-    if query.trim().is_empty() { return paths.to_vec() }
-    paths.iter().filter(|p| matches(p, query)).cloned().collect()
+    if query.trim().is_empty() {
+        return paths.to_vec();
+    }
+    paths
+        .iter()
+        .filter(|p| matches(p, query))
+        .cloned()
+        .collect()
 }
 
 #[cfg(test)]

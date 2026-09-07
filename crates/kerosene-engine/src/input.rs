@@ -8,9 +8,9 @@
 //! Commands starting with `+` are held: pressing the key runs `+forward` and
 //! releasing it runs `-forward`. Everything else fires once on press.
 
-use std::collections::HashMap;
 use kerosene_console::Console;
 use kerosene_math::Angles;
+use std::collections::HashMap;
 
 /// The movement and view state one tick consumes.
 #[derive(Clone, Copy, Debug, Default)]
@@ -88,7 +88,9 @@ pub struct InputSystem {
 }
 
 impl Default for InputSystem {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl InputSystem {
@@ -123,16 +125,21 @@ impl InputSystem {
     }
 
     pub fn bind(&mut self, key: &str, command: &str) {
-        self.bindings.insert(key.to_lowercase(), command.to_string());
+        self.bindings
+            .insert(key.to_lowercase(), command.to_string());
     }
 
-    pub fn unbind(&mut self, key: &str) { self.bindings.remove(&key.to_lowercase()); }
+    pub fn unbind(&mut self, key: &str) {
+        self.bindings.remove(&key.to_lowercase());
+    }
 
     pub fn binding(&self, key: &str) -> Option<&str> {
         self.bindings.get(&key.to_lowercase()).map(|s| s.as_str())
     }
 
-    pub fn bindings(&self) -> impl Iterator<Item = (&String, &String)> { self.bindings.iter() }
+    pub fn bindings(&self) -> impl Iterator<Item = (&String, &String)> {
+        self.bindings.iter()
+    }
 
     /// Handle a key going down or up.
     ///
@@ -170,7 +177,9 @@ impl InputSystem {
     /// mistake that makes aim feel different at different frame rates.
     pub fn update_view(&mut self, console: &Console) {
         let (dx, dy) = std::mem::take(&mut self.pending_mouse);
-        if dx == 0.0 && dy == 0.0 { return; }
+        if dx == 0.0 && dy == 0.0 {
+            return;
+        }
 
         let sensitivity = console.float("sensitivity").max(0.001);
         let yaw_scale = console.float("m_yaw");
@@ -182,7 +191,9 @@ impl InputSystem {
         self.view_angles = self.view_angles.clamped_view();
     }
 
-    pub fn state(&self) -> InputState { self.held.to_input(self.view_angles) }
+    pub fn state(&self) -> InputState {
+        self.held.to_input(self.view_angles)
+    }
 
     /// Clear every held key.
     ///
@@ -212,7 +223,10 @@ mod tests {
     #[test]
     fn held_bindings_set_and_clear_their_action() {
         let mut input = InputSystem::new();
-        assert!(input.key_event("w", true).is_none(), "held keys run no command");
+        assert!(
+            input.key_event("w", true).is_none(),
+            "held keys run no command"
+        );
         assert!(input.held.forward);
         input.key_event("w", false);
         assert!(!input.held.forward);
@@ -223,7 +237,11 @@ mod tests {
         let mut input = InputSystem::new();
         input.bind("f5", "save");
         assert_eq!(input.key_event("f5", true).as_deref(), Some("save"));
-        assert_eq!(input.key_event("f5", false), None, "releasing must not fire it again");
+        assert_eq!(
+            input.key_event("f5", false),
+            None,
+            "releasing must not fire it again"
+        );
     }
 
     #[test]
@@ -286,11 +304,18 @@ mod tests {
         // it takes rather more than that to reach the limit.
         input.mouse_moved(0.0, 1000.0);
         input.update_view(&console);
-        assert!((input.view_angles.pitch - 66.0).abs() < 0.01, "{}", input.view_angles.pitch);
+        assert!(
+            (input.view_angles.pitch - 66.0).abs() < 0.01,
+            "{}",
+            input.view_angles.pitch
+        );
 
         input.mouse_moved(0.0, 2000.0);
         input.update_view(&console);
-        assert_eq!(input.view_angles.pitch, 89.0, "pitch must clamp at the neck's limit");
+        assert_eq!(
+            input.view_angles.pitch, 89.0,
+            "pitch must clamp at the neck's limit"
+        );
     }
 
     #[test]
@@ -306,7 +331,10 @@ mod tests {
         input.update_view(&console);
         let after_first = input.view_angles.yaw;
         input.update_view(&console);
-        assert_eq!(input.view_angles.yaw, after_first, "the same movement must not apply twice");
+        assert_eq!(
+            input.view_angles.yaw, after_first,
+            "the same movement must not apply twice"
+        );
     }
 
     #[test]

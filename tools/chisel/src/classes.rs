@@ -14,8 +14,8 @@
 //! built-in set makes that state unreachable for the shipped game; [`load`]
 //! still reports what it found.
 
-use std::path::{Path, PathBuf};
 use kerosene_entity::Schema;
+use std::path::{Path, PathBuf};
 
 /// The extension a class definition file uses.
 pub const EXTENSION: &str = "kerodef";
@@ -44,13 +44,18 @@ impl Loaded {
                 self.schema.len(),
                 display(&self.files[0])
             ),
-            n => format!("{} entity classes from {n} files plus the built-in set", self.schema.len()),
+            n => format!(
+                "{} entity classes from {n} files plus the built-in set",
+                self.schema.len()
+            ),
         }
     }
 }
 
 fn display(path: &Path) -> String {
-    path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default()
+    path.file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default()
 }
 
 /// Load the built-in schema, then every `.kerodef` under a content root.
@@ -75,7 +80,11 @@ pub fn load(content_root: &Path) -> Loaded {
     collect(content_root, &mut files);
     files.sort();
 
-    let mut loaded = Loaded { schema, files: Vec::new(), errors: Vec::new() };
+    let mut loaded = Loaded {
+        schema,
+        files: Vec::new(),
+        errors: Vec::new(),
+    };
     for path in files {
         match std::fs::read_to_string(&path) {
             Ok(text) => match Schema::parse(&text) {
@@ -96,11 +105,15 @@ pub fn load(content_root: &Path) -> Loaded {
 fn collect(dir: &Path, out: &mut Vec<PathBuf>) {
     const MAX_DEPTH: usize = 2;
     fn walk(dir: &Path, depth: usize, out: &mut Vec<PathBuf>) {
-        let Ok(entries) = std::fs::read_dir(dir) else { return };
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            return;
+        };
         for entry in entries.flatten() {
             let path = entry.path();
             if path.is_dir() {
-                if depth > 0 { walk(&path, depth - 1, out); }
+                if depth > 0 {
+                    walk(&path, depth - 1, out);
+                }
             } else if path.extension().and_then(|e| e.to_str()) == Some(EXTENSION) {
                 out.push(path);
             }
@@ -114,7 +127,8 @@ mod tests {
     use super::*;
 
     fn scratch(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("chisel-classes-{name}-{}", std::process::id()));
+        let dir =
+            std::env::temp_dir().join(format!("chisel-classes-{name}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         dir
@@ -127,7 +141,10 @@ mod tests {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content");
         let loaded = load(&root);
         assert!(loaded.errors.is_empty(), "{:?}", loaded.errors);
-        let door = loaded.schema.get("func_door").expect("the sample game has doors");
+        let door = loaded
+            .schema
+            .get("func_door")
+            .expect("the sample game has doors");
         assert!(door.key("speed").is_some());
         assert!(door.has_input("Open"));
         assert!(door.has_output("OnFullyOpen"));
@@ -142,21 +159,40 @@ mod tests {
         let dir = scratch("empty");
         let loaded = load(&dir);
         assert!(loaded.errors.is_empty(), "{:?}", loaded.errors);
-        assert!(loaded.files.is_empty(), "no files to read: {:?}", loaded.files);
-        assert!(!loaded.schema.is_empty(), "the built-in schema is always present");
+        assert!(
+            loaded.files.is_empty(),
+            "no files to read: {:?}",
+            loaded.files
+        );
+        assert!(
+            !loaded.schema.is_empty(),
+            "the built-in schema is always present"
+        );
         assert!(loaded.schema.get("func_door").is_some());
         assert!(loaded.schema.get("light").is_some());
-        assert!(loaded.summary().contains("built in"), "{}", loaded.summary());
+        assert!(
+            loaded.summary().contains("built in"),
+            "{}",
+            loaded.summary()
+        );
         std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]
     fn a_broken_file_names_itself() {
         let dir = scratch("broken");
-        std::fs::write(dir.join("bad.kerodef"), r#"class { "name" "c" "base" "Nope" }"#).unwrap();
+        std::fs::write(
+            dir.join("bad.kerodef"),
+            r#"class { "name" "c" "base" "Nope" }"#,
+        )
+        .unwrap();
         let loaded = load(&dir);
         assert_eq!(loaded.errors.len(), 1);
-        assert!(loaded.errors[0].starts_with("bad.kerodef:"), "{:?}", loaded.errors);
+        assert!(
+            loaded.errors[0].starts_with("bad.kerodef:"),
+            "{:?}",
+            loaded.errors
+        );
         assert!(loaded.summary().contains("bad.kerodef"));
         std::fs::remove_dir_all(&dir).ok();
     }
@@ -164,8 +200,16 @@ mod tests {
     #[test]
     fn a_later_file_overrides_an_earlier_one() {
         let dir = scratch("override");
-        std::fs::write(dir.join("a-game.kerodef"), r#"class { "name" "func_x" "help" "first" }"#).unwrap();
-        std::fs::write(dir.join("b-mod.kerodef"), r#"class { "name" "func_x" "help" "second" }"#).unwrap();
+        std::fs::write(
+            dir.join("a-game.kerodef"),
+            r#"class { "name" "func_x" "help" "first" }"#,
+        )
+        .unwrap();
+        std::fs::write(
+            dir.join("b-mod.kerodef"),
+            r#"class { "name" "func_x" "help" "second" }"#,
+        )
+        .unwrap();
         let loaded = load(&dir);
         assert_eq!(loaded.files.len(), 2);
         assert_eq!(loaded.schema.get("func_x").unwrap().help, "second");

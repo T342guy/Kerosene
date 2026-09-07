@@ -14,9 +14,9 @@
 //! no texture behind it falls back to a flat colour derived from its name, so
 //! a missing texture is a wrong colour rather than a black hole.
 
+use kerosene_vfs::Vfs;
 use std::collections::HashMap;
 use std::sync::Arc;
-use kerosene_vfs::Vfs;
 
 /// One mip level: RGBA8, tightly packed.
 pub struct Level {
@@ -48,8 +48,12 @@ pub struct Texture {
 }
 
 impl Texture {
-    pub fn width(&self) -> u32 { self.mips.first().map_or(1, |m| m.width) }
-    pub fn height(&self) -> u32 { self.mips.first().map_or(1, |m| m.height) }
+    pub fn width(&self) -> u32 {
+        self.mips.first().map_or(1, |m| m.width)
+    }
+    pub fn height(&self) -> u32 {
+        self.mips.first().map_or(1, |m| m.height)
+    }
 
     /// The level to read, clamped to what exists.
     pub fn level(&self, mip: usize) -> &Level {
@@ -95,20 +99,31 @@ pub struct TextureCache {
 }
 
 impl Default for TextureCache {
-    fn default() -> Self { TextureCache::new() }
+    fn default() -> Self {
+        TextureCache::new()
+    }
 }
 
 impl TextureCache {
     pub fn new() -> TextureCache {
-        TextureCache { entries: HashMap::new(), problems: HashMap::new() }
+        TextureCache {
+            entries: HashMap::new(),
+            problems: HashMap::new(),
+        }
     }
 
-    pub fn len(&self) -> usize { self.entries.values().filter(|e| e.is_some()).count() }
-    pub fn is_empty(&self) -> bool { self.len() == 0 }
+    pub fn len(&self) -> usize {
+        self.entries.values().filter(|e| e.is_some()).count()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
     pub fn problem(&self, material: &str) -> Option<&str> {
         self.problems.get(&key(material)).map(String::as_str)
     }
-    pub fn problem_count(&self) -> usize { self.problems.len() }
+    pub fn problem_count(&self) -> usize {
+        self.problems.len()
+    }
 
     /// Forget everything, so a rebuild of the content shows up.
     pub fn clear(&mut self) {
@@ -119,7 +134,9 @@ impl TextureCache {
     /// The texture for a material, loading it the first time.
     pub fn get(&mut self, vfs: &Vfs, material: &str) -> Option<Arc<Texture>> {
         let key = key(material);
-        if let Some(entry) = self.entries.get(&key) { return entry.clone() }
+        if let Some(entry) = self.entries.get(&key) {
+            return entry.clone();
+        }
 
         let loaded = match load(vfs, material) {
             Ok(texture) => Some(Arc::new(texture)),
@@ -171,7 +188,8 @@ fn load(vfs: &Vfs, material: &str) -> Result<Texture, String> {
     let text = vfs
         .read_string(&material_path)
         .map_err(|e| format!("{material_path}: {e}"))?;
-    let parsed = kerosene_asset::Material::parse(&text).map_err(|e| format!("{material_path}: {e}"))?;
+    let parsed =
+        kerosene_asset::Material::parse(&text).map_err(|e| format!("{material_path}: {e}"))?;
 
     // A material with no `$basetexture` is legitimate -- a sky shader, a
     // colour-only surface -- so it is not an error, just nothing to draw.
@@ -188,14 +206,22 @@ fn load(vfs: &Vfs, material: &str) -> Result<Texture, String> {
 
     let mut mips = Vec::with_capacity(texture.mip_count());
     for level in 0..texture.mip_count() {
-        let Some(rgba) = texture.mip_as_rgba8(level) else { continue };
+        let Some(rgba) = texture.mip_as_rgba8(level) else {
+            continue;
+        };
         let mip = &texture.mips[level];
         let pixels: Vec<[u8; 4]> = rgba
             .chunks_exact(4)
             .map(|c| [c[0], c[1], c[2], c[3]])
             .collect();
-        if pixels.len() != (mip.width * mip.height) as usize { continue }
-        mips.push(Level { width: mip.width, height: mip.height, pixels });
+        if pixels.len() != (mip.width * mip.height) as usize {
+            continue;
+        }
+        mips.push(Level {
+            width: mip.width,
+            height: mip.height,
+            pixels,
+        });
     }
     if mips.is_empty() {
         return Err(format!("{texture_path} has no readable mip levels"));
@@ -206,7 +232,9 @@ fn load(vfs: &Vfs, material: &str) -> Result<Texture, String> {
     let smallest = mips.last().expect("checked");
     let mut total = [0u64; 3];
     for pixel in &smallest.pixels {
-        for c in 0..3 { total[c] += pixel[c] as u64; }
+        for c in 0..3 {
+            total[c] += pixel[c] as u64;
+        }
     }
     let count = smallest.pixels.len().max(1) as u64;
     let average = [
