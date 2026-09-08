@@ -637,53 +637,59 @@ impl Engine {
                 self.console.float("sv_maxspeed").max(0.0),
                 dt,
             );
+            // A carried prop is steered toward a point in front of the player,
+            // and this happens before the world is stepped so that the step is
+            // what actually moves it. The point is traced against the world so
+            // the hold point itself does not land inside a wall, and the yaw
+            // follows the player so the face that was grabbed keeps facing them.
+            if let Some(held) = self.held_prop {
+                if self.entities.exists(held.id) {
+                    let distance = self.console.float("phys_hold_distance").max(32.0);
+                    let eye = self.player.movement.eye_position();
+                    let forward = self.player.view_angles.forward();
+
+                    // Clamp the reach to whatever the world allows, keeping the
+                    // prop's own half-extent clear of the surface it meets.
+                    let mut reach = distance;
+                    if let (Some(level), Some(half)) =
+                        (&self.level, self.physics.prop_half_extent(held.id))
+                    {
+                        let margin = half.x.max(half.y).max(half.z);
+                        let world = LevelCollision::new(&level.bsp, &self.entities);
+                        let trace = world.trace(
+                            eye,
+                            eye + forward * distance,
+                            Vec3::ZERO,
+                            Vec3::ZERO,
+                            contents::MASK_PLAYER_SOLID,
+                        );
+                        if trace.fraction < 1.0 {
+                            reach = (trace.fraction * distance - margin).clamp(0.0, distance);
+                        }
+                    }
+
+                    let position = eye + forward * reach - Vec3::Z * 8.0;
+                    let yaw = kerosene_math::wrap180(self.player.view_angles.yaw + held.yaw_offset);
+                    let rotation =
+                        Quat::from_mat3(&Angles::new(held.pitch, yaw, held.roll).to_mat3());
+                    self.physics.steer_prop(
+                        held.id,
+                        position,
+                        rotation,
+                        dt,
+                        crate::physics::HoldLimits {
+                            max_speed: self.console.float("phys_hold_speed"),
+                            max_accel: self.console.float("phys_hold_accel"),
+                            max_spin: self.console.float("phys_hold_spin"),
+                        },
+                    );
+                } else {
+                    self.held_prop = None;
+                }
+            }
+
             self.physics
                 .sync_and_step(dt, &mut self.entities, &self.vfs);
-        }
-
-        // A carried prop rides at a fixed point in front of the player rather
-        // than obeying gravity, so re-place it every tick. The point is traced
-        // against the world so the prop rests *against* a wall or the floor
-        // instead of clipping through it, and its yaw follows the player so
-        // the face that was grabbed stays facing them.
-        if let Some(held) = self.held_prop {
-            if self.entities.exists(held.id) {
-                let distance = self.console.float("phys_hold_distance").max(32.0);
-                let eye = self.player.movement.eye_position();
-                let forward = self.player.view_angles.forward();
-
-                // Clamp the reach to whatever the world allows, keeping the
-                // prop's own half-extent clear of the surface it meets. With
-                // nothing in the way the centre stays at phys_hold_distance;
-                // when a wall is closer, the prop's far face rests against it
-                // instead of clipping through it.
-                let mut reach = distance;
-                if let (Some(level), Some(half)) =
-                    (&self.level, self.physics.prop_half_extent(held.id))
-                {
-                    let margin = half.x.max(half.y).max(half.z);
-                    let world = LevelCollision::new(&level.bsp, &self.entities);
-                    let trace = world.trace(
-                        eye,
-                        eye + forward * distance,
-                        Vec3::ZERO,
-                        Vec3::ZERO,
-                        contents::MASK_PLAYER_SOLID,
-                    );
-                    if trace.fraction < 1.0 {
-                        reach = (trace.fraction * distance - margin).clamp(0.0, distance);
-                    }
-                }
-
-                let position = eye + forward * reach - Vec3::Z * 8.0;
-
-                let yaw = kerosene_math::wrap180(self.player.view_angles.yaw + held.yaw_offset);
-                let rotation = Quat::from_mat3(&Angles::new(held.pitch, yaw, held.roll).to_mat3());
-                self.physics
-                    .hold_prop(held.id, position, rotation, &mut self.entities);
-            } else {
-                self.held_prop = None;
-            }
         }
 
         // Only when a script asked for it: the snapshot a hook reads is
@@ -1283,6 +1289,14 @@ fn register_cvars(console: &mut Console) {
         Some(256.0),
         ConVarFlags::REPLICATED,
         "How far in front the pick-up tool carries a prop.",
+    );
+    console.register_cvar("phys_hold_speed", "700", ConVarFlags::REPLICATED, "How fast a carried prop is steered toward the hold point. Whatever it meets on the way still stops it.");
+    console.register_cvar("phys_hold_accel", "6000", ConVarFlags::REPLICATED, "Ceiling on how hard a carried prop is accelerated toward the hold point. What it collides with can still refuse it.");
+    console.register_cvar(
+        "phys_hold_spin",
+        "20",
+        ConVarFlags::REPLICATED,
+        "How fast a carried prop is turned toward the hold angle, in radians per second.",
     );
     console.register_cvar("phys_player_push_force", "8000", ConVarFlags::REPLICATED, "How hard the player can shove a physics prop. A prop's own mass decides how far that gets it.");
     console.register_cvar(

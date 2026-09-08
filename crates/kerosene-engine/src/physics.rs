@@ -381,26 +381,99 @@ impl PhysicsProps {
         self.props.get(&id).map(|p| p.half_extent)
     }
 
-    /// Hold a prop still at `position` (its model centre) and update its
-    /// entity to match, so the renderer and the simulation agree.
-    pub fn hold_prop(
+    /// Steer a carried prop towards where the player is holding it.
+    ///
+    /// A velocity, not a teleport. The prop used to be placed at the hold
+    /// point outright, with its velocity zeroed, every tick -- which took it
+    /// out of the simulation entirely for as long as it was carried. Nothing
+    /// could stop it, so it passed through other props and through anything
+    /// the world trace did not catch, and it sat at the hold point as though
+    /// welded there: pressing a carried box into a crate moved neither.
+    ///
+    /// Driving it by velocity leaves it an ordinary dynamic body, so the
+    /// solver resolves its contacts like any other: it shoves what it can
+    /// move, and what it cannot move stops it, leaving it lagging behind the
+    /// hold point until the way is clear. That lag *is* the behaviour -- a
+    /// carried object yielding when it meets something solid.
+    ///
+    /// `max_speed`, `max_accel` and `max_spin` cap how hard it is driven, so a
+    /// prop that cannot reach its target leans on the obstacle rather than
+    /// detonating against it.
+    pub fn steer_prop(
         &mut self,
         id: EntityId,
         position: Vec3,
         rotation: Quat,
-        entities: &mut EntityWorld,
+        dt: f32,
+        limits: HoldLimits,
     ) {
+        let HoldLimits {
+            max_speed,
+            max_accel,
+            max_spin,
+        } = limits;
         let Some(prop) = self.props.get(&id) else {
             return;
         };
-        self.rigid.set_body_transform(prop.body, position, rotation);
-        self.rigid.set_linear_velocity(prop.body, Vec3::ZERO);
-        self.rigid.set_angular_velocity(prop.body, Vec3::ZERO);
-        let origin = position - rotation * prop.center;
-        if let Some(e) = entities.get_mut(id) {
-            e.origin = origin;
-            e.angles = Angles::from_quat(rotation);
+        if dt <= 0.0 {
+            return;
         }
+        let (current_position, current_rotation) = self.rigid.body_transform(prop.body);
+
+        // The velocity that would close the gap in exactly one tick, capped.
+        let mut velocity = (position - current_position) / dt;
+        let speed = velocity.length();
+        if speed > max_speed {
+            velocity *= max_speed / speed;
+        }
+
+        // Asked for as an impulse with a ceiling on it, not set outright.
+        //
+        // This is the whole difference between a hold that collides and one
+        // that does not. Assigning the velocity every tick overwrites whatever
+        // the contact solver decided last step, so a prop driven at a wall
+        // simply burrows into it -- measured at 8 units of centre separation
+        // between two 32-unit cubes, which is most of the way through. An
+        // impulse is one more force among the contacts, so the solver can
+        // refuse it, and the prop stops at the surface and hangs back from the
+        // hold point until the way is clear.
+        //
+        // A ceiling on acceleration rather than on force means a heavy prop is
+        // carried as responsively as a light one, which is what a carrying
+        // tool is for; the prop's mass still decides every collision it has on
+        // the way.
+        let mass = self.rigid.mass(prop.body);
+        let mut change = velocity - self.rigid.linear_velocity(prop.body);
+        let wanted = change.length();
+        let ceiling = max_accel * dt;
+        if wanted > ceiling {
+            change *= ceiling / wanted;
+        }
+
+        // The same for the turn: the rotation taking the body where it is to
+        // where it should be, as a spin to apply over one tick. Negated when
+        // it points the long way round, so a prop turns the short way.
+        let mut delta = rotation * current_rotation.inverse();
+        if delta.w < 0.0 {
+            delta = -delta;
+        }
+        let (axis, angle) = delta.to_axis_angle();
+        let mut spin = axis * (angle / dt);
+        let rate = spin.length();
+        if rate > max_spin {
+            spin *= max_spin / rate;
+        }
+
+        // A prop that has settled is asleep, and a sleeping body would ignore
+        // being steered.
+        self.rigid.set_awake(prop.body, true);
+        self.rigid.apply_impulse(prop.body, change * mass);
+        // The turn is still assigned rather than asked for: without the body's
+        // inertia tensor there is no honest way to turn a wanted change in
+        // spin into an angular impulse. It matters far less -- a prop wedged
+        // against something is stopped by the contact whatever it is spinning
+        // at, and it is the linear drive that was burrowing.
+        self.rigid.set_angular_velocity(prop.body, spin);
     }
 
     /// Put the player into the simulation where they now stand, moving at
@@ -557,6 +630,21 @@ pub fn is_physics_prop(classname: &str) -> bool {
 /// `mass` is kilograms; the prop's box volume turns it into a density for
 /// Box3D. `friction` and `elasticity` are the usual 0..1 physical
 /// coefficients. Any key left unset falls back to a wood crate.
+/// How hard a carried prop may be driven toward the hold point.
+///
+/// Ceilings, not targets: what the prop collides with on the way is still free
+/// to refuse it, which is the point of steering it rather than placing it.
+#[derive(Clone, Copy, Debug)]
+pub struct HoldLimits {
+    /// Fastest it will be moved, in units per second.
+    pub max_speed: f32,
+    /// Hardest it will be accelerated, in units per second squared. This is
+    /// what a contact has to overcome to hold the prop back.
+    pub max_accel: f32,
+    /// Fastest it will be turned, in radians per second.
+    pub max_spin: f32,
+}
+
 /// The world-space axis-aligned bounds of one prop's oriented box.
 fn prop_aabb(rigid: &RigidWorld, prop: &PropBody) -> Aabb {
     let (position, rotation) = rigid.body_transform(prop.body);

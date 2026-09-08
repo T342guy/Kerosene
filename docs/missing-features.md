@@ -60,9 +60,13 @@ for completeness.
   `mass`, so a crate slides and a safe does not. The use key is a pick-up
   tool: aim at a prop and press use to carry it, press use again to set it
   down, or attack to throw it at `phys_launch_speed` plus whatever the player
-  was already doing. A carried prop
-  stays facing the player as they turn and rests against walls instead of
-  clipping through them. `.keromdl` models render at their simulated pose, and
+  was already doing. A carried prop is
+  steered toward the hold point rather than placed at it, under ceilings on
+  speed, acceleration and spin (`phys_hold_speed`, `phys_hold_accel`,
+  `phys_hold_spin`), so it stays an ordinary body in the simulation: it turns
+  to face the player as they turn, shoves what it can move, and hangs back
+  short of the hold point when it meets what it cannot, rather than being
+  driven through it. `.keromdl` models render at their simulated pose, and
   `phys_debug` draws the collision boxes. Still boxes only -- convex-hull
   props, joints, per-surface-material friction and a launch-beams gravity-gun
   are not there yet.

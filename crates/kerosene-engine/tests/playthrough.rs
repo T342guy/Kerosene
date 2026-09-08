@@ -759,11 +759,17 @@ fn a_carried_prop_turns_to_face_the_player() {
     // Turn the view ninety degrees; the carried prop must turn with it rather
     // than keeping its old world orientation. The view comes from the input,
     // so the turn has to be fed in as the view angles the tick consumes.
+    //
+    // Half a second, not four ticks. The prop is steered toward the hold
+    // angle rather than being placed at it, so it takes a moment to come
+    // round -- and it is resting against the pillar it was picked up from,
+    // which resists the turn exactly as it should. Snapping instantly was a
+    // symptom of the hold being outside the simulation.
     let turned_view = InputState {
         view_angles: Angles::new(0.0, 90.0, 0.0),
         ..Default::default()
     };
-    for _ in 0..4 {
+    for _ in 0..(0.5 / TICK) as usize {
         engine.tick(TICK, &turned_view);
     }
     let after = engine.entities.get(prop).expect("still alive").angles.yaw;
@@ -1010,6 +1016,18 @@ fn the_use_key_puts_a_prop_down_where_a_throw_would_have_flung_it() {
     };
     engine.tick(TICK, &press_use);
     assert_eq!(engine.held_prop(), Some(prop), "use picks it up");
+
+    // Step aside first, so the crate is over open floor rather than over the
+    // pillar it was lifted off -- otherwise "it fell" and "it never moved"
+    // look identical.
+    let aside = InputState {
+        side: 1.0,
+        ..Default::default()
+    };
+    for _ in 0..(0.6 / TICK) as usize {
+        engine.tick(TICK, &aside);
+    }
+
     engine.tick(TICK, &idle);
     engine.tick(TICK, &press_use);
     assert_eq!(engine.held_prop(), None, "use puts it down again");
@@ -1020,19 +1038,243 @@ fn the_use_key_puts_a_prop_down_where_a_throw_would_have_flung_it() {
     }
     let settled = engine.entities.get(prop).expect("still alive").origin;
 
+    let travelled = (settled.truncate() - released.truncate()).length();
     assert!(
-        (settled.x - released.x).abs() < 48.0,
-        "a dropped crate travelled {} units -- that is a throw",
-        settled.x - released.x
+        travelled < 48.0,
+        "a dropped crate travelled {travelled} units -- that is a throw"
     );
-    // And it fell. A prop let go of while standing still is asleep in the
-    // solver, and a body that is never woken hangs exactly where it was left.
+    // And it fell to the floor. A prop let go of while standing still is
+    // asleep in the solver, and a body that is never woken hangs exactly
+    // where it was left.
     assert!(
-        settled.z < released.z - 8.0,
+        settled.z < 24.0,
         "the dropped crate hung in the air at z={} (released at z={})",
         settled.z,
         released.z
     );
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_carried_prop_shoves_another_one_instead_of_passing_into_it() {
+    // A carried prop used to be placed at the hold point outright, every tick,
+    // with its velocity zeroed -- which took it out of the simulation for as
+    // long as it was held. It went through other props without touching them,
+    // and it sat at the hold point as though welded there. Steering it by
+    // velocity leaves it an ordinary body: it shoves what it meets.
+    use kerosene_engine::engine::{Engine, EngineConfig};
+    use kerosene_entity::Value;
+
+    let dir = std::env::temp_dir().join(format!(
+        "kerosene-carrypush-{}-{:?}",
+        std::process::id(),
+        std::thread::current().id()
+    ));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(dir.join("maps")).unwrap();
+    std::fs::create_dir_all(dir.join("models/props")).unwrap();
+
+    let mut map = corridor_map(false, false);
+    // The pillar the carried prop is lifted from, at eye height...
+    add_brush_entity(
+        &mut map,
+        "func_detail",
+        Aabb::new(Vec3::new(64.0, 48.0, 0.0), Vec3::new(96.0, 80.0, 56.0)),
+        "dev/grid",
+    );
+    // ...and a lower shelf further along, which stands a second prop at
+    // exactly the height the first one is carried at.
+    add_brush_entity(
+        &mut map,
+        "func_detail",
+        Aabb::new(Vec3::new(120.0, 48.0, 0.0), Vec3::new(180.0, 80.0, 40.0)),
+        "dev/grid",
+    );
+    let bsp = build(&map);
+    std::fs::write(dir.join("maps/phystest.kerobsp"), bsp.to_bytes()).unwrap();
+    std::fs::write(
+        dir.join("models/props/cube.keromdl"),
+        cube_model().to_bytes(),
+    )
+    .unwrap();
+
+    let mut engine = Engine::new(&EngineConfig {
+        content_paths: vec![dir.clone()],
+        ..Default::default()
+    });
+    engine
+        .load_map("phystest")
+        .expect("the engine should load it");
+
+    let carried = engine.spawn_prop("props/cube", Vec3::new(80.0, 64.0, 72.0));
+    let target = engine.spawn_prop("props/cube", Vec3::new(150.0, 64.0, 56.0));
+    for id in [carried, target] {
+        if let Some(e) = engine.entities.get_mut(id) {
+            e.fields.set("mass", Value::Text("8".into()));
+        }
+    }
+
+    let idle = InputState::default();
+    for _ in 0..(2.0 / TICK) as usize {
+        engine.tick(TICK, &idle);
+    }
+    let target_before = engine.entities.get(target).expect("still alive").origin;
+
+    engine.tick(
+        TICK,
+        &InputState {
+            use_key: true,
+            ..Default::default()
+        },
+    );
+    assert_eq!(engine.held_prop(), Some(carried), "the press picks it up");
+
+    // Walk into the shelf. The player stops at the pillar; the prop they are
+    // carrying reaches past it, into the prop standing on the shelf.
+    let forward = InputState {
+        forward: 1.0,
+        ..Default::default()
+    };
+    for _ in 0..(2.0 / TICK) as usize {
+        engine.tick(TICK, &forward);
+    }
+
+    let target_after = engine.entities.get(target).expect("still alive").origin;
+    let moved = (target_after.truncate() - target_before.truncate()).length();
+    assert!(
+        moved > 8.0,
+        "the carried prop passed through the other one instead of shoving it \
+         (it moved {moved} units)"
+    );
+
+    // And they are not occupying the same space. Two 32-unit cubes sitting in
+    // each other would have their centres almost on top of one another; solid
+    // ones cannot get much closer than a cube's width apart.
+    let carried_now = engine.entities.get(carried).expect("still alive").origin;
+    let apart = (carried_now - target_after).length();
+    assert!(
+        apart > 24.0,
+        "the two crates ended up inside each other, centres {apart} units apart"
+    );
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_carried_prop_gives_way_when_it_meets_something_it_cannot_move() {
+    // Two things the old hold could not do, both of which come from the same
+    // cause. It placed the prop at the hold point every tick with its velocity
+    // zeroed, so for as long as it was carried it was not really in the
+    // simulation: it went into whatever was in the way, and it sat at the hold
+    // point as though welded to it however hard it was pressed against
+    // something.
+    //
+    // The obstacle here is a very heavy prop rather than a wall, deliberately:
+    // the reach trace that pulls the hold point back only knows about world
+    // brushes, so a prop is something it cannot see. Whatever keeps the
+    // carried prop out of it has to be the simulation itself.
+    use kerosene_engine::engine::{Engine, EngineConfig};
+    use kerosene_entity::Value;
+
+    let dir = std::env::temp_dir().join(format!(
+        "kerosene-holdgive-{}-{:?}",
+        std::process::id(),
+        std::thread::current().id()
+    ));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(dir.join("maps")).unwrap();
+    std::fs::create_dir_all(dir.join("models/props")).unwrap();
+
+    let mut map = corridor_map(false, false);
+    add_brush_entity(
+        &mut map,
+        "func_detail",
+        Aabb::new(Vec3::new(64.0, 48.0, 0.0), Vec3::new(96.0, 80.0, 56.0)),
+        "dev/grid",
+    );
+    // A shelf standing the obstacle at the height the carried prop rides at.
+    add_brush_entity(
+        &mut map,
+        "func_detail",
+        Aabb::new(Vec3::new(112.0, 48.0, 0.0), Vec3::new(180.0, 80.0, 40.0)),
+        "dev/grid",
+    );
+    let bsp = build(&map);
+    std::fs::write(dir.join("maps/phystest.kerobsp"), bsp.to_bytes()).unwrap();
+    std::fs::write(
+        dir.join("models/props/cube.keromdl"),
+        cube_model().to_bytes(),
+    )
+    .unwrap();
+
+    let mut engine = Engine::new(&EngineConfig {
+        content_paths: vec![dir.clone()],
+        ..Default::default()
+    });
+    engine
+        .load_map("phystest")
+        .expect("the engine should load it");
+
+    let carried = engine.spawn_prop("props/cube", Vec3::new(80.0, 64.0, 72.0));
+    if let Some(e) = engine.entities.get_mut(carried) {
+        e.fields.set("mass", Value::Text("8".into()));
+    }
+    let obstacle_origin = Vec3::new(140.0, 64.0, 56.0);
+    let obstacle = engine.spawn_prop("props/cube", obstacle_origin);
+    if let Some(e) = engine.entities.get_mut(obstacle) {
+        e.fields.set("mass", Value::Text("100000".into()));
+    }
+
+    let idle = InputState::default();
+    for _ in 0..(2.0 / TICK) as usize {
+        engine.tick(TICK, &idle);
+    }
+    engine.tick(
+        TICK,
+        &InputState {
+            use_key: true,
+            ..Default::default()
+        },
+    );
+    assert_eq!(engine.held_prop(), Some(carried), "the press picks it up");
+
+    // Lean on it for two seconds, watching how close the two ever come.
+    let forward = InputState {
+        forward: 1.0,
+        ..Default::default()
+    };
+    let mut closest = f32::INFINITY;
+    for _ in 0..(2.0 / TICK) as usize {
+        engine.tick(TICK, &forward);
+        let a = engine.entities.get(carried).expect("still alive").origin;
+        let b = engine.entities.get(obstacle).expect("still alive").origin;
+        closest = closest.min((a - b).length());
+    }
+
+    // Never inside it. The cubes are 32 units across, so touching is about 32
+    // between centres and anything well under that is one prop occupying the
+    // other. Driving the carried prop by assigning its velocity every tick --
+    // which overwrites what the contact solver decided -- got this down to 8.
+    assert!(
+        closest > 26.0,
+        "the carried prop went inside the obstacle: centres came within {closest} units"
+    );
+
+    // And it hung back. The hold point is 72 units out in front of the eye; a
+    // prop that cannot get there has to be found short of it, not at it.
+    let eye = engine.player.movement.eye_position();
+    let reach = (engine.entities.get(carried).expect("still alive").origin - eye).length();
+    assert!(
+        reach < 60.0,
+        "the carried prop stayed {reach} units out, at the hold point, as though \
+         nothing were in its way"
+    );
+
+    // The obstacle is what did not move, rather than the test being staged.
+    let shifted =
+        (engine.entities.get(obstacle).expect("still alive").origin - obstacle_origin).length();
+    assert!(shifted < 8.0, "the obstacle moved {shifted} units");
 
     let _ = std::fs::remove_dir_all(&dir);
 }

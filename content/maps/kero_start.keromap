@@ -1527,7 +1527,7 @@ entity
 	"spawncount" "3"
 	"spawnflags" "1"
 	"friction" "1"
-	"mass" "11"
+	"mass" "50"
 	"elasticity" "0.5"
 }
 entity
