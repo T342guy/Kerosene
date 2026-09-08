@@ -318,7 +318,7 @@ impl Renderer {
                 vertex: wgpu::VertexState {
                     module: &shader,
                     entry_point: Some("vs_main"),
-                    buffers: &[vertex_layout.clone()],
+                    buffers: std::slice::from_ref(&vertex_layout),
                     compilation_options: Default::default(),
                 },
                 fragment: Some(wgpu::FragmentState {
@@ -546,10 +546,10 @@ impl Renderer {
     /// Create or resize the depth buffer.
     pub fn ensure_depth(&mut self, device: &wgpu::Device, width: u32, height: u32) {
         let (width, height) = (width.max(1), height.max(1));
-        if let Some((_, _, w, h)) = &self.depth {
-            if *w == width && *h == height {
-                return;
-            }
+        if let Some((_, _, w, h)) = &self.depth
+            && *w == width && *h == height
+        {
+            return;
         }
         let texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("depth"),
@@ -633,8 +633,8 @@ impl Renderer {
 
         let mut current_material = u32::MAX;
         for &(first, count, material) in &gpu_model.meshes {
-            if material != current_material {
-                if let Some(group) = gpu_model
+            if material != current_material
+                && let Some(group) = gpu_model
                     .material_bind_groups
                     .get(material as usize)
                     .and_then(|g| g.as_ref())
@@ -642,7 +642,6 @@ impl Renderer {
                     pass.set_bind_group(1, group, &[]);
                     current_material = material;
                 }
-            }
             pass.draw_indexed(first..first + count, 0, 0..1);
             stats.draw_calls += 1;
             stats.triangles += (count / 3) as usize;

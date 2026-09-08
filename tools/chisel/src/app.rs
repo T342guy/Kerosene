@@ -2809,7 +2809,7 @@ impl ChiselApp {
             rect,
             0.0,
             egui::Stroke::new(
-                1.0,
+                1.0_f32,
                 if self.active == index {
                     draw::colors::SELECTED
                 } else {
@@ -3344,7 +3344,7 @@ impl ChiselApp {
         let half_x = half_y * aspect;
 
         let camera = draw::to_camera_space(&self.leak.points, viewport.eye, basis);
-        let stroke = egui::Stroke::new(2.0, draw::colors::LEAK);
+        let stroke = egui::Stroke::new(2.0_f32, draw::colors::LEAK);
         for pair in camera.windows(2) {
             // Clip the segment to the near plane rather than dropping it: the
             // camera is usually inside the room the leak starts in.
@@ -3411,7 +3411,7 @@ impl ChiselApp {
             _ => draw::ghost_outline(&self.document, drag.delta()),
         };
 
-        let stroke = egui::Stroke::new(1.5, draw::colors::TOOL_PREVIEW);
+        let stroke = egui::Stroke::new(1.5_f32, draw::colors::TOOL_PREVIEW);
         for polygon in polygons {
             let camera = draw::to_camera_space(&polygon, viewport.eye, basis);
             // An entity marker is a line segment, not a loop; clipping a loop

@@ -227,7 +227,7 @@ pub fn draw_2d(
         if selected {
             // A ring, so the selection reads at a glance without the icon
             // having to change shape.
-            painter.circle_stroke(center, 10.0, Stroke::new(1.5, color));
+            painter.circle_stroke(center, 10.0, Stroke::new(1.5_f32, color));
         }
         // Its name if it has one, because that is what the wiring refers to
         // and what you are looking for when you are looking. The classname is
@@ -263,7 +263,7 @@ fn draw_grid(painter: &Painter, rect: Rect, viewport: &Viewport, document: &Docu
     let bounds = viewport.visible_bounds();
 
     let line = |from: Pos2, to: Pos2, color: Color32| {
-        painter.line_segment([from, to], Stroke::new(1.0, color));
+        painter.line_segment([from, to], Stroke::new(1.0_f32, color));
     };
 
     // Vertical lines: constant along the horizontal world axis.
@@ -319,7 +319,7 @@ fn draw_solid_outline(
     color: Color32,
     selected: bool,
 ) {
-    let width = if selected { 2.0 } else { 1.0 };
+    let width = if selected { 2.0_f32 } else { 1.0_f32 };
     let stroke = Stroke::new(width, color);
 
     for (_, winding) in solid.face_windings() {
@@ -354,7 +354,7 @@ fn draw_motion(painter: &Painter, rect: Rect, viewport: &Viewport, document: &Do
         rect,
         viewport,
         &motion.ghost,
-        Stroke::new(1.0, colour),
+        Stroke::new(1.0_f32, colour),
     );
 
     let to_screen = |world: Vec3| {
@@ -362,7 +362,7 @@ fn draw_motion(painter: &Painter, rect: Rect, viewport: &Viewport, document: &Do
         Pos2::new(rect.min.x + x, rect.min.y + y)
     };
     let (from, to) = (to_screen(motion.arrow.0), to_screen(motion.arrow.1));
-    painter.line_segment([from, to], Stroke::new(1.5, colour));
+    painter.line_segment([from, to], Stroke::new(1.5_f32, colour));
 
     // A head, so the line reads as a direction rather than as an edge. Drawn
     // from the screen-space vector, since the world one may point straight at
@@ -372,8 +372,8 @@ fn draw_motion(painter: &Painter, rect: Rect, viewport: &Viewport, document: &Do
         let unit = along / along.length();
         let side = Vec2::new(-unit.y, unit.x) * 4.0;
         let base = to - unit * 9.0;
-        painter.line_segment([to, base + side], Stroke::new(1.5, colour));
-        painter.line_segment([to, base - side], Stroke::new(1.5, colour));
+        painter.line_segment([to, base + side], Stroke::new(1.5_f32, colour));
+        painter.line_segment([to, base - side], Stroke::new(1.5_f32, colour));
         painter.text(
             to + Vec2::new(6.0, 2.0),
             egui::Align2::LEFT_TOP,
@@ -421,7 +421,7 @@ fn draw_resize_grips(
         painter.rect_stroke(
             box_,
             0.0,
-            Stroke::new(1.0, Color32::from_rgb(20, 22, 26)),
+            Stroke::new(1.0_f32, Color32::from_rgb(20, 22, 26)),
             egui::StrokeKind::Middle,
         );
     }
@@ -461,7 +461,7 @@ fn draw_tool_preview(
             rect,
             viewport,
             &ghost,
-            Stroke::new(1.5, colors::TOOL_PREVIEW),
+            Stroke::new(1.5_f32, colors::TOOL_PREVIEW),
         );
 
         let (h, v, _) = viewport.kind.axes();
@@ -495,7 +495,7 @@ fn draw_tool_preview(
             rect,
             viewport,
             &ghost,
-            Stroke::new(1.5, colors::TOOL_PREVIEW),
+            Stroke::new(1.5_f32, colors::TOOL_PREVIEW),
         );
 
         let (h, v, _) = viewport.kind.axes();
@@ -538,7 +538,7 @@ fn draw_tool_preview(
             rect,
             viewport,
             &outlines,
-            Stroke::new(1.0, colors::TOOL_PREVIEW),
+            Stroke::new(1.0_f32, colors::TOOL_PREVIEW),
         );
 
         let (h, v, _) = viewport.kind.axes();
@@ -576,7 +576,7 @@ fn draw_tool_preview(
     painter.rect_stroke(
         preview,
         0.0,
-        Stroke::new(1.0, colors::TOOL_PREVIEW),
+        Stroke::new(1.0_f32, colors::TOOL_PREVIEW),
         egui::StrokeKind::Middle,
     );
 
@@ -606,7 +606,7 @@ fn draw_leak(painter: &Painter, rect: Rect, viewport: &Viewport, leak: &crate::l
     if leak.is_empty() {
         return;
     }
-    let stroke = Stroke::new(2.0, colors::LEAK);
+    let stroke = Stroke::new(2.0_f32, colors::LEAK);
     let to_screen = |world: Vec3| {
         let (x, y) = viewport.world_to_screen(world);
         Pos2::new(rect.min.x + x, rect.min.y + y)

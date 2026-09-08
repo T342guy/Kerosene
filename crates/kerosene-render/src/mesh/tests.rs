@@ -136,7 +136,7 @@ fn triangles_are_wound_counter_clockwise_from_the_front() {
     // Faces are stored clockwise; GPUs cull clockwise as back-facing, so
     // getting this wrong makes the whole world invisible from the inside.
     let (_, mesh) = build(true);
-    for tri in mesh.indices.chunks_exact(3) {
+    for tri in mesh.indices.as_chunks::<3>().0 {
         let a = Vec3::from_array(mesh.vertices[tri[0] as usize].position);
         let b = Vec3::from_array(mesh.vertices[tri[1] as usize].position);
         let c = Vec3::from_array(mesh.vertices[tri[2] as usize].position);

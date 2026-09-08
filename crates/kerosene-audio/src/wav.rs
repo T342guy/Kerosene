@@ -111,11 +111,11 @@ pub fn decode(bytes: &[u8]) -> Result<Sound, AudioError> {
     let samples = match (format.tag, format.bits) {
         (FORMAT_PCM, 8) => data.iter().map(|&b| (b as f32 - 128.0) / 128.0).collect(),
         (FORMAT_PCM, 16) => data
-            .chunks_exact(2)
+            .as_chunks::<2>().0.iter()
             .map(|c| i16::from_le_bytes([c[0], c[1]]) as f32 / 32768.0)
             .collect(),
         (FORMAT_PCM, 24) => data
-            .chunks_exact(3)
+            .as_chunks::<3>().0.iter()
             .map(|c| {
                 // Sign-extend the top byte into a 32-bit value.
                 let v = i32::from_le_bytes([0, c[0], c[1], c[2]]);
@@ -123,11 +123,11 @@ pub fn decode(bytes: &[u8]) -> Result<Sound, AudioError> {
             })
             .collect(),
         (FORMAT_PCM, 32) => data
-            .chunks_exact(4)
+            .as_chunks::<4>().0.iter()
             .map(|c| i32::from_le_bytes([c[0], c[1], c[2], c[3]]) as f32 / 2_147_483_648.0)
             .collect(),
         (FORMAT_FLOAT, 32) => data
-            .chunks_exact(4)
+            .as_chunks::<4>().0.iter()
             .map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]]))
             .collect(),
         (tag, bits) => {

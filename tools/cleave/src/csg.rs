@@ -137,10 +137,10 @@ fn subtract_brush(
         }
 
         let (front, back) = rest.split(&planes.get(side.plane), ON_EPSILON);
-        if let Some(f) = front {
-            if !f.is_tiny() {
-                outside.push(f);
-            }
+        if let Some(f) = front
+            && !f.is_tiny()
+        {
+            outside.push(f);
         }
         match back {
             Some(b) => rest = b,

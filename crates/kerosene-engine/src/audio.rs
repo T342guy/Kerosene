@@ -55,12 +55,12 @@ impl AudioSystem {
                 Ok(device) => {
                     let mixer = Arc::clone(device.mixer());
                     let status = format!("{} at {} Hz", device.name(), device.sample_rate());
-                    return AudioSystem {
+                    AudioSystem {
                         bank: SoundBank::new(),
                         mixer,
                         device: Some(device),
                         status,
-                    };
+                    }
                 }
                 Err(e) => {
                     // Once, at info: a machine without a sound card is a
@@ -68,7 +68,7 @@ impl AudioSystem {
                     log::info!("audio: {e}; running silent");
                     let mut silent = AudioSystem::silent();
                     silent.status = format!("{e}");
-                    return silent;
+                    silent
                 }
             }
         }

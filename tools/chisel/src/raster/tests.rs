@@ -34,7 +34,7 @@ fn render_at(document: &Document, eye: Vec3, yaw: f32, pitch: f32) -> Image {
 }
 
 fn any_pixel(image: &Image, want: [u8; 4]) -> bool {
-    image.pixels.iter().any(|p| *p == want)
+    image.pixels.contains(&want)
 }
 
 /// The colour a face gets in the untextured mode these tests use.

@@ -227,10 +227,10 @@ impl ApplicationHandler for App {
         // Raw device motion rather than cursor position: it keeps working when
         // the pointer is locked, and it is not affected by OS mouse
         // acceleration or by hitting the edge of the screen.
-        if let DeviceEvent::MouseMotion { delta } = event {
-            if self.mouse_captured {
-                self.input.mouse_moved(delta.0 as f32, delta.1 as f32);
-            }
+        if let DeviceEvent::MouseMotion { delta } = event
+            && self.mouse_captured
+        {
+            self.input.mouse_moved(delta.0 as f32, delta.1 as f32);
         }
     }
 
@@ -536,72 +536,72 @@ impl App {
                 occlusion_query_set: None,
             });
 
-            if let (Some(map), Some(level)) = (&self.map, &self.engine.level) {
-                if self.engine.console.bool("r_drawworld") {
-                    let novis = self.engine.console.bool("r_novis");
-                    let visible = if novis {
-                        // Every surface, models included: `r_novis` means
-                        // "cull nothing", and the models are drawn below.
-                        map.mesh.world_surfaces()
-                    } else {
-                        map.mesh
-                            .visible_surfaces(&level.bsp, camera.position, &camera.frustum())
-                    };
-                    self.stats = gfx.renderer.draw_world(
+            if let (Some(map), Some(level)) = (&self.map, &self.engine.level)
+                && self.engine.console.bool("r_drawworld")
+            {
+                let novis = self.engine.console.bool("r_novis");
+                let visible = if novis {
+                    // Every surface, models included: `r_novis` means
+                    // "cull nothing", and the models are drawn below.
+                    map.mesh.world_surfaces()
+                } else {
+                    map.mesh
+                        .visible_surfaces(&level.bsp, camera.position, &camera.frustum())
+                };
+                self.stats = gfx.renderer.draw_world(
+                    &mut pass,
+                    &map.frame_bind_group,
+                    &map.resources,
+                    &map.mesh,
+                    &visible,
+                );
+
+                // Then the brush entities, each where it has got to.
+                // They are not in the world's PVS -- their leaves are
+                // their own -- so a leaf walk cannot find them, which is
+                // why every door in every map used to be invisible.
+                let frustum = camera.frustum();
+                for (model, pose) in &brush_models {
+                    if !novis && !map.mesh.model_is_visible(*model, *pose, &frustum) {
+                        continue;
+                    }
+                    let drawn = gfx.renderer.draw_model(
                         &mut pass,
                         &map.frame_bind_group,
                         &map.resources,
                         &map.mesh,
-                        &visible,
+                        *model,
                     );
+                    self.stats.draw_calls += drawn.draw_calls;
+                    self.stats.triangles += drawn.triangles;
+                    self.stats.surfaces_drawn += drawn.surfaces_drawn;
+                }
 
-                    // Then the brush entities, each where it has got to.
-                    // They are not in the world's PVS -- their leaves are
-                    // their own -- so a leaf walk cannot find them, which is
-                    // why every door in every map used to be invisible.
-                    let frustum = camera.frustum();
-                    for (model, pose) in &brush_models {
-                        if !novis && !map.mesh.model_is_visible(*model, *pose, &frustum) {
-                            continue;
-                        }
-                        let drawn = gfx.renderer.draw_model(
+                // Physics props, at the pose in their model slot.
+                for (slot, name) in &props {
+                    if let Some(model) = self.model_cache.get(name) {
+                        let drawn = gfx.renderer.draw_studio_model(
                             &mut pass,
                             &map.frame_bind_group,
-                            &map.resources,
-                            &map.mesh,
-                            *model,
+                            model,
+                            *slot,
                         );
                         self.stats.draw_calls += drawn.draw_calls;
                         self.stats.triangles += drawn.triangles;
-                        self.stats.surfaces_drawn += drawn.surfaces_drawn;
                     }
-
-                    // Physics props, at the pose in their model slot.
-                    for (slot, name) in &props {
-                        if let Some(model) = self.model_cache.get(name) {
-                            let drawn = gfx.renderer.draw_studio_model(
-                                &mut pass,
-                                &map.frame_bind_group,
-                                model,
-                                *slot,
-                            );
-                            self.stats.draw_calls += drawn.draw_calls;
-                            self.stats.triangles += drawn.triangles;
-                        }
-                    }
-
-                    // The physics debug overlay, drawn last so it sits on top.
-                    if let Some(buffer) = &line_buffer {
-                        gfx.renderer.draw_lines(
-                            &mut pass,
-                            &map.frame_bind_group,
-                            buffer,
-                            line_count,
-                        );
-                    }
-
-                    self.stats.cluster = level.bsp.point_cluster(camera.position);
                 }
+
+                // The physics debug overlay, drawn last so it sits on top.
+                if let Some(buffer) = &line_buffer {
+                    gfx.renderer.draw_lines(
+                        &mut pass,
+                        &map.frame_bind_group,
+                        buffer,
+                        line_count,
+                    );
+                }
+
+                self.stats.cluster = level.bsp.point_cluster(camera.position);
             }
         }
 

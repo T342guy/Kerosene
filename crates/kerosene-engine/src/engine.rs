@@ -526,10 +526,10 @@ impl Engine {
         }
         self.console.run_buffered();
 
-        if let Some(map) = self.pending_map.take() {
-            if let Err(e) = self.load_map(&map) {
-                self.console.error(format!("{e}"));
-            }
+        if let Some(map) = self.pending_map.take()
+            && let Err(e) = self.load_map(&map)
+        {
+            self.console.error(format!("{e}"));
         }
 
         let interval = self.tick_interval();

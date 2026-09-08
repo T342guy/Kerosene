@@ -211,7 +211,7 @@ fn load(vfs: &Vfs, material: &str) -> Result<Texture, String> {
         };
         let mip = &texture.mips[level];
         let pixels: Vec<[u8; 4]> = rgba
-            .chunks_exact(4)
+            .as_chunks::<4>().0.iter()
             .map(|c| [c[0], c[1], c[2], c[3]])
             .collect();
         if pixels.len() != (mip.width * mip.height) as usize {

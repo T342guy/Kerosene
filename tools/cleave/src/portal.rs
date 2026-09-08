@@ -102,15 +102,15 @@ fn make_head_portals(tree: &mut Tree, planes: &mut PlaneSet, set: &mut PortalSet
 
     let mut windings: Vec<Winding> = box_planes.iter().map(Winding::base_for_plane).collect();
     // Cut each face of the box back by the other five.
-    for i in 0..6 {
-        for j in 0..6 {
+    for (i, winding) in windings.iter_mut().enumerate() {
+        for (j, plane) in box_planes.iter().enumerate() {
             if i == j {
                 continue;
             }
-            match windings[i].clipped(&box_planes[j], ON_EPSILON) {
-                Some(w) => windings[i] = w,
+            match winding.clipped(plane, ON_EPSILON) {
+                Some(w) => *winding = w,
                 None => {
-                    windings[i] = Winding::new(Vec::new());
+                    *winding = Winding::new(Vec::new());
                     break;
                 }
             }

@@ -482,15 +482,20 @@ mod tests {
 
     #[test]
     fn content_masks_compose_as_expected() {
-        assert!(contents::MASK_PLAYER_SOLID & contents::PLAYER_CLIP != 0);
-        assert!(
-            contents::MASK_SHOT & contents::PLAYER_CLIP == 0,
-            "bullets pass player clips"
-        );
-        assert!(
-            contents::MASK_OPAQUE & contents::GRATE == 0,
-            "you can see through a grate"
-        );
+        // `const` blocks: these are relationships between constants, so they
+        // can be checked when the crate is built rather than when the test is
+        // run, and a mask edited into contradiction stops the build.
+        const {
+            assert!(contents::MASK_PLAYER_SOLID & contents::PLAYER_CLIP != 0);
+            assert!(
+                contents::MASK_SHOT & contents::PLAYER_CLIP == 0,
+                "bullets pass player clips"
+            );
+            assert!(
+                contents::MASK_OPAQUE & contents::GRATE == 0,
+                "you can see through a grate"
+            );
+        }
 
         // A ladder changes how you move without ever stopping you, which is
         // the whole distinction MASK_VOLUMES exists to draw.

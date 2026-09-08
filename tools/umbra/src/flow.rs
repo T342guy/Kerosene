@@ -105,13 +105,11 @@ fn base_portal_vis(graph: &PortalGraph) -> Vec<BitSet> {
     let n = graph.portal_count();
     let mut out = vec![BitSet::new(n); n];
 
-    for i in 0..n {
-        let p = &graph.portals[i];
-        for j in 0..n {
+    for (i, p) in graph.portals.iter().enumerate() {
+        for (j, q) in graph.portals.iter().enumerate() {
             if i == j {
                 continue;
             }
-            let q = &graph.portals[j];
 
             // q must have at least one point in front of p, or p cannot see
             // any of it.
@@ -167,17 +165,17 @@ fn flood(graph: &PortalGraph, front: &[BitSet]) -> Vec<BitSet> {
 /// Turn per-portal visibility into per-cluster visibility.
 fn merge_clusters(graph: &PortalGraph, portal_vis: &[BitSet]) -> Vec<BitSet> {
     let mut out = vec![BitSet::new(graph.clusters); graph.clusters];
-    for c in 0..graph.clusters {
+    for (c, cluster) in out.iter_mut().enumerate() {
         // A cluster always sees itself.
-        out[c].set(c);
+        cluster.set(c);
         for &pnum in &graph.by_cluster[c] {
             // And it always sees whatever is directly through its own
             // portals. The flow starts *beyond* each portal, so without this
             // the immediate neighbour never appears and adjacent rooms would
             // cull each other away.
-            out[c].set(graph.portals[pnum].into_cluster);
+            cluster.set(graph.portals[pnum].into_cluster);
             for seen in portal_vis[pnum].iter_set() {
-                out[c].set(graph.portals[seen].into_cluster);
+                cluster.set(graph.portals[seen].into_cluster);
             }
         }
     }

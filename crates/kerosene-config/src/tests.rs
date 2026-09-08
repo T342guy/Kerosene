@@ -43,12 +43,12 @@ fn a_file_without_a_block_is_read_from_the_root() {
 
 #[test]
 fn renderer_names_take_friendly_aliases() {
-    assert_eq!(Renderer::from_str("vulkan"), Some(Renderer::Vulkan));
-    assert_eq!(Renderer::from_str("VK"), Some(Renderer::Vulkan));
-    assert_eq!(Renderer::from_str("DirectX12"), Some(Renderer::Dx12));
-    assert_eq!(Renderer::from_str("OpenGL"), Some(Renderer::Gl));
-    assert_eq!(Renderer::from_str("auto"), Some(Renderer::Auto));
-    assert_eq!(Renderer::from_str("nonsense"), None);
+    assert_eq!(Renderer::from_name("vulkan"), Some(Renderer::Vulkan));
+    assert_eq!(Renderer::from_name("VK"), Some(Renderer::Vulkan));
+    assert_eq!(Renderer::from_name("DirectX12"), Some(Renderer::Dx12));
+    assert_eq!(Renderer::from_name("OpenGL"), Some(Renderer::Gl));
+    assert_eq!(Renderer::from_name("auto"), Some(Renderer::Auto));
+    assert_eq!(Renderer::from_name("nonsense"), None);
 }
 
 #[test]

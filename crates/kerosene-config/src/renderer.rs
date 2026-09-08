@@ -7,19 +7,16 @@
 /// one of them. Vulkan is the default, and `auto` lets wgpu pick whatever it
 /// can find.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Default)]
 pub enum Renderer {
     Auto,
+    #[default]
     Vulkan,
     Metal,
     Dx12,
     Gl,
 }
 
-impl Default for Renderer {
-    fn default() -> Self {
-        Renderer::Vulkan
-    }
-}
 
 impl Renderer {
     /// The name as it is written in a config file.
@@ -34,7 +31,10 @@ impl Renderer {
     }
 
     /// Parse a config value, accepting a few friendly aliases.
-    pub fn from_str(s: &str) -> Option<Renderer> {
+    ///
+    /// Not `from_str`: that name belongs to [`std::str::FromStr`], and an
+    /// inherent method wearing it shadows the trait for anyone who imports it.
+    pub fn from_name(s: &str) -> Option<Renderer> {
         match s.trim().to_ascii_lowercase().as_str() {
             "auto" | "any" => Some(Renderer::Auto),
             "vulkan" | "vk" => Some(Renderer::Vulkan),

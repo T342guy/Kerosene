@@ -322,13 +322,13 @@ pub fn emit(
 
         let first_leafface = bsp.leaffaces.len() as u32;
         let solid = node.contents & contents::SOLID != 0;
-        if !solid {
-            if let Some(pending) = leaf_faces.remove(&n) {
-                for pf in pending {
-                    let face = build_face(pf, &mut welder, &mut edges, &tex);
-                    bsp.leaffaces.push(bsp.faces.len() as u32);
-                    bsp.faces.push(face);
-                }
+        if !solid
+            && let Some(pending) = leaf_faces.remove(&n)
+        {
+            for pf in pending {
+                let face = build_face(pf, &mut welder, &mut edges, &tex);
+                bsp.leaffaces.push(bsp.faces.len() as u32);
+                bsp.faces.push(face);
             }
         }
         let num_leaffaces = bsp.leaffaces.len() as u32 - first_leafface;
@@ -336,10 +336,10 @@ pub fn emit(
         let first_leafbrush = bsp.leafbrushes.len() as u32;
         let mut seen: Vec<u32> = Vec::new();
         for fragment in &node.brushes {
-            if let Some(&index) = brush_index_map.get(&fragment.original) {
-                if !seen.contains(&index) {
-                    seen.push(index);
-                }
+            if let Some(&index) = brush_index_map.get(&fragment.original)
+                && !seen.contains(&index)
+            {
+                seen.push(index);
             }
         }
         seen.sort_unstable();

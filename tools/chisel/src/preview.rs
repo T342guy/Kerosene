@@ -54,7 +54,7 @@ pub fn model(model: &Model, size: usize, yaw: f32, pitch: f32) -> Image {
     let mut depth = vec![f32::NEG_INFINITY; size * size];
     let light = LIGHT.normalize_or_zero();
 
-    for triangle in model.indices.chunks_exact(3) {
+    for triangle in model.indices.as_chunks::<3>().0 {
         let corners: Vec<Vec3> = triangle
             .iter()
             .map(|i| Vec3::from_array(model.vertices[*i as usize].position))

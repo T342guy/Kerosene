@@ -134,7 +134,7 @@ pub fn prepare(sound: &Sound, options: &Options) -> Sound {
             // 6 dB boost and clips anything that was already loud.
             samples: sound
                 .samples
-                .chunks_exact(2)
+                .as_chunks::<2>().0.iter()
                 .map(|c| (c[0] + c[1]) * 0.5)
                 .collect(),
         }

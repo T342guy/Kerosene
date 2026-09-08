@@ -78,6 +78,20 @@ struct Work<'a> {
     trace: Trace,
 }
 
+/// What a trace is asking for: a box swept from `start` to `end`, stopping on
+/// anything whose contents meet `mask`.
+///
+/// Together rather than as seven arguments, because they travel together
+/// everywhere and only ever mean anything as a set.
+#[derive(Clone, Copy)]
+struct Query {
+    start: Vec3,
+    end: Vec3,
+    mins: Vec3,
+    maxs: Vec3,
+    mask: u32,
+}
+
 impl Bsp {
     /// Trace a ray against the world.
     pub fn trace_ray(&self, start: Vec3, end: Vec3, mask: u32) -> Trace {
@@ -90,7 +104,8 @@ impl Bsp {
     /// roughly `(-16, -16, 0)` to `(16, 16, 72)`.
     pub fn trace_box(&self, start: Vec3, end: Vec3, mins: Vec3, maxs: Vec3, mask: u32) -> Trace {
         let head = self.models.first().map_or(0, |m| m.head_node);
-        self.trace_node(head, start, end, mins, maxs, mask, 0)
+        let query = Query { start, end, mins, maxs, mask };
+        self.trace_node(head, query, 0)
     }
 
     /// Trace against one brush model -- a door, a platform, the world itself.
@@ -109,19 +124,12 @@ impl Bsp {
         let Some(m) = self.models.get(model) else {
             return Trace::miss(end);
         };
-        self.trace_node(m.head_node, start, end, mins, maxs, mask, model)
+        let query = Query { start, end, mins, maxs, mask };
+        self.trace_node(m.head_node, query, model)
     }
 
-    fn trace_node(
-        &self,
-        head: i32,
-        start: Vec3,
-        end: Vec3,
-        mins: Vec3,
-        maxs: Vec3,
-        mask: u32,
-        model: usize,
-    ) -> Trace {
+    fn trace_node(&self, head: i32, query: Query, model: usize) -> Trace {
+        let Query { start, end, mins, maxs, mask } = query;
         let is_point = mins == Vec3::ZERO && maxs == Vec3::ZERO;
         let mut work = Work {
             bsp: self,

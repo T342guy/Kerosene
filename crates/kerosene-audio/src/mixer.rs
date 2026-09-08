@@ -229,9 +229,8 @@ impl Mixer {
 
                 // Ramp once per frame rather than per block, so a fast-moving
                 // sound does not step.
-                for channel in 0..2 {
-                    voice.gain[channel] +=
-                        (target[channel] - voice.gain[channel]) * RAMP / frames as f32;
+                for (gain, target) in voice.gain.iter_mut().zip(target) {
+                    *gain += (target - *gain) * RAMP / frames as f32;
                 }
 
                 let index = voice.cursor as usize;

@@ -531,7 +531,7 @@ impl Timbre {
 
         painter.line_segment(
             [Pos2::new(rect.left(), mid), Pos2::new(rect.right(), mid)],
-            Stroke::new(1.0, Color32::from_rgb(40, 48, 56)),
+            Stroke::new(1.0_f32, Color32::from_rgb(40, 48, 56)),
         );
 
         for (i, &(low, high)) in loaded.envelope.iter().enumerate() {
@@ -549,7 +549,7 @@ impl Timbre {
                     Pos2::new(x, mid - high.clamp(-1.0, 1.0) * half),
                     Pos2::new(x, mid - low.clamp(-1.0, 1.0) * half),
                 ],
-                Stroke::new(1.0, colour),
+                Stroke::new(1.0_f32, colour),
             );
         }
 
@@ -558,14 +558,14 @@ impl Timbre {
             let x = rect.left() + rect.width() * at;
             painter.line_segment(
                 [Pos2::new(x, rect.top()), Pos2::new(x, rect.bottom())],
-                Stroke::new(1.5, Color32::from_rgb(240, 220, 130)),
+                Stroke::new(1.5_f32, Color32::from_rgb(240, 220, 130)),
             );
         }
 
         painter.rect_stroke(
             rect,
             2.0,
-            Stroke::new(1.0, Color32::from_rgb(48, 56, 64)),
+            Stroke::new(1.0_f32, Color32::from_rgb(48, 56, 64)),
             StrokeKind::Inside,
         );
     }
@@ -728,7 +728,7 @@ fn meter_bar(ui: &mut egui::Ui, level: f32, width: f32) {
     painter.rect_stroke(
         rect,
         2.0,
-        Stroke::new(1.0, Color32::from_rgb(48, 56, 64)),
+        Stroke::new(1.0_f32, Color32::from_rgb(48, 56, 64)),
         StrokeKind::Inside,
     );
 }

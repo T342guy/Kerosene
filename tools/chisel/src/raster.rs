@@ -146,10 +146,16 @@ impl Shading {
 /// Textures arrive through a closure rather than a cache and a filesystem,
 /// so this file knows nothing about where content lives -- and so a test can
 /// hand it a two-by-two checkerboard without building a content tree first.
+/// Looks a material name up and hands back its texture, if it has one.
+///
+/// Borrowed rather than owned: the cache it reads from belongs to the editor,
+/// and a frame of rasterising is over long before the cache is.
+pub type TextureResolver<'a> = &'a mut dyn FnMut(&str) -> Option<Arc<Texture>>;
+
 pub struct Settings<'a> {
     pub shading: Shading,
     /// Material name to texture. `None` draws as [`Shading::Shaded`].
-    pub resolve: Option<&'a mut dyn FnMut(&str) -> Option<Arc<Texture>>>,
+    pub resolve: Option<TextureResolver<'a>>,
 }
 
 impl Settings<'_> {
@@ -543,8 +549,8 @@ fn outline(image: &mut Image, face_at: &[u32]) {
             // Safe to do in place: the decision reads `face_at`, which this
             // does not touch.
             let p = &mut image.pixels[at];
-            for c in 0..3 {
-                p[c] = (p[c] as f32 * 0.55) as u8;
+            for channel in p.iter_mut().take(3) {
+                *channel = (*channel as f32 * 0.55) as u8;
             }
         }
     }

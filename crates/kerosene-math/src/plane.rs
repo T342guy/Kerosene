@@ -389,7 +389,7 @@ mod tests {
         let a = set.insert(Plane::new(Vec3::new(0.0, 0.0, 1.0), 64.0));
         let b = set.insert(Plane::new(
             Vec3::new(1e-7, -1e-7, 1.0).normalize(),
-            64.000_004,
+            64.000_01,
         ));
         assert_eq!(a, b);
         assert_eq!(set.len(), 2);

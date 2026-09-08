@@ -198,15 +198,14 @@ impl<'a> PlayerCollision<'a> {
             let expanded = prop.expanded_by(half);
             if let Some((fraction, normal)) =
                 kerosene_physics::sweep_point_vs_box(start, end, expanded.min, expanded.max)
+                && fraction < best.fraction
             {
-                if fraction < best.fraction {
-                    best.fraction = fraction;
-                    best.plane = Some(Plane::new(
-                        normal,
-                        normal.dot(start + (end - start) * fraction),
-                    ));
-                    best.contents = contents::SOLID;
-                }
+                best.fraction = fraction;
+                best.plane = Some(Plane::new(
+                    normal,
+                    normal.dot(start + (end - start) * fraction),
+                ));
+                best.contents = contents::SOLID;
             }
             let inside = (0..3).all(|i| start[i] > expanded.min[i] && start[i] < expanded.max[i]);
             if inside {

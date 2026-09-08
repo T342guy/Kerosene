@@ -27,7 +27,7 @@ use kerosene_math::{Quat, Vec3};
 pub const GRAVITY: Vec3 = Vec3::new(0.0, 0.0, -800.0);
 
 /// One metre in Kerosene units (inches).
-pub const INCHES_PER_METRE: f32 = 39.370_078_74;
+pub const INCHES_PER_METRE: f32 = 39.370_08;
 
 /// Largest hull Box3D will build. A BSP brush has at most a handful of faces,
 /// so this is far more than enough.

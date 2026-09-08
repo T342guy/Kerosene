@@ -195,7 +195,7 @@ impl Bsp {
         let mut push = |dir: &mut [LumpDir; LUMP_COUNT], index: usize, data: &[u8]| {
             // Every lump starts 4-byte aligned so a zero-copy reader can cast
             // directly out of a memory-mapped file.
-            while (HEADER_SIZE + body.len()) % 4 != 0 {
+            while !(HEADER_SIZE + body.len()).is_multiple_of(4) {
                 body.push(0);
             }
             dir[index] = LumpDir {
@@ -240,7 +240,7 @@ impl Bsp {
 /// Cast a lump's bytes into a record array, checking the length divides evenly.
 fn read_lump<T: Pod>(bytes: &[u8], path: &str, name: &'static str) -> Result<Vec<T>> {
     let record = std::mem::size_of::<T>();
-    if bytes.len() % record != 0 {
+    if !bytes.len().is_multiple_of(record) {
         return Err(BspError::LumpMisaligned {
             path: path.to_string(),
             name,

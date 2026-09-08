@@ -216,7 +216,7 @@ impl Bsp {
         // overflow before the guard ever ran.
         self.leaves
             .iter()
-            .filter_map(|l| (l.cluster >= 0).then(|| l.cluster as usize + 1))
+            .filter(|&l| l.cluster >= 0).map(|l| l.cluster as usize + 1)
             .max()
             .unwrap_or(0)
     }

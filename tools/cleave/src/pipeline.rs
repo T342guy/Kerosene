@@ -151,10 +151,10 @@ pub fn compile(map: &Map, options: &CompileOptions) -> Result<CompileOutput, Com
         });
     }
 
-    if let Some(leak) = &flood.leak {
-        if !options.ignore_leaks {
-            return Err(CompileError::Leaked(format!("{:?}", leak.from)));
-        }
+    if let Some(leak) = &flood.leak
+        && !options.ignore_leaks
+    {
+        return Err(CompileError::Leaked(format!("{:?}", leak.from)));
     }
 
     // Only fill outside when the map is actually sealed. Filling a leaking map

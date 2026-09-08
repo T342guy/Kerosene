@@ -627,13 +627,13 @@ impl PhysicsProps {
             let (position, rotation) = self.rigid.body_transform(prop.body);
             let h = prop.half_extent;
             let mut corners = [Vec3::ZERO; 8];
-            for i in 0..8 {
+            for (i, corner) in corners.iter_mut().enumerate() {
                 let local = Vec3::new(
                     if i & 1 == 0 { -h.x } else { h.x },
                     if i & 2 == 0 { -h.y } else { h.y },
                     if i & 4 == 0 { -h.z } else { h.z },
                 );
-                corners[i] = position + rotation * local;
+                *corner = position + rotation * local;
             }
             for (a, b) in BOX_EDGES {
                 lines.push(DebugLine {

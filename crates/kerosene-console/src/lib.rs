@@ -122,17 +122,15 @@ impl ConVar {
 
     fn apply(&mut self, raw: &str) {
         let mut f: f32 = raw.trim().parse().unwrap_or(0.0);
-        let clamped = match (self.min, self.max) {
-            (lo, hi) => {
-                let mut v = f;
-                if let Some(lo) = lo {
-                    v = v.max(lo);
-                }
-                if let Some(hi) = hi {
-                    v = v.min(hi);
-                }
-                v
+        let clamped = {
+            let mut v = f;
+            if let Some(lo) = self.min {
+                v = v.max(lo);
             }
+            if let Some(hi) = self.max {
+                v = v.min(hi);
+            }
+            v
         };
         // Only rewrite the string when clamping actually moved the value, so
         // that a non-numeric convar (a map name, a player name) keeps its text.
@@ -210,6 +208,12 @@ pub struct LogLine {
 /// How many lines of scrollback the console keeps.
 const MAX_LOG_LINES: usize = 4096;
 
+/// What runs an `exec` of a config file: given a name, hands back its text.
+///
+/// Shared and thread-safe because the console is reachable from wherever the
+/// host puts it, and the handler outlives any one command.
+type ExecHandler = Arc<dyn Fn(&str) -> Option<String> + Send + Sync>;
+
 /// The console itself: convar table, command table, buffer and log.
 pub struct Console {
     cvars: HashMap<String, ConVar>,
@@ -224,7 +228,7 @@ pub struct Console {
     waiting: bool,
     /// Reads a config file by name. Wired to the VFS by the engine, left
     /// unset in tools that have no filesystem of their own.
-    exec_handler: Option<Arc<dyn Fn(&str) -> Option<String> + Send + Sync>>,
+    exec_handler: Option<ExecHandler>,
     /// Depth guard: an `exec` that execs itself would otherwise spin forever.
     exec_depth: u32,
     /// Things commands have asked the host to do.

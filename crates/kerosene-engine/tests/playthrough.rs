@@ -1698,11 +1698,12 @@ fn the_newest_console_line_is_drawn_above_the_prompt_rather_than_under_it() {
         )),
         ..Default::default()
     };
-    // Twice: the first frame is where egui works out the layout.
-    let mut output = ctx.run(screen.clone(), |ctx| {
+    // Twice, and only the second is measured: the first frame is where egui
+    // works out the layout, and the sizes it reports before that are guesses.
+    let _ = ctx.run(screen.clone(), |ctx| {
         kerosene_engine::console_ui::draw(ctx, &mut ui, &mut engine.console)
     });
-    output = ctx.run(screen, |ctx| {
+    let output = ctx.run(screen, |ctx| {
         kerosene_engine::console_ui::draw(ctx, &mut ui, &mut engine.console)
     });
 
@@ -2216,7 +2217,7 @@ fn engine_with_sound() -> (kerosene_engine::engine::Engine, std::path::PathBuf) 
 
     let bsp = build(&corridor_map(true, true));
     std::fs::write(dir.join("maps/testmap.kerobsp"), bsp.to_bytes()).unwrap();
-    std::fs::write(dir.join("sound/test/beep.wav"), &wav_bytes(4800)).unwrap();
+    std::fs::write(dir.join("sound/test/beep.wav"), wav_bytes(4800)).unwrap();
     std::fs::write(
         dir.join("scripts/test.kerosnd"),
         r#" sound { "name" "test/beep" "file" "sound/test/beep.wav" "volume" "0.5" } "#,
@@ -2687,7 +2688,7 @@ fn corridor_with_bar(yaw: f32) -> Map {
     );
     map.entities[at].set("targetname", "bar");
     map.entities[at].set("maxspeed", "90");
-    map.entities[at].set("angles", &format!("0 {yaw} 0"));
+    map.entities[at].set("angles", format!("0 {yaw} 0"));
     map
 }
 

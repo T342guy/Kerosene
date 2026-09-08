@@ -108,7 +108,7 @@ impl EngineConf {
             .filter(|s| !s.is_empty())
         {
             None => Renderer::default(),
-            Some(name) => match Renderer::from_str(name) {
+            Some(name) => match Renderer::from_name(name) {
                 Some(renderer) => renderer,
                 None => {
                     log::warn!(

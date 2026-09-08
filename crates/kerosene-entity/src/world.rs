@@ -238,10 +238,9 @@ impl EntityWorld {
             .get(id)
             .and_then(|e| e.targetname())
             .map(str::to_lowercase)
+            && let Some(list) = self.by_name.get_mut(&old)
         {
-            if let Some(list) = self.by_name.get_mut(&old) {
-                list.retain(|&x| x != id);
-            }
+            list.retain(|&x| x != id);
         }
         if let Some(e) = self.get_mut(id) {
             e.fields.set("targetname", Value::Text(name.to_string()));
@@ -305,29 +304,28 @@ impl EntityWorld {
                 match key.to_lowercase().as_str() {
                     "classname" => {}
                     "origin" => {
-                        if let Some(v) = Value::from_keyvalue(value).as_vec3() {
-                            if let Some(e) = self.get_mut(id) {
-                                e.origin = v;
-                            }
+                        if let Some(v) = Value::from_keyvalue(value).as_vec3()
+                            && let Some(e) = self.get_mut(id)
+                        {
+                            e.origin = v;
                         }
                     }
                     "angles" => {
-                        if let Some(v) = Value::from_keyvalue(value).as_vec3() {
-                            if let Some(e) = self.get_mut(id) {
-                                e.angles = Angles::new(v.x, v.y, v.z);
-                            }
+                        if let Some(v) = Value::from_keyvalue(value).as_vec3()
+                            && let Some(e) = self.get_mut(id)
+                        {
+                            e.angles = Angles::new(v.x, v.y, v.z);
                         }
                     }
                     "model" => {
                         // `"*3"` names brush model 3; anything else is a
                         // studio model path, which stays a plain field.
-                        if let Some(rest) = value.strip_prefix('*') {
-                            if let Ok(index) = rest.parse::<usize>() {
-                                if let Some(e) = self.get_mut(id) {
-                                    e.brush_model = Some(index);
-                                }
+                        if let Some(rest) = value.strip_prefix('*')
+                            && let Ok(index) = rest.parse::<usize>()
+                                && let Some(e) = self.get_mut(id)
+                            {
+                                e.brush_model = Some(index);
                             }
-                        }
                         if let Some(e) = self.get_mut(id) {
                             e.fields.set("model", Value::Text(value.to_string()));
                         }
@@ -449,13 +447,12 @@ impl EntityWorld {
             // Decrement the fire counter now rather than on delivery: an
             // "only once" output should not fire twice while the first is
             // still in flight.
-            if let Some(e) = self.get_mut(caller) {
-                if let Some(c) = e.connections.get_mut(*index) {
-                    if c.times_to_fire > 0 {
-                        c.times_to_fire -= 1;
-                    }
+            if let Some(e) = self.get_mut(caller)
+                && let Some(c) = e.connections.get_mut(*index)
+                    && c.times_to_fire > 0
+                {
+                    c.times_to_fire -= 1;
                 }
-            }
         }
 
         queued.len()
@@ -548,10 +545,10 @@ impl EntityWorld {
             let event = self.queue.pop().expect("just peeked");
 
             let receivers = self.resolve(&event.target, event.activator, event.caller);
-            if receivers.is_empty() && matches!(event.target, Target::Named(_)) {
-                if let Target::Named(name) = &event.target {
-                    log::debug!("nothing named '{name}' to receive '{}'", event.input);
-                }
+            if receivers.is_empty() && matches!(event.target, Target::Named(_))
+                && let Target::Named(name) = &event.target
+            {
+                log::debug!("nothing named '{name}' to receive '{}'", event.input);
             }
 
             for id in receivers {
@@ -612,10 +609,9 @@ impl EntityWorld {
                 .get(id)
                 .and_then(|e| e.targetname())
                 .map(str::to_lowercase)
+                && let Some(list) = self.by_name.get_mut(&name)
             {
-                if let Some(list) = self.by_name.get_mut(&name) {
-                    list.retain(|&x| x != id);
-                }
+                list.retain(|&x| x != id);
             }
             let index = id.index as usize;
             self.slots[index] = None;
@@ -647,9 +643,6 @@ impl EntityWorld {
         self.queue.len()
     }
 
-    // ---- debugging -------------------------------------------------------
-
-    /// Record every output that fires, for a `developer`-style I/O trace.
     // ---- host requests ---------------------------------------------------
 
     /// Ask the engine to do something the entity world cannot do itself.

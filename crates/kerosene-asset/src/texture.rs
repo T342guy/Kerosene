@@ -286,7 +286,7 @@ impl Texture {
             PixelFormat::Rgba8 => mip.pixels.clone(),
             PixelFormat::Rgb8 => mip
                 .pixels
-                .chunks_exact(3)
+                .as_chunks::<3>().0.iter()
                 .flat_map(|p| [p[0], p[1], p[2], 255])
                 .collect(),
             PixelFormat::R8 => mip.pixels.iter().flat_map(|&v| [v, v, v, 255]).collect(),

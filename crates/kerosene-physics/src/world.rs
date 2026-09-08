@@ -91,12 +91,12 @@ impl CollisionWorld for BoxWorld {
             // Minkowski expansion: grow the box by the hull and sweep a point.
             let expanded_min = bmin - maxs;
             let expanded_max = bmax - mins;
-            if let Some(hit) = sweep_point_vs_box(start, end, expanded_min, expanded_max) {
-                if hit.0 < best.fraction {
-                    best.fraction = hit.0;
-                    best.plane = Some(kerosene_math::Plane::from_point_normal(Vec3::ZERO, hit.1));
-                    best.contents = box_contents;
-                }
+            if let Some(hit) = sweep_point_vs_box(start, end, expanded_min, expanded_max)
+                && hit.0 < best.fraction
+            {
+                best.fraction = hit.0;
+                best.plane = Some(kerosene_math::Plane::from_point_normal(Vec3::ZERO, hit.1));
+                best.contents = box_contents;
             }
             // Starting inside counts as solid, matching the BSP tracer.
             let inside = (0..3).all(|i| start[i] > expanded_min[i] && start[i] < expanded_max[i]);
