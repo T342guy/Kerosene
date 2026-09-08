@@ -6,6 +6,9 @@ candidate roadmap, not a bug list: several of these are deliberate design
 choices (a flat entity list, a closed shader set) and several are simply
 unstarted.
 
+For which of these absences actually matter -- and which genres the engine is
+shaped to serve -- see [`positioning.md`](positioning.md).
+
 ## 1. Already acknowledged
 
 These come straight from the README's known-limits section and are kept here
@@ -69,9 +72,11 @@ for completeness.
   to face the player as they turn, shoves what it can move, and hangs back
   short of the hold point when it meets what it cannot, rather than being
   driven through it. `.keromdl` models render at their simulated pose, and
-  `phys_debug` draws the collision boxes. Still boxes only -- convex-hull
-  props, joints, per-surface-material friction and a launch-beams gravity-gun
-  are not there yet.
+  `phys_debug` draws the collision boxes. What is not there: **convex-hull
+  props** (see the callout below -- the solver does hulls, props do not use
+  them), joints, per-surface-material friction, a launch-beams gravity gun,
+  turning a prop while carrying it (Source's use-plus-mouselook), and any
+  sound or effect when a prop hits something.
 - **Ragdoll / skeletal physics.** None. Box3D has joints, but no skeleton
   attachment.
 - **Vehicles / wheeled physics.** None. Box3D has wheel joints, but no vehicle
@@ -122,8 +127,10 @@ for completeness.
 - **Footstep/impact effects.** `$surfaceprop` now parses into a
   [`SurfaceProperty`](kerosene_asset::SurfaceProperty), and the engine traces
   to resolve it and emits stride-timed footstep sounds (`footstep/<surface>/n`)
-  named off it. Impact effects (hits, falls) are still not emitted, and no
-  footstep sound files ship yet, so a surface without assets warns once.
+  named off it. Impact effects are still not emitted -- neither the player's
+  own landings nor a physics prop striking a wall makes a sound, though the
+  solver knows about every one of those collisions -- and no footstep sound
+  files ship yet, so a surface without assets warns once.
 - **Procedural audio.** None.
 
 ## 7. UI and HUD
@@ -202,17 +209,27 @@ for completeness.
   actually emit.
 - **Prefab/asset browser depth.** The model browser shows previews, but there
   is no saved prefab or variation system.
+- **Multi-entity editing.** The Object Properties dialog edits one entity:
+  its class keys, its object properties and its output wiring. Selecting
+  several and setting a key across all of them is not possible.
 - **Automated level testing.** No way to script or assert level logic
   in-editor beyond Rhai.
 
-## Two gaps worth calling out
+## Three gaps worth calling out
 
 1. **The walkmap has a consumer now.** [`NavGraph`](crate::nav) in
    `kerosene-walk` links faces by shared edges and A*-searches them into
    waypoints, so the format is no longer orphaned. The next step is an NPC,
    or a debug overlay that draws a queried path — the API is real and tested,
    but nothing at runtime calls it.
-2. **`$surfaceprop` is driven at runtime.** Traces now report the texinfo they
+2. **The solver already does convex hulls; props do not use them.**
+   `kerosene-rigid` exposes `add_dynamic_hull`, and world brushes and
+   `func_detail` go in as static hulls, so the hull path is real and running.
+   But `prop_physics` bodies are built from the model's bounding box
+   (`add_dynamic_box_material`), so a barrel collides as a crate. Nothing
+   calls `add_dynamic_hull`. Closing this is wiring a hull out of `.keromdl`
+   geometry, not new physics.
+3. **`$surfaceprop` is driven at runtime.** Traces now report the texinfo they
    hit, the engine resolves that to a material and its `$surfaceprop`, and
    footsteps emit from it. The remaining gap is the *other* side of the coin —
    impact effects — and the sound assets themselves, which are content rather

@@ -260,7 +260,7 @@ content/          sample art, models, materials, the sample level, and the
                   archive packed from them -- a content tree, the thing every
                   tool and the engine go looking for
 docs/             architecture, formats, tools, scripting, audio,
-                  licensing, configuration
+                  licensing, configuration, positioning, missing features
 ```
 
 Read [`docs/architecture.md`](docs/architecture.md) for how the pieces fit,
@@ -270,7 +270,10 @@ Read [`docs/architecture.md`](docs/architecture.md) for how the pieces fit,
 [`docs/audio.md`](docs/audio.md) sound,
 [`docs/configuration.md`](docs/configuration.md) the engine config, and
 [`docs/licensing.md`](docs/licensing.md) the dependency audit and the
-provenance of the algorithms.
+provenance of the algorithms. [`docs/positioning.md`](docs/positioning.md)
+argues what the engine is shaped to be good at, and
+[`docs/missing-features.md`](docs/missing-features.md) inventories what it
+does not have yet.
 
 ---
 
