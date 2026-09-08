@@ -40,7 +40,9 @@ pub async fn open(
             backends,
             ..Default::default()
         });
-        let Some(surface) = make_surface(&instance) else { continue };
+        let Some(surface) = make_surface(&instance) else {
+            continue;
+        };
         let Ok(adapter) = instance
             .request_adapter(&wgpu::RequestAdapterOptions {
                 power_preference: power,
@@ -48,7 +50,9 @@ pub async fn open(
                 force_fallback_adapter: false,
             })
             .await
-        else { continue };
+        else {
+            continue;
+        };
 
         if fallback == 0 {
             log::info!("renderer: {}", adapter.get_info().backend);

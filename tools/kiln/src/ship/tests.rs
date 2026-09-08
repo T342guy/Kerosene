@@ -57,7 +57,9 @@ impl Fixture {
         ship_from(&self.settings, &self.root.join("dist"), &binary)
     }
 
-    fn dist(&self) -> PathBuf { self.root.join("dist") }
+    fn dist(&self) -> PathBuf {
+        self.root.join("dist")
+    }
 }
 
 // ---- what lands in the distribution -----------------------------------
@@ -67,9 +69,16 @@ fn the_game_is_named_after_the_project() {
     let f = Fixture::new("named");
     let shipped = f.ship_with_binary().unwrap();
 
-    let exe = if cfg!(windows) { "test_game.exe" } else { "test_game" };
+    let exe = if cfg!(windows) {
+        "test_game.exe"
+    } else {
+        "test_game"
+    };
     assert_eq!(shipped.binary, f.dist().join(exe));
-    assert!(shipped.binary.is_file(), "the binary must actually be copied");
+    assert!(
+        shipped.binary.is_file(),
+        "the binary must actually be copied"
+    );
 }
 
 #[test]
@@ -89,8 +98,16 @@ fn a_project_file_is_written_pointing_at_the_shipped_content() {
     let written = std::fs::read_to_string(f.dist().join("test_game.keroproj")).unwrap();
     let project = Project::parse(&written, &f.dist().join("test_game.keroproj")).unwrap();
 
-    assert_eq!(project.content, f.dist().join("content"), "content must be relative to the game");
-    assert_eq!(project.start_map.as_deref(), Some("tg_intro"), "the start map has to survive");
+    assert_eq!(
+        project.content,
+        f.dist().join("content"),
+        "content must be relative to the game"
+    );
+    assert_eq!(
+        project.start_map.as_deref(),
+        Some("tg_intro"),
+        "the start map has to survive"
+    );
     assert_eq!(
         project.game, None,
         "a player's copy is not built from source, so naming a cargo package would be a lie"
@@ -105,10 +122,22 @@ fn the_licence_texts_are_written_in_full() {
     let lgpl = std::fs::read_to_string(f.dist().join("LICENSE-LGPL-3.0")).unwrap();
     let mpl = std::fs::read_to_string(f.dist().join("LICENSE-MPL-2.0")).unwrap();
 
-    assert!(lgpl.contains("GNU LESSER GENERAL PUBLIC LICENSE"), "the LGPL, not a summary");
-    assert!(lgpl.contains("Version 3"), "the LGPL-3.0 text must be complete enough to act on");
-    assert!(mpl.contains("Mozilla Public License"), "the MPL, not a summary");
-    assert!(mpl.contains("2.0"), "the MPL-2.0 text must be complete enough to act on");
+    assert!(
+        lgpl.contains("GNU LESSER GENERAL PUBLIC LICENSE"),
+        "the LGPL, not a summary"
+    );
+    assert!(
+        lgpl.contains("Version 3"),
+        "the LGPL-3.0 text must be complete enough to act on"
+    );
+    assert!(
+        mpl.contains("Mozilla Public License"),
+        "the MPL, not a summary"
+    );
+    assert!(
+        mpl.contains("2.0"),
+        "the MPL-2.0 text must be complete enough to act on"
+    );
     // Both full texts ship, and the old GPL-only boilerplate filenames do not.
     assert!(f.dist().join("LICENSE-LGPL-3.0").exists());
     assert!(f.dist().join("LICENSE-MPL-2.0").exists());
@@ -130,7 +159,11 @@ fn no_tool_is_ever_shipped_with_a_game() {
     let mut found = Vec::new();
     walk(&f.dist(), &mut found);
     for path in &found {
-        let name = path.file_name().unwrap_or_default().to_string_lossy().to_lowercase();
+        let name = path
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_lowercase();
         let stem = name.trim_end_matches(".exe");
         assert!(
             ![
@@ -147,16 +180,29 @@ fn no_tool_is_ever_shipped_with_a_game() {
 #[test]
 fn nothing_is_written_on_a_dry_run() {
     let f = Fixture::new("dry");
-    let settings = Settings { dry_run: true, ..f.settings.clone() };
+    let settings = Settings {
+        dry_run: true,
+        ..f.settings.clone()
+    };
     let binary = f.root.join("bin/kerosene");
     std::fs::create_dir_all(binary.parent().unwrap()).unwrap();
     std::fs::write(&binary, b"ELF").unwrap();
 
     let shipped = ship_from(&settings, &f.dist(), &binary).unwrap();
 
-    assert!(!f.dist().exists(), "a dry run must not create the directory it describes");
-    assert_eq!(shipped.binary, f.dist().join(if cfg!(windows) { "test_game.exe" } else { "test_game" }),
-        "but it still reports what it would have written");
+    assert!(
+        !f.dist().exists(),
+        "a dry run must not create the directory it describes"
+    );
+    assert_eq!(
+        shipped.binary,
+        f.dist().join(if cfg!(windows) {
+            "test_game.exe"
+        } else {
+            "test_game"
+        }),
+        "but it still reports what it would have written"
+    );
 }
 
 // ---- refusing to ship the wrong thing ----------------------------------
@@ -168,7 +214,10 @@ fn shipping_without_an_archive_says_to_build_first() {
 
     let err = f.ship_with_binary().unwrap_err().to_string();
     assert!(err.contains("does not exist"), "{err}");
-    assert!(err.contains("Run kiln"), "the error has to say what to do: {err}");
+    assert!(
+        err.contains("Run kiln"),
+        "the error has to say what to do: {err}"
+    );
 }
 
 #[test]
@@ -182,7 +231,10 @@ fn shipping_a_stale_archive_is_refused_and_names_what_changed() {
 
     let err = f.ship_with_binary().unwrap_err().to_string();
     assert!(err.contains("older than"), "{err}");
-    assert!(err.contains("a.kerobsp"), "the stale file must be named: {err}");
+    assert!(
+        err.contains("a.kerobsp"),
+        "the stale file must be named: {err}"
+    );
 }
 
 // ---- the licence notice is unconditional under both arms ------------
@@ -198,11 +250,20 @@ fn the_notice_names_the_engine_and_disclaims_warranty() {
 
     let readme = std::fs::read_to_string(f.dist().join("README.txt")).unwrap();
     assert!(readme.contains("Built with Kerosene"));
-    assert!(readme.contains("LGPL-3.0-or-later"), "both arms must be stated: {readme}");
+    assert!(
+        readme.contains("LGPL-3.0-or-later"),
+        "both arms must be stated: {readme}"
+    );
     assert!(readme.contains("Mozilla Public License"));
     assert!(readme.contains("NO WARRANTY"));
-    assert!(readme.contains("pull request"), "the prefer-a-PR guidance: {readme}");
-    assert!(readme.contains("Test Game"), "the game's own name belongs at the top: {readme}");
+    assert!(
+        readme.contains("pull request"),
+        "the prefer-a-PR guidance: {readme}"
+    );
+    assert!(
+        readme.contains("Test Game"),
+        "the game's own name belongs at the top: {readme}"
+    );
     // The fonts travel inside any binary linking egui, which includes the
     // engine's console overlay, and their notices have to travel with them.
     assert!(readme.contains("Open Font License"), "{readme}");
@@ -219,12 +280,19 @@ fn the_notice_carries_the_mpl_crate_the_engine_links() {
     let readme = std::fs::read_to_string(f.dist().join("README.txt")).unwrap();
     assert!(readme.contains("smartstring"), "{readme}");
     assert!(readme.contains("Mozilla Public License"), "{readme}");
-    assert!(readme.contains("source is available"), "the licence asks where: {readme}");
+    assert!(
+        readme.contains("source is available"),
+        "the licence asks where: {readme}"
+    );
 }
 
 fn walk(dir: &Path, out: &mut Vec<PathBuf>) {
     for entry in std::fs::read_dir(dir).into_iter().flatten().flatten() {
         let path = entry.path();
-        if path.is_dir() { walk(&path, out) } else { out.push(path) }
+        if path.is_dir() {
+            walk(&path, out)
+        } else {
+            out.push(path)
+        }
     }
 }

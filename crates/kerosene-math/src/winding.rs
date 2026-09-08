@@ -21,10 +21,16 @@ pub struct Winding {
 const EDGE_LENGTH: f32 = 0.2;
 
 impl Winding {
-    pub fn new(points: Vec<Vec3>) -> Self { Self { points } }
+    pub fn new(points: Vec<Vec3>) -> Self {
+        Self { points }
+    }
 
-    pub fn len(&self) -> usize { self.points.len() }
-    pub fn is_empty(&self) -> bool { self.points.len() < 3 }
+    pub fn len(&self) -> usize {
+        self.points.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.points.len() < 3
+    }
 
     /// The largest polygon that fits on `plane` inside the legal world.
     ///
@@ -56,7 +62,9 @@ impl Winding {
 
     /// Plane this winding lies in, derived from its first three points.
     pub fn plane(&self) -> Option<Plane> {
-        if self.points.len() < 3 { return None; }
+        if self.points.len() < 3 {
+            return None;
+        }
         // Scan for a non-degenerate triple; the first three points can be
         // nearly collinear on a sliver that survived clipping.
         let p0 = self.points[0];
@@ -73,7 +81,9 @@ impl Winding {
     }
 
     pub fn center(&self) -> Vec3 {
-        if self.points.is_empty() { return Vec3::ZERO; }
+        if self.points.is_empty() {
+            return Vec3::ZERO;
+        }
         self.points.iter().copied().sum::<Vec3>() / self.points.len() as f32
     }
 
@@ -89,7 +99,9 @@ impl Winding {
     }
 
     /// Reverse the ring, flipping which side counts as the front.
-    pub fn reverse(&mut self) { self.points.reverse(); }
+    pub fn reverse(&mut self) {
+        self.points.reverse();
+    }
 
     pub fn reversed(&self) -> Self {
         let mut w = self.clone();
@@ -102,9 +114,14 @@ impl Winding {
         let (mut front, mut back) = (false, false);
         for &p in &self.points {
             let d = plane.distance_to(p);
-            if d > epsilon { front = true; }
-            else if d < -epsilon { back = true; }
-            if front && back { return PlaneSide::Cross; }
+            if d > epsilon {
+                front = true;
+            } else if d < -epsilon {
+                back = true;
+            }
+            if front && back {
+                return PlaneSide::Cross;
+            }
         }
         match (front, back) {
             (true, false) => PlaneSide::Front,
@@ -124,7 +141,9 @@ impl Winding {
     /// tree develops leaks.
     pub fn split(&self, plane: &Plane, epsilon: f32) -> (Option<Winding>, Option<Winding>) {
         let n = self.points.len();
-        if n < 3 { return (None, None); }
+        if n < 3 {
+            return (None, None);
+        }
 
         let mut dists = Vec::with_capacity(n + 1);
         let mut sides = Vec::with_capacity(n + 1);
@@ -148,8 +167,12 @@ impl Winding {
         sides.push(sides[0]);
         dists.push(dists[0]);
 
-        if counts_front == 0 { return (None, Some(self.clone())); }
-        if counts_back == 0 { return (Some(self.clone()), None); }
+        if counts_front == 0 {
+            return (None, Some(self.clone()));
+        }
+        if counts_back == 0 {
+            return (Some(self.clone()), None);
+        }
 
         let mut front = Vec::with_capacity(n + 4);
         let mut back = Vec::with_capacity(n + 4);
@@ -168,7 +191,9 @@ impl Winding {
             }
 
             // Only emit a crossing point when this edge actually changes side.
-            if sides[i + 1] == PlaneSide::On || sides[i + 1] == sides[i] { continue; }
+            if sides[i + 1] == PlaneSide::On || sides[i + 1] == sides[i] {
+                continue;
+            }
 
             let p2 = self.points[(i + 1) % n];
             let t = dists[i] / (dists[i] - dists[i + 1]);
@@ -199,8 +224,14 @@ impl Winding {
     /// Clip in place, reporting whether anything survived.
     pub fn clip(&mut self, plane: &Plane, epsilon: f32) -> bool {
         match self.clipped(plane, epsilon) {
-            Some(w) => { *self = w; true }
-            None => { self.points.clear(); false }
+            Some(w) => {
+                *self = w;
+                true
+            }
+            None => {
+                self.points.clear();
+                false
+            }
         }
     }
 
@@ -210,7 +241,9 @@ impl Winding {
     /// They are harmless geometrically but they inflate every downstream lump,
     /// so the compiler sheds them before writing faces out.
     pub fn remove_collinear(&mut self) {
-        if self.points.len() < 3 { return; }
+        if self.points.len() < 3 {
+            return;
+        }
         let mut out: Vec<Vec3> = Vec::with_capacity(self.points.len());
         let n = self.points.len();
         for i in 0..n {
@@ -220,9 +253,13 @@ impl Winding {
             let a = (cur - prev).normalize_or_zero();
             let b = (next - cur).normalize_or_zero();
             // Keep the vertex if the direction actually changes there.
-            if a.dot(b) < 0.999_99 { out.push(cur); }
+            if a.dot(b) < 0.999_99 {
+                out.push(cur);
+            }
         }
-        if out.len() >= 3 { self.points = out; }
+        if out.len() >= 3 {
+            self.points = out;
+        }
     }
 
     /// Whether this winding is too small to be real geometry.
@@ -232,13 +269,17 @@ impl Winding {
     /// carried through the compile.
     pub fn is_tiny(&self) -> bool {
         let n = self.points.len();
-        if n < 3 { return true; }
+        if n < 3 {
+            return true;
+        }
         let mut edges = 0;
         for i in 0..n {
             let d = self.points[(i + 1) % n] - self.points[i];
             if d.length() > EDGE_LENGTH {
                 edges += 1;
-                if edges == 3 { return false; }
+                if edges == 3 {
+                    return false;
+                }
             }
         }
         true
@@ -281,12 +322,21 @@ mod tests {
 
     #[test]
     fn base_winding_faces_its_plane() {
-        for n in [Vec3::Z, -Vec3::Z, Vec3::X, Vec3::new(1.0, 1.0, 1.0).normalize()] {
+        for n in [
+            Vec3::Z,
+            -Vec3::Z,
+            Vec3::X,
+            Vec3::new(1.0, 1.0, 1.0).normalize(),
+        ] {
             let plane = Plane::new(n, 32.0);
             let w = Winding::base_for_plane(&plane);
             assert_eq!(w.len(), 4);
             let derived = w.plane().unwrap();
-            assert!((derived.normal - n).length() < 1e-4, "{:?} vs {n:?}", derived.normal);
+            assert!(
+                (derived.normal - n).length() < 1e-4,
+                "{:?} vs {n:?}",
+                derived.normal
+            );
             assert!((derived.dist - 32.0).abs() < 1e-2);
         }
     }
@@ -356,7 +406,7 @@ mod tests {
     fn collinear_points_are_dropped() {
         let mut w = Winding::new(vec![
             Vec3::new(0.0, 0.0, 0.0),
-            Vec3::new(8.0, 0.0, 0.0),   // sits on the edge 0 -> 16
+            Vec3::new(8.0, 0.0, 0.0), // sits on the edge 0 -> 16
             Vec3::new(16.0, 0.0, 0.0),
             Vec3::new(16.0, 16.0, 0.0),
             Vec3::new(0.0, 16.0, 0.0),
@@ -379,13 +429,15 @@ mod tests {
         let top = Plane::new(Vec3::Z, 64.0);
         let mut w = Winding::base_for_plane(&top);
         let side_faces = [
-            Plane::new(-Vec3::X, 0.0),   // outward normal of the -X face
-            Plane::new(Vec3::X, 64.0),   // outward normal of the +X face
+            Plane::new(-Vec3::X, 0.0), // outward normal of the -X face
+            Plane::new(Vec3::X, 64.0), // outward normal of the +X face
             Plane::new(-Vec3::Y, 0.0),
             Plane::new(Vec3::Y, 64.0),
         ];
         for face in side_faces {
-            w = w.clipped(&face.flipped(), ON_EPSILON).expect("face survives");
+            w = w
+                .clipped(&face.flipped(), ON_EPSILON)
+                .expect("face survives");
         }
         assert_eq!(w.len(), 4);
         assert!((w.area() - 64.0 * 64.0).abs() < 1e-2, "area {}", w.area());

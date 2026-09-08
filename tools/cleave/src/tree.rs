@@ -22,8 +22,8 @@
 //! completely carved out of space, so whatever is left inside it *is* it.
 
 use crate::brush::BrushWork;
+use kerosene_math::{Aabb, PlaneSet, PlaneSide, Vec3};
 use std::collections::HashSet;
-use kerosene_math::{Aabb, PlaneSide, PlaneSet, Vec3};
 
 /// One node or leaf. Interior nodes have a `plane`; leaves do not.
 #[derive(Clone, Debug, Default)]
@@ -47,7 +47,9 @@ pub struct TreeNode {
 }
 
 impl TreeNode {
-    pub fn is_leaf(&self) -> bool { self.plane.is_none() }
+    pub fn is_leaf(&self) -> bool {
+        self.plane.is_none()
+    }
 }
 
 /// A built tree, plus the synthetic node standing for everything outside the
@@ -76,7 +78,9 @@ impl Tree {
     /// Build a tree from the structural brushes.
     pub fn build(brushes: Vec<BrushWork>, planes: &PlaneSet) -> Tree {
         let mut world = Aabb::EMPTY;
-        for b in &brushes { world = world.union(&b.bounds); }
+        for b in &brushes {
+            world = world.union(&b.bounds);
+        }
         if world.is_empty() {
             world = Aabb::new(Vec3::splat(-SIDE_SPACE), Vec3::splat(SIDE_SPACE));
         }
@@ -90,7 +94,10 @@ impl Tree {
             splits: 0,
         };
 
-        tree.root = tree.alloc(TreeNode { bounds: world, ..Default::default() });
+        tree.root = tree.alloc(TreeNode {
+            bounds: world,
+            ..Default::default()
+        });
         let mut used: HashSet<u32> = HashSet::new();
         tree.build_recursive(tree.root, brushes, planes, &mut used, 0);
 
@@ -121,7 +128,11 @@ impl Tree {
     ) {
         self.max_depth = self.max_depth.max(depth);
 
-        let split = if depth >= MAX_DEPTH { None } else { select_split(&brushes, planes, used) };
+        let split = if depth >= MAX_DEPTH {
+            None
+        } else {
+            select_split(&brushes, planes, used)
+        };
 
         let Some(plane_index) = split else {
             self.make_leaf(node, brushes);
@@ -136,17 +147,29 @@ impl Tree {
         for mut b in brushes {
             // Mark every side lying on this plane as consumed, in both halves.
             for s in &mut b.sides {
-                if s.plane & !1 == pair { s.used_as_node = true; }
+                if s.plane & !1 == pair {
+                    s.used_as_node = true;
+                }
             }
             let (f, bk) = b.split(plane_index, planes);
-            if f.is_some() && bk.is_some() { self.splits += 1; }
+            if f.is_some() && bk.is_some() {
+                self.splits += 1;
+            }
             front_list.extend(f);
             back_list.extend(bk);
         }
 
         let bounds = self.nodes[node].bounds;
-        let front = self.alloc(TreeNode { parent: Some(node), bounds, ..Default::default() });
-        let back = self.alloc(TreeNode { parent: Some(node), bounds, ..Default::default() });
+        let front = self.alloc(TreeNode {
+            parent: Some(node),
+            bounds,
+            ..Default::default()
+        });
+        let back = self.alloc(TreeNode {
+            parent: Some(node),
+            bounds,
+            ..Default::default()
+        });
         self.nodes[node].plane = Some(plane_index);
         self.nodes[node].children = [front, back];
 
@@ -173,21 +196,27 @@ impl Tree {
         }
 
         let mut bounds = Aabb::EMPTY;
-        for b in &brushes { bounds = bounds.union(&b.bounds); }
+        for b in &brushes {
+            bounds = bounds.union(&b.bounds);
+        }
 
         let leaf = &mut self.nodes[node];
         leaf.plane = None;
         leaf.contents = contents;
         leaf.brushes = brushes;
         leaf.cluster = -1;
-        if !bounds.is_empty() { leaf.bounds = bounds; }
+        if !bounds.is_empty() {
+            leaf.bounds = bounds;
+        }
     }
 
     pub fn leaves(&self) -> impl Iterator<Item = usize> + '_ {
         (0..self.nodes.len()).filter(move |&i| self.nodes[i].is_leaf() && i != self.outside)
     }
 
-    pub fn leaf_count(&self) -> usize { self.leaves().count() }
+    pub fn leaf_count(&self) -> usize {
+        self.leaves().count()
+    }
 
     pub fn node_count(&self) -> usize {
         self.nodes.iter().filter(|n| !n.is_leaf()).count()
@@ -198,9 +227,15 @@ impl Tree {
         let mut at = self.root;
         for _ in 0..self.nodes.len() + 1 {
             let node = &self.nodes[at];
-            let Some(plane_index) = node.plane else { return at };
+            let Some(plane_index) = node.plane else {
+                return at;
+            };
             let plane = planes.get(plane_index);
-            at = if plane.distance_to(point) >= 0.0 { node.children[0] } else { node.children[1] };
+            at = if plane.distance_to(point) >= 0.0 {
+                node.children[0]
+            } else {
+                node.children[1]
+            };
         }
         at
     }
@@ -210,7 +245,10 @@ impl Tree {
         let mut out = Vec::with_capacity(self.nodes.len());
         let mut stack = vec![(self.root, false)];
         while let Some((n, expanded)) = stack.pop() {
-            if self.nodes[n].is_leaf() { out.push(n); continue; }
+            if self.nodes[n].is_leaf() {
+                out.push(n);
+                continue;
+            }
             if expanded {
                 out.push(n);
             } else {
@@ -228,16 +266,22 @@ impl Tree {
 ///
 /// Returns `None` when nothing is left to split by, which makes the node a leaf.
 fn select_split(brushes: &[BrushWork], planes: &PlaneSet, used: &HashSet<u32>) -> Option<u32> {
-    if brushes.is_empty() { return None; }
+    if brushes.is_empty() {
+        return None;
+    }
 
     let mut best_value = i32::MIN;
     let mut best_plane = None;
 
     for brush in brushes {
         for side in &brush.sides {
-            if side.winding.is_none() { continue; }
+            if side.winding.is_none() {
+                continue;
+            }
             let pair = side.plane & !1;
-            if used.contains(&pair) { continue; }
+            if used.contains(&pair) {
+                continue;
+            }
 
             let plane = planes.get(side.plane);
             let (mut front, mut back, mut splits) = (0i32, 0i32, 0i32);
@@ -268,10 +312,14 @@ fn select_split(brushes: &[BrushWork], planes: &PlaneSet, used: &HashSet<u32>) -
             // Quake's weighting: coplanar faces are worth a great deal,
             // splits cost the same amount, and balance is a mild tiebreak.
             let mut value = 5 * coplanar - 5 * splits - (front - back).abs() / 2;
-            if plane.kind().is_axial() { value += 5; }
+            if plane.kind().is_axial() {
+                value += 5;
+            }
             // Prefer planes that carry real surfaces: faces then land on node
             // planes, where the renderer can cull them per node.
-            if side.is_visible_surface() { value += 3; }
+            if side.is_visible_surface() {
+                value += 3;
+            }
 
             if value > best_value {
                 best_value = value;
@@ -296,7 +344,9 @@ mod tests {
         for (i, (b, material)) in boxes.iter().enumerate() {
             let mut solid = Solid::cube(*b, material);
             solid.id = i as u32 + 1;
-            out.push(BrushWork::from_solid(&solid, 0, "worldspawn", &mut planes, &mut warnings).unwrap());
+            out.push(
+                BrushWork::from_solid(&solid, 0, "worldspawn", &mut planes, &mut warnings).unwrap(),
+            );
         }
         (out, planes)
     }
@@ -306,26 +356,55 @@ mod tests {
         let t = 16.0;
         let (lo, hi) = (0.0f32, 256.0);
         brushes_from(&[
-            (Aabb::new(Vec3::new(lo - t, lo - t, lo - t), Vec3::new(hi + t, hi + t, lo)), "dev/grid"), // floor
-            (Aabb::new(Vec3::new(lo - t, lo - t, hi), Vec3::new(hi + t, hi + t, hi + t)), "dev/grid"), // ceiling
-            (Aabb::new(Vec3::new(lo - t, lo - t, lo), Vec3::new(lo, hi + t, hi)), "dev/grid"),         // -X
-            (Aabb::new(Vec3::new(hi, lo - t, lo), Vec3::new(hi + t, hi + t, hi)), "dev/grid"),         // +X
-            (Aabb::new(Vec3::new(lo, lo - t, lo), Vec3::new(hi, lo, hi)), "dev/grid"),                 // -Y
-            (Aabb::new(Vec3::new(lo, hi, lo), Vec3::new(hi, hi + t, hi)), "dev/grid"),                 // +Y
+            (
+                Aabb::new(
+                    Vec3::new(lo - t, lo - t, lo - t),
+                    Vec3::new(hi + t, hi + t, lo),
+                ),
+                "dev/grid",
+            ), // floor
+            (
+                Aabb::new(
+                    Vec3::new(lo - t, lo - t, hi),
+                    Vec3::new(hi + t, hi + t, hi + t),
+                ),
+                "dev/grid",
+            ), // ceiling
+            (
+                Aabb::new(Vec3::new(lo - t, lo - t, lo), Vec3::new(lo, hi + t, hi)),
+                "dev/grid",
+            ), // -X
+            (
+                Aabb::new(Vec3::new(hi, lo - t, lo), Vec3::new(hi + t, hi + t, hi)),
+                "dev/grid",
+            ), // +X
+            (
+                Aabb::new(Vec3::new(lo, lo - t, lo), Vec3::new(hi, lo, hi)),
+                "dev/grid",
+            ), // -Y
+            (
+                Aabb::new(Vec3::new(lo, hi, lo), Vec3::new(hi, hi + t, hi)),
+                "dev/grid",
+            ), // +Y
         ])
     }
 
     #[test]
     fn a_single_cube_builds_a_tree() {
-        let (brushes, planes) = brushes_from(&[(Aabb::new(Vec3::ZERO, Vec3::splat(64.0)), "dev/grid")]);
+        let (brushes, planes) =
+            brushes_from(&[(Aabb::new(Vec3::ZERO, Vec3::splat(64.0)), "dev/grid")]);
         let tree = Tree::build(brushes, &planes);
-        assert!(tree.node_count() >= 3, "a box needs at least 3 splitting planes");
+        assert!(
+            tree.node_count() >= 3,
+            "a box needs at least 3 splitting planes"
+        );
         assert!(tree.leaf_count() >= 4);
     }
 
     #[test]
     fn inside_a_solid_cube_is_solid_and_outside_is_not() {
-        let (brushes, planes) = brushes_from(&[(Aabb::new(Vec3::ZERO, Vec3::splat(64.0)), "dev/grid")]);
+        let (brushes, planes) =
+            brushes_from(&[(Aabb::new(Vec3::ZERO, Vec3::splat(64.0)), "dev/grid")]);
         let tree = Tree::build(brushes, &planes);
 
         let inside = tree.point_leaf(Vec3::splat(32.0), &planes);
@@ -333,7 +412,11 @@ mod tests {
             tree.nodes[inside].contents & kerosene_bsp::contents::SOLID != 0,
             "the middle of a solid brush must be a solid leaf"
         );
-        for p in [Vec3::splat(-32.0), Vec3::new(100.0, 32.0, 32.0), Vec3::splat(200.0)] {
+        for p in [
+            Vec3::splat(-32.0),
+            Vec3::new(100.0, 32.0, 32.0),
+            Vec3::splat(200.0),
+        ] {
             let leaf = tree.point_leaf(p, &planes);
             assert_eq!(
                 tree.nodes[leaf].contents & kerosene_bsp::contents::SOLID,
@@ -349,7 +432,11 @@ mod tests {
         let tree = Tree::build(brushes, &planes);
 
         let air = tree.point_leaf(Vec3::splat(128.0), &planes);
-        assert_eq!(tree.nodes[air].contents, kerosene_bsp::contents::EMPTY, "the room's air");
+        assert_eq!(
+            tree.nodes[air].contents,
+            kerosene_bsp::contents::EMPTY,
+            "the room's air"
+        );
 
         // A point inside each wall slab.
         for p in [
@@ -402,7 +489,11 @@ mod tests {
         let b = BrushWork::from_solid(&solid, 0, "worldspawn", &mut planes, &mut warnings).unwrap();
         let tree = Tree::build(vec![b], &planes);
         let root_plane = planes.get(tree.nodes[tree.root].plane.unwrap());
-        assert!(root_plane.kind().is_axial(), "root split was {:?}", root_plane.normal);
+        assert!(
+            root_plane.kind().is_axial(),
+            "root split was {:?}",
+            root_plane.normal
+        );
     }
 
     #[test]
@@ -411,12 +502,19 @@ mod tests {
         let boxes: Vec<(Aabb, &str)> = (0..50)
             .map(|i| {
                 let z = i as f32 * 2.0;
-                (Aabb::new(Vec3::new(0.0, 0.0, z), Vec3::new(64.0, 64.0, z + 1.0)), "dev/grid")
+                (
+                    Aabb::new(Vec3::new(0.0, 0.0, z), Vec3::new(64.0, 64.0, z + 1.0)),
+                    "dev/grid",
+                )
             })
             .collect();
         let (brushes, planes) = brushes_from(&boxes);
         let tree = Tree::build(brushes, &planes);
-        assert!(tree.max_depth <= MAX_DEPTH, "depth {} exceeded the cap", tree.max_depth);
+        assert!(
+            tree.max_depth <= MAX_DEPTH,
+            "depth {} exceeded the cap",
+            tree.max_depth
+        );
         assert!(tree.leaf_count() > 50);
     }
 
@@ -427,14 +525,21 @@ mod tests {
         let boxes: Vec<(Aabb, &str)> = (0..4)
             .map(|i| {
                 let x = i as f32 * 64.0;
-                (Aabb::new(Vec3::new(x, 0.0, 0.0), Vec3::new(x + 64.0, 64.0, 64.0)), "dev/grid")
+                (
+                    Aabb::new(Vec3::new(x, 0.0, 0.0), Vec3::new(x + 64.0, 64.0, 64.0)),
+                    "dev/grid",
+                )
             })
             .collect();
         let (brushes, planes) = brushes_from(&boxes);
         let tree = Tree::build(brushes, &planes);
         // With a good heuristic this should not need many more nodes than the
         // handful of distinct planes involved.
-        assert!(tree.node_count() < 24, "used {} nodes for 4 aligned boxes", tree.node_count());
+        assert!(
+            tree.node_count() < 24,
+            "used {} nodes for 4 aligned boxes",
+            tree.node_count()
+        );
         assert_eq!(tree.splits, 0, "aligned boxes should never need splitting");
     }
 
@@ -444,9 +549,13 @@ mod tests {
         let tree = Tree::build(brushes, &planes);
         let order = tree.post_order();
         let mut position = vec![usize::MAX; tree.nodes.len()];
-        for (i, &n) in order.iter().enumerate() { position[n] = i; }
+        for (i, &n) in order.iter().enumerate() {
+            position[n] = i;
+        }
         for (i, node) in tree.nodes.iter().enumerate() {
-            if node.is_leaf() || position[i] == usize::MAX { continue; }
+            if node.is_leaf() || position[i] == usize::MAX {
+                continue;
+            }
             for c in node.children {
                 assert!(position[c] < position[i], "child {c} came after parent {i}");
             }

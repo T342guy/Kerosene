@@ -88,7 +88,9 @@ fn play_once(world: &mut EntityWorld, id: EntityId, event: &InputEvent) -> bool 
 }
 
 fn spawn(world: &mut EntityWorld, id: EntityId) {
-    let start_silent = world.get(id).is_some_and(|e| e.has_spawnflag(SF_START_SILENT));
+    let start_silent = world
+        .get(id)
+        .is_some_and(|e| e.has_spawnflag(SF_START_SILENT));
     set(world, id, "playing", Value::Bool(false));
     if !start_silent {
         start(world, id, None);
@@ -106,18 +108,28 @@ fn stop(world: &mut EntityWorld, id: EntityId, _e: &InputEvent) -> bool {
 }
 
 fn toggle(world: &mut EntityWorld, id: EntityId, event: &InputEvent) -> bool {
-    let playing = world.get(id).is_some_and(|e| e.fields.bool("playing", false));
-    if playing { silence(world, id) } else { start(world, id, event.activator) }
+    let playing = world
+        .get(id)
+        .is_some_and(|e| e.fields.bool("playing", false));
+    if playing {
+        silence(world, id)
+    } else {
+        start(world, id, event.activator)
+    }
     true
 }
 
 fn set_volume(world: &mut EntityWorld, id: EntityId, event: &InputEvent) -> bool {
-    let Some(volume) = event.parameter_f32() else { return false };
+    let Some(volume) = event.parameter_f32() else {
+        return false;
+    };
     set(world, id, "volume", Value::Float(volume.clamp(0.0, 1.0)));
     // Restart so the change is heard: the mixer sets a voice's gain when it
     // starts, and a running one is not re-read. A one-shot has nothing to
     // restart, and `playing` is a field only an ambience keeps.
-    let playing = world.get(id).is_some_and(|e| e.fields.bool("playing", false));
+    let playing = world
+        .get(id)
+        .is_some_and(|e| e.fields.bool("playing", false));
     if playing {
         silence(world, id);
         start(world, id, None);
@@ -143,5 +155,7 @@ fn silence(world: &mut EntityWorld, id: EntityId) {
 }
 
 fn set(world: &mut EntityWorld, id: EntityId, key: &str, value: Value) {
-    if let Some(e) = world.get_mut(id) { e.fields.set(key, value); }
+    if let Some(e) = world.get_mut(id) {
+        e.fields.set(key, value);
+    }
 }

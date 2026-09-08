@@ -39,7 +39,10 @@ pub struct VisResult {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum Status { Pending, Done }
+enum Status {
+    Pending,
+    Done,
+}
 
 /// Compute visibility. With `fast`, stops after base vis -- a much quicker
 /// compile that leaves too much visible, for iterating on a level's layout.
@@ -87,7 +90,11 @@ pub fn compute(graph: &PortalGraph, fast: bool) -> VisResult {
     let cluster_vis = merge_clusters(graph, &portal_vis);
     let final_visible = cluster_vis.iter().map(BitSet::count).sum();
 
-    VisResult { cluster_vis, base_visible, final_visible }
+    VisResult {
+        cluster_vis,
+        base_visible,
+        final_visible,
+    }
 }
 
 /// Which portals each portal could conceivably see.
@@ -101,17 +108,29 @@ fn base_portal_vis(graph: &PortalGraph) -> Vec<BitSet> {
     for i in 0..n {
         let p = &graph.portals[i];
         for j in 0..n {
-            if i == j { continue; }
+            if i == j {
+                continue;
+            }
             let q = &graph.portals[j];
 
             // q must have at least one point in front of p, or p cannot see
             // any of it.
-            if !q.winding.points.iter().any(|&pt| p.plane.distance_to(pt) > ON_EPSILON) {
+            if !q
+                .winding
+                .points
+                .iter()
+                .any(|&pt| p.plane.distance_to(pt) > ON_EPSILON)
+            {
                 continue;
             }
             // And p must have at least one point behind q, or q is looking
             // away from p entirely.
-            if !p.winding.points.iter().any(|&pt| q.plane.distance_to(pt) < -ON_EPSILON) {
+            if !p
+                .winding
+                .points
+                .iter()
+                .any(|&pt| q.plane.distance_to(pt) < -ON_EPSILON)
+            {
                 continue;
             }
             out[i].set(j);
@@ -131,8 +150,12 @@ fn flood(graph: &PortalGraph, front: &[BitSet]) -> Vec<BitSet> {
         let mut stack = vec![graph.portals[base].into_cluster];
         while let Some(cluster) = stack.pop() {
             for &pnum in &graph.by_cluster[cluster] {
-                if !front[base].test(pnum) { continue; }
-                if out[base].test(pnum) { continue; }
+                if !front[base].test(pnum) {
+                    continue;
+                }
+                if out[base].test(pnum) {
+                    continue;
+                }
                 out[base].set(pnum);
                 stack.push(graph.portals[pnum].into_cluster);
             }
@@ -194,11 +217,15 @@ impl Flow<'_> {
     }
 
     fn recurse(&mut self, cluster: usize, prev: &Stack, depth: usize) {
-        if depth >= MAX_DEPTH { return; }
+        if depth >= MAX_DEPTH {
+            return;
+        }
 
         for idx in 0..self.graph.by_cluster[cluster].len() {
             let pnum = self.graph.by_cluster[cluster][idx];
-            if !prev.mightsee.test(pnum) { continue; }
+            if !prev.mightsee.test(pnum) {
+                continue;
+            }
 
             // A portal already solved gives its exact answer; one still
             // pending gives its over-estimate. Either way it prunes.
@@ -251,17 +278,29 @@ impl Flow<'_> {
                 // portal to form separating planes with, so nothing can be
                 // clipped away yet.
                 self.vis.set(pnum);
-                let stack = Stack { mightsee, source, pass: Some(pass) };
+                let stack = Stack {
+                    mightsee,
+                    source,
+                    pass: Some(pass),
+                };
                 self.recurse(p.into_cluster, &stack, depth + 1);
                 continue;
             };
 
             // Narrow the sight cone from both directions.
-            let Some(pass) = clip_to_separators(&source, prev_pass, pass, false) else { continue };
-            let Some(pass) = clip_to_separators(prev_pass, &source, pass, true) else { continue };
+            let Some(pass) = clip_to_separators(&source, prev_pass, pass, false) else {
+                continue;
+            };
+            let Some(pass) = clip_to_separators(prev_pass, &source, pass, true) else {
+                continue;
+            };
 
             self.vis.set(pnum);
-            let stack = Stack { mightsee, source, pass: Some(pass) };
+            let stack = Stack {
+                mightsee,
+                source,
+                pass: Some(pass),
+            };
             self.recurse(p.into_cluster, &stack, depth + 1);
         }
     }
@@ -281,7 +320,9 @@ fn clip_to_separators(
     flip_clip: bool,
 ) -> Option<Winding> {
     let sn = source.points.len();
-    if sn < 3 || pass.points.len() < 3 { return Some(target); }
+    if sn < 3 || pass.points.len() < 3 {
+        return Some(target);
+    }
 
     for i in 0..sn {
         let l = (i + 1) % sn;
@@ -291,7 +332,9 @@ fn clip_to_separators(
             let v2 = pass.points[j] - source.points[i];
             let normal = v1.cross(v2);
             let length = normal.length();
-            if length < ON_EPSILON { continue; }
+            if length < ON_EPSILON {
+                continue;
+            }
             let normal = normal / length;
             let mut plane = Plane::new(normal, pass.points[j].dot(normal));
 
@@ -299,32 +342,55 @@ fn clip_to_separators(
             // on the plane by construction, so look at the others.
             let mut flip_test = None;
             for k in 0..sn {
-                if k == i || k == l { continue; }
+                if k == i || k == l {
+                    continue;
+                }
                 let d = plane.distance_to(source.points[k]);
-                if d < -ON_EPSILON { flip_test = Some(false); break; }
-                if d > ON_EPSILON { flip_test = Some(true); break; }
+                if d < -ON_EPSILON {
+                    flip_test = Some(false);
+                    break;
+                }
+                if d > ON_EPSILON {
+                    flip_test = Some(true);
+                    break;
+                }
             }
             // Every remaining point is on the plane: the source is coplanar
             // with it, so it separates nothing.
             let Some(flip_test) = flip_test else { continue };
 
             // Orient the plane so the source is behind it.
-            if flip_test { plane = plane.flipped(); }
+            if flip_test {
+                plane = plane.flipped();
+            }
 
             // For this to separate, all of `pass` must be in front.
             let mut any_front = false;
             let mut blocked = false;
             for k in 0..pass.points.len() {
-                if k == j { continue; }
+                if k == j {
+                    continue;
+                }
                 let d = plane.distance_to(pass.points[k]);
-                if d < -ON_EPSILON { blocked = true; break; }
-                if d > ON_EPSILON { any_front = true; }
+                if d < -ON_EPSILON {
+                    blocked = true;
+                    break;
+                }
+                if d > ON_EPSILON {
+                    any_front = true;
+                }
             }
-            if blocked { continue; }
+            if blocked {
+                continue;
+            }
             // Coplanar with `pass` too: still not a separator.
-            if !any_front { continue; }
+            if !any_front {
+                continue;
+            }
 
-            if flip_clip { plane = plane.flipped(); }
+            if flip_clip {
+                plane = plane.flipped();
+            }
             target = target.clipped(&plane, ON_EPSILON)?;
         }
     }
@@ -431,7 +497,10 @@ mod tests {
     fn a_chain_of_rooms_stays_connected_through_its_neighbours() {
         let g = occluded_chain();
         let r = compute(&g, false);
-        assert!(r.cluster_vis[0].test(1), "adjacent rooms must see each other");
+        assert!(
+            r.cluster_vis[0].test(1),
+            "adjacent rooms must see each other"
+        );
         assert!(r.cluster_vis[1].test(2));
         assert!(r.cluster_vis[2].test(3));
     }
@@ -439,7 +508,10 @@ mod tests {
     #[test]
     fn a_straight_corridor_is_visible_end_to_end() {
         let r = compute(&open_chain(), false);
-        assert!(r.cluster_vis[0].test(3), "you can see straight down an aligned corridor");
+        assert!(
+            r.cluster_vis[0].test(3),
+            "you can see straight down an aligned corridor"
+        );
     }
 
     #[test]
@@ -451,13 +523,19 @@ mod tests {
         let full = compute(&g, false);
         let fast = compute(&g, true);
 
-        assert!(fast.cluster_vis[0].test(3), "base vis floods through and over-estimates");
+        assert!(
+            fast.cluster_vis[0].test(3),
+            "base vis floods through and over-estimates"
+        );
         assert!(
             !full.cluster_vis[0].test(3),
             "full vis should cull cluster 3 from cluster 0"
         );
         assert!(!full.cluster_vis[3].test(0), "and symmetrically");
-        assert!(full.final_visible < fast.final_visible, "the full pass must cull something");
+        assert!(
+            full.final_visible < fast.final_visible,
+            "the full pass must cull something"
+        );
     }
 
     #[test]
@@ -505,7 +583,10 @@ mod tests {
             Vec3::new(128.0, 500.0, -4.0),
         ]);
         let out = clip_to_separators(&source, &slot, target, false);
-        assert!(out.is_none(), "a target outside the sight cone must be clipped away");
+        assert!(
+            out.is_none(),
+            "a target outside the sight cone must be clipped away"
+        );
     }
 
     #[test]

@@ -9,11 +9,11 @@
 //! Reads come from the snapshot; writes become [`ScriptAction`]s. Nothing
 //! here touches the engine.
 
-use crate::{EntityView, ScriptAction, ScriptLevel, Shared, MAX_ACTIONS};
+use crate::{EntityView, MAX_ACTIONS, ScriptAction, ScriptLevel, Shared};
+use kerosene_math::Vec3;
 use rhai::{Dynamic, Engine};
 use std::cell::RefCell;
 use std::rc::Rc;
-use kerosene_math::Vec3;
 
 /// A script's view of one entity.
 ///
@@ -33,7 +33,9 @@ impl Ent {
 
 fn push(shared: &Rc<RefCell<Shared>>, action: ScriptAction) {
     let mut shared = shared.borrow_mut();
-    if shared.actions.len() >= MAX_ACTIONS { return }
+    if shared.actions.len() >= MAX_ACTIONS {
+        return;
+    }
     shared.actions.push(action);
 }
 
@@ -51,7 +53,9 @@ pub fn register(engine: &mut Engine, shared: &Rc<RefCell<Shared>>) {
 fn register_vector(engine: &mut Engine) {
     engine
         .register_type_with_name::<Vec3>("Vector")
-        .register_fn("Vector", |x: f64, y: f64, z: f64| Vec3::new(x as f32, y as f32, z as f32))
+        .register_fn("Vector", |x: f64, y: f64, z: f64| {
+            Vec3::new(x as f32, y as f32, z as f32)
+        })
         .register_fn("Vector", || Vec3::ZERO)
         .register_get_set(
             "x",
@@ -93,22 +97,38 @@ fn register_output(engine: &mut Engine, shared: &Rc<RefCell<Shared>>) {
     // rhai's own `print` and `debug` are routed to the console too, so a
     // script written the obvious way says something visible.
     let sink = Rc::clone(shared);
-    engine.on_print(move |text| push(&sink, ScriptAction::Log(ScriptLevel::Print, text.to_string())));
+    engine.on_print(move |text| {
+        push(
+            &sink,
+            ScriptAction::Log(ScriptLevel::Print, text.to_string()),
+        )
+    });
 
     let sink = Rc::clone(shared);
     engine.on_debug(move |text, source, pos| {
-        let where_ = source.map(|s| format!("{s}:{pos}")).unwrap_or_else(|| pos.to_string());
-        push(&sink, ScriptAction::Log(ScriptLevel::Print, format!("[{where_}] {text}")));
+        let where_ = source
+            .map(|s| format!("{s}:{pos}"))
+            .unwrap_or_else(|| pos.to_string());
+        push(
+            &sink,
+            ScriptAction::Log(ScriptLevel::Print, format!("[{where_}] {text}")),
+        );
     });
 
     let sink = Rc::clone(shared);
     engine.register_fn("warn", move |text: &str| {
-        push(&sink, ScriptAction::Log(ScriptLevel::Warn, text.to_string()))
+        push(
+            &sink,
+            ScriptAction::Log(ScriptLevel::Warn, text.to_string()),
+        )
     });
 
     let sink = Rc::clone(shared);
     engine.register_fn("error", move |text: &str| {
-        push(&sink, ScriptAction::Log(ScriptLevel::Error, text.to_string()))
+        push(
+            &sink,
+            ScriptAction::Log(ScriptLevel::Error, text.to_string()),
+        )
     });
 }
 
@@ -122,7 +142,13 @@ fn register_console(engine: &mut Engine, shared: &Rc<RefCell<Shared>>) {
 
     let source = Rc::clone(shared);
     engine.register_fn("cvar", move |name: &str| -> String {
-        source.borrow().view.cvars.get(name).cloned().unwrap_or_default()
+        source
+            .borrow()
+            .view
+            .cvars
+            .get(name)
+            .cloned()
+            .unwrap_or_default()
     });
 
     let source = Rc::clone(shared);
@@ -157,7 +183,10 @@ fn register_entities(engine: &mut Engine, shared: &Rc<RefCell<Shared>>) {
             e.view.field(key).unwrap_or_default().to_string()
         })
         .register_fn("get_float", |e: &mut Ent, key: &str| {
-            e.view.field(key).and_then(|v| v.parse::<f64>().ok()).unwrap_or(0.0)
+            e.view
+                .field(key)
+                .and_then(|v| v.parse::<f64>().ok())
+                .unwrap_or(0.0)
         })
         .register_fn("has", |e: &mut Ent, key: &str| e.view.field(key).is_some())
         .register_fn("to_string", |e: &mut Ent| {
@@ -184,7 +213,10 @@ fn register_entities(engine: &mut Engine, shared: &Rc<RefCell<Shared>>) {
             e.queue(action);
         })
         .register_fn("set_origin", |e: &mut Ent, origin: Vec3| {
-            let action = ScriptAction::SetOrigin { entity: e.view.id, origin };
+            let action = ScriptAction::SetOrigin {
+                entity: e.view.id,
+                origin,
+            };
             e.queue(action);
         })
         .register_fn("kill", |e: &mut Ent| {
@@ -206,7 +238,10 @@ fn register_entities(engine: &mut Engine, shared: &Rc<RefCell<Shared>>) {
     engine.register_fn("find_by_name", move |name: &str| -> Dynamic {
         let found = source.borrow().view.by_name(name).next().cloned();
         match found {
-            Some(view) => Dynamic::from(Ent { view, shared: Rc::clone(&sink) }),
+            Some(view) => Dynamic::from(Ent {
+                view,
+                shared: Rc::clone(&sink),
+            }),
             None => Dynamic::UNIT,
         }
     });
@@ -219,7 +254,12 @@ fn register_entities(engine: &mut Engine, shared: &Rc<RefCell<Shared>>) {
             .view
             .by_name(name)
             .cloned()
-            .map(|view| Dynamic::from(Ent { view, shared: Rc::clone(&sink) }))
+            .map(|view| {
+                Dynamic::from(Ent {
+                    view,
+                    shared: Rc::clone(&sink),
+                })
+            })
             .collect()
     });
 
@@ -231,7 +271,12 @@ fn register_entities(engine: &mut Engine, shared: &Rc<RefCell<Shared>>) {
             .view
             .by_class(class)
             .cloned()
-            .map(|view| Dynamic::from(Ent { view, shared: Rc::clone(&sink) }))
+            .map(|view| {
+                Dynamic::from(Ent {
+                    view,
+                    shared: Rc::clone(&sink),
+                })
+            })
             .collect()
     });
 
@@ -240,7 +285,10 @@ fn register_entities(engine: &mut Engine, shared: &Rc<RefCell<Shared>>) {
     engine.register_fn("player", move || -> Dynamic {
         let found = source.borrow().view.player.clone();
         match found {
-            Some(view) => Dynamic::from(Ent { view, shared: Rc::clone(&sink) }),
+            Some(view) => Dynamic::from(Ent {
+                view,
+                shared: Rc::clone(&sink),
+            }),
             None => Dynamic::UNIT,
         }
     });
@@ -262,17 +310,20 @@ fn register_entities(engine: &mut Engine, shared: &Rc<RefCell<Shared>>) {
     });
 
     let sink = Rc::clone(shared);
-    engine.register_fn("ent_fire", move |target: &str, input: &str, parameter: &str| {
-        push(
-            &sink,
-            ScriptAction::FireInput {
-                target: target.to_string(),
-                input: input.to_string(),
-                parameter: parameter.to_string(),
-                delay: 0.0,
-            },
-        )
-    });
+    engine.register_fn(
+        "ent_fire",
+        move |target: &str, input: &str, parameter: &str| {
+            push(
+                &sink,
+                ScriptAction::FireInput {
+                    target: target.to_string(),
+                    input: input.to_string(),
+                    parameter: parameter.to_string(),
+                    delay: 0.0,
+                },
+            )
+        },
+    );
 
     let sink = Rc::clone(shared);
     engine.register_fn(
@@ -319,7 +370,11 @@ fn register_sound(engine: &mut Engine, shared: &Rc<RefCell<Shared>>) {
     engine.register_fn("play_sound", move |name: &str| {
         push(
             &sink,
-            ScriptAction::PlaySound { name: name.to_string(), position: None, volume: 1.0 },
+            ScriptAction::PlaySound {
+                name: name.to_string(),
+                position: None,
+                volume: 1.0,
+            },
         )
     });
 
@@ -336,19 +391,24 @@ fn register_sound(engine: &mut Engine, shared: &Rc<RefCell<Shared>>) {
     });
 
     let sink = Rc::clone(shared);
-    engine.register_fn("play_sound", move |name: &str, position: Vec3, volume: f64| {
-        push(
-            &sink,
-            ScriptAction::PlaySound {
-                name: name.to_string(),
-                position: Some(position),
-                volume: volume.max(0.0) as f32,
-            },
-        )
-    });
+    engine.register_fn(
+        "play_sound",
+        move |name: &str, position: Vec3, volume: f64| {
+            push(
+                &sink,
+                ScriptAction::PlaySound {
+                    name: name.to_string(),
+                    position: Some(position),
+                    volume: volume.max(0.0) as f32,
+                },
+            )
+        },
+    );
 
     let sink = Rc::clone(shared);
-    engine.register_fn("stop_sounds", move || push(&sink, ScriptAction::StopAllSounds));
+    engine.register_fn("stop_sounds", move || {
+        push(&sink, ScriptAction::StopAllSounds)
+    });
 }
 
 // ---- the world ------------------------------------------------------------
@@ -364,5 +424,7 @@ fn register_world(engine: &mut Engine, shared: &Rc<RefCell<Shared>>) {
     engine.register_fn("map_name", move || source.borrow().view.map.clone());
 
     let source = Rc::clone(shared);
-    engine.register_fn("entity_count", move || source.borrow().view.entities.len() as i64);
+    engine.register_fn("entity_count", move || {
+        source.borrow().view.entities.len() as i64
+    });
 }

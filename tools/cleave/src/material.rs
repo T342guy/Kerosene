@@ -26,7 +26,11 @@ pub struct MaterialFlags {
 
 impl MaterialFlags {
     const fn new(contents: u32, surface: u32, emits_face: bool) -> Self {
-        MaterialFlags { contents, surface, emits_face }
+        MaterialFlags {
+            contents,
+            surface,
+            emits_face,
+        }
     }
 }
 
@@ -39,7 +43,9 @@ pub const WORLD: MaterialFlags = MaterialFlags::new(contents::SOLID, 0, true);
 /// `TOOLS/Clip` and `tools/clip` agree.
 pub fn flags_for(material: &str) -> MaterialFlags {
     let lower = material.to_lowercase();
-    let Some(tool) = lower.strip_prefix("tools/") else { return WORLD };
+    let Some(tool) = lower.strip_prefix("tools/") else {
+        return WORLD;
+    };
 
     match tool {
         // Solid, but never drawn. The workhorse: the outside faces of a
@@ -47,28 +53,18 @@ pub fn flags_for(material: &str) -> MaterialFlags {
         "nodraw" | "invisible" => MaterialFlags::new(contents::SOLID, surf::NODRAW, false),
 
         // Blocks players, invisible, does not block bullets or sight.
-        "clip" | "playerclip" => {
-            MaterialFlags::new(contents::PLAYER_CLIP, surf::NODRAW, false)
-        }
+        "clip" | "playerclip" => MaterialFlags::new(contents::PLAYER_CLIP, surf::NODRAW, false),
         "npcclip" | "monsterclip" => {
             MaterialFlags::new(contents::MONSTER_CLIP, surf::NODRAW, false)
         }
 
         // A trigger volume: not solid, but traces find it and the engine
         // fires its entity's outputs on touch.
-        "trigger" => MaterialFlags::new(
-            contents::TRIGGER,
-            surf::NODRAW | surf::TRIGGER,
-            false,
-        ),
+        "trigger" => MaterialFlags::new(contents::TRIGGER, surf::NODRAW | surf::TRIGGER, false),
 
         // The skybox. Draws (as the sky), and during the lighting compile it
         // is where sunlight enters the world.
-        "skybox" | "sky" => MaterialFlags::new(
-            contents::SOLID,
-            surf::SKY | surf::NOLIGHT,
-            true,
-        ),
+        "skybox" | "sky" => MaterialFlags::new(contents::SOLID, surf::SKY | surf::NOLIGHT, true),
 
         // Hint forces a BSP split along its plane and then vanishes; skip is
         // what the hint brush's other five faces wear so they do nothing.
@@ -141,13 +137,20 @@ pub fn contents_words(contents: u32) -> String {
         (contents::MONSTER_CLIP, "blocks NPCs"),
         (contents::OPAQUE, "blocks light"),
         (contents::SOLID, "solid"),
-        (contents::DETAIL, "detail: it does not seal the map or cut visibility"),
+        (
+            contents::DETAIL,
+            "detail: it does not seal the map or cut visibility",
+        ),
         (contents::MOVEABLE, "moves"),
         (contents::TRANSLUCENT, "see-through"),
     ] {
-        if contents & bit != 0 { what.push(name) }
+        if contents & bit != 0 {
+            what.push(name)
+        }
     }
-    if what.is_empty() { return "empty -- it compiles to nothing".to_string() }
+    if what.is_empty() {
+        return "empty -- it compiles to nothing".to_string();
+    }
     what.join(", ")
 }
 
@@ -181,11 +184,25 @@ pub fn describe_brush(materials: &[String], classname: Option<&str>) -> String {
 /// Whether a `tools/` name is one we actually know.
 pub fn is_known_tool(material: &str) -> bool {
     let lower = material.to_lowercase();
-    let Some(tool) = lower.strip_prefix("tools/") else { return true };
+    let Some(tool) = lower.strip_prefix("tools/") else {
+        return true;
+    };
     matches!(
         tool,
-        "nodraw" | "invisible" | "clip" | "playerclip" | "npcclip" | "monsterclip"
-            | "trigger" | "skybox" | "sky" | "hint" | "skip" | "blocklight" | "grate" | "water"
+        "nodraw"
+            | "invisible"
+            | "clip"
+            | "playerclip"
+            | "npcclip"
+            | "monsterclip"
+            | "trigger"
+            | "skybox"
+            | "sky"
+            | "hint"
+            | "skip"
+            | "blocklight"
+            | "grate"
+            | "water"
             | "ladder"
     )
 }
@@ -197,7 +214,9 @@ pub fn is_known_tool(material: &str) -> bool {
 /// and it is why a designer does not have to texture every trigger by hand.
 pub fn contents_for_classname(classname: &str) -> Option<u32> {
     let lower = classname.to_lowercase();
-    if lower.starts_with("trigger_") { return Some(contents::TRIGGER); }
+    if lower.starts_with("trigger_") {
+        return Some(contents::TRIGGER);
+    }
     match lower.as_str() {
         "func_detail" => Some(contents::SOLID | contents::DETAIL),
         "func_water" | "func_liquid" => Some(contents::WATER | contents::TRANSLUCENT),
@@ -236,8 +255,14 @@ mod tests {
     fn clip_blocks_players_but_not_bullets() {
         let f = flags_for("tools/clip");
         assert!(f.contents & contents::PLAYER_CLIP != 0);
-        assert!(f.contents & contents::SOLID == 0, "a clip brush is not world solid");
-        assert!(contents::MASK_SHOT & f.contents == 0, "bullets pass through clips");
+        assert!(
+            f.contents & contents::SOLID == 0,
+            "a clip brush is not world solid"
+        );
+        assert!(
+            contents::MASK_SHOT & f.contents == 0,
+            "bullets pass through clips"
+        );
         assert!(contents::MASK_PLAYER_SOLID & f.contents != 0);
     }
 
@@ -253,7 +278,11 @@ mod tests {
     fn hint_and_skip_are_not_solid() {
         for name in ["tools/hint", "tools/skip"] {
             let f = flags_for(name);
-            assert_eq!(f.contents, contents::EMPTY, "{name} must not block anything");
+            assert_eq!(
+                f.contents,
+                contents::EMPTY,
+                "{name} must not block anything"
+            );
             assert!(!f.emits_face);
         }
         assert!(flags_for("tools/hint").surface & surf::HINT != 0);
@@ -275,7 +304,11 @@ mod tests {
     #[test]
     fn unknown_tool_materials_are_flagged() {
         assert!(!is_known_tool("tools/clipp"));
-        assert_eq!(flags_for("tools/clipp"), WORLD, "unknown tools fall back to solid");
+        assert_eq!(
+            flags_for("tools/clipp"),
+            WORLD,
+            "unknown tools fall back to solid"
+        );
     }
 
     #[test]
@@ -284,8 +317,14 @@ mod tests {
             contents_for_classname("func_detail"),
             Some(contents::SOLID | contents::DETAIL)
         );
-        assert_eq!(contents_for_classname("trigger_multiple"), Some(contents::TRIGGER));
-        assert_eq!(contents_for_classname("trigger_hurt"), Some(contents::TRIGGER));
+        assert_eq!(
+            contents_for_classname("trigger_multiple"),
+            Some(contents::TRIGGER)
+        );
+        assert_eq!(
+            contents_for_classname("trigger_hurt"),
+            Some(contents::TRIGGER)
+        );
         assert!(contents_for_classname("func_door").unwrap() & contents::MOVEABLE != 0);
         assert_eq!(contents_for_classname("info_player_start"), None);
     }
@@ -295,8 +334,20 @@ mod tests {
         // A tool texture whose effect you have to compile the map to discover
         // is a tool texture that appears to do nothing.
         for tool in [
-            "nodraw", "invisible", "clip", "playerclip", "npcclip", "monsterclip",
-            "trigger", "skybox", "sky", "hint", "skip", "blocklight", "grate", "water",
+            "nodraw",
+            "invisible",
+            "clip",
+            "playerclip",
+            "npcclip",
+            "monsterclip",
+            "trigger",
+            "skybox",
+            "sky",
+            "hint",
+            "skip",
+            "blocklight",
+            "grate",
+            "water",
         ] {
             let name = format!("tools/{tool}");
             let said = describe(&name);
@@ -310,7 +361,10 @@ mod tests {
 
     #[test]
     fn an_ordinary_material_is_described_as_world_geometry() {
-        assert_eq!(describe("dev/grid"), "world geometry: draws, blocks everything");
+        assert_eq!(
+            describe("dev/grid"),
+            "world geometry: draws, blocks everything"
+        );
     }
 
     #[test]
@@ -325,8 +379,14 @@ mod tests {
     #[test]
     fn a_brush_is_described_by_what_it_will_compile_as() {
         assert_eq!(describe_brush(&["dev/grid".into()], None), "solid");
-        assert_eq!(describe_brush(&["tools/clip".into()], None), "blocks players");
-        assert_eq!(describe_brush(&["tools/trigger".into()], None), "a trigger volume");
+        assert_eq!(
+            describe_brush(&["tools/clip".into()], None),
+            "blocks players"
+        );
+        assert_eq!(
+            describe_brush(&["tools/trigger".into()], None),
+            "a trigger volume"
+        );
     }
 
     #[test]
@@ -337,7 +397,10 @@ mod tests {
         // is precisely why the editor has to say so.
         let mixed = vec!["tools/clip".into(), "dev/grid".into(), "dev/grid".into()];
         assert_eq!(describe_brush(&mixed, None), "blocks players");
-        assert_ne!(describe_brush(&mixed, None), describe_brush(&["dev/grid".into()], None));
+        assert_ne!(
+            describe_brush(&mixed, None),
+            describe_brush(&["dev/grid".into()], None)
+        );
     }
 
     #[test]
@@ -361,7 +424,10 @@ mod tests {
 
     #[test]
     fn a_class_the_compiler_has_no_opinion_about_falls_back_to_the_faces() {
-        assert_eq!(describe_brush(&["dev/grid".into()], Some("info_target")), "solid");
+        assert_eq!(
+            describe_brush(&["dev/grid".into()], Some("info_target")),
+            "solid"
+        );
     }
 
     #[test]
@@ -374,7 +440,11 @@ mod tests {
         // Both halves matter. A solid ladder is a wall you cannot climb, and
         // a drawn one puts a grey rectangle over whatever art is behind it.
         let f = flags_for("tools/ladder");
-        assert_eq!(f.contents & contents::SOLID, 0, "a ladder must not block the player");
+        assert_eq!(
+            f.contents & contents::SOLID,
+            0,
+            "a ladder must not block the player"
+        );
         assert!(f.contents & contents::LADDER != 0);
         assert!(f.surface & surf::NODRAW != 0);
         assert!(!f.emits_face);
@@ -384,7 +454,10 @@ mod tests {
     fn a_func_ladder_is_a_ladder_whatever_its_faces_are_textured_with() {
         // The same override triggers get: a designer should not have to
         // texture every face of a ladder by hand to make the class work.
-        assert_eq!(contents_for_classname("func_ladder"), Some(contents::LADDER));
+        assert_eq!(
+            contents_for_classname("func_ladder"),
+            Some(contents::LADDER)
+        );
         let described = describe_brush(&["dev/grid".to_string()], Some("func_ladder"));
         assert!(described.to_lowercase().contains("ladder"), "{described}");
     }

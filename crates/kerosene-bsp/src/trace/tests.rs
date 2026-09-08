@@ -10,20 +10,37 @@ fn cube_world(brush_contents: u32) -> Bsp {
     let mut planes = kerosene_math::PlaneSet::new();
 
     let faces = [
-        (Vec3::X, 64.0), (-Vec3::X, 0.0),
-        (Vec3::Y, 64.0), (-Vec3::Y, 0.0),
-        (Vec3::Z, 64.0), (-Vec3::Z, 0.0),
+        (Vec3::X, 64.0),
+        (-Vec3::X, 0.0),
+        (Vec3::Y, 64.0),
+        (-Vec3::Y, 0.0),
+        (Vec3::Z, 64.0),
+        (-Vec3::Z, 0.0),
     ];
     let name = bsp.intern_texdata_string("dev/grid");
-    bsp.texdata.push(TexData { name_offset: name, ..Default::default() });
-    bsp.texinfo.push(TexInfo { texdata: 0, ..Default::default() });
+    bsp.texdata.push(TexData {
+        name_offset: name,
+        ..Default::default()
+    });
+    bsp.texinfo.push(TexInfo {
+        texdata: 0,
+        ..Default::default()
+    });
 
     for (normal, dist) in faces {
         let index = planes.insert(Plane::new(normal, dist));
-        bsp.brushsides.push(BrushSide { plane: index, texinfo: 0, bevel: 0 });
+        bsp.brushsides.push(BrushSide {
+            plane: index,
+            texinfo: 0,
+            bevel: 0,
+        });
     }
     bsp.planes = planes.planes().iter().map(BspPlane::from_plane).collect();
-    bsp.brushes.push(Brush { first_side: 0, num_sides: 6, contents: brush_contents });
+    bsp.brushes.push(Brush {
+        first_side: 0,
+        num_sides: 6,
+        contents: brush_contents,
+    });
     bsp.leafbrushes.push(0);
 
     bsp.leaves.push(Leaf {
@@ -47,7 +64,9 @@ fn cube_world(brush_contents: u32) -> Bsp {
     bsp
 }
 
-fn solid_cube() -> Bsp { cube_world(content_flags::SOLID) }
+fn solid_cube() -> Bsp {
+    cube_world(content_flags::SOLID)
+}
 
 #[test]
 fn a_ray_stops_at_the_near_face() {
@@ -69,7 +88,11 @@ fn a_ray_stops_at_the_near_face() {
 fn a_ray_that_misses_reaches_the_end() {
     let bsp = solid_cube();
     let end = Vec3::new(100.0, 200.0, 32.0);
-    let t = bsp.trace_ray(Vec3::new(-100.0, 200.0, 32.0), end, content_flags::MASK_SOLID);
+    let t = bsp.trace_ray(
+        Vec3::new(-100.0, 200.0, 32.0),
+        end,
+        content_flags::MASK_SOLID,
+    );
     assert!(!t.hit());
     assert_eq!(t.fraction, 1.0);
     assert_eq!(t.endpos, end);
@@ -96,7 +119,10 @@ fn a_ray_just_clear_of_a_face_does_not_catch_on_it() {
         Vec3::new(100.0, 32.0, 64.0),
         content_flags::MASK_SOLID,
     );
-    assert!(exactly_on.hit(), "a ray in the surface plane is touching the brush");
+    assert!(
+        exactly_on.hit(),
+        "a ray in the surface plane is touching the brush"
+    );
 }
 
 #[test]
@@ -111,10 +137,15 @@ fn a_box_stops_further_out_than_a_ray() {
     assert!(
         boxed.fraction < ray.fraction,
         "a 32-wide box should stop 16 units earlier: box {} vs ray {}",
-        boxed.fraction, ray.fraction
+        boxed.fraction,
+        ray.fraction
     );
     // Its centre should end 16 units short of the face.
-    assert!((boxed.endpos.x + 16.0).abs() < 0.2, "box centre at {:?}", boxed.endpos);
+    assert!(
+        (boxed.endpos.x + 16.0).abs() < 0.2,
+        "box centre at {:?}",
+        boxed.endpos
+    );
 }
 
 #[test]
@@ -173,7 +204,10 @@ fn the_mask_decides_what_stops_a_trace() {
 fn a_grate_blocks_movement_but_not_sight() {
     let bsp = cube_world(content_flags::GRATE);
     let (start, end) = (Vec3::new(-100.0, 32.0, 32.0), Vec3::new(100.0, 32.0, 32.0));
-    assert!(bsp.trace_ray(start, end, content_flags::MASK_PLAYER_SOLID).hit());
+    assert!(
+        bsp.trace_ray(start, end, content_flags::MASK_PLAYER_SOLID)
+            .hit()
+    );
     assert!(
         bsp.is_visible_between(start, end, content_flags::MASK_OPAQUE),
         "you can see through a grate"
@@ -189,7 +223,11 @@ fn the_hit_surface_reports_its_flags() {
         Vec3::new(100.0, 32.0, 32.0),
         content_flags::MASK_SOLID,
     );
-    assert_eq!(t.surface_flags, crate::surf::SKY, "a shadow ray needs to know it hit sky");
+    assert_eq!(
+        t.surface_flags,
+        crate::surf::SKY,
+        "a shadow ray needs to know it hit sky"
+    );
 }
 
 #[test]
@@ -229,7 +267,10 @@ fn point_contents_finds_brushes_inside_open_leaves() {
         bsp.point_contents_brushes(Vec3::splat(32.0)) & content_flags::WATER != 0,
         "standing in water should be detectable"
     );
-    assert_eq!(bsp.point_contents_brushes(Vec3::splat(200.0)) & content_flags::WATER, 0);
+    assert_eq!(
+        bsp.point_contents_brushes(Vec3::splat(200.0)) & content_flags::WATER,
+        0
+    );
 }
 
 #[test]
@@ -245,8 +286,10 @@ fn traces_walk_a_real_tree() {
         ..Default::default()
     });
     let plane = bsp.planes.len() as u32;
-    bsp.planes.push(BspPlane::from_plane(&Plane::new(Vec3::X, -32.0)));
-    bsp.planes.push(BspPlane::from_plane(&Plane::new(-Vec3::X, 32.0)));
+    bsp.planes
+        .push(BspPlane::from_plane(&Plane::new(Vec3::X, -32.0)));
+    bsp.planes
+        .push(BspPlane::from_plane(&Plane::new(-Vec3::X, 32.0)));
     bsp.nodes.push(Node {
         plane,
         // In front of x = -32 is the cube's leaf; behind it is empty space.

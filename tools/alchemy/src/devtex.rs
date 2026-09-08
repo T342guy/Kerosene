@@ -54,17 +54,25 @@ impl Canvas {
         for _ in 0..width * height {
             pixels.extend_from_slice(&fill);
         }
-        Canvas { width, height, pixels }
+        Canvas {
+            width,
+            height,
+            pixels,
+        }
     }
 
     pub fn set(&mut self, x: i32, y: i32, colour: Rgb) {
-        if x < 0 || y < 0 || x >= self.width as i32 || y >= self.height as i32 { return }
+        if x < 0 || y < 0 || x >= self.width as i32 || y >= self.height as i32 {
+            return;
+        }
         let at = ((y as u32 * self.width + x as u32) * 3) as usize;
         self.pixels[at..at + 3].copy_from_slice(&colour);
     }
 
     pub fn get(&self, x: i32, y: i32) -> Rgb {
-        if x < 0 || y < 0 || x >= self.width as i32 || y >= self.height as i32 { return [0, 0, 0] }
+        if x < 0 || y < 0 || x >= self.width as i32 || y >= self.height as i32 {
+            return [0, 0, 0];
+        }
         let at = ((y as u32 * self.width + x as u32) * 3) as usize;
         [self.pixels[at], self.pixels[at + 1], self.pixels[at + 2]]
     }
@@ -97,7 +105,16 @@ impl Canvas {
         let origin = (centre.0 - w / 2, centre.1 - h / 2);
 
         // The outline first, as a one-pixel halo in every direction.
-        for (dx, dy) in [(-1, 0), (1, 0), (0, -1), (0, 1), (-1, -1), (1, -1), (-1, 1), (1, 1)] {
+        for (dx, dy) in [
+            (-1, 0),
+            (1, 0),
+            (0, -1),
+            (0, 1),
+            (-1, -1),
+            (1, -1),
+            (-1, 1),
+            (1, 1),
+        ] {
             font::draw(text, (origin.0 + dx, origin.1 + dy), scale, |x, y| {
                 self.blend(x, y, [12, 12, 14], 0.75);
             });
@@ -113,13 +130,18 @@ impl Canvas {
     /// that quietly rewrites tracked files without answering it is one nobody
     /// trusts.
     pub fn to_png(&self, path: &Path) -> Result<bool> {
-        if let Some(parent) = path.parent() { std::fs::create_dir_all(parent)?; }
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
         let image = image::RgbImage::from_raw(self.width, self.height, self.pixels.clone())
             .context("canvas dimensions do not match its pixels")?;
 
         let mut encoded = Vec::new();
         image
-            .write_to(&mut std::io::Cursor::new(&mut encoded), image::ImageFormat::Png)
+            .write_to(
+                &mut std::io::Cursor::new(&mut encoded),
+                image::ImageFormat::Png,
+            )
             .with_context(|| format!("encoding {}", path.display()))?;
 
         if std::fs::read(path).is_ok_and(|existing| existing == encoded) {
@@ -131,7 +153,9 @@ impl Canvas {
 }
 
 fn mix(a: u8, b: u8, t: f32) -> u8 {
-    (a as f32 + (b as f32 - a as f32) * t).round().clamp(0.0, 255.0) as u8
+    (a as f32 + (b as f32 - a as f32) * t)
+        .round()
+        .clamp(0.0, 255.0) as u8
 }
 
 fn shade(colour: Rgb, factor: f32) -> Rgb {
@@ -163,7 +187,13 @@ pub fn measure(light: Rgb, dark: Rgb, label: Option<&str>) -> Canvas {
     for cy in 0..cells as i32 {
         for cx in 0..cells as i32 {
             let colour = if (cx + cy) % 2 == 0 { light } else { dark };
-            canvas.rect(cx * cell_px, cy * cell_px, (cx + 1) * cell_px, (cy + 1) * cell_px, colour);
+            canvas.rect(
+                cx * cell_px,
+                cy * cell_px,
+                (cx + 1) * cell_px,
+                (cy + 1) * cell_px,
+                colour,
+            );
         }
     }
 
@@ -245,7 +275,16 @@ pub fn flat(colour: Rgb, label: Option<&str>) -> Canvas {
             let n = ((x as u32).wrapping_mul(1_664_525) ^ (y as u32).wrapping_mul(1_013_904_223))
                 .wrapping_mul(2_654_435_761);
             let jitter = ((n >> 24) as f32 / 255.0 - 0.5) * 0.06;
-            canvas.blend(x, y, if jitter > 0.0 { [255, 255, 255] } else { [0, 0, 0] }, jitter.abs());
+            canvas.blend(
+                x,
+                y,
+                if jitter > 0.0 {
+                    [255, 255, 255]
+                } else {
+                    [0, 0, 0]
+                },
+                jitter.abs(),
+            );
         }
     }
     if let Some(label) = label {
@@ -260,7 +299,11 @@ pub fn sky(top: Rgb, bottom: Rgb) -> Canvas {
     let mut canvas = Canvas::new(DEV_SIZE, DEV_SIZE, top);
     for y in 0..size {
         let t = y as f32 / (size - 1) as f32;
-        let colour = [mix(top[0], bottom[0], t), mix(top[1], bottom[1], t), mix(top[2], bottom[2], t)];
+        let colour = [
+            mix(top[0], bottom[0], t),
+            mix(top[1], bottom[1], t),
+            mix(top[2], bottom[2], t),
+        ];
         for x in 0..size {
             canvas.set(x, y, colour);
         }
@@ -310,8 +353,16 @@ pub fn set() -> Vec<DevTexture> {
             canvas: || measure([132, 130, 122], [84, 82, 78], None),
         },
         // --- plain -------------------------------------------------------
-        DevTexture { name: "dev/orange", shader: "lit", canvas: || flat([204, 112, 42], None) },
-        DevTexture { name: "dev/grey", shader: "lit", canvas: || flat([128, 132, 138], None) },
+        DevTexture {
+            name: "dev/orange",
+            shader: "lit",
+            canvas: || flat([204, 112, 42], None),
+        },
+        DevTexture {
+            name: "dev/grey",
+            shader: "lit",
+            canvas: || flat([128, 132, 138], None),
+        },
         DevTexture {
             name: "dev/door",
             shader: "lit",
@@ -325,26 +376,66 @@ pub fn set() -> Vec<DevTexture> {
         // --- tools -------------------------------------------------------
         // Colours chosen to be distinguishable from each other and from any
         // world material: nothing in `dev/` is this saturated.
-        DevTexture { name: "tools/nodraw", shader: "unlit", canvas: || tool([122, 116, 96], "NODRAW") },
-        DevTexture { name: "tools/clip", shader: "unlit", canvas: || tool([176, 58, 96], "CLIP") },
+        DevTexture {
+            name: "tools/nodraw",
+            shader: "unlit",
+            canvas: || tool([122, 116, 96], "NODRAW"),
+        },
+        DevTexture {
+            name: "tools/clip",
+            shader: "unlit",
+            canvas: || tool([176, 58, 96], "CLIP"),
+        },
         DevTexture {
             name: "tools/playerclip",
             shader: "unlit",
             canvas: || tool([200, 74, 74], "PLAYER"),
         },
-        DevTexture { name: "tools/npcclip", shader: "unlit", canvas: || tool([150, 62, 130], "NPC") },
-        DevTexture { name: "tools/trigger", shader: "unlit", canvas: || tool([210, 118, 32], "TRIGGER") },
-        DevTexture { name: "tools/hint", shader: "unlit", canvas: || tool([196, 186, 48], "HINT") },
-        DevTexture { name: "tools/skip", shader: "unlit", canvas: || tool([104, 76, 176], "SKIP") },
-        DevTexture { name: "tools/skybox", shader: "sky", canvas: || tool([88, 146, 196], "SKY") },
+        DevTexture {
+            name: "tools/npcclip",
+            shader: "unlit",
+            canvas: || tool([150, 62, 130], "NPC"),
+        },
+        DevTexture {
+            name: "tools/trigger",
+            shader: "unlit",
+            canvas: || tool([210, 118, 32], "TRIGGER"),
+        },
+        DevTexture {
+            name: "tools/hint",
+            shader: "unlit",
+            canvas: || tool([196, 186, 48], "HINT"),
+        },
+        DevTexture {
+            name: "tools/skip",
+            shader: "unlit",
+            canvas: || tool([104, 76, 176], "SKIP"),
+        },
+        DevTexture {
+            name: "tools/skybox",
+            shader: "sky",
+            canvas: || tool([88, 146, 196], "SKY"),
+        },
         DevTexture {
             name: "tools/blocklight",
             shader: "unlit",
             canvas: || tool([70, 90, 110], "LIGHT"),
         },
-        DevTexture { name: "tools/grate", shader: "lit", canvas: || tool([110, 116, 124], "GRATE") },
-        DevTexture { name: "tools/water", shader: "lit", canvas: || tool([46, 110, 138], "WATER") },
-        DevTexture { name: "tools/ladder", shader: "unlit", canvas: || tool([58, 142, 104], "LADDER") },
+        DevTexture {
+            name: "tools/grate",
+            shader: "lit",
+            canvas: || tool([110, 116, 124], "GRATE"),
+        },
+        DevTexture {
+            name: "tools/water",
+            shader: "lit",
+            canvas: || tool([46, 110, 138], "WATER"),
+        },
+        DevTexture {
+            name: "tools/ladder",
+            shader: "unlit",
+            canvas: || tool([58, 142, 104], "LADDER"),
+        },
     ]
 }
 
@@ -358,7 +449,9 @@ pub struct Written {
 }
 
 impl Written {
-    pub fn total(self) -> usize { self.changed + self.unchanged }
+    pub fn total(self) -> usize {
+        self.changed + self.unchanged
+    }
 }
 
 impl std::fmt::Display for Written {
@@ -393,7 +486,9 @@ pub fn write_materials(materials_root: &Path) -> Result<Written> {
     let mut written = Written::default();
     for texture in set() {
         let path = materials_root.join(format!("{}.keromat", texture.name));
-        if let Some(parent) = path.parent() { std::fs::create_dir_all(parent)?; }
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
         let body = format!(
             "{}\n{{\n\t\"$basetexture\" \"{}\"\n}}\n",
             texture.shader, texture.name
@@ -402,8 +497,7 @@ pub fn write_materials(materials_root: &Path) -> Result<Written> {
             written.unchanged += 1;
             continue;
         }
-        std::fs::write(&path, body)
-            .with_context(|| format!("writing {}", path.display()))?;
+        std::fs::write(&path, body).with_context(|| format!("writing {}", path.display()))?;
         written.changed += 1;
     }
     Ok(written)

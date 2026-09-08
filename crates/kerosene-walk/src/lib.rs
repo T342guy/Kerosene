@@ -17,8 +17,8 @@
 //!     [ normal [f32;3] ][ bounds min [f32;3] ][ bounds max [f32;3] ]
 //! ```
 
-use std::io::{self, Write};
 use kerosene_math::{Aabb, Vec3};
+use std::io::{self, Write};
 
 pub mod nav;
 
@@ -62,7 +62,9 @@ pub struct WalkFace {
 impl WalkFace {
     pub fn area(&self) -> f32 {
         // Newell's method: half the length of the summed edge cross products.
-        if self.vertices.len() < 3 { return 0.0 }
+        if self.vertices.len() < 3 {
+            return 0.0;
+        }
         let mut acc = Vec3::ZERO;
         for i in 0..self.vertices.len() {
             let a = self.vertices[i];
@@ -75,13 +77,19 @@ impl WalkFace {
     /// Whether a point lies within `max_dist` of this face's plane and inside
     /// its polygon. NPCs call this with the point at their feet.
     pub fn contains(&self, point: Vec3, max_dist: f32) -> bool {
-        if self.vertices.len() < 3 { return false; }
+        if self.vertices.len() < 3 {
+            return false;
+        }
         let dist = (point - self.vertices[0]).dot(self.normal);
-        if dist.abs() > max_dist { return false; }
+        if dist.abs() > max_dist {
+            return false;
+        }
         // The bounds is degenerate along the normal -- a floor has zero
         // thickness -- so pad it before using it as a fast reject. The
         // polygon test below is authoritative; this only skips the work.
-        if !self.bounds.expanded(max_dist).contains_point(point) { return false; }
+        if !self.bounds.expanded(max_dist).contains_point(point) {
+            return false;
+        }
         polygon_contains(&self.vertices, self.normal, point)
     }
 }
@@ -93,8 +101,12 @@ pub struct Walkmap {
 }
 
 impl Walkmap {
-    pub fn len(&self) -> usize { self.faces.len() }
-    pub fn is_empty(&self) -> bool { self.faces.is_empty() }
+    pub fn len(&self) -> usize {
+        self.faces.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.faces.is_empty()
+    }
 
     /// The face under a point, if any.
     pub fn face_under(&self, point: Vec3, max_dist: f32) -> Option<&WalkFace> {
@@ -120,7 +132,9 @@ impl Walkmap {
         for face in &self.faces {
             out.push(rule_byte(face.rule));
             push_u32(&mut out, face.vertices.len() as u32);
-            for v in &face.vertices { push_vec3(&mut out, *v); }
+            for v in &face.vertices {
+                push_vec3(&mut out, *v);
+            }
             push_vec3(&mut out, face.normal);
             push_vec3(&mut out, face.bounds.min);
             push_vec3(&mut out, face.bounds.max);
@@ -140,9 +154,13 @@ impl Walkmap {
 
     pub fn parse(bytes: &[u8]) -> Result<Walkmap, WalkError> {
         let mut r = Reader { bytes, at: 0 };
-        if r.read_bytes(4)? != MAGIC { return Err(WalkError::BadMagic); }
+        if r.read_bytes(4)? != MAGIC {
+            return Err(WalkError::BadMagic);
+        }
         let version = r.read_u32()?;
-        if version != VERSION { return Err(WalkError::BadVersion(version)); }
+        if version != VERSION {
+            return Err(WalkError::BadVersion(version));
+        }
         let count = r.read_u32()? as usize;
 
         // Guard against a corrupt count claiming more faces than the bytes
@@ -159,11 +177,18 @@ impl Walkmap {
                 return Err(WalkError::Truncated);
             }
             let mut vertices = Vec::with_capacity(n);
-            for _ in 0..n { vertices.push(r.read_vec3()?); }
+            for _ in 0..n {
+                vertices.push(r.read_vec3()?);
+            }
             let normal = r.read_vec3()?;
             let min = r.read_vec3()?;
             let max = r.read_vec3()?;
-            faces.push(WalkFace { vertices, normal, rule, bounds: Aabb::new(min, max) });
+            faces.push(WalkFace {
+                vertices,
+                normal,
+                rule,
+                bounds: Aabb::new(min, max),
+            });
         }
         Ok(Walkmap { faces })
     }
@@ -182,13 +207,17 @@ impl Walkmap {
 /// first edge that says anything decides and the rest must agree.
 fn polygon_contains(verts: &[Vec3], normal: Vec3, point: Vec3) -> bool {
     let n = verts.len();
-    if n < 3 { return false }
+    if n < 3 {
+        return false;
+    }
     let mut sign = 0.0f32;
     for i in 0..n {
         let a = verts[i];
         let b = verts[(i + 1) % n];
         let side = (b - a).cross(point - a).dot(normal);
-        if side.abs() <= 0.05 { continue }
+        if side.abs() <= 0.05 {
+            continue;
+        }
         if sign == 0.0 {
             sign = side.signum();
         } else if side.signum() != sign {
@@ -200,7 +229,9 @@ fn polygon_contains(verts: &[Vec3], normal: Vec3, point: Vec3) -> bool {
 
 // ---- little-endian primitives -------------------------------------------
 
-fn push_u32(out: &mut Vec<u8>, v: u32) { out.extend_from_slice(&v.to_le_bytes()); }
+fn push_u32(out: &mut Vec<u8>, v: u32) {
+    out.extend_from_slice(&v.to_le_bytes());
+}
 fn push_vec3(out: &mut Vec<u8>, v: Vec3) {
     out.extend_from_slice(&v.x.to_le_bytes());
     out.extend_from_slice(&v.y.to_le_bytes());
@@ -233,7 +264,9 @@ struct Reader<'a> {
 impl<'a> Reader<'a> {
     fn read_bytes(&mut self, n: usize) -> Result<&'a [u8], WalkError> {
         let end = self.at.checked_add(n).ok_or(WalkError::Truncated)?;
-        if end > self.bytes.len() { return Err(WalkError::Truncated); }
+        if end > self.bytes.len() {
+            return Err(WalkError::Truncated);
+        }
         let slice = &self.bytes[self.at..end];
         self.at = end;
         Ok(slice)
@@ -278,14 +311,18 @@ mod tests {
 
     #[test]
     fn a_point_on_the_floor_is_walkable() {
-        let map = Walkmap { faces: vec![floor()] };
+        let map = Walkmap {
+            faces: vec![floor()],
+        };
         assert!(map.walkable(Vec3::new(32.0, 32.0, 0.0), DEFAULT_STEP));
         assert!(map.walkable(Vec3::new(32.0, 32.0, 0.5), DEFAULT_STEP));
     }
 
     #[test]
     fn a_point_off_the_face_is_not() {
-        let map = Walkmap { faces: vec![floor()] };
+        let map = Walkmap {
+            faces: vec![floor()],
+        };
         assert!(!map.walkable(Vec3::new(100.0, 32.0, 0.0), DEFAULT_STEP));
         assert!(!map.walkable(Vec3::new(32.0, 32.0, 5.0), DEFAULT_STEP));
         assert!(!map.walkable(Vec3::new(32.0, 32.0, -2.0), DEFAULT_STEP));
@@ -295,7 +332,10 @@ mod tests {
     fn the_rule_survives_a_round_trip() {
         for rule in WalkmapRule::all() {
             let face = WalkFace { rule, ..floor() };
-            let bytes = Walkmap { faces: vec![face.clone()] }.to_bytes();
+            let bytes = Walkmap {
+                faces: vec![face.clone()],
+            }
+            .to_bytes();
             let back = Walkmap::parse(&bytes).unwrap();
             assert_eq!(back.faces[0].rule, rule);
             assert_eq!(back.faces[0].vertices, face.vertices);
@@ -305,22 +345,34 @@ mod tests {
 
     #[test]
     fn an_avoid_face_is_still_walkable_but_reports_avoid() {
-        let face = WalkFace { rule: WalkmapRule::Avoid, ..floor() };
+        let face = WalkFace {
+            rule: WalkmapRule::Avoid,
+            ..floor()
+        };
         let map = Walkmap { faces: vec![face] };
         assert!(map.walkable(Vec3::new(8.0, 8.0, 0.0), DEFAULT_STEP));
-        assert_eq!(map.rule_at(Vec3::new(8.0, 8.0, 0.0), DEFAULT_STEP), Some(WalkmapRule::Avoid));
+        assert_eq!(
+            map.rule_at(Vec3::new(8.0, 8.0, 0.0), DEFAULT_STEP),
+            Some(WalkmapRule::Avoid)
+        );
     }
 
     #[test]
     fn a_bad_magic_is_rejected() {
-        let mut bytes = Walkmap { faces: vec![floor()] }.to_bytes();
+        let mut bytes = Walkmap {
+            faces: vec![floor()],
+        }
+        .to_bytes();
         bytes[0] = b'X';
         assert!(matches!(Walkmap::parse(&bytes), Err(WalkError::BadMagic)));
     }
 
     #[test]
     fn a_truncated_file_is_rejected() {
-        let bytes = Walkmap { faces: vec![floor()] }.to_bytes();
+        let bytes = Walkmap {
+            faces: vec![floor()],
+        }
+        .to_bytes();
         for cut in [0, 4, 8, 12, bytes.len() - 1] {
             assert!(
                 Walkmap::parse(&bytes[..cut]).is_err(),

@@ -13,30 +13,42 @@
 //! it is running as -- a way to look broken that has nothing to do with
 //! textures.
 
+mod cli;
 pub mod devtex;
 pub mod font;
-mod cli;
 
 pub use cli::run;
 
 use anyhow::{Context, Result, bail};
-use std::path::{Path, PathBuf};
 use kerosene_asset::texture::PixelFormat;
 use kerosene_asset::{Material, Shader, Texture, TextureFlags, material::MaterialError};
+use std::path::{Path, PathBuf};
 
 pub fn build_flags(normal: bool, clamp: bool, point: bool, ui: bool) -> TextureFlags {
     let mut flags = TextureFlags::NONE;
-    if normal { flags = flags | TextureFlags::NORMAL_MAP; }
-    if clamp { flags = flags | TextureFlags::CLAMP; }
-    if point { flags = flags | TextureFlags::POINT_SAMPLE; }
+    if normal {
+        flags = flags | TextureFlags::NORMAL_MAP;
+    }
+    if clamp {
+        flags = flags | TextureFlags::CLAMP;
+    }
+    if point {
+        flags = flags | TextureFlags::POINT_SAMPLE;
+    }
     // Interface art is always clamped: a UI element that wraps is a bug.
-    if ui { flags = flags | TextureFlags::UI | TextureFlags::CLAMP; }
+    if ui {
+        flags = flags | TextureFlags::UI | TextureFlags::CLAMP;
+    }
     flags
 }
 
-pub fn compile_image(source: &Path, out: &Path, flags: TextureFlags, force_opaque: bool) -> Result<u64> {
-    let image = image::open(source)
-        .with_context(|| format!("reading {}", source.display()))?;
+pub fn compile_image(
+    source: &Path,
+    out: &Path,
+    flags: TextureFlags,
+    force_opaque: bool,
+) -> Result<u64> {
+    let image = image::open(source).with_context(|| format!("reading {}", source.display()))?;
     let rgba = image.to_rgba8();
     let (width, height) = rgba.dimensions();
 
@@ -45,18 +57,29 @@ pub fn compile_image(source: &Path, out: &Path, flags: TextureFlags, force_opaqu
     let (format, pixels) = if has_alpha {
         (PixelFormat::Rgba8, rgba.into_raw())
     } else {
-        let rgb: Vec<u8> = rgba.pixels().flat_map(|p| [p.0[0], p.0[1], p.0[2]]).collect();
+        let rgb: Vec<u8> = rgba
+            .pixels()
+            .flat_map(|p| [p.0[0], p.0[1], p.0[2]])
+            .collect();
         (PixelFormat::Rgb8, rgb)
     };
 
     let mut flags = flags;
-    if has_alpha { flags = flags | TextureFlags::TRANSLUCENT; }
+    if has_alpha {
+        flags = flags | TextureFlags::TRANSLUCENT;
+    }
 
     let texture = Texture::build(width, height, format, flags, pixels)
         .with_context(|| format!("compiling {}", source.display()))?;
 
-    log::debug!("{} -> {}x{}, {:?}, {} mips",
-        source.display(), width, height, format, texture.mip_count());
+    log::debug!(
+        "{} -> {}x{}, {:?}, {} mips",
+        source.display(),
+        width,
+        height,
+        format,
+        texture.mip_count()
+    );
 
     if let Some(parent) = out.parent() {
         std::fs::create_dir_all(parent)?;
@@ -81,24 +104,41 @@ pub fn write_material(
         .with_context(|| format!("unknown shader '{shader}'; try lit, unlit, sky, water or ui"))?;
 
     let mut material = Material::new(shader);
-    material.set("$basetexture", basetexture.unwrap_or_else(|| name.to_string()));
-    if let Some(bump) = bumpmap { material.set("$bumpmap", bump); }
+    material.set(
+        "$basetexture",
+        basetexture.unwrap_or_else(|| name.to_string()),
+    );
+    if let Some(bump) = bumpmap {
+        material.set("$bumpmap", bump);
+    }
     material.set("$surfaceprop", surfaceprop);
-    if translucent { material.set("$translucent", "1"); }
+    if translucent {
+        material.set("$translucent", "1");
+    }
 
     for pair in extra {
         let Some((key, value)) = pair.split_once('=') else {
             bail!("--set expects key=value, got {pair:?}");
         };
         // Accept `basetexture=x` as well as `$basetexture=x`.
-        let key = if key.starts_with('$') { key.to_string() } else { format!("${key}") };
+        let key = if key.starts_with('$') {
+            key.to_string()
+        } else {
+            format!("${key}")
+        };
         material.set(&key, value);
     }
 
-    if let Some(parent) = out.parent() { std::fs::create_dir_all(parent)?; }
+    if let Some(parent) = out.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
     std::fs::write(out, material.to_text())
         .with_context(|| format!("writing {}", out.display()))?;
-    println!("alchemy: wrote {} ({} shader)", out.display(), shader.name());
+    println!(
+        "alchemy: wrote {} ({} shader)",
+        out.display(),
+        shader.name()
+    );
     Ok(())
 }
 
@@ -128,16 +168,22 @@ impl Batch {
 /// what makes this cheap enough to run on the way into the editor: a build
 /// with nothing to do does nothing, and costs no more than a directory walk.
 pub fn batch(dir: &Path, out_root: &Path, make_materials: bool) -> Result<Batch> {
-    if !dir.is_dir() { bail!("{} is not a directory", dir.display()); }
+    if !dir.is_dir() {
+        bail!("{} is not a directory", dir.display());
+    }
 
     let mut images = Vec::new();
     collect_images(dir, dir, &mut images)?;
     images.sort();
-    if images.is_empty() { bail!("no images found under {}", dir.display()); }
+    if images.is_empty() {
+        bail!("no images found under {}", dir.display());
+    }
 
     let mut report = Batch::default();
     for (path, relative) in &images {
-        let name = relative.trim_end_matches(|c| c != '.').trim_end_matches('.');
+        let name = relative
+            .trim_end_matches(|c| c != '.')
+            .trim_end_matches('.');
         // A file ending in `_normal` or `_n` is taken to be a normal map. The
         // convention beats a flag here: batch compiles run unattended.
         let is_normal = name.ends_with("_normal") || name.ends_with("_n");
@@ -165,10 +211,15 @@ pub fn batch(dir: &Path, out_root: &Path, make_materials: bool) -> Result<Batch>
             let mut material = Material::new(Shader::Lit);
             material.set("$basetexture", name);
             // Wire up a matching normal map if one was compiled alongside.
-            if images.iter().any(|(_, r)| r.starts_with(&format!("{name}_normal."))) {
+            if images
+                .iter()
+                .any(|(_, r)| r.starts_with(&format!("{name}_normal.")))
+            {
                 material.set("$bumpmap", format!("{name}_normal"));
             }
-            if let Some(parent) = mat_path.parent() { std::fs::create_dir_all(parent)?; }
+            if let Some(parent) = mat_path.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
             std::fs::write(&mat_path, material.to_text())?;
             report.materials += 1;
         }
@@ -183,8 +234,12 @@ pub fn batch(dir: &Path, out_root: &Path, make_materials: bool) -> Result<Batch>
 /// something that did not need it costs a moment; skipping something that did
 /// leaves a texture that does not match its source, and no way to tell.
 fn is_up_to_date(source: &Path, out: &Path) -> bool {
-    let Ok(built) = std::fs::metadata(out).and_then(|m| m.modified()) else { return false };
-    let Ok(written) = std::fs::metadata(source).and_then(|m| m.modified()) else { return false };
+    let Ok(built) = std::fs::metadata(out).and_then(|m| m.modified()) else {
+        return false;
+    };
+    let Ok(written) = std::fs::metadata(source).and_then(|m| m.modified()) else {
+        return false;
+    };
     built >= written
 }
 
@@ -211,12 +266,22 @@ impl Build {
 impl std::fmt::Display for Build {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if !self.did_anything() {
-            return write!(f, "textures already built ({} up to date)", self.textures.skipped);
+            return write!(
+                f,
+                "textures already built ({} up to date)",
+                self.textures.skipped
+            );
         }
         write!(f, "built {} textures", self.textures.compiled)?;
-        if self.textures.skipped > 0 { write!(f, ", {} up to date", self.textures.skipped)?; }
-        if self.dev_art.changed > 0 { write!(f, ", {} developer images", self.dev_art.changed)?; }
-        if self.textures.materials > 0 { write!(f, ", {} new materials", self.textures.materials)?; }
+        if self.textures.skipped > 0 {
+            write!(f, ", {} up to date", self.textures.skipped)?;
+        }
+        if self.dev_art.changed > 0 {
+            write!(f, ", {} developer images", self.dev_art.changed)?;
+        }
+        if self.textures.materials > 0 {
+            write!(f, ", {} new materials", self.textures.materials)?;
+        }
         Ok(())
     }
 }
@@ -273,9 +338,15 @@ pub fn info(path: &Path) -> Result<()> {
             let tex = Texture::from_bytes(&bytes)?;
             println!("{}", path.display());
             println!("  {}x{}, {:?}", tex.width(), tex.height(), tex.format);
-            println!("  {} mip levels, {:.1} KiB", tex.mip_count(), bytes.len() as f64 / 1024.0);
-            println!("  reflectivity {:.3} {:.3} {:.3}",
-                tex.reflectivity.x, tex.reflectivity.y, tex.reflectivity.z);
+            println!(
+                "  {} mip levels, {:.1} KiB",
+                tex.mip_count(),
+                bytes.len() as f64 / 1024.0
+            );
+            println!(
+                "  reflectivity {:.3} {:.3} {:.3}",
+                tex.reflectivity.x, tex.reflectivity.y, tex.reflectivity.z
+            );
             let mut flags = Vec::new();
             for (flag, name) in [
                 (TextureFlags::CLAMP, "clamp"),
@@ -284,9 +355,18 @@ pub fn info(path: &Path) -> Result<()> {
                 (TextureFlags::TRANSLUCENT, "translucent"),
                 (TextureFlags::UI, "ui"),
             ] {
-                if tex.flags.contains(flag) { flags.push(name); }
+                if tex.flags.contains(flag) {
+                    flags.push(name);
+                }
             }
-            println!("  flags: {}", if flags.is_empty() { "none".into() } else { flags.join(", ") });
+            println!(
+                "  flags: {}",
+                if flags.is_empty() {
+                    "none".into()
+                } else {
+                    flags.join(", ")
+                }
+            );
         }
         Some("keromat") => {
             let text = String::from_utf8(bytes).context("material is not UTF-8")?;

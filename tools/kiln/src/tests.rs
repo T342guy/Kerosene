@@ -22,7 +22,11 @@ fn every_stage_has_a_name_that_parses_back() {
     for stage in Stage::EVERY {
         assert_eq!(Stage::parse(stage.name()), Some(stage), "{}", stage.name());
     }
-    assert_eq!(Stage::parse("  MAPS "), Some(Stage::Maps), "names are forgiving of typing");
+    assert_eq!(
+        Stage::parse("  MAPS "),
+        Some(Stage::Maps),
+        "names are forgiving of typing"
+    );
     assert_eq!(Stage::parse("lighting"), None);
 }
 
@@ -39,13 +43,22 @@ fn the_archive_is_named_after_the_project_and_lives_in_the_content_tree() {
         }),
         ..Settings::default()
     };
-    assert_eq!(settings.archive(), PathBuf::from("/game/content/my_great_mod.vault"));
+    assert_eq!(
+        settings.archive(),
+        PathBuf::from("/game/content/my_great_mod.vault")
+    );
 }
 
 #[test]
 fn a_project_with_no_name_still_produces_a_usable_archive_name() {
-    let settings = Settings { content: PathBuf::from("/game/content"), ..Settings::default() };
-    assert_eq!(settings.archive(), PathBuf::from("/game/content/content.vault"));
+    let settings = Settings {
+        content: PathBuf::from("/game/content"),
+        ..Settings::default()
+    };
+    assert_eq!(
+        settings.archive(),
+        PathBuf::from("/game/content/content.vault")
+    );
 }
 
 #[test]
@@ -64,11 +77,14 @@ fn sources_are_found_recursively_and_in_a_stable_order() {
     touch(&dir.join("props/tree.OBJ"));
 
     let found = sources(&dir, "obj");
-    assert_eq!(found, vec![
-        dir.join("arch.obj"),
-        dir.join("props/crate.obj"),
-        dir.join("props/tree.OBJ"),
-    ]);
+    assert_eq!(
+        found,
+        vec![
+            dir.join("arch.obj"),
+            dir.join("props/crate.obj"),
+            dir.join("props/tree.OBJ"),
+        ]
+    );
 
     let _ = std::fs::remove_dir_all(&dir);
 }
@@ -84,7 +100,11 @@ fn a_dry_run_touches_nothing_and_says_what_it_would_do() {
     touch(&dir.join("art/props/crate.obj"));
     touch(&dir.join("maps/arena.keromap"));
 
-    let settings = Settings { content: dir.clone(), dry_run: true, ..Settings::default() };
+    let settings = Settings {
+        content: dir.clone(),
+        dry_run: true,
+        ..Settings::default()
+    };
     let report = build(&settings).unwrap();
 
     assert_eq!(report.models, 1, "it counted the model it would build");

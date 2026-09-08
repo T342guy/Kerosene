@@ -16,7 +16,11 @@ fn scratch(name: &str) -> PathBuf {
 fn a_project_names_its_content_relative_to_itself() {
     let dir = scratch("relative");
     let file = dir.join("mine.keroproj");
-    std::fs::write(&file, "project { \"name\" \"Mine\" \"content\" \"assets\" }").unwrap();
+    std::fs::write(
+        &file,
+        "project { \"name\" \"Mine\" \"content\" \"assets\" }",
+    )
+    .unwrap();
 
     let project = Project::read(&file).unwrap();
     assert_eq!(project.name, "Mine");
@@ -79,9 +83,16 @@ fn a_project_with_no_name_is_called_after_its_file() {
 fn the_start_map_is_read_when_there_is_one() {
     let dir = scratch("startmap");
     let file = dir.join("g.keroproj");
-    std::fs::write(&file, "project { \"content\" \".\" \"startmap\" \"mm_intro\" }").unwrap();
+    std::fs::write(
+        &file,
+        "project { \"content\" \".\" \"startmap\" \"mm_intro\" }",
+    )
+    .unwrap();
 
-    assert_eq!(Project::read(&file).unwrap().start_map.as_deref(), Some("mm_intro"));
+    assert_eq!(
+        Project::read(&file).unwrap().start_map.as_deref(),
+        Some("mm_intro")
+    );
     let _ = std::fs::remove_dir_all(&dir);
 }
 
@@ -90,10 +101,18 @@ fn an_empty_value_counts_as_absent_rather_than_as_an_answer() {
     let dir = scratch("blank");
     std::fs::create_dir_all(dir.join("content")).unwrap();
     let file = dir.join("g.keroproj");
-    std::fs::write(&file, "project { \"content\" \"  \" \"startmap\" \"\" \"name\" \"\" }").unwrap();
+    std::fs::write(
+        &file,
+        "project { \"content\" \"  \" \"startmap\" \"\" \"name\" \"\" }",
+    )
+    .unwrap();
 
     let project = Project::read(&file).unwrap();
-    assert_eq!(project.content, dir.join("content"), "a blank path is not a path");
+    assert_eq!(
+        project.content,
+        dir.join("content"),
+        "a blank path is not a path"
+    );
     assert_eq!(project.start_map, None);
     assert_eq!(project.name, "g");
     let _ = std::fs::remove_dir_all(&dir);
@@ -161,7 +180,10 @@ fn a_project_can_name_the_cargo_package_that_is_the_game() {
     let path = dir.join("p.keroproj");
     std::fs::write(&path, r#"project { "name" "Thing" "game" "thing-game" }"#).unwrap();
 
-    assert_eq!(Project::read(&path).unwrap().game.as_deref(), Some("thing-game"));
+    assert_eq!(
+        Project::read(&path).unwrap().game.as_deref(),
+        Some("thing-game")
+    );
 }
 
 #[test]

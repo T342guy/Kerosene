@@ -20,7 +20,11 @@ fn tone(frames: usize, channels: u16, amplitude: f32) -> Sound {
             amplitude * (std::f32::consts::TAU * 440.0 * frame as f32 / 44100.0).sin()
         })
         .collect();
-    Sound { channels, sample_rate: 44100, samples }
+    Sound {
+        channels,
+        sample_rate: 44100,
+        samples,
+    }
 }
 
 /// A minimal 16-bit PCM WAV, optionally with a `smpl` chunk declaring a loop.
@@ -80,15 +84,31 @@ fn write_wav(dir: &Path, name: &str, sound: &Sound) -> PathBuf {
 fn gain_is_applied_before_encoding_rather_than_at_play_time() {
     // A sound recorded too hot should be fixed once, not in every entity that
     // plays it.
-    let quiet = prepare(&tone(100, 1, 0.4), &Options { gain: 2.0, ..Options::default() });
-    assert!((peak_of(&quiet) - 0.8).abs() < 0.01, "peaked at {}", peak_of(&quiet));
+    let quiet = prepare(
+        &tone(100, 1, 0.4),
+        &Options {
+            gain: 2.0,
+            ..Options::default()
+        },
+    );
+    assert!(
+        (peak_of(&quiet) - 0.8).abs() < 0.01,
+        "peaked at {}",
+        peak_of(&quiet)
+    );
 }
 
 #[test]
 fn gain_clamps_instead_of_wrapping_around() {
     // Wrapping turns a loud passage inside out, which is very loud noise
     // rather than a slightly wrong sound.
-    let loud = prepare(&tone(100, 1, 0.9), &Options { gain: 4.0, ..Options::default() });
+    let loud = prepare(
+        &tone(100, 1, 0.9),
+        &Options {
+            gain: 4.0,
+            ..Options::default()
+        },
+    );
     assert!(loud.samples.iter().all(|s| (-1.0..=1.0).contains(s)));
     assert!((peak_of(&loud) - 1.0).abs() < 1e-6);
 }
@@ -98,16 +118,32 @@ fn folding_to_mono_averages_rather_than_sums() {
     // Summing two correlated channels is a 6 dB boost, which clips anything
     // that was already loud.
     let stereo = tone(100, 2, 0.8);
-    let mono = prepare(&stereo, &Options { mono: true, ..Options::default() });
+    let mono = prepare(
+        &stereo,
+        &Options {
+            mono: true,
+            ..Options::default()
+        },
+    );
     assert_eq!(mono.channels, 1);
     assert_eq!(mono.frames(), 100);
-    assert!(peak_of(&mono) <= 0.81, "averaging should not raise the peak: {}", peak_of(&mono));
+    assert!(
+        peak_of(&mono) <= 0.81,
+        "averaging should not raise the peak: {}",
+        peak_of(&mono)
+    );
 }
 
 #[test]
 fn a_mono_sound_is_left_alone_by_the_mono_option() {
     let sound = tone(50, 1, 0.5);
-    let out = prepare(&sound, &Options { mono: true, ..Options::default() });
+    let out = prepare(
+        &sound,
+        &Options {
+            mono: true,
+            ..Options::default()
+        },
+    );
     assert_eq!(out.samples, sound.samples);
 }
 
@@ -168,14 +204,21 @@ fn adpcm_makes_the_file_much_smaller_than_its_source() {
     let source = write_wav(&dir, "long.wav", &tone(44100, 1, 0.7));
     let done = compile(&source, &output_for(&source), &Options::default()).unwrap();
 
-    assert!(done.saved() > 0.7, "only saved {:.0}%", done.saved() * 100.0);
+    assert!(
+        done.saved() > 0.7,
+        "only saved {:.0}%",
+        done.saved() * 100.0
+    );
 }
 
 #[test]
 fn a_gain_that_clips_says_so_rather_than_doing_it_quietly() {
     let dir = scratch("clip-warn");
     let source = write_wav(&dir, "hot.wav", &tone(100, 1, 0.9));
-    let options = Options { gain: 4.0, ..Options::default() };
+    let options = Options {
+        gain: 4.0,
+        ..Options::default()
+    };
     let done = compile(&source, &output_for(&source), &options).unwrap();
 
     assert!(
@@ -206,7 +249,10 @@ fn a_stereo_sound_is_told_it_cannot_be_placed_in_the_world() {
 fn folding_a_stereo_sound_to_mono_clears_the_warning() {
     let dir = scratch("stereo-fixed");
     let source = write_wav(&dir, "wide.wav", &tone(100, 2, 0.5));
-    let options = Options { mono: true, ..Options::default() };
+    let options = Options {
+        mono: true,
+        ..Options::default()
+    };
     let done = compile(&source, &output_for(&source), &options).unwrap();
 
     assert!(done.info.can_be_positioned());
@@ -231,7 +277,10 @@ fn a_loop_set_by_hand_beats_the_one_in_the_file() {
     std::fs::write(&path, wav_bytes(&tone(1000, 1, 0.5), Some((100, 899)))).unwrap();
 
     let options = Options {
-        looping: Some(kerosene_audio::compiled::Loop { start: 400, end: 600 }),
+        looping: Some(kerosene_audio::compiled::Loop {
+            start: 400,
+            end: 600,
+        }),
         ..Options::default()
     };
     let done = compile(&path, &output_for(&path), &options).unwrap();
@@ -299,7 +348,13 @@ fn changing_the_settings_rebuilds_even_though_the_source_is_untouched() {
 
     std::thread::sleep(std::time::Duration::from_millis(20));
     let mut script = build::Script::load_beside(&sound_root).unwrap();
-    script.set("click.wav", Options { gain: 0.5, ..Options::default() });
+    script.set(
+        "click.wav",
+        Options {
+            gain: 0.5,
+            ..Options::default()
+        },
+    );
     script.save().unwrap();
 
     let batch = build_sounds(&dir, false).unwrap();
@@ -352,7 +407,11 @@ fn two_sources_with_the_same_name_are_refused_rather_than_racing() {
 
     let batch = build_sounds(&dir, false).unwrap();
     assert_eq!(batch.failed.len(), 1, "the clash should be reported");
-    assert!(batch.failed[0].1.contains("cannot share a name"), "{:?}", batch.failed[0]);
+    assert!(
+        batch.failed[0].1.contains("cannot share a name"),
+        "{:?}",
+        batch.failed[0]
+    );
 }
 
 #[test]
@@ -369,7 +428,11 @@ fn a_flac_source_compiles_like_any_other() {
     let batch = build_sounds(&dir, false).unwrap();
     assert_eq!(batch.compiled.len(), 1);
     assert!(sound.join("chime.keroaud").is_file());
-    assert!(batch.compiled[0].warnings.is_empty(), "{:?}", batch.compiled[0].warnings);
+    assert!(
+        batch.compiled[0].warnings.is_empty(),
+        "{:?}",
+        batch.compiled[0].warnings
+    );
 }
 
 #[test]
@@ -386,7 +449,10 @@ fn an_mp3_source_compiles_and_says_it_was_already_lossy() {
     let batch = build_sounds(&dir, false).unwrap();
     assert_eq!(batch.compiled.len(), 1);
     assert!(
-        batch.compiled[0].warnings.iter().any(|w| w.contains("already lossy")),
+        batch.compiled[0]
+            .warnings
+            .iter()
+            .any(|w| w.contains("already lossy")),
         "{:?}",
         batch.compiled[0].warnings
     );
@@ -407,7 +473,18 @@ fn a_compiled_file_larger_than_its_source_says_so() {
 
     let batch = build_sounds(&dir, false).unwrap();
     let done = &batch.compiled[0];
-    assert!(done.grew(), "the fixture should compile larger than it started");
-    assert!(done.size_change().contains("larger"), "{}", done.size_change());
-    assert!(done.warnings.iter().any(|w| w.contains("larger than its source")));
+    assert!(
+        done.grew(),
+        "the fixture should compile larger than it started"
+    );
+    assert!(
+        done.size_change().contains("larger"),
+        "{}",
+        done.size_change()
+    );
+    assert!(
+        done.warnings
+            .iter()
+            .any(|w| w.contains("larger than its source"))
+    );
 }

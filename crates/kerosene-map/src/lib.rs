@@ -45,10 +45,10 @@ pub use solid::{Side, Solid, SolidError};
 pub use texture::{TextureAxis, default_axes_for_plane, rotate_axes};
 pub use walk::WalkmapRule;
 
-use std::collections::HashSet;
-use thiserror::Error;
 use kerosene_kv::{Entry, KeyValues};
 use kerosene_math::{Aabb, Vec3};
+use std::collections::HashSet;
+use thiserror::Error;
 
 /// Format version written into new files.
 pub const FORMAT_VERSION: u32 = 1;
@@ -73,7 +73,11 @@ pub enum MapError {
         source: SolidError,
     },
     #[error("entity {id} ({classname}): {detail}")]
-    Entity { id: u32, classname: String, detail: String },
+    Entity {
+        id: u32,
+        classname: String,
+        detail: String,
+    },
     #[error("{count} objects share id {id}; ids must be unique within a map")]
     DuplicateId { id: u32, count: usize },
 }
@@ -93,7 +97,9 @@ pub struct Map {
 }
 
 impl Default for Map {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Map {
@@ -124,7 +130,8 @@ impl Map {
 
     /// Every solid in the map, paired with the entity that owns it.
     pub fn all_solids(&self) -> impl Iterator<Item = (&Entity, &Solid)> {
-        self.all_entities().flat_map(|e| e.solids.iter().map(move |s| (e, s)))
+        self.all_entities()
+            .flat_map(|e| e.solids.iter().map(move |s| (e, s)))
     }
 
     pub fn solid_count(&self) -> usize {
@@ -139,7 +146,8 @@ impl Map {
     /// Entity carrying a given `targetname`, which is how I/O connections
     /// address their targets.
     pub fn by_targetname<'a>(&'a self, name: &'a str) -> impl Iterator<Item = &'a Entity> + 'a {
-        self.all_entities().filter(move |e| e.get("targetname") == Some(name))
+        self.all_entities()
+            .filter(move |e| e.get("targetname") == Some(name))
     }
 
     /// Bounding box of every brush in the map.
@@ -157,7 +165,10 @@ impl Map {
         let root = KeyValues::parse(text)?;
 
         let (format_version, editor_version) = match root.block("versioninfo") {
-            Some(v) => (v.get_or("formatversion", FORMAT_VERSION), v.get_or("editorversion", 100u32)),
+            Some(v) => (
+                v.get_or("formatversion", FORMAT_VERSION),
+                v.get_or("editorversion", 100u32),
+            ),
             None => (FORMAT_VERSION, 100),
         };
 
@@ -191,7 +202,9 @@ impl Map {
             max = max.max(e.id);
             for s in &e.solids {
                 max = max.max(s.id);
-                for side in &s.sides { max = max.max(side.id); }
+                for side in &s.sides {
+                    max = max.max(side.id);
+                }
             }
         }
         self.next_id = max + 1;
@@ -214,7 +227,9 @@ impl Map {
             report(e.id)?;
             for s in &e.solids {
                 report(s.id)?;
-                for side in &s.sides { report(side.id)?; }
+                for side in &s.sides {
+                    report(side.id)?;
+                }
             }
         }
         Ok(())
@@ -228,7 +243,10 @@ impl Map {
         let mut problems = Vec::new();
         for (_, solid) in self.all_solids() {
             if let Err(source) = solid.validate() {
-                problems.push(MapError::Solid { id: solid.id, source });
+                problems.push(MapError::Solid {
+                    id: solid.id,
+                    source,
+                });
             }
         }
         for e in self.entities.iter() {
@@ -275,7 +293,9 @@ impl Map {
     /// Add a solid to the world, assigning fresh ids to it and its sides.
     pub fn add_world_solid(&mut self, mut solid: Solid) -> u32 {
         solid.id = self.next_id();
-        for side in &mut solid.sides { side.id = self.next_id(); }
+        for side in &mut solid.sides {
+            side.id = self.next_id();
+        }
         let id = solid.id;
         self.world.solids.push(solid);
         id
@@ -302,7 +322,9 @@ impl Map {
 }
 
 /// Helper used by the KeyValues readers to pull an id, defaulting to 0.
-pub(crate) fn read_id(kv: &KeyValues) -> u32 { kv.get_or("id", 0u32) }
+pub(crate) fn read_id(kv: &KeyValues) -> u32 {
+    kv.get_or("id", 0u32)
+}
 
 /// Split a KeyValues block into its plain properties, skipping known
 /// sub-blocks that have dedicated handling.
@@ -381,20 +403,29 @@ entity
 
     #[test]
     fn a_missing_world_is_an_error() {
-        assert!(matches!(Map::parse("versioninfo { }"), Err(MapError::NoWorld)));
+        assert!(matches!(
+            Map::parse("versioninfo { }"),
+            Err(MapError::NoWorld)
+        ));
     }
 
     #[test]
     fn duplicate_ids_are_rejected() {
         let bad = SAMPLE.replace("\"id\" \"9\"", "\"id\" \"1\"");
-        assert!(matches!(Map::parse(&bad), Err(MapError::DuplicateId { id: 1, .. })));
+        assert!(matches!(
+            Map::parse(&bad),
+            Err(MapError::DuplicateId { id: 1, .. })
+        ));
     }
 
     #[test]
     fn new_ids_never_collide_with_loaded_ones() {
         let mut map = Map::parse(SAMPLE).unwrap();
         let fresh = map.next_id();
-        assert!(fresh > 10, "next id {fresh} must clear every id in the file");
+        assert!(
+            fresh > 10,
+            "next id {fresh} must clear every id in the file"
+        );
         assert!(map.all_entities().all(|e| e.id != fresh));
     }
 

@@ -8,7 +8,11 @@ fn tone(frames: usize, channels: u16, amplitude: f32) -> Sound {
             amplitude * (std::f32::consts::TAU * 440.0 * frame as f32 / 44100.0).sin()
         })
         .collect();
-    Sound { channels, sample_rate: 44100, samples }
+    Sound {
+        channels,
+        sample_rate: 44100,
+        samples,
+    }
 }
 
 #[test]
@@ -31,7 +35,11 @@ fn a_short_sound_gets_fewer_columns_rather_than_repeated_ones() {
 
 #[test]
 fn an_empty_sound_draws_nothing_instead_of_dividing_by_zero() {
-    let empty = Sound { channels: 1, sample_rate: 44100, samples: Vec::new() };
+    let empty = Sound {
+        channels: 1,
+        sample_rate: 44100,
+        samples: Vec::new(),
+    };
     assert!(envelope_of(&empty, 900).is_empty());
 }
 
@@ -43,7 +51,10 @@ fn the_envelope_covers_both_channels_of_a_stereo_sound() {
         sound.samples[frame * 2 + 1] = 0.95;
     }
     let envelope = envelope_of(&sound, 10);
-    assert!(envelope.iter().all(|(_, high)| *high > 0.9), "the loud channel must show");
+    assert!(
+        envelope.iter().all(|(_, high)| *high > 0.9),
+        "the loud channel must show"
+    );
 }
 
 #[test]

@@ -4,8 +4,8 @@ use super::*;
 /// The fixtures: one tone, in three containers. See their README.
 fn fixture(name: &str) -> (PathBuf, Vec<u8>) {
     let path = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures")).join(name);
-    let bytes = std::fs::read(&path)
-        .unwrap_or_else(|e| panic!("the {name} fixture must be readable: {e}"));
+    let bytes =
+        std::fs::read(&path).unwrap_or_else(|e| panic!("the {name} fixture must be readable: {e}"));
     (path, bytes)
 }
 
@@ -33,7 +33,10 @@ fn a_format_timbre_does_not_read_is_not_guessed_at() {
 fn only_mp3_is_flagged_as_already_lossy() {
     assert!(Format::Mp3.is_lossy());
     assert!(!Format::Wav.is_lossy());
-    assert!(!Format::Flac.is_lossy(), "FLAC is lossless, whatever its size suggests");
+    assert!(
+        !Format::Flac.is_lossy(),
+        "FLAC is lossless, whatever its size suggests"
+    );
 }
 
 #[test]
@@ -42,7 +45,10 @@ fn every_listed_extension_actually_maps_to_a_format() {
     // files the decoder then refuses.
     for extension in EXTENSIONS {
         let path = PathBuf::from(format!("a.{extension}"));
-        assert!(Format::of(&path).is_some(), "{extension} is listed but not read");
+        assert!(
+            Format::of(&path).is_some(),
+            "{extension} is listed but not read"
+        );
     }
 }
 
@@ -86,7 +92,10 @@ fn a_flac_decodes_to_the_same_sound_the_wav_holds() {
         .zip(&flac.sound.samples)
         .map(|(a, b)| (a - b).abs())
         .fold(0.0f32, f32::max);
-    assert!(worst < 1e-4, "lossless should mean identical, worst difference {worst}");
+    assert!(
+        worst < 1e-4,
+        "lossless should mean identical, worst difference {worst}"
+    );
 }
 
 #[test]
@@ -95,7 +104,10 @@ fn a_flac_declaring_a_loop_in_its_tags_has_it_read() {
     // and nothing standard says it must -- but LOOPSTART/LOOPLENGTH is what
     // game audio has settled on, and not reading it loses what a WAV keeps.
     let (path, bytes) = fixture("tone.flac");
-    let region = any(&path, &bytes).unwrap().looping.expect("the fixture has loop tags");
+    let region = any(&path, &bytes)
+        .unwrap()
+        .looping
+        .expect("the fixture has loop tags");
     assert_eq!(region.start, 1000);
     assert_eq!(region.end, 4000, "start plus length");
 }
@@ -115,10 +127,18 @@ fn an_mp3_decodes_to_roughly_the_sound_it_was_made_from() {
     // An MP3 carries encoder delay and padding, so the frame count is close
     // rather than equal.
     let difference = mp3.sound.frames().abs_diff(wav.frames());
-    assert!(difference < 3000, "decoded {} frames against {}", mp3.sound.frames(), wav.frames());
+    assert!(
+        difference < 3000,
+        "decoded {} frames against {}",
+        mp3.sound.frames(),
+        wav.frames()
+    );
 
     let peak = mp3.sound.samples.iter().fold(0.0f32, |a, s| a.max(s.abs()));
-    assert!((0.4..0.8).contains(&peak), "a 0.6 tone should decode near 0.6, got {peak}");
+    assert!(
+        (0.4..0.8).contains(&peak),
+        "a 0.6 tone should decode near 0.6, got {peak}"
+    );
 }
 
 #[test]
@@ -131,15 +151,21 @@ fn an_mp3_declares_no_loop_of_its_own() {
 
 #[test]
 fn a_flac_that_is_not_one_fails_with_its_name_in_the_message() {
-    let err = any(Path::new("broken.flac"), b"not a flac at all, not even close")
-        .unwrap_err();
+    let err = any(
+        Path::new("broken.flac"),
+        b"not a flac at all, not even close",
+    )
+    .unwrap_err();
     assert!(format!("{err:#}").contains("broken.flac"), "{err:#}");
 }
 
 #[test]
 fn an_mp3_that_is_not_one_fails_rather_than_decoding_noise() {
     let result = any(Path::new("broken.mp3"), &vec![0x5au8; 4096]);
-    assert!(result.is_err(), "a buffer of junk should not decode to a sound");
+    assert!(
+        result.is_err(),
+        "a buffer of junk should not decode to a sound"
+    );
 }
 
 #[test]
@@ -156,7 +182,9 @@ fn a_file_named_wav_that_holds_an_mp3_says_which_it_is() {
     // "not a RIFF/WAVE file" sends someone looking for a corrupt file rather
     // than a mislabelled one.
     let (_, mp3) = fixture("tone.mp3");
-    let err = any(Path::new("music/track.wav"), &mp3).unwrap_err().to_string();
+    let err = any(Path::new("music/track.wav"), &mp3)
+        .unwrap_err()
+        .to_string();
     assert!(err.contains("named .wav"), "{err}");
     assert!(err.contains("are mp3"), "{err}");
 }
@@ -168,7 +196,11 @@ fn a_bare_mp3_with_no_tag_is_still_recognised() {
     // `.wav` looked like -- and the one that would otherwise slip through.
     // 0xFFFB is eleven sync bits, MPEG-1, layer III.
     assert_eq!(sniff(&[0xff, 0xfb, 0x90, 0x64]), Some("mp3"));
-    assert_eq!(sniff(&[0xff, 0xf3, 0x48, 0xc4]), Some("mp3"), "MPEG-2 is the same shape");
+    assert_eq!(
+        sniff(&[0xff, 0xf3, 0x48, 0xc4]),
+        Some("mp3"),
+        "MPEG-2 is the same shape"
+    );
 }
 
 #[test]

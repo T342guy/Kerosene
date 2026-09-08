@@ -47,8 +47,12 @@ pub struct Surface {
 }
 
 impl Surface {
-    pub fn is_sky(&self) -> bool { self.flags & surf::SKY != 0 }
-    pub fn is_translucent(&self) -> bool { self.flags & surf::TRANS != 0 }
+    pub fn is_sky(&self) -> bool {
+        self.flags & surf::SKY != 0
+    }
+    pub fn is_translucent(&self) -> bool {
+        self.flags & surf::TRANS != 0
+    }
 }
 
 /// Surfaces sharing one material, drawn together.
@@ -85,7 +89,9 @@ pub struct WorldMesh {
 }
 
 impl WorldMesh {
-    pub fn triangle_count(&self) -> usize { self.indices.len() / 3 }
+    pub fn triangle_count(&self) -> usize {
+        self.indices.len() / 3
+    }
 
     /// Build the drawable form of a map.
     ///
@@ -101,7 +107,9 @@ impl WorldMesh {
             let ti = bsp.texinfo.get(bsp.faces[face_index].texinfo as usize);
             // Nodraw faces should never have reached the file, but a
             // hand-edited map might carry one.
-            if ti.is_some_and(|t| t.flags & surf::NODRAW != 0) { continue; }
+            if ti.is_some_and(|t| t.flags & surf::NODRAW != 0) {
+                continue;
+            }
             let material = bsp.face_material(face_index).to_string();
             match by_material.iter_mut().find(|(m, _)| *m == material) {
                 Some((_, faces)) => faces.push(face_index),
@@ -120,8 +128,7 @@ impl WorldMesh {
             let mut batch_surfaces = Vec::with_capacity(faces.len());
 
             for face_index in faces {
-                let Some(surface) =
-                    mesh.push_face(bsp, atlas, face_index, material_index as u32)
+                let Some(surface) = mesh.push_face(bsp, atlas, face_index, material_index as u32)
                 else {
                     continue;
                 };
@@ -133,7 +140,8 @@ impl WorldMesh {
             mesh.batches.push(Batch {
                 material: material_index as u32,
                 surfaces: batch_surfaces,
-                contiguous_range: (batch_end > batch_start).then_some((batch_start, batch_end - batch_start)),
+                contiguous_range: (batch_end > batch_start)
+                    .then_some((batch_start, batch_end - batch_start)),
             });
         }
 
@@ -146,7 +154,9 @@ impl WorldMesh {
             let mut bounds = Aabb::EMPTY;
             for face in first..first + model.num_faces as usize {
                 let surface = face_to_surface.get(face).copied().unwrap_or(u32::MAX);
-                if surface == u32::MAX { continue }
+                if surface == u32::MAX {
+                    continue;
+                }
                 mesh.model_surfaces[model_index].push(surface);
                 let b = mesh.surfaces[surface as usize].bounds;
                 bounds.add_point(b.min);
@@ -160,9 +170,16 @@ impl WorldMesh {
         for (leaf_index, leaf) in bsp.leaves.iter().enumerate() {
             let first = leaf.first_leafface as usize;
             for i in first..first + leaf.num_leaffaces as usize {
-                let Some(&face) = bsp.leaffaces.get(i) else { continue };
-                let surface = face_to_surface.get(face as usize).copied().unwrap_or(u32::MAX);
-                if surface != u32::MAX { mesh.leaf_surfaces[leaf_index].push(surface); }
+                let Some(&face) = bsp.leaffaces.get(i) else {
+                    continue;
+                };
+                let surface = face_to_surface
+                    .get(face as usize)
+                    .copied()
+                    .unwrap_or(u32::MAX);
+                if surface != u32::MAX {
+                    mesh.leaf_surfaces[leaf_index].push(surface);
+                }
             }
         }
 
@@ -183,7 +200,9 @@ impl WorldMesh {
         let plane = bsp.face_plane(face_index)?;
 
         let points = bsp.face_vertices(face_index);
-        if points.len() < 3 { return None; }
+        if points.len() < 3 {
+            return None;
+        }
 
         let (tex_w, tex_h) = (texdata.width.max(1) as f32, texdata.height.max(1) as f32);
         let rect = atlas.rects.get(face_index).copied().flatten();
@@ -193,8 +212,10 @@ impl WorldMesh {
         let (mut max_u, mut max_v) = (f32::NEG_INFINITY, f32::NEG_INFINITY);
         for &p in &points {
             let (u, v) = ti.lightcoord(p);
-            min_u = min_u.min(u); max_u = max_u.max(u);
-            min_v = min_v.min(v); max_v = max_v.max(v);
+            min_u = min_u.min(u);
+            max_u = max_u.max(u);
+            min_v = min_v.min(v);
+            max_v = max_v.max(v);
         }
 
         let base = self.vertices.len() as u32;
@@ -270,13 +291,19 @@ impl WorldMesh {
             // surfaces at all.
             if let Some(l) = bsp.leaves.get(leaf) {
                 let b = l.bounds();
-                if !b.is_empty() && !frustum.intersects_box(b.min, b.max) { continue; }
+                if !b.is_empty() && !frustum.intersects_box(b.min, b.max) {
+                    continue;
+                }
             }
             for &surface in self.leaf_surfaces.get(leaf).into_iter().flatten() {
                 let i = surface as usize;
-                if seen[i] { continue; }
+                if seen[i] {
+                    continue;
+                }
                 let bounds = &self.surfaces[i].bounds;
-                if !frustum.intersects_box(bounds.min, bounds.max) { continue; }
+                if !frustum.intersects_box(bounds.min, bounds.max) {
+                    continue;
+                }
                 seen[i] = true;
                 out.push(surface);
             }
@@ -316,9 +343,15 @@ impl WorldMesh {
         pose: Pose,
         frustum: &crate::camera::Frustum,
     ) -> bool {
-        let Some(bounds) = self.model_bounds.get(model) else { return false };
-        if bounds.is_empty() { return false }
-        if self.model_surfaces.get(model).is_none_or(Vec::is_empty) { return false }
+        let Some(bounds) = self.model_bounds.get(model) else {
+            return false;
+        };
+        if bounds.is_empty() {
+            return false;
+        }
+        if self.model_surfaces.get(model).is_none_or(Vec::is_empty) {
+            return false;
+        }
         // The enclosing box of the turned box, not the turned box: a frustum
         // test wants an axis-aligned answer, and a rotated model's compiled
         // bounds are no longer axis aligned once it has turned.

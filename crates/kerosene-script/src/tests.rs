@@ -14,8 +14,10 @@ fn world() -> WorldView {
             .with_origin(Vec3::new(100.0, 0.0, 0.0))
             .with_field("speed", "250"),
     );
-    view.entities.push(EntityView::new(2, "func_door").with_name("gate"));
-    view.entities.push(EntityView::new(3, "light").with_origin(Vec3::new(0.0, 0.0, 128.0)));
+    view.entities
+        .push(EntityView::new(2, "func_door").with_name("gate"));
+    view.entities
+        .push(EntityView::new(3, "light").with_origin(Vec3::new(0.0, 0.0, 128.0)));
     view.entities.push(EntityView::new(4, "light"));
     view.cvars.insert("sv_gravity".into(), "800".into());
     view.player = Some(EntityView::new(99, "player").with_origin(Vec3::new(5.0, 6.0, 7.0)));
@@ -40,7 +42,11 @@ fn run(source: &str) -> Vec<ScriptAction> {
 fn a_script_can_be_evaluated_for_its_value() {
     let mut host = host();
     assert_eq!(host.run("2 + 3").unwrap().as_deref(), Some("5"));
-    assert_eq!(host.run("let x = 1;").unwrap(), None, "a statement has no value to show");
+    assert_eq!(
+        host.run("let x = 1;").unwrap(),
+        None,
+        "a statement has no value to show"
+    );
 }
 
 #[test]
@@ -71,7 +77,10 @@ fn a_runtime_error_is_returned_not_raised() {
 #[test]
 fn print_reaches_the_console() {
     let actions = run(r#" print("hello"); "#);
-    assert_eq!(actions, vec![ScriptAction::Log(ScriptLevel::Print, "hello".into())]);
+    assert_eq!(
+        actions,
+        vec![ScriptAction::Log(ScriptLevel::Print, "hello".into())]
+    );
 }
 
 #[test]
@@ -100,44 +109,90 @@ fn a_script_can_read_the_clock_and_the_map() {
 #[test]
 fn convars_are_readable_as_text_and_as_numbers() {
     let mut host = host();
-    assert_eq!(host.run(r#" cvar("sv_gravity") "#).unwrap().as_deref(), Some("800"));
-    assert_eq!(host.run(r#" cvar_float("sv_gravity") "#).unwrap().as_deref(), Some("800.0"));
+    assert_eq!(
+        host.run(r#" cvar("sv_gravity") "#).unwrap().as_deref(),
+        Some("800")
+    );
+    assert_eq!(
+        host.run(r#" cvar_float("sv_gravity") "#)
+            .unwrap()
+            .as_deref(),
+        Some("800.0")
+    );
     // A convar nobody registered reads as empty rather than failing: a script
     // asking about an optional setting is normal.
     assert_eq!(host.run(r#" cvar("nope") "#).unwrap().as_deref(), Some(""));
-    assert_eq!(host.run(r#" cvar_float("nope") "#).unwrap().as_deref(), Some("0.0"));
+    assert_eq!(
+        host.run(r#" cvar_float("nope") "#).unwrap().as_deref(),
+        Some("0.0")
+    );
 }
 
 #[test]
 fn entities_are_found_by_name_and_by_class() {
     let mut host = host();
-    assert_eq!(host.run(r#" find_by_name("gate").classname "#).unwrap().as_deref(), Some("func_door"));
-    assert_eq!(host.run(r#" find_all_by_name("gate").len "#).unwrap().as_deref(), Some("2"));
-    assert_eq!(host.run(r#" find_by_class("light").len "#).unwrap().as_deref(), Some("2"));
+    assert_eq!(
+        host.run(r#" find_by_name("gate").classname "#)
+            .unwrap()
+            .as_deref(),
+        Some("func_door")
+    );
+    assert_eq!(
+        host.run(r#" find_all_by_name("gate").len "#)
+            .unwrap()
+            .as_deref(),
+        Some("2")
+    );
+    assert_eq!(
+        host.run(r#" find_by_class("light").len "#)
+            .unwrap()
+            .as_deref(),
+        Some("2")
+    );
 }
 
 #[test]
 fn an_entity_that_is_not_there_is_unit_rather_than_an_error() {
     // Asking whether something exists is not a mistake, so it must not throw.
     let mut host = host();
-    assert_eq!(host.run(r#" find_by_name("nothing") == () "#).unwrap().as_deref(), Some("true"));
+    assert_eq!(
+        host.run(r#" find_by_name("nothing") == () "#)
+            .unwrap()
+            .as_deref(),
+        Some("true")
+    );
 }
 
 #[test]
 fn keyvalues_are_readable() {
     let mut host = host();
-    assert_eq!(host.run(r#" find_by_name("gate").get("speed") "#).unwrap().as_deref(), Some("250"));
     assert_eq!(
-        host.run(r#" find_by_name("gate").get_float("speed") "#).unwrap().as_deref(),
+        host.run(r#" find_by_name("gate").get("speed") "#)
+            .unwrap()
+            .as_deref(),
+        Some("250")
+    );
+    assert_eq!(
+        host.run(r#" find_by_name("gate").get_float("speed") "#)
+            .unwrap()
+            .as_deref(),
         Some("250.0")
     );
-    assert_eq!(host.run(r#" find_by_name("gate").has("lip") "#).unwrap().as_deref(), Some("false"));
+    assert_eq!(
+        host.run(r#" find_by_name("gate").has("lip") "#)
+            .unwrap()
+            .as_deref(),
+        Some("false")
+    );
 }
 
 #[test]
 fn the_player_is_reachable_when_there_is_one() {
     let mut host = host();
-    assert_eq!(host.run("player().origin.x").unwrap().as_deref(), Some("5.0"));
+    assert_eq!(
+        host.run("player().origin.x").unwrap().as_deref(),
+        Some("5.0")
+    );
 
     let mut view = world();
     view.player = None;
@@ -214,11 +269,19 @@ fn firing_at_a_nameless_entity_addresses_that_one_and_no_other() {
 fn setting_a_keyvalue_names_the_entity_by_handle() {
     assert_eq!(
         run(r#" find_by_name("gate").set("speed", 400.0); "#),
-        vec![ScriptAction::SetField { entity: 1, key: "speed".into(), value: "400".into() }]
+        vec![ScriptAction::SetField {
+            entity: 1,
+            key: "speed".into(),
+            value: "400".into()
+        }]
     );
     assert_eq!(
         run(r#" find_by_name("gate").set("message", "hello"); "#),
-        vec![ScriptAction::SetField { entity: 1, key: "message".into(), value: "hello".into() }]
+        vec![ScriptAction::SetField {
+            entity: 1,
+            key: "message".into(),
+            value: "hello".into()
+        }]
     );
 }
 
@@ -226,9 +289,15 @@ fn setting_a_keyvalue_names_the_entity_by_handle() {
 fn moving_and_removing_an_entity() {
     assert_eq!(
         run(r#" find_by_name("gate").set_origin(Vector(1.0, 2.0, 3.0)); "#),
-        vec![ScriptAction::SetOrigin { entity: 1, origin: Vec3::new(1.0, 2.0, 3.0) }]
+        vec![ScriptAction::SetOrigin {
+            entity: 1,
+            origin: Vec3::new(1.0, 2.0, 3.0)
+        }]
     );
-    assert_eq!(run(r#" find_by_name("gate").kill(); "#), vec![ScriptAction::Kill { entity: 1 }]);
+    assert_eq!(
+        run(r#" find_by_name("gate").kill(); "#),
+        vec![ScriptAction::Kill { entity: 1 }]
+    );
 }
 
 #[test]
@@ -272,12 +341,21 @@ fn taking_actions_empties_the_queue() {
 fn vector_arithmetic_works_the_way_it_reads() {
     let mut host = host();
     assert_eq!(
-        host.run("(Vector(1.0,2.0,3.0) + Vector(1.0,1.0,1.0)).to_string()").unwrap().as_deref(),
+        host.run("(Vector(1.0,2.0,3.0) + Vector(1.0,1.0,1.0)).to_string()")
+            .unwrap()
+            .as_deref(),
         Some("2 3 4")
     );
-    assert_eq!(host.run("(Vector(3.0,4.0,0.0)).length()").unwrap().as_deref(), Some("5.0"));
     assert_eq!(
-        host.run("distance(Vector(0.0,0.0,0.0), Vector(0.0,0.0,10.0))").unwrap().as_deref(),
+        host.run("(Vector(3.0,4.0,0.0)).length()")
+            .unwrap()
+            .as_deref(),
+        Some("5.0")
+    );
+    assert_eq!(
+        host.run("distance(Vector(0.0,0.0,0.0), Vector(0.0,0.0,10.0))")
+            .unwrap()
+            .as_deref(),
         Some("10.0")
     );
 }
@@ -298,10 +376,14 @@ fn an_entitys_position_is_a_vector_a_script_can_do_maths_on() {
 #[test]
 fn a_loaded_script_defines_functions_that_stay_callable() {
     let mut host = host();
-    host.load("test", r#" fn greet() { print("hi"); } "#).unwrap();
+    host.load("test", r#" fn greet() { print("hi"); } "#)
+        .unwrap();
     assert!(host.has_function("greet"));
     host.call("greet", vec![]).unwrap();
-    assert_eq!(host.take_actions(), vec![ScriptAction::Log(ScriptLevel::Print, "hi".into())]);
+    assert_eq!(
+        host.take_actions(),
+        vec![ScriptAction::Log(ScriptLevel::Print, "hi".into())]
+    );
     assert_eq!(host.loaded(), ["test"]);
 }
 
@@ -342,10 +424,17 @@ fn calling_a_function_that_is_not_there_says_so() {
 fn a_missing_hook_is_normal_and_a_present_one_runs() {
     // The engine calls hooks by name every map load; most maps define none.
     let mut host = host();
-    host.call_hook(hooks::MAP_START, vec![]).expect("a missing hook is not an error");
+    host.call_hook(hooks::MAP_START, vec![])
+        .expect("a missing hook is not an error");
 
-    host.load("m", &format!(r#" fn {}() {{ ent_fire("gate", "Open"); }} "#, hooks::MAP_START))
-        .unwrap();
+    host.load(
+        "m",
+        &format!(
+            r#" fn {}() {{ ent_fire("gate", "Open"); }} "#,
+            hooks::MAP_START
+        ),
+    )
+    .unwrap();
     host.call_hook(hooks::MAP_START, vec![]).unwrap();
     assert_eq!(host.take_actions().len(), 1);
 }
@@ -353,8 +442,13 @@ fn a_missing_hook_is_normal_and_a_present_one_runs() {
 #[test]
 fn a_tick_hook_is_handed_the_tick_length() {
     let mut host = host();
-    host.load("m", &format!(r#" fn {}(dt) {{ print(`${{dt}}`); }} "#, hooks::TICK)).unwrap();
-    host.call_hook(hooks::TICK, vec![rhai::Dynamic::from(0.015625_f64)]).unwrap();
+    host.load(
+        "m",
+        &format!(r#" fn {}(dt) {{ print(`${{dt}}`); }} "#, hooks::TICK),
+    )
+    .unwrap();
+    host.call_hook(hooks::TICK, vec![rhai::Dynamic::from(0.015625_f64)])
+        .unwrap();
     assert_eq!(
         host.take_actions(),
         vec![ScriptAction::Log(ScriptLevel::Print, "0.015625".into())]

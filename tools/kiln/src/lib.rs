@@ -21,13 +21,13 @@
 //! makes the same one and the two must not be able to disagree.
 
 use anyhow::{Context, Result, bail};
-use std::path::{Path, PathBuf};
-use std::process::Stdio;
 use kerosene_vfs::project::Project;
 use kerosene_vfs::toolchain;
+use std::path::{Path, PathBuf};
+use std::process::Stdio;
 
-pub mod ship;
 mod cli;
+pub mod ship;
 
 pub use cli::run;
 
@@ -54,8 +54,13 @@ impl Stage {
     /// every few minutes; assembling something to hand out is not, and a
     /// stage that writes a directory of licence files on every compile would
     /// be a nuisance rather than a service.
-    pub const ALL: [Stage; 5] =
-        [Stage::Textures, Stage::Sounds, Stage::Models, Stage::Maps, Stage::Pack];
+    pub const ALL: [Stage; 5] = [
+        Stage::Textures,
+        Stage::Sounds,
+        Stage::Models,
+        Stage::Maps,
+        Stage::Pack,
+    ];
 
     /// Every stage that can be named on the command line.
     pub const EVERY: [Stage; 6] = [
@@ -79,7 +84,9 @@ impl Stage {
     }
 
     pub fn parse(name: &str) -> Option<Stage> {
-        Stage::EVERY.into_iter().find(|s| s.name() == name.trim().to_ascii_lowercase())
+        Stage::EVERY
+            .into_iter()
+            .find(|s| s.name() == name.trim().to_ascii_lowercase())
     }
 }
 
@@ -124,7 +131,9 @@ impl Default for Settings {
 }
 
 impl Settings {
-    fn runs(&self, stage: Stage) -> bool { self.stages.contains(&stage) }
+    fn runs(&self, stage: Stage) -> bool {
+        self.stages.contains(&stage)
+    }
 
     /// Where the packed archive goes.
     ///
@@ -144,11 +153,23 @@ impl Settings {
 pub(crate) fn slug(name: &str) -> String {
     let mut out: String = name
         .chars()
-        .map(|c| if c.is_ascii_alphanumeric() { c.to_ascii_lowercase() } else { '_' })
+        .map(|c| {
+            if c.is_ascii_alphanumeric() {
+                c.to_ascii_lowercase()
+            } else {
+                '_'
+            }
+        })
         .collect();
-    while out.contains("__") { out = out.replace("__", "_") }
+    while out.contains("__") {
+        out = out.replace("__", "_")
+    }
     let trimmed = out.trim_matches('_');
-    if trimmed.is_empty() { "content".to_string() } else { trimmed.to_string() }
+    if trimmed.is_empty() {
+        "content".to_string()
+    } else {
+        trimmed.to_string()
+    }
 }
 
 /// What a build did.
@@ -178,8 +199,7 @@ pub fn build(settings: &Settings) -> Result<Report> {
         if settings.dry_run {
             println!("  would build {}", settings.content.join("art").display());
         } else {
-            let built = alchemy::build_textures(&settings.content)
-                .context("building textures")?;
+            let built = alchemy::build_textures(&settings.content).context("building textures")?;
             println!("  {built}");
             report.textures = built.textures.compiled;
             report.textures_skipped = built.textures.skipped;
@@ -191,8 +211,8 @@ pub fn build(settings: &Settings) -> Result<Report> {
         if settings.dry_run {
             println!("  would build {}", settings.content.join("sound").display());
         } else {
-            let built = timbre::build_sounds(&settings.content, false)
-                .context("building sounds")?;
+            let built =
+                timbre::build_sounds(&settings.content, false).context("building sounds")?;
             for done in &built.compiled {
                 for warning in &done.warnings {
                     println!("  {}: {warning}", done.output.display());
@@ -215,13 +235,17 @@ pub fn build(settings: &Settings) -> Result<Report> {
     if settings.runs(Stage::Models) {
         say("models");
         report.models = build_models(settings)?;
-        if report.models == 0 { println!("  no .obj sources under art/") }
+        if report.models == 0 {
+            println!("  no .obj sources under art/")
+        }
     }
 
     if settings.runs(Stage::Maps) {
         say("maps");
         let maps = sources(&settings.content.join("maps"), "keromap");
-        if maps.is_empty() { println!("  no .keromap sources under maps/") }
+        if maps.is_empty() {
+            println!("  no .keromap sources under maps/")
+        }
         for map in &maps {
             build_map(settings, map, &mut report)?;
         }
@@ -261,7 +285,10 @@ fn build_models(settings: &Settings) -> Result<usize> {
         // path under `art` is the path under `models`, so a model's name is
         // decided by where its source is rather than by a list somebody has
         // to remember to update.
-        let relative = source.strip_prefix(&art).unwrap_or(source).with_extension("keromdl");
+        let relative = source
+            .strip_prefix(&art)
+            .unwrap_or(source)
+            .with_extension("keromdl");
         let out = settings.content.join("models").join(&relative);
 
         let mut args = vec![
@@ -270,7 +297,9 @@ fn build_models(settings: &Settings) -> Result<usize> {
             "-o".to_string(),
             out.display().to_string(),
         ];
-        if settings.models_in_metres { args.push("--scale-metres".into()) }
+        if settings.models_in_metres {
+            args.push("--scale-metres".into())
+        }
         run_tool("forge", &args, settings)?;
         built += 1;
     }
@@ -279,12 +308,18 @@ fn build_models(settings: &Settings) -> Result<usize> {
 
 /// Take one map through the three compilers.
 fn build_map(settings: &Settings, map: &Path, report: &mut Report) -> Result<()> {
-    let name = map.file_stem().unwrap_or_default().to_string_lossy().into_owned();
+    let name = map
+        .file_stem()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .into_owned();
     println!("--- {name}");
 
     let compiled = map.with_extension("kerobsp");
     let mut args = vec![map.display().to_string()];
-    if settings.ignore_leaks { args.push("--ignore-leaks".into()) }
+    if settings.ignore_leaks {
+        args.push("--ignore-leaks".into())
+    }
     run_tool("cleave", &args, settings)?;
 
     // A leak is reported rather than fatal: the map still compiles, it just
@@ -295,11 +330,15 @@ fn build_map(settings: &Settings, map: &Path, report: &mut Report) -> Result<()>
     }
 
     let mut args = vec![compiled.display().to_string()];
-    if settings.fast { args.push("--fast".into()) }
+    if settings.fast {
+        args.push("--fast".into())
+    }
     run_tool("umbra", &args, settings)?;
 
     let mut args = vec![compiled.display().to_string()];
-    if settings.fast { args.push("--fast".into()) }
+    if settings.fast {
+        args.push("--fast".into())
+    }
     run_tool("radiance", &args, settings)?;
     Ok(())
 }
@@ -311,7 +350,14 @@ fn build_map(settings: &Settings, map: &Path, report: &mut Report) -> Result<()>
 /// them doubles the download to deliver files the engine can read a smaller
 /// version of.
 pub const PACKED: &[&str] = &[
-    "kerotex", "keromat", "keromdl", "kerobsp", "kerowalk", "keroscript", "kerosnd", "keroaud",
+    "kerotex",
+    "keromat",
+    "keromdl",
+    "kerobsp",
+    "kerowalk",
+    "keroscript",
+    "kerosnd",
+    "keroaud",
     "kerodef",
 ];
 
@@ -327,7 +373,11 @@ fn pack(settings: &Settings, archive: &Path) -> Result<()> {
         args.push((*extension).to_string());
     }
     run_tool("vault", &args, settings)?;
-    run_tool("vault", &["verify".to_string(), archive.display().to_string()], settings)
+    run_tool(
+        "vault",
+        &["verify".to_string(), archive.display().to_string()],
+        settings,
+    )
 }
 
 /// Every file with an extension under a directory, in a stable order.
@@ -343,7 +393,10 @@ fn collect(dir: &Path, extension: &str, out: &mut Vec<PathBuf>) {
         let path = entry.path();
         if path.is_dir() {
             collect(&path, extension, out);
-        } else if path.extension().is_some_and(|e| e.eq_ignore_ascii_case(extension)) {
+        } else if path
+            .extension()
+            .is_some_and(|e| e.eq_ignore_ascii_case(extension))
+        {
             out.push(path);
         }
     }

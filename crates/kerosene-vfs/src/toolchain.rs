@@ -21,15 +21,18 @@ use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
 /// The toolset's own subcommands, all compiled into the one executable.
-pub const TOOLSET: &[&str] =
-    &["chisel", "cleave", "umbra", "radiance", "alchemy", "timbre", "forge", "vault", "kiln"];
+pub const TOOLSET: &[&str] = &[
+    "chisel", "cleave", "umbra", "radiance", "alchemy", "timbre", "forge", "vault", "kiln",
+];
 
 /// The runtime, still its own binary so a game can ship without the tools.
 pub const RUNTIME: &str = "kerosene";
 
 /// Every name [`available`] reports, in a fixed order.
-pub const ALL: &[&str] =
-    &["chisel", "cleave", "umbra", "radiance", "alchemy", "timbre", "forge", "vault", "kiln", "kerosene"];
+pub const ALL: &[&str] = &[
+    "chisel", "cleave", "umbra", "radiance", "alchemy", "timbre", "forge", "vault", "kiln",
+    "kerosene",
+];
 
 /// A command that runs one of the toolset's subcommands.
 ///
@@ -49,7 +52,11 @@ pub fn command(name: &str) -> Command {
 pub fn path(name: &str) -> Option<PathBuf> {
     let exe = std::env::current_exe().ok()?;
     let dir = exe.parent()?;
-    let candidate = dir.join(if cfg!(windows) { format!("{name}.exe") } else { name.to_string() });
+    let candidate = dir.join(if cfg!(windows) {
+        format!("{name}.exe")
+    } else {
+        name.to_string()
+    });
     candidate.is_file().then_some(candidate)
 }
 
@@ -106,7 +113,10 @@ mod tests {
         // subcommand is always present and the version cannot drift.
         let command = command("cleave");
         let program = command.get_program();
-        assert!(program.to_string_lossy().contains("kerosene"), "{program:?}");
+        assert!(
+            program.to_string_lossy().contains("kerosene"),
+            "{program:?}"
+        );
     }
 
     #[test]

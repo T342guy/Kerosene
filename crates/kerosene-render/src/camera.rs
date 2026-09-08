@@ -54,18 +54,27 @@ impl Camera {
     }
 
     /// Vertical field of view in radians, derived from the horizontal one.
-    pub fn fov_y(&self) -> f32 { vertical_fov(self.fov, self.aspect) }
+    pub fn fov_y(&self) -> f32 {
+        vertical_fov(self.fov, self.aspect)
+    }
 
     /// View-to-clip transform, with depth in `0..1` as wgpu expects.
     pub fn projection_matrix(&self) -> Mat4 {
-        Mat4::perspective_rh(vertical_fov(self.fov, self.aspect), self.aspect, self.near, self.far)
+        Mat4::perspective_rh(
+            vertical_fov(self.fov, self.aspect),
+            self.aspect,
+            self.near,
+            self.far,
+        )
     }
 
     pub fn view_projection(&self) -> Mat4 {
         self.projection_matrix() * self.view_matrix()
     }
 
-    pub fn forward(&self) -> Vec3 { self.angles.forward() }
+    pub fn forward(&self) -> Vec3 {
+        self.angles.forward()
+    }
 
     /// The six planes bounding what this camera can see, facing inward.
     pub fn frustum(&self) -> Frustum {
@@ -138,7 +147,9 @@ impl Frustum {
         let half = (max - min) * 0.5;
         for plane in &self.planes {
             let (lo, _) = plane.box_distances(center, half);
-            if lo > 0.0 { return false; }
+            if lo > 0.0 {
+                return false;
+            }
         }
         true
     }
@@ -153,7 +164,11 @@ mod tests {
     use super::*;
 
     fn camera_at(position: Vec3, yaw: f32) -> Camera {
-        Camera { position, angles: Angles::new(0.0, yaw, 0.0), ..Default::default() }
+        Camera {
+            position,
+            angles: Angles::new(0.0, yaw, 0.0),
+            ..Default::default()
+        }
     }
 
     #[test]
@@ -161,7 +176,10 @@ mod tests {
         let cam = camera_at(Vec3::new(100.0, 200.0, 50.0), 0.0);
         let view = cam.view_matrix();
         let seen = view.transform_point3(cam.position);
-        assert!(seen.length() < 1e-3, "the camera should see itself at the origin: {seen:?}");
+        assert!(
+            seen.length() < 1e-3,
+            "the camera should see itself at the origin: {seen:?}"
+        );
     }
 
     #[test]
@@ -177,7 +195,9 @@ mod tests {
     #[test]
     fn world_up_becomes_view_up() {
         let cam = camera_at(Vec3::ZERO, 0.0);
-        let above = cam.view_matrix().transform_point3(Vec3::new(100.0, 0.0, 50.0));
+        let above = cam
+            .view_matrix()
+            .transform_point3(Vec3::new(100.0, 0.0, 50.0));
         assert!(above.y > 0.0, "up should stay up, got {above:?}");
     }
 
@@ -185,7 +205,9 @@ mod tests {
     fn world_left_becomes_view_left() {
         let cam = camera_at(Vec3::ZERO, 0.0);
         // +Y is left in world space, so it should land at negative view X.
-        let left = cam.view_matrix().transform_point3(Vec3::new(100.0, 50.0, 0.0));
+        let left = cam
+            .view_matrix()
+            .transform_point3(Vec3::new(100.0, 50.0, 0.0));
         assert!(left.x < 0.0, "world +Y is to the left, got {left:?}");
     }
 
@@ -195,8 +217,15 @@ mod tests {
         let clip = cam.view_projection() * Vec3::new(500.0, 0.0, 0.0).extend(1.0);
         assert!(clip.w > 0.0, "should be in front of the camera");
         let ndc = clip.truncate() / clip.w;
-        assert!(ndc.x.abs() < 0.01 && ndc.y.abs() < 0.01, "should be centred: {ndc:?}");
-        assert!((0.0..=1.0).contains(&ndc.z), "depth must land in 0..1 for wgpu: {}", ndc.z);
+        assert!(
+            ndc.x.abs() < 0.01 && ndc.y.abs() < 0.01,
+            "should be centred: {ndc:?}"
+        );
+        assert!(
+            (0.0..=1.0).contains(&ndc.z),
+            "depth must land in 0..1 for wgpu: {}",
+            ndc.z
+        );
     }
 
     #[test]
@@ -211,7 +240,10 @@ mod tests {
         // The vertical angle should not change with aspect ratio.
         let narrow = vertical_fov(90.0, 4.0 / 3.0);
         let wide = vertical_fov(90.0, 21.0 / 9.0);
-        assert!((narrow - wide).abs() < 1e-5, "vertical FOV changed with aspect: {narrow} vs {wide}");
+        assert!(
+            (narrow - wide).abs() < 1e-5,
+            "vertical FOV changed with aspect: {narrow} vs {wide}"
+        );
     }
 
     #[test]
@@ -226,9 +258,15 @@ mod tests {
     fn the_frustum_contains_what_is_ahead_and_rejects_what_is_behind() {
         let cam = camera_at(Vec3::ZERO, 0.0);
         let f = cam.frustum();
-        assert!(f.contains_point(Vec3::new(500.0, 0.0, 0.0)), "straight ahead");
+        assert!(
+            f.contains_point(Vec3::new(500.0, 0.0, 0.0)),
+            "straight ahead"
+        );
         assert!(!f.contains_point(Vec3::new(-500.0, 0.0, 0.0)), "behind");
-        assert!(!f.contains_point(Vec3::new(1.0, 0.0, 0.0)), "closer than the near plane");
+        assert!(
+            !f.contains_point(Vec3::new(1.0, 0.0, 0.0)),
+            "closer than the near plane"
+        );
     }
 
     #[test]
@@ -246,19 +284,31 @@ mod tests {
         let cam = camera_at(Vec3::ZERO, 0.0);
         let f = cam.frustum();
         // A box mostly behind the camera but poking into view.
-        assert!(f.intersects_box(Vec3::new(-100.0, -50.0, -50.0), Vec3::new(200.0, 50.0, 50.0)));
+        assert!(f.intersects_box(
+            Vec3::new(-100.0, -50.0, -50.0),
+            Vec3::new(200.0, 50.0, 50.0)
+        ));
         // One entirely behind.
-        assert!(!f.intersects_box(Vec3::new(-500.0, -50.0, -50.0), Vec3::new(-200.0, 50.0, 50.0)));
+        assert!(!f.intersects_box(
+            Vec3::new(-500.0, -50.0, -50.0),
+            Vec3::new(-200.0, 50.0, 50.0)
+        ));
     }
 
     #[test]
     fn turning_the_camera_moves_what_is_visible() {
         let mut cam = camera_at(Vec3::ZERO, 0.0);
         let target = Vec3::new(0.0, 500.0, 0.0);
-        assert!(!cam.frustum().contains_point(target), "not visible looking down +X");
+        assert!(
+            !cam.frustum().contains_point(target),
+            "not visible looking down +X"
+        );
 
         cam.angles.yaw = 90.0;
-        assert!(cam.frustum().contains_point(target), "should be visible after turning to face it");
+        assert!(
+            cam.frustum().contains_point(target),
+            "should be visible after turning to face it"
+        );
     }
 
     #[test]
@@ -266,7 +316,11 @@ mod tests {
         // Box distance tests assume normalised planes.
         let cam = camera_at(Vec3::new(10.0, 20.0, 30.0), 37.0);
         for plane in &cam.frustum().planes {
-            assert!((plane.normal.length() - 1.0).abs() < 1e-4, "{:?}", plane.normal);
+            assert!(
+                (plane.normal.length() - 1.0).abs() < 1e-4,
+                "{:?}",
+                plane.normal
+            );
         }
     }
 }

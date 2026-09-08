@@ -29,12 +29,32 @@ pub enum BspError {
     },
     #[error("{path} is not a .kerobsp file (bad magic)")]
     BadMagic { path: String },
-    #[error("{path} is format version {found}; this build reads version {expected}. Recompile the map with Cleave.")]
-    BadVersion { path: String, found: u32, expected: u32 },
-    #[error("{path}: lump {lump} ({name}) runs from {offset} to {end} but the file is {size} bytes")]
-    LumpOutOfRange { path: String, lump: usize, name: &'static str, offset: u64, end: u64, size: u64 },
+    #[error(
+        "{path} is format version {found}; this build reads version {expected}. Recompile the map with Cleave."
+    )]
+    BadVersion {
+        path: String,
+        found: u32,
+        expected: u32,
+    },
+    #[error(
+        "{path}: lump {lump} ({name}) runs from {offset} to {end} but the file is {size} bytes"
+    )]
+    LumpOutOfRange {
+        path: String,
+        lump: usize,
+        name: &'static str,
+        offset: u64,
+        end: u64,
+        size: u64,
+    },
     #[error("{path}: lump {name} is {size} bytes, not a whole number of {record}-byte records")]
-    LumpMisaligned { path: String, name: &'static str, size: usize, record: usize },
+    LumpMisaligned {
+        path: String,
+        name: &'static str,
+        size: usize,
+        record: usize,
+    },
     #[error("{path}: entity lump is not valid UTF-8")]
     EntitiesNotUtf8 { path: String },
     #[error("{path} is structurally invalid: {detail}")]
@@ -69,16 +89,26 @@ impl Bsp {
                 detail: format!("file is {} bytes, shorter than a header", bytes.len()),
             });
         }
-        if bytes[0..4] != MAGIC { return Err(BspError::BadMagic { path: name.to_string() }); }
+        if bytes[0..4] != MAGIC {
+            return Err(BspError::BadMagic {
+                path: name.to_string(),
+            });
+        }
         let version = u32::from_le_bytes(bytes[4..8].try_into().unwrap());
         if version != VERSION {
-            return Err(BspError::BadVersion { path: name.to_string(), found: version, expected: VERSION });
+            return Err(BspError::BadVersion {
+                path: name.to_string(),
+                found: version,
+                expected: VERSION,
+            });
         }
 
         let dir_bytes = &bytes[8..8 + LUMP_COUNT * 16];
         let dir: &[LumpDir] = cast_slice(dir_bytes);
         let revision = u32::from_le_bytes(
-            bytes[8 + LUMP_COUNT * 16..8 + LUMP_COUNT * 16 + 4].try_into().unwrap(),
+            bytes[8 + LUMP_COUNT * 16..8 + LUMP_COUNT * 16 + 4]
+                .try_into()
+                .unwrap(),
         );
 
         let slice = |i: usize| -> Result<&[u8]> {
@@ -100,8 +130,9 @@ impl Bsp {
         let records = |i: usize| -> Result<Vec<u8>> { Ok(slice(i)?.to_vec()) };
 
         let entities_raw = records(lumps::ENTITIES)?;
-        let entities = String::from_utf8(entities_raw)
-            .map_err(|_| BspError::EntitiesNotUtf8 { path: name.to_string() })?;
+        let entities = String::from_utf8(entities_raw).map_err(|_| BspError::EntitiesNotUtf8 {
+            path: name.to_string(),
+        })?;
 
         let bsp = Bsp {
             revision,
@@ -109,15 +140,31 @@ impl Bsp {
             planes: read_lump(slice(lumps::PLANES)?, name, lumps::NAMES[lumps::PLANES])?,
             vertices: read_lump(slice(lumps::VERTICES)?, name, lumps::NAMES[lumps::VERTICES])?,
             edges: read_lump(slice(lumps::EDGES)?, name, lumps::NAMES[lumps::EDGES])?,
-            surfedges: read_lump(slice(lumps::SURFEDGES)?, name, lumps::NAMES[lumps::SURFEDGES])?,
+            surfedges: read_lump(
+                slice(lumps::SURFEDGES)?,
+                name,
+                lumps::NAMES[lumps::SURFEDGES],
+            )?,
             faces: read_lump(slice(lumps::FACES)?, name, lumps::NAMES[lumps::FACES])?,
             nodes: read_lump(slice(lumps::NODES)?, name, lumps::NAMES[lumps::NODES])?,
             leaves: read_lump(slice(lumps::LEAVES)?, name, lumps::NAMES[lumps::LEAVES])?,
-            leaffaces: read_lump(slice(lumps::LEAFFACES)?, name, lumps::NAMES[lumps::LEAFFACES])?,
-            leafbrushes: read_lump(slice(lumps::LEAFBRUSHES)?, name, lumps::NAMES[lumps::LEAFBRUSHES])?,
+            leaffaces: read_lump(
+                slice(lumps::LEAFFACES)?,
+                name,
+                lumps::NAMES[lumps::LEAFFACES],
+            )?,
+            leafbrushes: read_lump(
+                slice(lumps::LEAFBRUSHES)?,
+                name,
+                lumps::NAMES[lumps::LEAFBRUSHES],
+            )?,
             models: read_lump(slice(lumps::MODELS)?, name, lumps::NAMES[lumps::MODELS])?,
             brushes: read_lump(slice(lumps::BRUSHES)?, name, lumps::NAMES[lumps::BRUSHES])?,
-            brushsides: read_lump(slice(lumps::BRUSHSIDES)?, name, lumps::NAMES[lumps::BRUSHSIDES])?,
+            brushsides: read_lump(
+                slice(lumps::BRUSHSIDES)?,
+                name,
+                lumps::NAMES[lumps::BRUSHSIDES],
+            )?,
             texinfo: read_lump(slice(lumps::TEXINFO)?, name, lumps::NAMES[lumps::TEXINFO])?,
             texdata: read_lump(slice(lumps::TEXDATA)?, name, lumps::NAMES[lumps::TEXDATA])?,
             texdata_strings: slice(lumps::TEXDATA_STRINGS)?.to_vec(),
@@ -125,7 +172,10 @@ impl Bsp {
             lighting: read_lump(slice(lumps::LIGHTING)?, name, lumps::NAMES[lumps::LIGHTING])?,
         };
 
-        bsp.validate().map_err(|detail| BspError::Invalid { path: name.to_string(), detail })?;
+        bsp.validate().map_err(|detail| BspError::Invalid {
+            path: name.to_string(),
+            detail,
+        })?;
         Ok(bsp)
     }
 
@@ -145,7 +195,9 @@ impl Bsp {
         let mut push = |dir: &mut [LumpDir; LUMP_COUNT], index: usize, data: &[u8]| {
             // Every lump starts 4-byte aligned so a zero-copy reader can cast
             // directly out of a memory-mapped file.
-            while (HEADER_SIZE + body.len()) % 4 != 0 { body.push(0); }
+            while (HEADER_SIZE + body.len()) % 4 != 0 {
+                body.push(0);
+            }
             dir[index] = LumpDir {
                 offset: (HEADER_SIZE + body.len()) as u32,
                 length: data.len() as u32,

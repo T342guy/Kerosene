@@ -63,7 +63,9 @@ pub const ADVANCE: usize = GLYPH_W + 1;
 
 /// How wide a string is, in font pixels before scaling.
 pub fn width(text: &str) -> usize {
-    if text.is_empty() { return 0 }
+    if text.is_empty() {
+        return 0;
+    }
     text.chars().count() * ADVANCE - 1
 }
 
@@ -79,7 +81,9 @@ pub fn draw(text: &str, origin: (i32, i32), scale: usize, mut plot: impl FnMut(i
         let left = origin.0 + (index * ADVANCE) as i32 * scale;
         for (column, byte) in bits.iter().enumerate() {
             for row in 0..GLYPH_H {
-                if byte & (1 << row) == 0 { continue }
+                if byte & (1 << row) == 0 {
+                    continue;
+                }
                 let x0 = left + column as i32 * scale;
                 let y0 = origin.1 + row as i32 * scale;
                 for dy in 0..scale {
@@ -125,9 +129,18 @@ mod tests {
             min = (min.0.min(x), min.1.min(y));
             max = (max.0.max(x), max.1.max(y));
         });
-        assert!(min.0 >= 10 && min.1 >= 20, "drew above or left of the origin: {min:?}");
-        assert!(max.0 < 10 + (width("HI") * 2) as i32, "wider than it said: {max:?}");
-        assert!(max.1 < 20 + (GLYPH_H * 2) as i32, "taller than it said: {max:?}");
+        assert!(
+            min.0 >= 10 && min.1 >= 20,
+            "drew above or left of the origin: {min:?}"
+        );
+        assert!(
+            max.0 < 10 + (width("HI") * 2) as i32,
+            "wider than it said: {max:?}"
+        );
+        assert!(
+            max.1 < 20 + (GLYPH_H * 2) as i32,
+            "taller than it said: {max:?}"
+        );
     }
 
     #[test]
@@ -137,6 +150,10 @@ mod tests {
             draw("A", (0, 0), scale, |_, _| n += 1);
             n
         };
-        assert_eq!(count(2), count(1) * 4, "a 2x glyph is four times the pixels");
+        assert_eq!(
+            count(2),
+            count(1) * 4,
+            "a 2x glyph is four times the pixels"
+        );
     }
 }

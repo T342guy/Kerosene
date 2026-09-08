@@ -142,7 +142,11 @@ impl Default for MoveState {
 
 impl MoveState {
     pub fn hull(&self) -> PlayerHull {
-        if self.ducked { DUCKED_HULL } else { STANDING_HULL }
+        if self.ducked {
+            DUCKED_HULL
+        } else {
+            STANDING_HULL
+        }
     }
 
     /// Eye position, for the camera and for line-of-sight checks.
@@ -182,7 +186,9 @@ pub fn player_move(
     dt: f32,
 ) -> MoveResult {
     let mut result = MoveResult::default();
-    if dt <= 0.0 { return result; }
+    if dt <= 0.0 {
+        return result;
+    }
 
     if state.noclip {
         let basis = input.view_angles.vectors();
@@ -214,7 +220,9 @@ pub fn player_move(
         state.jump_held = true;
         result.jumped = true;
     }
-    if !input.jump { state.jump_held = false; }
+    if !input.jump {
+        state.jump_held = false;
+    }
 
     // A ladder replaces the whole ground-or-air decision rather than
     // modifying it: there is no gravity on a ladder, no friction worth
@@ -243,7 +251,14 @@ pub fn player_move(
         }
         stay_on_ground(state, world, params);
     } else {
-        air_accelerate(state, wish_dir, wish_speed, params.air_accelerate, params, dt);
+        air_accelerate(
+            state,
+            wish_dir,
+            wish_speed,
+            params.air_accelerate,
+            params,
+            dt,
+        );
         state.velocity.z -= params.gravity * dt;
         result.hit_wall = try_move(state, world, params, dt).0;
     }
@@ -278,18 +293,26 @@ fn wish_direction(state: &MoveState, input: &MoveInput, params: &MoveParams) -> 
 
     let wish = forward * input.forward + right * input.side;
     let mut max = params.max_speed;
-    if state.ducked { max *= params.duck_speed_scale; }
-    if state.water_level >= WaterLevel::Waist { max *= 0.8; }
+    if state.ducked {
+        max *= params.duck_speed_scale;
+    }
+    if state.water_level >= WaterLevel::Waist {
+        max *= 0.8;
+    }
 
     let length = wish.length();
-    if length < 1e-6 { return (Vec3::ZERO, 0.0); }
+    if length < 1e-6 {
+        return (Vec3::ZERO, 0.0);
+    }
     (wish / length, (length * max).min(max))
 }
 
 /// Slow the player down when they are on the ground and not accelerating.
 pub fn apply_friction(state: &mut MoveState, params: &MoveParams, dt: f32) {
     let speed = state.velocity.length();
-    if speed < 0.1 { return; }
+    if speed < 0.1 {
+        return;
+    }
 
     // The stop-speed floor: below it, friction is applied as though moving at
     // stop_speed. Without it, deceleration tapers off asymptotically and the
@@ -315,10 +338,14 @@ pub fn accelerate(
     _params: &MoveParams,
     dt: f32,
 ) {
-    if wish_speed <= 0.0 { return; }
+    if wish_speed <= 0.0 {
+        return;
+    }
     let current = state.velocity.dot(wish_dir);
     let add = wish_speed - current;
-    if add <= 0.0 { return; }
+    if add <= 0.0 {
+        return;
+    }
 
     let accel_speed = (accel * dt * wish_speed).min(add);
     state.velocity += wish_dir * accel_speed;
@@ -340,12 +367,16 @@ pub fn air_accelerate(
     params: &MoveParams,
     dt: f32,
 ) {
-    if wish_speed <= 0.0 { return; }
+    if wish_speed <= 0.0 {
+        return;
+    }
     let capped = wish_speed.min(params.air_speed_cap);
 
     let current = state.velocity.dot(wish_dir);
     let add = capped - current;
-    if add <= 0.0 { return; }
+    if add <= 0.0 {
+        return;
+    }
 
     // Note the uncapped `wish_speed` here: the *rate* scales with how hard
     // the player is pushing, while the *ceiling* stays at the cap.
@@ -363,7 +394,9 @@ pub fn clip_velocity(velocity: Vec3, normal: Vec3, overbounce: f32) -> Vec3 {
     let backoff = velocity.dot(normal) * overbounce;
     let mut out = velocity - normal * backoff;
     let adjust = out.dot(normal);
-    if adjust < 0.0 { out -= normal * adjust; }
+    if adjust < 0.0 {
+        out -= normal * adjust;
+    }
     out
 }
 
@@ -390,7 +423,9 @@ pub fn try_move(
     let mut blocked = false;
 
     for _ in 0..MAX_BUMPS {
-        if state.velocity.length_squared() == 0.0 { break; }
+        if state.velocity.length_squared() == 0.0 {
+            break;
+        }
 
         let end = state.origin + state.velocity * time_left;
         let trace = world.trace_hull(
@@ -415,7 +450,9 @@ pub fn try_move(
             planes.clear();
         }
 
-        if trace.fraction >= 1.0 { break; }
+        if trace.fraction >= 1.0 {
+            break;
+        }
         blocked = true;
 
         time_left -= time_left * trace.fraction;
@@ -526,7 +563,9 @@ pub fn step_move(
     );
 
     // Landing on something too steep means this was a wall, not a step.
-    let landed_flat = down_trace.plane.is_none_or(|p| p.normal.z >= MAX_STANDABLE_Z);
+    let landed_flat = down_trace
+        .plane
+        .is_none_or(|p| p.normal.z >= MAX_STANDABLE_Z);
     if !landed_flat {
         state.origin = down_origin;
         state.velocity = down_velocity;
@@ -583,7 +622,9 @@ pub fn categorize_position(
         Some(plane) if plane.normal.z >= MAX_STANDABLE_Z && trace.fraction < 1.0 => {
             state.on_ground = true;
             state.ground_normal = plane.normal;
-            if !trace.start_solid { state.origin = trace.endpos; }
+            if !trace.start_solid {
+                state.origin = trace.endpos;
+            }
         }
         _ => {
             state.on_ground = false;
@@ -598,12 +639,20 @@ pub fn categorize_position(
 /// a brief unwanted hop, and the transition from ground to air movement makes
 /// it feel like a stumble.
 fn stay_on_ground(state: &mut MoveState, world: &dyn CollisionWorld, params: &MoveParams) {
-    if !state.on_ground { return; }
+    if !state.on_ground {
+        return;
+    }
     let hull = state.hull();
 
     let start = state.origin + Vec3::Z * 2.0;
     let end = state.origin - Vec3::Z * params.step_size;
-    let trace = world.trace_hull(start, end, hull.mins, hull.maxs, contents::MASK_PLAYER_SOLID);
+    let trace = world.trace_hull(
+        start,
+        end,
+        hull.mins,
+        hull.maxs,
+        contents::MASK_PLAYER_SOLID,
+    );
 
     if trace.fraction > 0.0
         && trace.fraction < 1.0
@@ -620,7 +669,9 @@ fn apply_duck(state: &mut MoveState, world: &dyn CollisionWorld, input: &MoveInp
         state.ducked = true;
         return;
     }
-    if !state.ducked { return; }
+    if !state.ducked {
+        return;
+    }
 
     // Standing up has to be checked: a player who ducked under a pipe must
     // not be able to stand inside it.
@@ -655,7 +706,8 @@ fn ladder_move(
     dt: f32,
 ) {
     let basis = input.view_angles.vectors();
-    let vertical = input.up + if input.jump { 1.0 } else { 0.0 } - if input.duck { 1.0 } else { 0.0 };
+    let vertical =
+        input.up + if input.jump { 1.0 } else { 0.0 } - if input.duck { 1.0 } else { 0.0 };
     let wish = basis.forward * input.forward + basis.right * input.side + Vec3::Z * vertical;
 
     // Set rather than accelerated toward. A ladder is not a surface you build

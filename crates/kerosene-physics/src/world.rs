@@ -24,7 +24,9 @@ pub struct BspWorld<'a> {
 }
 
 impl<'a> BspWorld<'a> {
-    pub fn new(bsp: &'a Bsp) -> Self { BspWorld { bsp } }
+    pub fn new(bsp: &'a Bsp) -> Self {
+        BspWorld { bsp }
+    }
 }
 
 impl CollisionWorld for BspWorld<'_> {
@@ -51,7 +53,9 @@ pub struct BoxWorld {
 
 #[cfg(any(test, feature = "test-world"))]
 impl BoxWorld {
-    pub fn new() -> Self { Self::default() }
+    pub fn new() -> Self {
+        Self::default()
+    }
 
     /// Add a solid box.
     pub fn solid(mut self, mins: Vec3, maxs: Vec3) -> Self {
@@ -67,7 +71,10 @@ impl BoxWorld {
 
     /// A large floor slab at `z <= 0`.
     pub fn with_floor(self) -> Self {
-        self.solid(Vec3::new(-4096.0, -4096.0, -64.0), Vec3::new(4096.0, 4096.0, 0.0))
+        self.solid(
+            Vec3::new(-4096.0, -4096.0, -64.0),
+            Vec3::new(4096.0, 4096.0, 0.0),
+        )
     }
 }
 
@@ -78,7 +85,9 @@ impl CollisionWorld for BoxWorld {
         best.all_solid = false;
 
         for &(bmin, bmax, box_contents) in &self.boxes {
-            if box_contents & mask == 0 { continue; }
+            if box_contents & mask == 0 {
+                continue;
+            }
             // Minkowski expansion: grow the box by the hull and sweep a point.
             let expanded_min = bmin - maxs;
             let expanded_max = bmax - mins;
@@ -97,14 +106,20 @@ impl CollisionWorld for BoxWorld {
             }
         }
 
-        best.endpos = if best.fraction >= 1.0 { end } else { start + (end - start) * best.fraction };
+        best.endpos = if best.fraction >= 1.0 {
+            end
+        } else {
+            start + (end - start) * best.fraction
+        };
         best
     }
 
     fn contents_at(&self, point: Vec3) -> u32 {
         let mut out = 0;
         for &(bmin, bmax, c) in &self.boxes {
-            if (0..3).all(|i| point[i] >= bmin[i] && point[i] <= bmax[i]) { out |= c; }
+            if (0..3).all(|i| point[i] >= bmin[i] && point[i] <= bmax[i]) {
+                out |= c;
+            }
         }
         out
     }
@@ -127,7 +142,9 @@ pub fn sweep_point_vs_box(start: Vec3, end: Vec3, min: Vec3, max: Vec3) -> Optio
     for axis in 0..3 {
         if delta[axis].abs() < 1e-9 {
             // Parallel to this slab: either always within it or never.
-            if start[axis] < min[axis] || start[axis] > max[axis] { return None; }
+            if start[axis] < min[axis] || start[axis] > max[axis] {
+                return None;
+            }
             continue;
         }
         let inv = 1.0 / delta[axis];
@@ -148,13 +165,19 @@ pub fn sweep_point_vs_box(start: Vec3, end: Vec3, min: Vec3, max: Vec3) -> Optio
             normal[axis] = sign;
         }
         exit = exit.min(t1);
-        if enter > exit { return None; }
+        if enter > exit {
+            return None;
+        }
     }
 
     // A zero normal means no face was crossed: the ray began inside the box.
     // That is start-solid, which the caller detects separately.
-    if normal == Vec3::ZERO { return None; }
-    if enter >= 1.0 { return None; }
+    if normal == Vec3::ZERO {
+        return None;
+    }
+    if enter >= 1.0 {
+        return None;
+    }
 
     // Stop a hair short of the surface, matching the BSP tracer, so the next
     // tick does not begin inside what was just hit.

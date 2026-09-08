@@ -33,22 +33,37 @@ pub struct Pose {
 
 impl Pose {
     /// Unmoved and unturned -- what the world model always is.
-    pub const IDENTITY: Pose =
-        Pose { origin: Vec3::ZERO, angles: Angles::ZERO, pivot: Vec3::ZERO };
+    pub const IDENTITY: Pose = Pose {
+        origin: Vec3::ZERO,
+        angles: Angles::ZERO,
+        pivot: Vec3::ZERO,
+    };
 
     /// A pose turning about its own origin -- what a point entity wants.
     pub const fn new(origin: Vec3, angles: Angles) -> Pose {
-        Pose { origin, angles, pivot: Vec3::ZERO }
+        Pose {
+            origin,
+            angles,
+            pivot: Vec3::ZERO,
+        }
     }
 
     /// A pose turning about a stated point -- what a brush model wants.
     pub const fn about(origin: Vec3, angles: Angles, pivot: Vec3) -> Pose {
-        Pose { origin, angles, pivot }
+        Pose {
+            origin,
+            angles,
+            pivot,
+        }
     }
 
     /// A pose that only moves.
     pub const fn at(origin: Vec3) -> Pose {
-        Pose { origin, angles: Angles::ZERO, pivot: Vec3::ZERO }
+        Pose {
+            origin,
+            angles: Angles::ZERO,
+            pivot: Vec3::ZERO,
+        }
     }
 
     /// Whether this pose turns anything.
@@ -100,7 +115,11 @@ impl Pose {
     /// the origin, and a plane normal that had the translation applied to it
     /// would point somewhere meaningless.
     pub fn direction_to_world(&self, local: Vec3) -> Vec3 {
-        if self.is_rotated() { self.rotation() * local } else { local }
+        if self.is_rotated() {
+            self.rotation() * local
+        } else {
+            local
+        }
     }
 
     /// The world-space box enclosing a box given in the body's space.

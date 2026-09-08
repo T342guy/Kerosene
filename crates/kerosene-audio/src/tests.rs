@@ -2,7 +2,11 @@
 use super::*;
 
 fn sound() -> Arc<Sound> {
-    Arc::new(Sound { channels: 1, sample_rate: 44_100, samples: vec![0.5; 100] })
+    Arc::new(Sound {
+        channels: 1,
+        sample_rate: 44_100,
+        samples: vec![0.5; 100],
+    })
 }
 
 const SCRIPT: &str = r#"
@@ -58,10 +62,12 @@ fn names_are_matched_without_regard_to_case() {
 #[test]
 fn a_block_with_no_name_is_skipped_rather_than_failing_the_file() {
     // One bad entry should not silence a whole game.
-    let script = SoundScript::parse(r#"
+    let script = SoundScript::parse(
+        r#"
         sound { "file" "x.wav" }
         sound { "name" "good" }
-    "#)
+    "#,
+    )
     .unwrap();
     assert_eq!(script.len(), 1);
     assert!(script.get("good").is_some());
@@ -104,7 +110,10 @@ fn a_name_nobody_defined_is_taken_as_a_path() {
     let bank = SoundBank::new();
     assert_eq!(bank.resolve("test").0, "sound/test.keroaud");
     assert_eq!(bank.resolve("weapons/fire.wav").0, "sound/weapons/fire.wav");
-    assert_eq!(bank.resolve("sound/weapons/fire.wav").0, "sound/weapons/fire.wav");
+    assert_eq!(
+        bank.resolve("sound/weapons/fire.wav").0,
+        "sound/weapons/fire.wav"
+    );
     assert_eq!(bank.resolve("/leading.wav").0, "sound/leading.wav");
 }
 
@@ -166,8 +175,7 @@ fn a_named_source_is_still_tried_after_its_compiled_sibling() {
 fn a_name_the_script_defines_resolves_through_the_file_it_names() {
     let mut bank = SoundBank::new();
     bank.add_script(
-        SoundScript::parse(r#"sound { "name" "door/move" "file" "sound/door/move.wav" }"#)
-            .unwrap(),
+        SoundScript::parse(r#"sound { "name" "door/move" "file" "sound/door/move.wav" }"#).unwrap(),
     );
     let candidates = bank.candidates("door/move");
     assert_eq!(candidates[0], "sound/door/move.keroaud");
@@ -180,7 +188,8 @@ fn a_source_the_engine_cannot_read_is_still_offered_as_a_candidate_path() {
     // error, rather than being quietly dropped from the list.
     let bank = SoundBank::new();
     assert!(
-        bank.candidates("music/theme.flac").contains(&"sound/music/theme.flac".to_string()),
+        bank.candidates("music/theme.flac")
+            .contains(&"sound/music/theme.flac".to_string()),
         "{:?}",
         bank.candidates("music/theme.flac")
     );
@@ -200,12 +209,18 @@ fn a_flac_beside_the_name_is_found_for_the_message() {
 
 #[test]
 fn nothing_beside_the_name_means_nothing_to_say_about_it() {
-    assert_eq!(uncompiled_source("sound/ambient/track.keroaud", |_| false), None);
+    assert_eq!(
+        uncompiled_source("sound/ambient/track.keroaud", |_| false),
+        None
+    );
 }
 
 #[test]
 fn siblings_keep_a_dot_in_a_directory_name_out_of_it() {
     // `sound/v1.2/click` has a dot in a directory and no extension at all.
     let out = siblings("sound/v1.2/click");
-    assert!(out.iter().all(|p| p.starts_with("sound/v1.2/click")), "{out:?}");
+    assert!(
+        out.iter().all(|p| p.starts_with("sound/v1.2/click")),
+        "{out:?}"
+    );
 }

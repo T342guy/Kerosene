@@ -60,7 +60,9 @@ impl Trace {
         }
     }
 
-    pub fn hit(&self) -> bool { self.fraction < 1.0 || self.start_solid }
+    pub fn hit(&self) -> bool {
+        self.fraction < 1.0 || self.start_solid
+    }
 }
 
 struct Work<'a> {
@@ -104,7 +106,9 @@ impl Bsp {
         maxs: Vec3,
         mask: u32,
     ) -> Trace {
-        let Some(m) = self.models.get(model) else { return Trace::miss(end) };
+        let Some(m) = self.models.get(model) else {
+            return Trace::miss(end);
+        };
         self.trace_node(m.head_node, start, end, mins, maxs, mask, model)
     }
 
@@ -161,14 +165,20 @@ impl Bsp {
 impl Work<'_> {
     fn recurse(&mut self, node: i32, p1f: f32, p2f: f32, p1: Vec3, p2: Vec3) {
         // Something nearer has already been hit; nothing beyond can matter.
-        if self.trace.fraction <= p1f { return; }
+        if self.trace.fraction <= p1f {
+            return;
+        }
 
         let node = match decode_child(node) {
             Child::Leaf(leaf) => return self.test_leaf(leaf),
             Child::Node(n) => n,
         };
-        let Some(node) = self.bsp.nodes.get(node) else { return };
-        let Some(bsp_plane) = self.bsp.planes.get(node.plane as usize) else { return };
+        let Some(node) = self.bsp.nodes.get(node) else {
+            return;
+        };
+        let Some(bsp_plane) = self.bsp.planes.get(node.plane as usize) else {
+            return;
+        };
         let plane = bsp_plane.to_plane();
 
         let (t1, t2, offset) = {
@@ -196,10 +206,18 @@ impl Work<'_> {
         // so an early hit prunes the far side.
         let (side, frac_near, frac_far) = if t1 < t2 {
             let idist = 1.0 / (t1 - t2);
-            (1usize, (t1 - offset + DIST_EPSILON) * idist, (t1 + offset + DIST_EPSILON) * idist)
+            (
+                1usize,
+                (t1 - offset + DIST_EPSILON) * idist,
+                (t1 + offset + DIST_EPSILON) * idist,
+            )
         } else if t1 > t2 {
             let idist = 1.0 / (t1 - t2);
-            (0usize, (t1 + offset + DIST_EPSILON) * idist, (t1 - offset - DIST_EPSILON) * idist)
+            (
+                0usize,
+                (t1 + offset + DIST_EPSILON) * idist,
+                (t1 - offset - DIST_EPSILON) * idist,
+            )
         } else {
             (0usize, 1.0, 0.0)
         };
@@ -217,7 +235,9 @@ impl Work<'_> {
     }
 
     fn test_leaf(&mut self, leaf: usize) {
-        let Some(l) = self.bsp.leaves.get(leaf) else { return };
+        let Some(l) = self.bsp.leaves.get(leaf) else {
+            return;
+        };
         if l.contents & self.mask == 0 {
             // Passing through open space: the trace is not entirely in solid.
             self.trace.all_solid = false;
@@ -226,11 +246,19 @@ impl Work<'_> {
         let first = l.first_leafbrush as usize;
         let count = l.num_leafbrushes as usize;
         for i in first..first + count {
-            let Some(&bi) = self.bsp.leafbrushes.get(i) else { continue };
-            let Some(brush) = self.bsp.brushes.get(bi as usize).copied() else { continue };
-            if brush.contents & self.mask == 0 { continue; }
+            let Some(&bi) = self.bsp.leafbrushes.get(i) else {
+                continue;
+            };
+            let Some(brush) = self.bsp.brushes.get(bi as usize).copied() else {
+                continue;
+            };
+            if brush.contents & self.mask == 0 {
+                continue;
+            }
             self.clip_to_brush(&brush);
-            if self.trace.all_solid { return; }
+            if self.trace.all_solid {
+                return;
+            }
         }
     }
 
@@ -241,7 +269,9 @@ impl Work<'_> {
     /// back-to-front one). If it enters before it leaves, it is inside, and
     /// the entry point is the hit.
     fn clip_to_brush(&mut self, brush: &Brush) {
-        if brush.num_sides == 0 { return; }
+        if brush.num_sides == 0 {
+            return;
+        }
 
         let mut enter_frac = -1.0f32;
         let mut leave_frac = 1.0f32;
@@ -253,8 +283,12 @@ impl Work<'_> {
 
         let first = brush.first_side as usize;
         for i in first..first + brush.num_sides as usize {
-            let Some(side) = self.bsp.brushsides.get(i) else { continue };
-            let Some(bp) = self.bsp.planes.get(side.plane as usize) else { continue };
+            let Some(side) = self.bsp.brushsides.get(i) else {
+                continue;
+            };
+            let Some(bp) = self.bsp.planes.get(side.plane as usize) else {
+                continue;
+            };
             let plane = bp.to_plane();
 
             let dist = if self.is_point {
@@ -263,9 +297,21 @@ impl Work<'_> {
                 // Push the plane out by the corner of the box that leads along
                 // this normal, turning the swept box into a swept point.
                 let ofs = Vec3::new(
-                    if plane.normal.x < 0.0 { self.maxs.x } else { self.mins.x },
-                    if plane.normal.y < 0.0 { self.maxs.y } else { self.mins.y },
-                    if plane.normal.z < 0.0 { self.maxs.z } else { self.mins.z },
+                    if plane.normal.x < 0.0 {
+                        self.maxs.x
+                    } else {
+                        self.mins.x
+                    },
+                    if plane.normal.y < 0.0 {
+                        self.maxs.y
+                    } else {
+                        self.mins.y
+                    },
+                    if plane.normal.z < 0.0 {
+                        self.maxs.z
+                    } else {
+                        self.mins.z
+                    },
                 );
                 plane.dist - ofs.dot(plane.normal)
             };
@@ -273,14 +319,22 @@ impl Work<'_> {
             let d1 = plane.normal.dot(self.start) - dist;
             let d2 = plane.normal.dot(self.end) - dist;
 
-            if d2 > 0.0 { ends_outside = true; }
-            if d1 > 0.0 { started_outside = true; }
+            if d2 > 0.0 {
+                ends_outside = true;
+            }
+            if d1 > 0.0 {
+                started_outside = true;
+            }
 
             // Entirely in front of this plane and moving no closer: the path
             // never enters the brush.
-            if d1 > 0.0 && (d2 >= DIST_EPSILON || d2 >= d1) { return; }
+            if d1 > 0.0 && (d2 >= DIST_EPSILON || d2 >= d1) {
+                return;
+            }
             // Behind this plane the whole way: it constrains nothing.
-            if d1 <= 0.0 && d2 <= 0.0 { continue; }
+            if d1 <= 0.0 && d2 <= 0.0 {
+                continue;
+            }
 
             if d1 > d2 {
                 // Crossing front to back: a candidate entry point.
@@ -295,7 +349,9 @@ impl Work<'_> {
             } else {
                 // Back to front: an exit point.
                 let f = (d1 + DIST_EPSILON) / (d1 - d2);
-                if f < leave_frac { leave_frac = f; }
+                if f < leave_frac {
+                    leave_frac = f;
+                }
             }
         }
 
@@ -334,21 +390,30 @@ impl Bsp {
     /// standing in water or inside a trigger has to ask this.
     pub fn point_contents_brushes(&self, p: Vec3) -> u32 {
         let leaf_index = self.point_leaf(p);
-        let Some(leaf) = self.leaves.get(leaf_index) else { return content_flags::SOLID };
+        let Some(leaf) = self.leaves.get(leaf_index) else {
+            return content_flags::SOLID;
+        };
         let mut out = leaf.contents;
 
         let first = leaf.first_leafbrush as usize;
         for i in first..first + leaf.num_leafbrushes as usize {
-            let Some(&bi) = self.leafbrushes.get(i) else { continue };
-            let Some(brush) = self.brushes.get(bi as usize) else { continue };
-            let inside = (brush.first_side as usize..brush.first_side as usize + brush.num_sides as usize)
+            let Some(&bi) = self.leafbrushes.get(i) else {
+                continue;
+            };
+            let Some(brush) = self.brushes.get(bi as usize) else {
+                continue;
+            };
+            let inside = (brush.first_side as usize
+                ..brush.first_side as usize + brush.num_sides as usize)
                 .all(|s| {
                     self.brushsides
                         .get(s)
                         .and_then(|side| self.planes.get(side.plane as usize))
                         .is_some_and(|bp| bp.to_plane().distance_to(p) <= 0.0)
                 });
-            if inside { out |= brush.contents; }
+            if inside {
+                out |= brush.contents;
+            }
         }
         out
     }

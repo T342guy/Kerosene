@@ -31,8 +31,8 @@ pub mod types;
 pub mod vis;
 
 pub use io::{BspError, LumpDir, MAGIC, VERSION, write_bsp};
-pub use types::*;
 pub use trace::Trace;
+pub use types::*;
 pub use vis::{VisBuilder, VisData, VisKind};
 
 use kerosene_kv::KeyValues;
@@ -60,10 +60,26 @@ pub mod lumps {
     pub const LIGHTING: usize = 17;
 
     pub const NAMES: [&str; super::LUMP_COUNT] = [
-        "entities", "planes", "vertices", "edges", "surfedges", "faces",
-        "nodes", "leaves", "leaffaces", "leafbrushes", "models", "brushes",
-        "brushsides", "texinfo", "texdata", "texdata_strings", "visibility",
-        "lighting", "reserved18", "reserved19",
+        "entities",
+        "planes",
+        "vertices",
+        "edges",
+        "surfedges",
+        "faces",
+        "nodes",
+        "leaves",
+        "leaffaces",
+        "leafbrushes",
+        "models",
+        "brushes",
+        "brushsides",
+        "texinfo",
+        "texdata",
+        "texdata_strings",
+        "visibility",
+        "lighting",
+        "reserved18",
+        "reserved19",
     ];
 }
 
@@ -103,7 +119,9 @@ pub struct Bsp {
 }
 
 impl Bsp {
-    pub fn new() -> Self { Self::default() }
+    pub fn new() -> Self {
+        Self::default()
+    }
 
     // ---- tree queries ----------------------------------------------------
 
@@ -121,9 +139,15 @@ impl Bsp {
             match decode_child(child) {
                 Child::Leaf(leaf) => return leaf.min(self.leaves.len().saturating_sub(1)),
                 Child::Node(n) => {
-                    let Some(node) = self.nodes.get(n) else { return 0 };
+                    let Some(node) = self.nodes.get(n) else {
+                        return 0;
+                    };
                     let plane = self.planes[node.plane as usize].to_plane();
-                    child = if plane.distance_to(point) >= 0.0 { node.children[0] } else { node.children[1] };
+                    child = if plane.distance_to(point) >= 0.0 {
+                        node.children[0]
+                    } else {
+                        node.children[1]
+                    };
                 }
             }
         }
@@ -138,12 +162,16 @@ impl Bsp {
 
     /// Visibility cluster at `point`, or `-1` inside solid geometry.
     pub fn point_cluster(&self, point: Vec3) -> i16 {
-        self.leaves.get(self.point_leaf(point)).map_or(-1, |l| l.cluster)
+        self.leaves
+            .get(self.point_leaf(point))
+            .map_or(-1, |l| l.cluster)
     }
 
     /// Contents of the leaf at `point` -- solid, water, and so on.
     pub fn point_contents(&self, point: Vec3) -> u32 {
-        self.leaves.get(self.point_leaf(point)).map_or(contents::SOLID, |l| l.contents)
+        self.leaves
+            .get(self.point_leaf(point))
+            .map_or(contents::SOLID, |l| l.contents)
     }
 
     /// Whether `point` is inside solid world geometry.
@@ -173,7 +201,9 @@ impl Bsp {
 
     /// Whether one cluster can see another.
     pub fn cluster_visible(&self, from: i16, to: i16) -> bool {
-        if from < 0 || to < 0 { return true; }
+        if from < 0 || to < 0 {
+            return true;
+        }
         match VisData::new(&self.visibility) {
             Some(v) => v.is_visible(from as usize, to as usize, VisKind::Pvs),
             None => true,
@@ -200,13 +230,25 @@ impl Bsp {
     /// therefore share *identical* vertex positions, which is what keeps their
     /// seam from cracking open under floating-point rounding.
     pub fn face_vertices(&self, face_index: usize) -> Vec<Vec3> {
-        let Some(face) = self.faces.get(face_index) else { return Vec::new() };
+        let Some(face) = self.faces.get(face_index) else {
+            return Vec::new();
+        };
         let mut out = Vec::with_capacity(face.num_surfedges as usize);
         for i in 0..face.num_surfedges as usize {
-            let Some(&se) = self.surfedges.get(face.first_surfedge as usize + i) else { break };
-            let (edge_index, end) = if se >= 0 { (se as usize, 0) } else { ((-se) as usize, 1) };
-            let Some(edge) = self.edges.get(edge_index) else { break };
-            let Some(v) = self.vertices.get(edge.v[end] as usize) else { break };
+            let Some(&se) = self.surfedges.get(face.first_surfedge as usize + i) else {
+                break;
+            };
+            let (edge_index, end) = if se >= 0 {
+                (se as usize, 0)
+            } else {
+                ((-se) as usize, 1)
+            };
+            let Some(edge) = self.edges.get(edge_index) else {
+                break;
+            };
+            let Some(v) = self.vertices.get(edge.v[end] as usize) else {
+                break;
+            };
             out.push(Vec3::from_array(*v));
         }
         out
@@ -216,7 +258,11 @@ impl Bsp {
     pub fn face_plane(&self, face_index: usize) -> Option<Plane> {
         let face = self.faces.get(face_index)?;
         let plane = self.planes.get(face.plane as usize)?.to_plane();
-        Some(if face.side != 0 { plane.flipped() } else { plane })
+        Some(if face.side != 0 {
+            plane.flipped()
+        } else {
+            plane
+        })
     }
 
     pub fn face_bounds(&self, face_index: usize) -> Aabb {
@@ -225,7 +271,9 @@ impl Bsp {
 
     /// Material name for a texdata index.
     pub fn texdata_name(&self, index: usize) -> &str {
-        let Some(td) = self.texdata.get(index) else { return "" };
+        let Some(td) = self.texdata.get(index) else {
+            return "";
+        };
         read_c_string(&self.texdata_strings, td.name_offset as usize)
     }
 
@@ -247,7 +295,9 @@ impl Bsp {
 
     /// Every distinct material the map references.
     pub fn materials(&self) -> Vec<&str> {
-        let mut names: Vec<&str> = (0..self.texdata.len()).map(|i| self.texdata_name(i)).collect();
+        let mut names: Vec<&str> = (0..self.texdata.len())
+            .map(|i| self.texdata_name(i))
+            .collect();
         names.sort_unstable();
         names.dedup();
         names
@@ -259,7 +309,9 @@ impl Bsp {
         let mut offset = 0usize;
         while offset < self.texdata_strings.len() {
             let existing = read_c_string(&self.texdata_strings, offset);
-            if existing.as_bytes() == needle { return offset as u32; }
+            if existing.as_bytes() == needle {
+                return offset as u32;
+            }
             offset += existing.len() + 1;
         }
         let at = self.texdata_strings.len() as u32;
@@ -271,7 +323,9 @@ impl Bsp {
     /// Lightmap samples for a face, if it has any.
     pub fn face_lightmap(&self, face_index: usize) -> Option<&[ColorRgbExp32]> {
         let face = self.faces.get(face_index)?;
-        if face.lightmap_offset < 0 { return None; }
+        if face.lightmap_offset < 0 {
+            return None;
+        }
         let start = face.lightmap_offset as usize;
         let count = (face.lightmap_size[0] as usize) * (face.lightmap_size[1] as usize);
         self.lighting.get(start..start + count)
@@ -322,12 +376,20 @@ impl Bsp {
                 return Err(format!("face {i} surfedge range runs past the lump"));
             }
             if f.texinfo as usize >= self.texinfo.len() {
-                return Err(format!("face {i} references texinfo {} of {}", f.texinfo, self.texinfo.len()));
+                return Err(format!(
+                    "face {i} references texinfo {} of {}",
+                    f.texinfo,
+                    self.texinfo.len()
+                ));
             }
         }
         for (i, ti) in self.texinfo.iter().enumerate() {
             if ti.texdata as usize >= self.texdata.len() {
-                return Err(format!("texinfo {i} references texdata {} of {}", ti.texdata, self.texdata.len()));
+                return Err(format!(
+                    "texinfo {i} references texdata {} of {}",
+                    ti.texdata,
+                    self.texdata.len()
+                ));
             }
         }
         for (i, n) in self.nodes.iter().enumerate() {
@@ -337,10 +399,16 @@ impl Bsp {
             for (side, &c) in n.children.iter().enumerate() {
                 match decode_child(c) {
                     Child::Node(x) if x >= self.nodes.len() => {
-                        return Err(format!("node {i} child {side} references node {x} of {}", self.nodes.len()));
+                        return Err(format!(
+                            "node {i} child {side} references node {x} of {}",
+                            self.nodes.len()
+                        ));
                     }
                     Child::Leaf(x) if x >= self.leaves.len() => {
-                        return Err(format!("node {i} child {side} references leaf {x} of {}", self.leaves.len()));
+                        return Err(format!(
+                            "node {i} child {side} references leaf {x} of {}",
+                            self.leaves.len()
+                        ));
                     }
                     _ => {}
                 }
@@ -356,12 +424,18 @@ impl Bsp {
         }
         for (i, &lf) in self.leaffaces.iter().enumerate() {
             if lf as usize >= self.faces.len() {
-                return Err(format!("leafface {i} references face {lf} of {}", self.faces.len()));
+                return Err(format!(
+                    "leafface {i} references face {lf} of {}",
+                    self.faces.len()
+                ));
             }
         }
         for (i, &lb) in self.leafbrushes.iter().enumerate() {
             if lb as usize >= self.brushes.len() {
-                return Err(format!("leafbrush {i} references brush {lb} of {}", self.brushes.len()));
+                return Err(format!(
+                    "leafbrush {i} references brush {lb} of {}",
+                    self.brushes.len()
+                ));
             }
         }
         for (i, b) in self.brushes.iter().enumerate() {
@@ -371,7 +445,10 @@ impl Bsp {
         }
         for (i, bs) in self.brushsides.iter().enumerate() {
             if bs.plane as usize >= np {
-                return Err(format!("brushside {i} references plane {} of {np}", bs.plane));
+                return Err(format!(
+                    "brushside {i} references plane {} of {np}",
+                    bs.plane
+                ));
             }
         }
         for (i, m) in self.models.iter().enumerate() {
@@ -418,7 +495,9 @@ impl Bsp {
 
 /// Read a NUL-terminated string out of the texdata string lump.
 fn read_c_string(buf: &[u8], offset: usize) -> &str {
-    if offset >= buf.len() { return ""; }
+    if offset >= buf.len() {
+        return "";
+    }
     let rest = &buf[offset..];
     let end = rest.iter().position(|&b| b == 0).unwrap_or(rest.len());
     std::str::from_utf8(&rest[..end]).unwrap_or("")

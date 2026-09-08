@@ -3,9 +3,9 @@
 
 use crate::texture::{TextureAxis, default_axes_for_plane};
 use crate::{DEFAULT_LIGHTMAP_SCALE, WalkmapRule, read_id};
-use thiserror::Error;
 use kerosene_kv::{KeyValues, Vec3Value};
 use kerosene_math::{Aabb, MAX_MAP_COORD, ON_EPSILON, Plane, Vec3, Winding};
+use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum SolidError {
@@ -66,7 +66,11 @@ impl Side {
 
     /// The plane this face lies in, or `None` if its points are collinear.
     pub fn plane(&self) -> Option<Plane> {
-        Plane::from_map_points(self.plane_points[0], self.plane_points[1], self.plane_points[2])
+        Plane::from_map_points(
+            self.plane_points[0],
+            self.plane_points[1],
+            self.plane_points[2],
+        )
     }
 
     /// Texture coordinates of a world point, in texels.
@@ -94,12 +98,21 @@ impl Side {
             id,
             plane_points,
             material: kv.get("material").unwrap_or("dev/grid").to_string(),
-            uaxis: kv.get("uaxis").and_then(TextureAxis::parse).unwrap_or(default_u),
-            vaxis: kv.get("vaxis").and_then(TextureAxis::parse).unwrap_or(default_v),
+            uaxis: kv
+                .get("uaxis")
+                .and_then(TextureAxis::parse)
+                .unwrap_or(default_u),
+            vaxis: kv
+                .get("vaxis")
+                .and_then(TextureAxis::parse)
+                .unwrap_or(default_v),
             rotation: kv.get_or("rotation", 0.0f32),
             lightmap_scale: kv.get_or("lightmapscale", DEFAULT_LIGHTMAP_SCALE),
             smoothing_groups: kv.get_or("smoothing_groups", 0u32),
-            walkmap: kv.get("walkmap").map(WalkmapRule::parse).unwrap_or_default(),
+            walkmap: kv
+                .get("walkmap")
+                .map(WalkmapRule::parse)
+                .unwrap_or_default(),
         })
     }
 
@@ -112,9 +125,15 @@ impl Side {
             "plane",
             format!(
                 "({} {} {}) ({} {} {}) ({} {} {})",
-                f(p[0].x), f(p[0].y), f(p[0].z),
-                f(p[1].x), f(p[1].y), f(p[1].z),
-                f(p[2].x), f(p[2].y), f(p[2].z),
+                f(p[0].x),
+                f(p[0].y),
+                f(p[0].z),
+                f(p[1].x),
+                f(p[1].y),
+                f(p[1].z),
+                f(p[2].x),
+                f(p[2].y),
+                f(p[2].z),
             ),
         );
         kv.push("material", self.material.clone());
@@ -139,8 +158,12 @@ fn parse_plane_points(s: &str) -> Option<[Vec3; 3]> {
     let mut points = [Vec3::ZERO; 3];
     let mut n = 0;
     for group in s.split(')') {
-        let Some(open) = group.find('(') else { continue };
-        if n == 3 { return None; }
+        let Some(open) = group.find('(') else {
+            continue;
+        };
+        if n == 3 {
+            return None;
+        }
         let v = Vec3Value::from_kv(&group[open + 1..]).ok()?;
         points[n] = Vec3::from_array(v.to_array());
         n += 1;
@@ -171,7 +194,9 @@ pub struct Solid {
 }
 
 impl Solid {
-    pub fn new(id: u32, sides: Vec<Side>) -> Self { Self { id, sides } }
+    pub fn new(id: u32, sides: Vec<Side>) -> Self {
+        Self { id, sides }
+    }
 
     /// An axis-aligned box brush -- what the block tool produces.
     ///
@@ -183,12 +208,12 @@ impl Solid {
         // Per face: an origin corner and two tangents whose cross product is
         // the outward normal.
         let faces: [(Vec3, Vec3, Vec3); 6] = [
-            (Vec3::new(lo.x, lo.y, hi.z), Vec3::X * d.x, Vec3::Y * d.y),   // +Z
-            (Vec3::new(lo.x, lo.y, lo.z), Vec3::Y * d.y, Vec3::X * d.x),   // -Z
-            (Vec3::new(hi.x, lo.y, lo.z), Vec3::Y * d.y, Vec3::Z * d.z),   // +X
-            (Vec3::new(lo.x, lo.y, lo.z), Vec3::Z * d.z, Vec3::Y * d.y),   // -X
-            (Vec3::new(lo.x, hi.y, lo.z), Vec3::Z * d.z, Vec3::X * d.x),   // +Y
-            (Vec3::new(lo.x, lo.y, lo.z), Vec3::X * d.x, Vec3::Z * d.z),   // -Y
+            (Vec3::new(lo.x, lo.y, hi.z), Vec3::X * d.x, Vec3::Y * d.y), // +Z
+            (Vec3::new(lo.x, lo.y, lo.z), Vec3::Y * d.y, Vec3::X * d.x), // -Z
+            (Vec3::new(hi.x, lo.y, lo.z), Vec3::Y * d.y, Vec3::Z * d.z), // +X
+            (Vec3::new(lo.x, lo.y, lo.z), Vec3::Z * d.z, Vec3::Y * d.y), // -X
+            (Vec3::new(lo.x, hi.y, lo.z), Vec3::Z * d.z, Vec3::X * d.x), // +Y
+            (Vec3::new(lo.x, lo.y, lo.z), Vec3::X * d.x, Vec3::Z * d.z), // -Y
         ];
 
         let sides = faces
@@ -258,8 +283,16 @@ impl Solid {
     ///
     /// `None` when the profile is not a polygon -- fewer than three points, or
     /// three points in a line.
-    pub fn prism(profile: &[Vec3], axis: usize, low: f32, high: f32, material: &str) -> Option<Solid> {
-        if profile.len() < 3 || high <= low { return None }
+    pub fn prism(
+        profile: &[Vec3],
+        axis: usize,
+        low: f32,
+        high: f32,
+        material: &str,
+    ) -> Option<Solid> {
+        if profile.len() < 3 || high <= low {
+            return None;
+        }
 
         let mut up = Vec3::ZERO;
         up[axis] = 1.0;
@@ -292,8 +325,14 @@ impl Solid {
             let outward = along.cross(up).normalize_or_zero();
             // Away from the centre regardless of which way the profile was
             // wound, so a caller cannot get this wrong.
-            let outward = if outward.dot(at(a, low) - at(centre, low)) < 0.0 { -outward } else { outward };
-            if outward == Vec3::ZERO { return None }
+            let outward = if outward.dot(at(a, low) - at(centre, low)) < 0.0 {
+                -outward
+            } else {
+                outward
+            };
+            if outward == Vec3::ZERO {
+                return None;
+            }
 
             let points = [at(a, low), at(b, low), at(b, high)];
             sides.push(Self::facing(id, points, outward, material)?);
@@ -310,8 +349,16 @@ impl Solid {
     /// `profile` is the base, in world space; `apex` is the tip. A four-sided
     /// base gives the pyramid, a many-sided one the spike the shape tool
     /// calls a cone.
-    pub fn pyramid(profile: &[Vec3], axis: usize, base: f32, apex: Vec3, material: &str) -> Option<Solid> {
-        if profile.len() < 3 { return None }
+    pub fn pyramid(
+        profile: &[Vec3],
+        axis: usize,
+        base: f32,
+        apex: Vec3,
+        material: &str,
+    ) -> Option<Solid> {
+        if profile.len() < 3 {
+            return None;
+        }
 
         let mut up = Vec3::ZERO;
         up[axis] = 1.0;
@@ -338,8 +385,14 @@ impl Solid {
             // the apex being off to one side does not change which way a
             // wall looks.
             let outward = (b - a).cross(apex - a).normalize_or_zero();
-            let outward = if outward.dot((a + b) * 0.5 - centre) < 0.0 { -outward } else { outward };
-            if outward == Vec3::ZERO { return None }
+            let outward = if outward.dot((a + b) * 0.5 - centre) < 0.0 {
+                -outward
+            } else {
+                outward
+            };
+            if outward == Vec3::ZERO {
+                return None;
+            }
 
             sides.push(Self::facing(i as u32 + 2, [a, b, apex], outward, material)?);
         }
@@ -378,7 +431,9 @@ impl Solid {
             .map(|(i, plane)| {
                 let mut w = Winding::base_for_plane(plane);
                 for (j, other) in planes.iter().enumerate() {
-                    if i == j { continue; }
+                    if i == j {
+                        continue;
+                    }
                     // Keep the half we are inside: the other face's plane,
                     // flipped to point into the brush.
                     match w.clipped(&other.flipped(), ON_EPSILON) {
@@ -404,31 +459,47 @@ impl Solid {
     pub fn bounds(&self) -> Aabb {
         let mut b = Aabb::EMPTY;
         for w in self.windings().into_iter().flatten() {
-            for p in &w.points { b.add_point(*p); }
+            for p in &w.points {
+                b.add_point(*p);
+            }
         }
         b
     }
 
-    pub fn center(&self) -> Vec3 { self.bounds().center() }
+    pub fn center(&self) -> Vec3 {
+        self.bounds().center()
+    }
 
     /// Total surface area of the brush.
     pub fn area(&self) -> f32 {
-        self.windings().into_iter().flatten().map(|w| w.area()).sum()
+        self.windings()
+            .into_iter()
+            .flatten()
+            .map(|w| w.area())
+            .sum()
     }
 
     /// Whether a point is inside the brush.
     pub fn contains_point(&self, p: Vec3) -> bool {
-        self.planes().iter().all(|plane| plane.distance_to(p) <= ON_EPSILON)
+        self.planes()
+            .iter()
+            .all(|plane| plane.distance_to(p) <= ON_EPSILON)
     }
 
     /// Check that this brush is something the compiler can use.
     pub fn validate(&self) -> Result<(), SolidError> {
-        if self.sides.len() < 4 { return Err(SolidError::TooFewFaces(self.sides.len())); }
+        if self.sides.len() < 4 {
+            return Err(SolidError::TooFewFaces(self.sides.len()));
+        }
         for side in &self.sides {
-            if side.plane().is_none() { return Err(SolidError::DegeneratePlane { id: side.id }); }
+            if side.plane().is_none() {
+                return Err(SolidError::DegeneratePlane { id: side.id });
+            }
         }
         let real_faces = self.windings().into_iter().flatten().count();
-        if real_faces < 4 { return Err(SolidError::NotClosed(real_faces)); }
+        if real_faces < 4 {
+            return Err(SolidError::NotClosed(real_faces));
+        }
         let b = self.bounds();
         if b.is_empty()
             || b.min.min_element() < -MAX_MAP_COORD
@@ -449,7 +520,9 @@ impl Solid {
     /// absorb `delta` projected onto each axis.
     pub fn translate(&mut self, delta: Vec3) {
         for side in &mut self.sides {
-            for p in &mut side.plane_points { *p += delta; }
+            for p in &mut side.plane_points {
+                *p += delta;
+            }
             side.uaxis.offset -= delta.dot(side.uaxis.axis) / side.uaxis.safe_scale();
             side.vaxis.offset -= delta.dot(side.vaxis.axis) / side.vaxis.safe_scale();
         }
@@ -462,7 +535,9 @@ impl Solid {
     /// realign it against the world grid rather than against itself.
     pub fn translate_world_locked(&mut self, delta: Vec3) {
         for side in &mut self.sides {
-            for p in &mut side.plane_points { *p += delta; }
+            for p in &mut side.plane_points {
+                *p += delta;
+            }
         }
     }
 
@@ -488,13 +563,17 @@ impl Solid {
             for p in &mut side.plane_points {
                 *p = anchor + (*p - anchor) * factor;
             }
-            if mirrored { side.plane_points.reverse() }
+            if mirrored {
+                side.plane_points.reverse()
+            }
         }
     }
 
     /// Assign every face the same material.
     pub fn set_material(&mut self, material: &str) {
-        for side in &mut self.sides { side.material = material.to_string(); }
+        for side in &mut self.sides {
+            side.material = material.to_string();
+        }
     }
 
     pub(crate) fn from_kv(kv: &KeyValues) -> Result<Solid, SolidError> {
@@ -509,7 +588,9 @@ impl Solid {
     pub(crate) fn to_kv(&self) -> KeyValues {
         let mut kv = KeyValues::new("solid");
         kv.push_value("id", self.id);
-        for side in &self.sides { kv.push_block(side.to_kv()); }
+        for side in &self.sides {
+            kv.push_block(side.to_kv());
+        }
         kv
     }
 }
@@ -570,11 +651,15 @@ mod tests {
         // Add a plane that sits outside the cube: it bounds nothing, so it
         // must drop out rather than produce a stray face.
         let mut c = cube64();
-        c.sides.push(Side::from_plane(99, Plane::new(Vec3::Z, 500.0), "dev/grid"));
+        c.sides
+            .push(Side::from_plane(99, Plane::new(Vec3::Z, 500.0), "dev/grid"));
         let windings = c.windings();
         assert_eq!(windings.len(), 7);
         assert_eq!(windings.into_iter().flatten().count(), 6);
-        assert!(c.validate().is_ok(), "a redundant face is legal, not an error");
+        assert!(
+            c.validate().is_ok(),
+            "a redundant face is legal, not an error"
+        );
     }
 
     #[test]
@@ -582,9 +667,16 @@ mod tests {
         let mut c = cube64();
         // Slice the corner off with a 45-degree plane.
         let n = Vec3::new(1.0, 1.0, 0.0).normalize();
-        c.sides.push(Side::from_plane(99, Plane::from_point_normal(Vec3::new(48.0, 48.0, 0.0), n), "dev/grid"));
+        c.sides.push(Side::from_plane(
+            99,
+            Plane::from_point_normal(Vec3::new(48.0, 48.0, 0.0), n),
+            "dev/grid",
+        ));
         assert_eq!(c.windings().into_iter().flatten().count(), 7);
-        assert!(c.area() < 6.0 * 4096.0, "cutting a corner should reduce area");
+        assert!(
+            c.area() < 6.0 * 4096.0,
+            "cutting a corner should reduce area"
+        );
         assert!(!c.contains_point(Vec3::new(60.0, 60.0, 32.0)));
         assert!(c.contains_point(Vec3::new(8.0, 8.0, 32.0)));
     }
@@ -609,13 +701,19 @@ mod tests {
     fn degenerate_plane_points_are_rejected() {
         let mut c = cube64();
         c.sides[0].plane_points = [Vec3::ZERO, Vec3::X, Vec3::X * 2.0]; // collinear
-        assert!(matches!(c.validate(), Err(SolidError::DegeneratePlane { .. })));
+        assert!(matches!(
+            c.validate(),
+            Err(SolidError::DegeneratePlane { .. })
+        ));
     }
 
     #[test]
     fn out_of_bounds_brushes_are_rejected() {
         let far = MAX_MAP_COORD + 1000.0;
-        let c = Solid::cube(Aabb::new(Vec3::splat(far), Vec3::splat(far + 64.0)), "dev/grid");
+        let c = Solid::cube(
+            Aabb::new(Vec3::splat(far), Vec3::splat(far + 64.0)),
+            "dev/grid",
+        );
         assert!(matches!(c.validate(), Err(SolidError::OutOfBounds)));
     }
 
@@ -686,7 +784,10 @@ mod tests {
             let want = Plane::new(n, 37.0);
             let side = Side::from_plane(1, want, "dev/grid");
             let got = side.plane().unwrap();
-            assert!((got.normal - want.normal).length() < 1e-4, "{got:?} vs {want:?}");
+            assert!(
+                (got.normal - want.normal).length() < 1e-4,
+                "{got:?} vs {want:?}"
+            );
             assert!((got.dist - want.dist).abs() < 1e-2, "{got:?} vs {want:?}");
         }
     }
@@ -741,8 +842,14 @@ mod tests {
         solid.scale(Vec3::ZERO, Vec3::new(-1.0, 1.0, 1.0));
 
         assert!(solid.validate().is_ok(), "{:?}", solid.validate());
-        assert!(solid.contains_point(Vec3::new(-32.0, 32.0, 32.0)), "the mirrored brush is solid");
-        assert_eq!(solid.bounds(), Aabb::new(Vec3::new(-64.0, 0.0, 0.0), Vec3::new(0.0, 64.0, 64.0)));
+        assert!(
+            solid.contains_point(Vec3::new(-32.0, 32.0, 32.0)),
+            "the mirrored brush is solid"
+        );
+        assert_eq!(
+            solid.bounds(),
+            Aabb::new(Vec3::new(-64.0, 0.0, 0.0), Vec3::new(0.0, 64.0, 64.0))
+        );
     }
 
     #[test]
@@ -801,9 +908,18 @@ mod tests {
         let solid = Solid::prism(&square, 2, 0.0, 32.0, "dev/grid").unwrap();
 
         assert_eq!(solid.sides.len(), 6);
-        assert_eq!(solid.bounds(), Aabb::new(Vec3::ZERO, Vec3::new(64.0, 64.0, 32.0)));
-        assert!(solid.contains_point(Vec3::new(32.0, 32.0, 16.0)), "it is solid inside");
-        assert!(!solid.contains_point(Vec3::new(32.0, 32.0, 48.0)), "and not outside");
+        assert_eq!(
+            solid.bounds(),
+            Aabb::new(Vec3::ZERO, Vec3::new(64.0, 64.0, 32.0))
+        );
+        assert!(
+            solid.contains_point(Vec3::new(32.0, 32.0, 16.0)),
+            "it is solid inside"
+        );
+        assert!(
+            !solid.contains_point(Vec3::new(32.0, 32.0, 48.0)),
+            "and not outside"
+        );
     }
 
     #[test]
@@ -817,7 +933,10 @@ mod tests {
         for profile in [clockwise, anticlockwise] {
             let solid = Solid::prism(&profile, 2, 0.0, 128.0, "dev/grid").unwrap();
             assert!(solid.validate().is_ok(), "{:?}", solid.validate());
-            assert!(solid.contains_point(Vec3::new(0.0, 0.0, 64.0)), "the middle is inside");
+            assert!(
+                solid.contains_point(Vec3::new(0.0, 0.0, 64.0)),
+                "the middle is inside"
+            );
             assert!(!solid.contains_point(Vec3::new(0.0, 0.0, 200.0)));
             assert!(!solid.contains_point(Vec3::new(200.0, 0.0, 64.0)));
         }
@@ -829,7 +948,11 @@ mod tests {
             let solid = Solid::prism(&ngon(sides, 64.0), 2, 0.0, 128.0, "dev/grid").unwrap();
             assert_eq!(solid.sides.len(), sides + 2, "{sides}-sided");
             let real = solid.windings().iter().filter(|w| w.is_some()).count();
-            assert_eq!(real, sides + 2, "every face reaches the hull on a {sides}-gon");
+            assert_eq!(
+                real,
+                sides + 2,
+                "every face reaches the hull on a {sides}-gon"
+            );
         }
     }
 
@@ -850,9 +973,19 @@ mod tests {
 
     #[test]
     fn a_profile_that_is_not_a_polygon_is_refused_rather_than_producing_a_bad_brush() {
-        let line = vec![Vec3::ZERO, Vec3::new(64.0, 0.0, 0.0), Vec3::new(128.0, 0.0, 0.0)];
-        assert!(Solid::prism(&line, 2, 0.0, 64.0, "dev/grid").is_none(), "collinear");
-        assert!(Solid::prism(&[Vec3::ZERO, Vec3::X], 2, 0.0, 64.0, "dev/grid").is_none(), "too few");
+        let line = vec![
+            Vec3::ZERO,
+            Vec3::new(64.0, 0.0, 0.0),
+            Vec3::new(128.0, 0.0, 0.0),
+        ];
+        assert!(
+            Solid::prism(&line, 2, 0.0, 64.0, "dev/grid").is_none(),
+            "collinear"
+        );
+        assert!(
+            Solid::prism(&[Vec3::ZERO, Vec3::X], 2, 0.0, 64.0, "dev/grid").is_none(),
+            "too few"
+        );
     }
 
     #[test]
@@ -870,8 +1003,14 @@ mod tests {
 
         assert_eq!(solid.sides.len(), 5);
         assert!(solid.validate().is_ok(), "{:?}", solid.validate());
-        assert!(solid.contains_point(Vec3::new(0.0, 0.0, 8.0)), "wide at the bottom");
-        assert!(!solid.contains_point(Vec3::new(40.0, 40.0, 120.0)), "and narrow at the top");
+        assert!(
+            solid.contains_point(Vec3::new(0.0, 0.0, 8.0)),
+            "wide at the bottom"
+        );
+        assert!(
+            !solid.contains_point(Vec3::new(40.0, 40.0, 120.0)),
+            "and narrow at the top"
+        );
     }
 
     #[test]

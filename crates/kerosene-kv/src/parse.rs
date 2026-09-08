@@ -42,19 +42,32 @@ struct Lexer<'a> {
 }
 
 impl<'a> Lexer<'a> {
-    fn new(src: &'a str) -> Self { Self { src: src.as_bytes(), pos: 0, line: 1 } }
+    fn new(src: &'a str) -> Self {
+        Self {
+            src: src.as_bytes(),
+            pos: 0,
+            line: 1,
+        }
+    }
 
     fn skip_trivia(&mut self) {
         loop {
             while self.pos < self.src.len() {
                 let c = self.src[self.pos];
-                if c == b'\n' { self.line += 1; self.pos += 1; }
-                else if c.is_ascii_whitespace() { self.pos += 1; }
-                else { break; }
+                if c == b'\n' {
+                    self.line += 1;
+                    self.pos += 1;
+                } else if c.is_ascii_whitespace() {
+                    self.pos += 1;
+                } else {
+                    break;
+                }
             }
             // Line comments.
             if self.src[self.pos..].starts_with(b"//") {
-                while self.pos < self.src.len() && self.src[self.pos] != b'\n' { self.pos += 1; }
+                while self.pos < self.src.len() && self.src[self.pos] != b'\n' {
+                    self.pos += 1;
+                }
                 continue;
             }
             // Block comments; not in Valve's parser, but harmless to accept
@@ -62,7 +75,9 @@ impl<'a> Lexer<'a> {
             if self.src[self.pos..].starts_with(b"/*") {
                 self.pos += 2;
                 while self.pos < self.src.len() && !self.src[self.pos..].starts_with(b"*/") {
-                    if self.src[self.pos] == b'\n' { self.line += 1; }
+                    if self.src[self.pos] == b'\n' {
+                        self.line += 1;
+                    }
                     self.pos += 1;
                 }
                 self.pos = (self.pos + 2).min(self.src.len());
@@ -74,15 +89,25 @@ impl<'a> Lexer<'a> {
 
     fn next(&mut self) -> Result<Option<Token>, ParseError> {
         self.skip_trivia();
-        if self.pos >= self.src.len() { return Ok(None); }
+        if self.pos >= self.src.len() {
+            return Ok(None);
+        }
 
         let c = self.src[self.pos];
         match c {
-            b'{' => { self.pos += 1; Ok(Some(Token::Open)) }
-            b'}' => { self.pos += 1; Ok(Some(Token::Close)) }
+            b'{' => {
+                self.pos += 1;
+                Ok(Some(Token::Open))
+            }
+            b'}' => {
+                self.pos += 1;
+                Ok(Some(Token::Close))
+            }
             b'[' => {
                 while self.pos < self.src.len() && self.src[self.pos] != b']' {
-                    if self.src[self.pos] == b'\n' { self.line += 1; }
+                    if self.src[self.pos] == b'\n' {
+                        self.line += 1;
+                    }
                     self.pos += 1;
                 }
                 self.pos = (self.pos + 1).min(self.src.len());
@@ -97,7 +122,10 @@ impl<'a> Lexer<'a> {
                         return Err(ParseError::UnterminatedString { line: start_line });
                     }
                     match self.src[self.pos] {
-                        b'"' => { self.pos += 1; break; }
+                        b'"' => {
+                            self.pos += 1;
+                            break;
+                        }
                         b'\\' if self.pos + 1 < self.src.len() => {
                             let esc = self.src[self.pos + 1];
                             // Only the sequences we ourselves emit are
@@ -114,11 +142,21 @@ impl<'a> Lexer<'a> {
                                 _ => None,
                             };
                             match resolved {
-                                Some(ch) => { out.push(ch); self.pos += 2; }
-                                None => { out.push('\\'); self.pos += 1; }
+                                Some(ch) => {
+                                    out.push(ch);
+                                    self.pos += 2;
+                                }
+                                None => {
+                                    out.push('\\');
+                                    self.pos += 1;
+                                }
                             }
                         }
-                        b'\n' => { self.line += 1; out.push('\n'); self.pos += 1; }
+                        b'\n' => {
+                            self.line += 1;
+                            out.push('\n');
+                            self.pos += 1;
+                        }
                         _ => {
                             let start = self.pos;
                             while self.pos < self.src.len()
@@ -136,8 +174,12 @@ impl<'a> Lexer<'a> {
                 let start = self.pos;
                 while self.pos < self.src.len() {
                     let c = self.src[self.pos];
-                    if c.is_ascii_whitespace() || matches!(c, b'{' | b'}' | b'"' | b'[') { break; }
-                    if self.src[self.pos..].starts_with(b"//") { break; }
+                    if c.is_ascii_whitespace() || matches!(c, b'{' | b'}' | b'"' | b'[') {
+                        break;
+                    }
+                    if self.src[self.pos..].starts_with(b"//") {
+                        break;
+                    }
                     self.pos += 1;
                 }
                 Ok(Some(Token::Word(
@@ -161,10 +203,14 @@ pub(crate) fn parse_document(text: &str) -> Result<KeyValues, ParseError> {
             Token::Condition => { /* platform suffix; carries no data we keep */ }
 
             Token::Open => {
-                let (name, _) = pending.take()
+                let (name, _) = pending
+                    .take()
                     .ok_or(ParseError::UnexpectedOpen { line: lexer.line })?;
                 if stack.len() as u32 >= MAX_DEPTH {
-                    return Err(ParseError::TooDeep { line: lexer.line, limit: MAX_DEPTH });
+                    return Err(ParseError::TooDeep {
+                        line: lexer.line,
+                        limit: MAX_DEPTH,
+                    });
                 }
                 stack.push(KeyValues::new(name));
             }
@@ -173,7 +219,9 @@ pub(crate) fn parse_document(text: &str) -> Result<KeyValues, ParseError> {
                 if let Some((key, line)) = pending.take() {
                     return Err(ParseError::DanglingKey { line, key });
                 }
-                let done = stack.pop().ok_or(ParseError::UnbalancedClose { line: lexer.line })?;
+                let done = stack
+                    .pop()
+                    .ok_or(ParseError::UnbalancedClose { line: lexer.line })?;
                 match stack.last_mut() {
                     Some(parent) => parent.entries.push(Entry::Block(done)),
                     None => root.entries.push(Entry::Block(done)),
@@ -195,7 +243,10 @@ pub(crate) fn parse_document(text: &str) -> Result<KeyValues, ParseError> {
         return Err(ParseError::DanglingKey { line, key });
     }
     if let Some(open) = stack.last() {
-        return Err(ParseError::UnclosedBlock { line: lexer.line, name: open.name.clone() });
+        return Err(ParseError::UnclosedBlock {
+            line: lexer.line,
+            name: open.name.clone(),
+        });
     }
     Ok(root)
 }
@@ -208,7 +259,10 @@ mod tests {
     #[test]
     fn unquoted_keys_and_values_work() {
         let kv = KeyValues::parse("shader { basetexture dev/grid }").unwrap();
-        assert_eq!(kv.block("shader").unwrap().get("basetexture"), Some("dev/grid"));
+        assert_eq!(
+            kv.block("shader").unwrap().get("basetexture"),
+            Some("dev/grid")
+        );
     }
 
     #[test]
@@ -228,7 +282,10 @@ mod tests {
         // The trap: treating '\d' as an escape would corrupt every asset path
         // written the Windows way.
         let kv = KeyValues::parse(r#"m { "tex" "materials\dev\grid" }"#).unwrap();
-        assert_eq!(kv.block("m").unwrap().get("tex"), Some(r"materials\dev\grid"));
+        assert_eq!(
+            kv.block("m").unwrap().get("tex"),
+            Some(r"materials\dev\grid")
+        );
     }
 
     #[test]
@@ -242,7 +299,11 @@ mod tests {
         let kv = KeyValues::parse(r#"s { "$basetexture" "a" [$XBOX] "$other" "b" }"#).unwrap();
         let s = kv.block("s").unwrap();
         assert_eq!(s.get("$basetexture"), Some("a"));
-        assert_eq!(s.get("$other"), Some("b"), "the [..] suffix must not shift the pairing");
+        assert_eq!(
+            s.get("$other"),
+            Some("b"),
+            "the [..] suffix must not shift the pairing"
+        );
     }
 
     #[test]
@@ -250,15 +311,24 @@ mod tests {
         let err = KeyValues::parse("a\n{\n\"k\" \"v\"\n").unwrap_err();
         assert!(matches!(err, ParseError::UnclosedBlock { .. }), "{err}");
         let err = KeyValues::parse("}").unwrap_err();
-        assert!(matches!(err, ParseError::UnbalancedClose { line: 1 }), "{err}");
+        assert!(
+            matches!(err, ParseError::UnbalancedClose { line: 1 }),
+            "{err}"
+        );
         let err = KeyValues::parse("a {\n\"lonely\"\n}").unwrap_err();
-        assert!(matches!(err, ParseError::DanglingKey { line: 2, .. }), "{err}");
+        assert!(
+            matches!(err, ParseError::DanglingKey { line: 2, .. }),
+            "{err}"
+        );
     }
 
     #[test]
     fn deep_nesting_errors_instead_of_overflowing() {
         let src = "a {".repeat(500);
-        assert!(matches!(KeyValues::parse(&src), Err(ParseError::TooDeep { .. })));
+        assert!(matches!(
+            KeyValues::parse(&src),
+            Err(ParseError::TooDeep { .. })
+        ));
     }
 
     #[test]

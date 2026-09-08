@@ -46,7 +46,9 @@ class
 }
 "#;
 
-fn sample() -> Schema { Schema::parse(SAMPLE).expect("sample schema parses") }
+fn sample() -> Schema {
+    Schema::parse(SAMPLE).expect("sample schema parses")
+}
 
 #[test]
 fn classes_come_back_in_file_order() {
@@ -103,7 +105,10 @@ fn choices_are_read_in_order() {
     assert_eq!(style.kind, KeyKind::Choices);
     assert_eq!(
         style.choices,
-        vec![("0".to_string(), "Normal".to_string()), ("1".to_string(), "Flicker".to_string())]
+        vec![
+            ("0".to_string(), "Normal".to_string()),
+            ("1".to_string(), "Flicker".to_string())
+        ]
     );
 }
 
@@ -113,7 +118,14 @@ fn an_input_can_document_its_parameter() {
     let door = schema.get("func_door").unwrap();
     let set_speed = door.inputs.iter().find(|i| i.name == "SetSpeed").unwrap();
     assert_eq!(set_speed.parameter.as_deref(), Some("units per second"));
-    assert_eq!(door.inputs.iter().find(|i| i.name == "Open").unwrap().parameter, None);
+    assert_eq!(
+        door.inputs
+            .iter()
+            .find(|i| i.name == "Open")
+            .unwrap()
+            .parameter,
+        None
+    );
 }
 
 #[test]
@@ -139,7 +151,11 @@ fn a_class_overrides_a_key_it_inherits() {
     )
     .unwrap();
     let keys = &schema.get("c").unwrap().keys;
-    assert_eq!(keys.len(), 1, "the override replaces rather than duplicates");
+    assert_eq!(
+        keys.len(),
+        1,
+        "the override replaces rather than duplicates"
+    );
     assert_eq!(keys[0].kind, KeyKind::Integer);
     assert_eq!(keys[0].default, "5");
 }

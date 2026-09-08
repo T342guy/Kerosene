@@ -203,6 +203,31 @@ fn a_log_shorter_than_the_window_shows_all_of_it() {
 }
 
 #[test]
+fn the_wheel_scrolls_a_line_at_a_time_and_reaches_the_whole_log() {
+    // A `cvarlist` is sixty-odd lines and the console shows about twenty-five,
+    // so most of the answer is above the fold. Page up could reach it; the
+    // wheel, which is what anyone reaches for first, was going to an egui
+    // scroll area that had been handed only the lines already on screen and so
+    // had nothing to scroll. The whole log has to be reachable from the wheel.
+    let mut ui = ConsoleUi::default();
+    ui.scroll_by(3, 63);
+    assert_eq!(ui.visible_range(63, 25), 35..60, "three lines back");
+
+    ui.scroll_by(-3, 63);
+    assert_eq!(ui.visible_range(63, 25), 38..63, "and forward again");
+
+    // All the way back: the oldest line is reachable.
+    for _ in 0..63 {
+        ui.scroll_by(1, 63);
+    }
+    assert_eq!(ui.visible_range(63, 25), 0..25, "the top of the log");
+
+    // And it cannot be pushed past it in either direction.
+    ui.scroll_by(-1000, 63);
+    assert_eq!(ui.visible_range(63, 25), 38..63, "back to the newest");
+}
+
+#[test]
 fn scrolling_cannot_walk_off_the_top() {
     let mut ui = ConsoleUi::new();
     for _ in 0..100 { ui.scroll_up(30); }

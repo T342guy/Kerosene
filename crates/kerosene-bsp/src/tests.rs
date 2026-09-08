@@ -7,8 +7,10 @@ fn tiny_bsp() -> Bsp {
     let mut bsp = Bsp::new();
 
     // Plane pair: +Z at the origin, and its inverse.
-    bsp.planes.push(BspPlane::from_plane(&Plane::new(Vec3::Z, 0.0)));
-    bsp.planes.push(BspPlane::from_plane(&Plane::new(-Vec3::Z, 0.0)));
+    bsp.planes
+        .push(BspPlane::from_plane(&Plane::new(Vec3::Z, 0.0)));
+    bsp.planes
+        .push(BspPlane::from_plane(&Plane::new(-Vec3::Z, 0.0)));
 
     bsp.vertices = vec![
         [0.0, 0.0, 0.0],
@@ -33,7 +35,10 @@ fn tiny_bsp() -> Bsp {
         view_width: 512,
         view_height: 512,
     });
-    let mut ti = TexInfo { texdata: 0, ..Default::default() };
+    let mut ti = TexInfo {
+        texdata: 0,
+        ..Default::default()
+    };
     ti.texture_vecs[0] = [1.0, 0.0, 0.0, 0.0];
     ti.texture_vecs[1] = [0.0, -1.0, 0.0, 0.0];
     bsp.texinfo.push(ti);
@@ -95,18 +100,32 @@ fn tiny_bsp() -> Bsp {
 
 #[test]
 fn a_synthetic_map_validates() {
-    tiny_bsp().validate().expect("the fixture should be well formed");
+    tiny_bsp()
+        .validate()
+        .expect("the fixture should be well formed");
 }
 
 #[test]
 fn walking_the_tree_finds_the_right_leaf() {
     let bsp = tiny_bsp();
-    assert_eq!(bsp.point_leaf(Vec3::new(0.0, 0.0, 32.0)), 0, "above the plane");
-    assert_eq!(bsp.point_leaf(Vec3::new(0.0, 0.0, -32.0)), 1, "below the plane");
+    assert_eq!(
+        bsp.point_leaf(Vec3::new(0.0, 0.0, 32.0)),
+        0,
+        "above the plane"
+    );
+    assert_eq!(
+        bsp.point_leaf(Vec3::new(0.0, 0.0, -32.0)),
+        1,
+        "below the plane"
+    );
     assert!(!bsp.point_is_solid(Vec3::new(0.0, 0.0, 32.0)));
     assert!(bsp.point_is_solid(Vec3::new(0.0, 0.0, -32.0)));
     assert_eq!(bsp.point_cluster(Vec3::new(0.0, 0.0, 32.0)), 0);
-    assert_eq!(bsp.point_cluster(Vec3::new(0.0, 0.0, -32.0)), -1, "solid leaves have no cluster");
+    assert_eq!(
+        bsp.point_cluster(Vec3::new(0.0, 0.0, -32.0)),
+        -1,
+        "solid leaves have no cluster"
+    );
 }
 
 #[test]
@@ -135,7 +154,11 @@ fn a_negative_surfedge_walks_its_edge_backwards() {
     let mut bsp = tiny_bsp();
     bsp.surfedges = vec![-1, 0, 1, 2]; // edge 1 reversed, then 0,1,2 forward
     let verts = bsp.face_vertices(0);
-    assert_eq!(verts[0], Vec3::new(64.0, 64.0, 0.0), "reversed edge should yield v[1]");
+    assert_eq!(
+        verts[0],
+        Vec3::new(64.0, 64.0, 0.0),
+        "reversed edge should yield v[1]"
+    );
 }
 
 #[test]
@@ -154,7 +177,10 @@ fn interning_a_material_twice_reuses_the_entry() {
     let c = bsp.intern_texdata_string("tools/nodraw");
     assert_eq!(a, c);
     assert_ne!(a, b);
-    assert_eq!(bsp.texdata_strings.len(), "tools/nodraw".len() + "dev/grid".len() + 2);
+    assert_eq!(
+        bsp.texdata_strings.len(),
+        "tools/nodraw".len() + "dev/grid".len() + 2
+    );
 }
 
 #[test]
@@ -191,7 +217,12 @@ fn every_lump_starts_four_byte_aligned() {
     let bytes = bsp.to_bytes();
     let dir: &[LumpDir] = bytemuck::cast_slice(&bytes[8..8 + LUMP_COUNT * 16]);
     for (i, d) in dir.iter().enumerate() {
-        assert_eq!(d.offset % 4, 0, "lump {i} ({}) is misaligned", lumps::NAMES[i]);
+        assert_eq!(
+            d.offset % 4,
+            0,
+            "lump {i} ({}) is misaligned",
+            lumps::NAMES[i]
+        );
     }
 }
 
@@ -203,8 +234,14 @@ fn garbage_and_wrong_versions_are_rejected() {
     ));
     let mut bytes = tiny_bsp().to_bytes();
     bytes[4] = 99; // bump the version
-    assert!(matches!(Bsp::from_bytes(&bytes, "x"), Err(BspError::BadVersion { found: 99, .. })));
-    assert!(Bsp::from_bytes(b"KROS", "x").is_err(), "a truncated header must not be read");
+    assert!(matches!(
+        Bsp::from_bytes(&bytes, "x"),
+        Err(BspError::BadVersion { found: 99, .. })
+    ));
+    assert!(
+        Bsp::from_bytes(b"KROS", "x").is_err(),
+        "a truncated header must not be read"
+    );
 }
 
 #[test]
@@ -236,7 +273,10 @@ fn a_file_with_a_dangling_index_fails_to_load() {
     let mut bsp = tiny_bsp();
     bsp.faces[0].texinfo = 42;
     let bytes = bsp.to_bytes();
-    assert!(matches!(Bsp::from_bytes(&bytes, "x"), Err(BspError::Invalid { .. })));
+    assert!(matches!(
+        Bsp::from_bytes(&bytes, "x"),
+        Err(BspError::Invalid { .. })
+    ));
 }
 
 #[test]
@@ -278,20 +318,34 @@ fn compiled_vis_culls_leaves() {
 fn entity_lump_parses() {
     let bsp = tiny_bsp();
     let kv = bsp.entities_kv().unwrap();
-    assert_eq!(kv.block("entity").unwrap().get("classname"), Some("worldspawn"));
+    assert_eq!(
+        kv.block("entity").unwrap().get("classname"),
+        Some("worldspawn")
+    );
 }
 
 #[test]
 fn face_lightmap_slices_the_lighting_lump() {
     let mut bsp = tiny_bsp();
-    bsp.lighting = vec![ColorRgbExp32 { r: 10, g: 20, b: 30, exponent: 0 }; 16];
+    bsp.lighting = vec![
+        ColorRgbExp32 {
+            r: 10,
+            g: 20,
+            b: 30,
+            exponent: 0
+        };
+        16
+    ];
     bsp.faces[0].lightmap_offset = 4;
     bsp.faces[0].lightmap_size = [2, 3];
     let lm = bsp.face_lightmap(0).unwrap();
     assert_eq!(lm.len(), 6);
 
     bsp.faces[0].lightmap_offset = -1;
-    assert!(bsp.face_lightmap(0).is_none(), "an unlit face has no samples");
+    assert!(
+        bsp.face_lightmap(0).is_none(),
+        "an unlit face has no samples"
+    );
 }
 
 #[test]

@@ -27,12 +27,21 @@ fn main() -> std::io::Result<()> {
     let shell = [
         // floor and ceiling
         Aabb::new(Vec3::new(-T, -T, -T), Vec3::new(total_x + T, ROOM + T, 0.0)),
-        Aabb::new(Vec3::new(-T, -T, HEIGHT), Vec3::new(total_x + T, ROOM + T, HEIGHT + T)),
+        Aabb::new(
+            Vec3::new(-T, -T, HEIGHT),
+            Vec3::new(total_x + T, ROOM + T, HEIGHT + T),
+        ),
         // side walls
         Aabb::new(Vec3::new(-T, -T, 0.0), Vec3::new(0.0, ROOM + T, HEIGHT)),
-        Aabb::new(Vec3::new(total_x, -T, 0.0), Vec3::new(total_x + T, ROOM + T, HEIGHT)),
+        Aabb::new(
+            Vec3::new(total_x, -T, 0.0),
+            Vec3::new(total_x + T, ROOM + T, HEIGHT),
+        ),
         Aabb::new(Vec3::new(0.0, -T, 0.0), Vec3::new(total_x, 0.0, HEIGHT)),
-        Aabb::new(Vec3::new(0.0, ROOM, 0.0), Vec3::new(total_x, ROOM + T, HEIGHT)),
+        Aabb::new(
+            Vec3::new(0.0, ROOM, 0.0),
+            Vec3::new(total_x, ROOM + T, HEIGHT),
+        ),
     ];
     for b in shell {
         map.add_world_solid(Solid::cube(b, "dev/grid"));
@@ -43,9 +52,18 @@ fn main() -> std::io::Result<()> {
     let (door_y0, door_y1) = (ROOM / 2.0 - 48.0, ROOM / 2.0 + 48.0);
     let door_top = 128.0;
     for b in [
-        Aabb::new(Vec3::new(wall_x0, 0.0, 0.0), Vec3::new(wall_x1, door_y0, HEIGHT)),
-        Aabb::new(Vec3::new(wall_x0, door_y1, 0.0), Vec3::new(wall_x1, ROOM, HEIGHT)),
-        Aabb::new(Vec3::new(wall_x0, door_y0, door_top), Vec3::new(wall_x1, door_y1, HEIGHT)),
+        Aabb::new(
+            Vec3::new(wall_x0, 0.0, 0.0),
+            Vec3::new(wall_x1, door_y0, HEIGHT),
+        ),
+        Aabb::new(
+            Vec3::new(wall_x0, door_y1, 0.0),
+            Vec3::new(wall_x1, ROOM, HEIGHT),
+        ),
+        Aabb::new(
+            Vec3::new(wall_x0, door_y0, door_top),
+            Vec3::new(wall_x1, door_y1, HEIGHT),
+        ),
     ] {
         map.add_world_solid(Solid::cube(b, "dev/wall"));
     }
@@ -101,7 +119,10 @@ fn main() -> std::io::Result<()> {
     add_brush_entity(
         &mut map,
         "func_rotating",
-        Aabb::new(Vec3::new(200.0, 240.0, 200.0), Vec3::new(312.0, 272.0, 216.0)),
+        Aabb::new(
+            Vec3::new(200.0, 240.0, 200.0),
+            Vec3::new(312.0, 272.0, 216.0),
+        ),
         "dev/door",
         |e| {
             e.set("targetname", "ceiling_fan");
@@ -116,7 +137,10 @@ fn main() -> std::io::Result<()> {
     // having a climb at all.
     let ledge_x = ROOM * 1.5 + T;
     map.add_world_solid(Solid::cube(
-        Aabb::new(Vec3::new(ledge_x, 0.0, 0.0), Vec3::new(total_x, ROOM, 128.0)),
+        Aabb::new(
+            Vec3::new(ledge_x, 0.0, 0.0),
+            Vec3::new(total_x, ROOM, 128.0),
+        ),
         "dev/wall",
     ));
     add_brush_entity(
@@ -129,7 +153,9 @@ fn main() -> std::io::Result<()> {
             Vec3::new(ledge_x, ROOM * 0.5 + 32.0, 176.0),
         ),
         "tools/ladder",
-        |e| { e.set("targetname", "ledge_ladder"); },
+        |e| {
+            e.set("targetname", "ledge_ladder");
+        },
     );
 
     // A button on the south wall of the first room, and the shutter it
@@ -172,7 +198,9 @@ fn main() -> std::io::Result<()> {
         // still be walkable by someone who has not found the switch.
         Aabb::new(Vec3::new(240.0, 320.0, 0.0), Vec3::new(272.0, 480.0, 64.0)),
         "dev/wall",
-        |e| { e.set("targetname", "shutter"); },
+        |e| {
+            e.set("targetname", "shutter");
+        },
     );
 
     // Lighting: a lamp in each room, plus sun and sky.
@@ -180,7 +208,14 @@ fn main() -> std::io::Result<()> {
         let id = map.next_id();
         let mut light = Entity::new(id, "light");
         light.set_origin(Vec3::new(*x, ROOM * 0.5, HEIGHT - 64.0));
-        light.set("_light", if i == 0 { "255 240 214 320" } else { "214 230 255 320" });
+        light.set(
+            "_light",
+            if i == 0 {
+                "255 240 214 320"
+            } else {
+                "214 230 255 320"
+            },
+        );
         map.entities.push(light);
     }
 
@@ -214,7 +249,9 @@ fn main() -> std::io::Result<()> {
 
     let problems = map.validate();
     if !problems.is_empty() {
-        for p in &problems { eprintln!("error: {p}"); }
+        for p in &problems {
+            eprintln!("error: {p}");
+        }
         std::process::exit(1);
     }
 

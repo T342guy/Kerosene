@@ -15,11 +15,11 @@
 //! chose clips it -- are things to see and hear rather than to read. Every one
 //! of them is also available as a flag, because a build server has no screen.
 
+use crate::Options;
 use anyhow::{Result, bail};
 use clap::{Parser, Subcommand};
-use std::path::PathBuf;
-use crate::Options;
 use kerosene_audio::compiled::{self, Encoding};
+use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
 #[command(name = "timbre", version, about = "Compile sounds into .keroaud")]
@@ -71,14 +71,26 @@ pub fn run(args: Vec<String>) -> Result<()> {
         None => edit(None),
         Some(Command::Edit { content }) => edit(content),
         Some(Command::Build { content, force }) => build(content, force),
-        Some(Command::Compile { source, output, encoding, gain, mono }) => {
-            let encoding = Encoding::parse(&encoding)
-                .ok_or_else(|| anyhow::anyhow!("unknown encoding {encoding:?}; try adpcm or pcm16"))?;
+        Some(Command::Compile {
+            source,
+            output,
+            encoding,
+            gain,
+            mono,
+        }) => {
+            let encoding = Encoding::parse(&encoding).ok_or_else(|| {
+                anyhow::anyhow!("unknown encoding {encoding:?}; try adpcm or pcm16")
+            })?;
             if !(gain > 0.0 && gain.is_finite()) {
                 bail!("gain must be positive");
             }
             let output = output.unwrap_or_else(|| crate::output_for(&source));
-            let options = Options { encoding, gain, mono, looping: None };
+            let options = Options {
+                encoding,
+                gain,
+                mono,
+                looping: None,
+            };
             let done = crate::compile(&source, &output, &options)?;
             println!("{done}");
             for warning in &done.warnings {
@@ -90,8 +102,17 @@ pub fn run(args: Vec<String>) -> Result<()> {
             let bytes = std::fs::read(&file)?;
             let info = compiled::read_info(&bytes)?;
             println!("{}", file.display());
-            println!("  {:.3}s, {} Hz, {} channel(s)", info.duration(), info.sample_rate, info.channels);
-            println!("  {} frames, {} encoding", info.frames, info.encoding.name());
+            println!(
+                "  {:.3}s, {} Hz, {} channel(s)",
+                info.duration(),
+                info.sample_rate,
+                info.channels
+            );
+            println!(
+                "  {} frames, {} encoding",
+                info.frames,
+                info.encoding.name()
+            );
             println!("  peaks at {:.3} of full scale", info.peak);
             if info.looping.is_empty() {
                 println!("  does not loop");
@@ -100,7 +121,11 @@ pub fn run(args: Vec<String>) -> Result<()> {
             }
             println!(
                 "  {} in the world",
-                if info.can_be_positioned() { "can be placed" } else { "cannot be placed (stereo)" }
+                if info.can_be_positioned() {
+                    "can be placed"
+                } else {
+                    "cannot be placed (stereo)"
+                }
             );
             Ok(())
         }

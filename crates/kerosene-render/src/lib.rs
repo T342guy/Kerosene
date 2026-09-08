@@ -41,7 +41,9 @@ pub struct FrameStats {
 impl FrameStats {
     /// Fraction of the world's surfaces that were culled away.
     pub fn culled_fraction(&self) -> f32 {
-        if self.surfaces_total == 0 { return 0.0; }
+        if self.surfaces_total == 0 {
+            return 0.0;
+        }
         1.0 - self.surfaces_drawn as f32 / self.surfaces_total as f32
     }
 }

@@ -8,7 +8,11 @@ fn tone(frames: usize, channels: u16, amplitude: f32) -> Sound {
             amplitude * (std::f32::consts::TAU * 440.0 * frame as f32 / 44100.0).sin()
         })
         .collect();
-    Sound { channels, sample_rate: 44100, samples }
+    Sound {
+        channels,
+        sample_rate: 44100,
+        samples,
+    }
 }
 
 #[test]
@@ -56,7 +60,10 @@ fn an_adpcm_round_trip_is_close_enough_to_hear_as_the_same_sound() {
         .zip(&back.samples[ATTACK..])
         .map(|(a, b)| (a - b).abs())
         .fold(0.0f32, f32::max);
-    assert!(worst < 0.05, "worst sample error {worst} once the quantiser has caught up");
+    assert!(
+        worst < 0.05,
+        "worst sample error {worst} once the quantiser has caught up"
+    );
 }
 
 /// How many samples the quantiser needs to reach a loud signal from rest.
@@ -78,7 +85,10 @@ fn the_attack_transient_settles_quickly_rather_than_lasting() {
             .fold(0.0f32, f32::max)
     };
 
-    assert!(worst_in(0..ATTACK) > worst_in(ATTACK..1000), "the start should be the worst of it");
+    assert!(
+        worst_in(0..ATTACK) > worst_in(ATTACK..1000),
+        "the start should be the worst of it"
+    );
     assert!(
         worst_in(ATTACK..1000) < 0.05,
         "settled to {} after {ATTACK} samples, which is under 6ms at 44.1 kHz",
@@ -110,7 +120,10 @@ fn the_peak_is_computed_at_build_time() {
 #[test]
 fn loop_points_survive_the_round_trip() {
     let sound = tone(1000, 1, 0.5);
-    let region = Loop { start: 100, end: 900 };
+    let region = Loop {
+        start: 100,
+        end: 900,
+    };
     let info = read_info(&encode(&sound, Encoding::Pcm16, region)).unwrap();
     assert_eq!(info.looping, region);
     assert!(!info.looping.is_empty());

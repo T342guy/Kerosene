@@ -15,9 +15,9 @@
 //! * **Scale.** Modelling packages usually work in metres; Kerosene works in
 //!   inches. A crate exported at 1.0 units is 1 inch here unless scaled.
 
+use kerosene_math::Vec3;
 use std::collections::HashMap;
 use thiserror::Error;
-use kerosene_math::Vec3;
 
 /// Kerosene units per metre, for the common case of a metric source file.
 ///
@@ -80,26 +80,40 @@ impl ObjMesh {
 
         for (n, raw) in text.lines().enumerate() {
             let line = raw.split('#').next().unwrap_or("").trim();
-            if line.is_empty() { continue; }
+            if line.is_empty() {
+                continue;
+            }
             let mut parts = line.split_whitespace();
-            let Some(keyword) = parts.next() else { continue };
+            let Some(keyword) = parts.next() else {
+                continue;
+            };
             let rest: Vec<&str> = parts.collect();
 
-            let bad = |detail: &str| ObjError::Malformed { line: n + 1, detail: detail.to_string() };
+            let bad = |detail: &str| ObjError::Malformed {
+                line: n + 1,
+                detail: detail.to_string(),
+            };
 
             match keyword {
                 "v" => {
-                    if rest.len() < 3 { return Err(bad("a vertex needs three coordinates")); }
+                    if rest.len() < 3 {
+                        return Err(bad("a vertex needs three coordinates"));
+                    }
                     let v = parse3(&rest, n)?;
                     mesh.positions.push(convert(v, up) * scale);
                 }
                 "vn" => {
-                    if rest.len() < 3 { return Err(bad("a normal needs three components")); }
+                    if rest.len() < 3 {
+                        return Err(bad("a normal needs three components"));
+                    }
                     // Normals are directions: rotated, never scaled.
-                    mesh.normals.push(convert(parse3(&rest, n)?, up).normalize_or_zero());
+                    mesh.normals
+                        .push(convert(parse3(&rest, n)?, up).normalize_or_zero());
                 }
                 "vt" => {
-                    if rest.len() < 2 { return Err(bad("a texture coordinate needs two components")); }
+                    if rest.len() < 2 {
+                        return Err(bad("a texture coordinate needs two components"));
+                    }
                     let u: f32 = rest[0].parse().map_err(|_| bad("unreadable u"))?;
                     let v: f32 = rest[1].parse().map_err(|_| bad("unreadable v"))?;
                     // OBJ's V axis runs upward; texture space runs downward.
@@ -109,20 +123,27 @@ impl ObjMesh {
                     current = rest.first().copied().unwrap_or("default").to_string();
                 }
                 "f" => {
-                    if rest.len() < 3 { return Err(bad("a face needs at least three corners")); }
+                    if rest.len() < 3 {
+                        return Err(bad("a face needs at least three corners"));
+                    }
                     let corners: Vec<Corner> = rest
                         .iter()
                         .map(|token| parse_corner(token, &mesh, n))
                         .collect::<Result<_, _>>()?;
 
                     let index = *by_material.entry(current.clone()).or_insert_with(|| {
-                        groups.push(Group { material: current.clone(), triangles: Vec::new() });
+                        groups.push(Group {
+                            material: current.clone(),
+                            triangles: Vec::new(),
+                        });
                         groups.len() - 1
                     });
                     // Fan-triangulate. OBJ faces are convex by convention, and
                     // a fan is correct for any convex polygon.
                     for i in 1..corners.len() - 1 {
-                        groups[index].triangles.push([corners[0], corners[i], corners[i + 1]]);
+                        groups[index]
+                            .triangles
+                            .push([corners[0], corners[i], corners[i + 1]]);
                     }
                 }
                 // Object and group names, material libraries, smoothing groups:
@@ -133,7 +154,9 @@ impl ObjMesh {
         }
 
         mesh.groups = groups;
-        if mesh.triangle_count() == 0 { return Err(ObjError::Empty); }
+        if mesh.triangle_count() == 0 {
+            return Err(ObjError::Empty);
+        }
         Ok(mesh)
     }
 }
@@ -162,7 +185,10 @@ fn convert(v: Vec3, up: UpAxis) -> Vec3 {
 /// Parse `v`, `v/vt`, `v//vn` or `v/vt/vn`, resolving 1-based and negative
 /// indices.
 fn parse_corner(token: &str, mesh: &ObjMesh, line: usize) -> Result<Corner, ObjError> {
-    let bad = |detail: String| ObjError::Malformed { line: line + 1, detail };
+    let bad = |detail: String| ObjError::Malformed {
+        line: line + 1,
+        detail,
+    };
     let mut fields = token.split('/');
 
     let resolve = |raw: &str, count: usize| -> Option<usize> {
@@ -196,7 +222,11 @@ fn parse_corner(token: &str, mesh: &ObjMesh, line: usize) -> Result<Corner, ObjE
         _ => None,
     };
 
-    Ok(Corner { position, uv, normal })
+    Ok(Corner {
+        position,
+        uv,
+        normal,
+    })
 }
 
 #[cfg(test)]
@@ -233,7 +263,11 @@ f 1/1/1 2/2/1 3/3/1 4/4/1
         // flat in Z with its normal pointing up.
         let m = ObjMesh::parse(QUAD, UpAxis::Y, 1.0).unwrap();
         assert!(m.positions.iter().all(|p| p.z == 0.0), "{:?}", m.positions);
-        assert!((m.normals[0] - Vec3::Z).length() < 1e-5, "{:?}", m.normals[0]);
+        assert!(
+            (m.normals[0] - Vec3::Z).length() < 1e-5,
+            "{:?}",
+            m.normals[0]
+        );
     }
 
     #[test]
@@ -255,7 +289,10 @@ f 1/1/1 2/2/1 3/3/1 4/4/1
     fn scale_applies_to_positions_but_not_normals() {
         let m = ObjMesh::parse(QUAD, UpAxis::Y, 10.0).unwrap();
         assert_eq!(m.positions[1].y, -10.0, "{:?}", m.positions[1]);
-        assert!((m.normals[0].length() - 1.0).abs() < 1e-5, "normals must stay unit length");
+        assert!(
+            (m.normals[0].length() - 1.0).abs() < 1e-5,
+            "normals must stay unit length"
+        );
     }
 
     #[test]
@@ -319,18 +356,33 @@ f 3 2 1
 
     #[test]
     fn comments_and_ignored_directives_do_not_break_parsing() {
-        let src = "# comment\nmtllib x.mtl\no thing\ng part\ns 1\nv 0 0 0\nv 1 0 0\nv 1 0 1\nf 1 2 3\n";
-        assert_eq!(ObjMesh::parse(src, UpAxis::Y, 1.0).unwrap().triangle_count(), 1);
+        let src =
+            "# comment\nmtllib x.mtl\no thing\ng part\ns 1\nv 0 0 0\nv 1 0 0\nv 1 0 1\nf 1 2 3\n";
+        assert_eq!(
+            ObjMesh::parse(src, UpAxis::Y, 1.0)
+                .unwrap()
+                .triangle_count(),
+            1
+        );
     }
 
     #[test]
     fn malformed_files_are_rejected_with_a_line_number() {
-        assert!(matches!(ObjMesh::parse("v 0 0\n", UpAxis::Y, 1.0), Err(ObjError::Malformed { line: 1, .. })));
-        assert!(matches!(ObjMesh::parse("v a b c\n", UpAxis::Y, 1.0), Err(ObjError::Malformed { line: 1, .. })));
+        assert!(matches!(
+            ObjMesh::parse("v 0 0\n", UpAxis::Y, 1.0),
+            Err(ObjError::Malformed { line: 1, .. })
+        ));
+        assert!(matches!(
+            ObjMesh::parse("v a b c\n", UpAxis::Y, 1.0),
+            Err(ObjError::Malformed { line: 1, .. })
+        ));
         assert!(matches!(
             ObjMesh::parse("v 0 0 0\nf 1 2 3\n", UpAxis::Y, 1.0),
             Err(ObjError::Malformed { line: 2, .. })
         ));
-        assert!(matches!(ObjMesh::parse("v 0 0 0\n", UpAxis::Y, 1.0), Err(ObjError::Empty)));
+        assert!(matches!(
+            ObjMesh::parse("v 0 0 0\n", UpAxis::Y, 1.0),
+            Err(ObjError::Empty)
+        ));
     }
 }

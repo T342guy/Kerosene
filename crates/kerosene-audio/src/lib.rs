@@ -80,14 +80,18 @@ pub struct SoundBank {
 }
 
 impl SoundBank {
-    pub fn new() -> SoundBank { SoundBank::default() }
+    pub fn new() -> SoundBank {
+        SoundBank::default()
+    }
 
     /// Add definitions from a `.kerosnd` script.
     pub fn add_script(&mut self, script: SoundScript) {
         self.script.merge(script);
     }
 
-    pub fn script(&self) -> &SoundScript { &self.script }
+    pub fn script(&self) -> &SoundScript {
+        &self.script
+    }
 
     /// Put decoded samples in under a name, bypassing the script.
     ///
@@ -105,8 +109,12 @@ impl SoundBank {
         self.loaded.contains_key(&name.to_ascii_lowercase())
     }
 
-    pub fn len(&self) -> usize { self.loaded.len() }
-    pub fn is_empty(&self) -> bool { self.loaded.is_empty() }
+    pub fn len(&self) -> usize {
+        self.loaded.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.loaded.is_empty()
+    }
 
     /// Whether this name has already been reported as missing.
     pub fn already_missing(&self, name: &str) -> bool {
@@ -157,7 +165,11 @@ impl SoundBank {
 pub fn default_path(name: &str) -> String {
     let name = name.trim_start_matches('/');
     if name.contains('.') {
-        if name.starts_with("sound/") { name.to_string() } else { format!("sound/{name}") }
+        if name.starts_with("sound/") {
+            name.to_string()
+        } else {
+            format!("sound/{name}")
+        }
     } else {
         format!("sound/{name}.{}", compiled::EXTENSION)
     }

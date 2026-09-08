@@ -20,7 +20,7 @@
 //! a game ships the runtime and an archive, never the tools.
 
 use anyhow::Result;
-use kerosene_tools::{Launch, Tab, run_gui, run_subcommand, SUBCOMMANDS};
+use kerosene_tools::{Launch, SUBCOMMANDS, Tab, run_gui, run_subcommand};
 
 fn main() -> Result<()> {
     // One logger for the whole toolset, GUI and headless alike.
@@ -46,9 +46,11 @@ fn main() -> Result<()> {
         // they open the toolset on the matching tab rather than a headless
         // stage. The compilers and the build stages stay subcommands.
         "chisel" => run_gui(parse_editor_launch(&args[1..])),
-        "timbre" if opens_sound_window(&args[1..]) => {
-            run_gui(Launch { tab: Tab::Sound, content: first_content_flag(&args[1..]), map: None })
-        }
+        "timbre" if opens_sound_window(&args[1..]) => run_gui(Launch {
+            tab: Tab::Sound,
+            content: first_content_flag(&args[1..]),
+            map: None,
+        }),
         other => run_subcommand(other, args[1..].to_vec()),
     }
 }
@@ -73,7 +75,11 @@ fn parse_editor_launch(args: &[String]) -> Launch {
         }
         i += 1;
     }
-    Launch { tab: Tab::Editor, content, map }
+    Launch {
+        tab: Tab::Editor,
+        content,
+        map,
+    }
 }
 
 /// Whether a bare `timbre` invocation opens the window rather than running a

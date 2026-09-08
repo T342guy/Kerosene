@@ -99,7 +99,11 @@ impl BspPlane {
         Plane::new(Vec3::from_array(self.normal), self.dist)
     }
     pub fn from_plane(p: &Plane) -> Self {
-        BspPlane { normal: p.normal.to_array(), dist: p.dist, kind: p.kind() as u32 }
+        BspPlane {
+            normal: p.normal.to_array(),
+            dist: p.dist,
+            kind: p.kind() as u32,
+        }
     }
 }
 
@@ -164,20 +168,34 @@ pub struct Node {
 impl Node {
     pub fn bounds(&self) -> Aabb {
         Aabb::new(
-            Vec3::new(self.mins[0] as f32, self.mins[1] as f32, self.mins[2] as f32),
-            Vec3::new(self.maxs[0] as f32, self.maxs[1] as f32, self.maxs[2] as f32),
+            Vec3::new(
+                self.mins[0] as f32,
+                self.mins[1] as f32,
+                self.mins[2] as f32,
+            ),
+            Vec3::new(
+                self.maxs[0] as f32,
+                self.maxs[1] as f32,
+                self.maxs[2] as f32,
+            ),
         )
     }
 }
 
 /// Index of a leaf child, encoded the way [`Node::children`] stores it.
 #[inline]
-pub const fn encode_leaf(leaf: usize) -> i32 { -((leaf as i32) + 1) }
+pub const fn encode_leaf(leaf: usize) -> i32 {
+    -((leaf as i32) + 1)
+}
 
 /// Decode a [`Node::children`] entry into either a node or a leaf index.
 #[inline]
 pub const fn decode_child(child: i32) -> Child {
-    if child < 0 { Child::Leaf((-child - 1) as usize) } else { Child::Node(child as usize) }
+    if child < 0 {
+        Child::Leaf((-child - 1) as usize)
+    } else {
+        Child::Node(child as usize)
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -207,12 +225,24 @@ pub struct Leaf {
 }
 
 impl Leaf {
-    pub fn is_solid(&self) -> bool { self.contents & contents::SOLID != 0 }
-    pub fn has_vis(&self) -> bool { self.cluster >= 0 }
+    pub fn is_solid(&self) -> bool {
+        self.contents & contents::SOLID != 0
+    }
+    pub fn has_vis(&self) -> bool {
+        self.cluster >= 0
+    }
     pub fn bounds(&self) -> Aabb {
         Aabb::new(
-            Vec3::new(self.mins[0] as f32, self.mins[1] as f32, self.mins[2] as f32),
-            Vec3::new(self.maxs[0] as f32, self.maxs[1] as f32, self.maxs[2] as f32),
+            Vec3::new(
+                self.mins[0] as f32,
+                self.mins[1] as f32,
+                self.mins[2] as f32,
+            ),
+            Vec3::new(
+                self.maxs[0] as f32,
+                self.maxs[1] as f32,
+                self.maxs[2] as f32,
+            ),
         )
     }
 }
@@ -284,25 +314,37 @@ impl TexInfo {
     /// Texture coordinate of a world point, in texels.
     pub fn texcoord(&self, p: Vec3) -> (f32, f32) {
         (
-            p.x * self.texture_vecs[0][0] + p.y * self.texture_vecs[0][1]
-                + p.z * self.texture_vecs[0][2] + self.texture_vecs[0][3],
-            p.x * self.texture_vecs[1][0] + p.y * self.texture_vecs[1][1]
-                + p.z * self.texture_vecs[1][2] + self.texture_vecs[1][3],
+            p.x * self.texture_vecs[0][0]
+                + p.y * self.texture_vecs[0][1]
+                + p.z * self.texture_vecs[0][2]
+                + self.texture_vecs[0][3],
+            p.x * self.texture_vecs[1][0]
+                + p.y * self.texture_vecs[1][1]
+                + p.z * self.texture_vecs[1][2]
+                + self.texture_vecs[1][3],
         )
     }
 
     /// Lightmap coordinate of a world point, in luxels.
     pub fn lightcoord(&self, p: Vec3) -> (f32, f32) {
         (
-            p.x * self.lightmap_vecs[0][0] + p.y * self.lightmap_vecs[0][1]
-                + p.z * self.lightmap_vecs[0][2] + self.lightmap_vecs[0][3],
-            p.x * self.lightmap_vecs[1][0] + p.y * self.lightmap_vecs[1][1]
-                + p.z * self.lightmap_vecs[1][2] + self.lightmap_vecs[1][3],
+            p.x * self.lightmap_vecs[0][0]
+                + p.y * self.lightmap_vecs[0][1]
+                + p.z * self.lightmap_vecs[0][2]
+                + self.lightmap_vecs[0][3],
+            p.x * self.lightmap_vecs[1][0]
+                + p.y * self.lightmap_vecs[1][1]
+                + p.z * self.lightmap_vecs[1][2]
+                + self.lightmap_vecs[1][3],
         )
     }
 
-    pub fn is_nodraw(&self) -> bool { self.flags & surf::NODRAW != 0 }
-    pub fn is_sky(&self) -> bool { self.flags & surf::SKY != 0 }
+    pub fn is_nodraw(&self) -> bool {
+        self.flags & surf::NODRAW != 0
+    }
+    pub fn is_sky(&self) -> bool {
+        self.flags & surf::SKY != 0
+    }
 }
 
 /// A material reference plus the data the lighting compile needs about it.
@@ -345,7 +387,14 @@ impl ColorRgbExp32 {
     /// precision without clipping the brightest channel.
     pub fn from_linear(c: Vec3) -> Self {
         let max = c.max_element().max(0.0);
-        if max <= 0.0 { return ColorRgbExp32 { r: 0, g: 0, b: 0, exponent: 0 }; }
+        if max <= 0.0 {
+            return ColorRgbExp32 {
+                r: 0,
+                g: 0,
+                b: 0,
+                exponent: 0,
+            };
+        }
         // Pick e so that max/2^e lands just under 255.
         let mut exponent = (max / 255.0).log2().ceil() as i32;
         exponent = exponent.clamp(-128, 127);
@@ -380,8 +429,12 @@ mod tests {
         assert_eq!(size_of::<TexData>(), 32);
         assert_eq!(size_of::<ColorRgbExp32>(), 4);
         for a in [
-            align_of::<BspPlane>(), align_of::<Face>(), align_of::<Node>(),
-            align_of::<Leaf>(), align_of::<Model>(), align_of::<TexInfo>(),
+            align_of::<BspPlane>(),
+            align_of::<Face>(),
+            align_of::<Node>(),
+            align_of::<Leaf>(),
+            align_of::<Model>(),
+            align_of::<TexInfo>(),
         ] {
             assert_eq!(a, 4);
         }
@@ -430,15 +483,29 @@ mod tests {
     #[test]
     fn content_masks_compose_as_expected() {
         assert!(contents::MASK_PLAYER_SOLID & contents::PLAYER_CLIP != 0);
-        assert!(contents::MASK_SHOT & contents::PLAYER_CLIP == 0, "bullets pass player clips");
-        assert!(contents::MASK_OPAQUE & contents::GRATE == 0, "you can see through a grate");
+        assert!(
+            contents::MASK_SHOT & contents::PLAYER_CLIP == 0,
+            "bullets pass player clips"
+        );
+        assert!(
+            contents::MASK_OPAQUE & contents::GRATE == 0,
+            "you can see through a grate"
+        );
 
         // A ladder changes how you move without ever stopping you, which is
         // the whole distinction MASK_VOLUMES exists to draw.
         let solid = contents::MASK_PLAYER_SOLID;
         let volumes = contents::MASK_VOLUMES;
-        assert_eq!(solid & contents::LADDER, 0, "a ladder must never block movement");
-        assert_ne!(volumes & contents::LADDER, 0, "but it must be findable at a point");
+        assert_eq!(
+            solid & contents::LADDER,
+            0,
+            "a ladder must never block movement"
+        );
+        assert_ne!(
+            volumes & contents::LADDER,
+            0,
+            "but it must be findable at a point"
+        );
         assert_eq!(solid & volumes, 0, "the two masks are meant to be disjoint");
     }
 }

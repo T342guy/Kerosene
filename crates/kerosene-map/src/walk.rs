@@ -47,7 +47,12 @@ impl WalkmapRule {
 
     /// Every rule, in the order the editor lists them.
     pub fn all() -> [WalkmapRule; 4] {
-        [WalkmapRule::Allow, WalkmapRule::Deny, WalkmapRule::Avoid, WalkmapRule::Always]
+        [
+            WalkmapRule::Allow,
+            WalkmapRule::Deny,
+            WalkmapRule::Avoid,
+            WalkmapRule::Always,
+        ]
     }
 
     /// A sentence for a tooltip.

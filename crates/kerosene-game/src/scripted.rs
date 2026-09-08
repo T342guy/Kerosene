@@ -45,7 +45,10 @@ fn run_code(world: &mut EntityWorld, id: EntityId, event: &InputEvent) -> bool {
     // The parameter if there is one, otherwise whatever the entity was given
     // in the editor -- so a `logic_script` can be a one-liner with no wiring.
     let source = if event.parameter.trim().is_empty() {
-        world.get(id).and_then(|e| e.fields.text("code").map(str::to_string)).unwrap_or_default()
+        world
+            .get(id)
+            .and_then(|e| e.fields.text("code").map(str::to_string))
+            .unwrap_or_default()
     } else {
         event.parameter.clone()
     };
@@ -60,7 +63,10 @@ fn run_code(world: &mut EntityWorld, id: EntityId, event: &InputEvent) -> bool {
 
 fn call_function(world: &mut EntityWorld, id: EntityId, event: &InputEvent) -> bool {
     let name = if event.parameter.trim().is_empty() {
-        world.get(id).and_then(|e| e.fields.text("function").map(str::to_string)).unwrap_or_default()
+        world
+            .get(id)
+            .and_then(|e| e.fields.text("function").map(str::to_string))
+            .unwrap_or_default()
     } else {
         event.parameter.clone()
     };
@@ -75,7 +81,10 @@ fn call_function(world: &mut EntityWorld, id: EntityId, event: &InputEvent) -> b
 
 fn run_file(world: &mut EntityWorld, id: EntityId, event: &InputEvent) -> bool {
     let file = if event.parameter.trim().is_empty() {
-        world.get(id).and_then(|e| e.fields.text("scriptfile").map(str::to_string)).unwrap_or_default()
+        world
+            .get(id)
+            .and_then(|e| e.fields.text("scriptfile").map(str::to_string))
+            .unwrap_or_default()
     } else {
         event.parameter.clone()
     };

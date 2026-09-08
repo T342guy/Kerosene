@@ -19,9 +19,9 @@
 //! and unknown ones are preserved rather than dropped, so a game can add its
 //! own without the engine needing to know about them.
 
-use thiserror::Error;
 use kerosene_kv::{FromKvValue, KeyValues, Vec3Value};
 use kerosene_math::Vec3;
+use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum MaterialError {
@@ -74,7 +74,9 @@ impl Shader {
     }
 
     /// Whether surfaces with this shader receive baked lighting.
-    pub fn is_lit(self) -> bool { matches!(self, Shader::Lit | Shader::Water) }
+    pub fn is_lit(self) -> bool {
+        matches!(self, Shader::Lit | Shader::Water)
+    }
 }
 
 /// A parsed material.
@@ -86,12 +88,17 @@ pub struct Material {
 }
 
 impl Default for Material {
-    fn default() -> Self { Material::new(Shader::Lit) }
+    fn default() -> Self {
+        Material::new(Shader::Lit)
+    }
 }
 
 impl Material {
     pub fn new(shader: Shader) -> Self {
-        Material { shader, params: KeyValues::new(shader.name()) }
+        Material {
+            shader,
+            params: KeyValues::new(shader.name()),
+        }
     }
 
     pub fn parse(text: &str) -> Result<Material, MaterialError> {
@@ -104,7 +111,10 @@ impl Material {
             log::warn!("unknown shader '{}', falling back to lit", block.name);
             Shader::Lit
         });
-        Ok(Material { shader, params: block.clone() })
+        Ok(Material {
+            shader,
+            params: block.clone(),
+        })
     }
 
     pub fn to_text(&self) -> String {
@@ -115,20 +125,28 @@ impl Material {
 
     // ---- parameters ------------------------------------------------------
 
-    pub fn get(&self, key: &str) -> Option<&str> { self.params.get(key) }
+    pub fn get(&self, key: &str) -> Option<&str> {
+        self.params.get(key)
+    }
 
     pub fn set(&mut self, key: &str, value: impl Into<String>) -> &mut Self {
         self.params.set(key, value);
         self
     }
 
-    pub fn params(&self) -> impl Iterator<Item = (&str, &str)> { self.params.pairs() }
+    pub fn params(&self) -> impl Iterator<Item = (&str, &str)> {
+        self.params.pairs()
+    }
 
     /// The main colour texture.
-    pub fn base_texture(&self) -> Option<&str> { self.get("$basetexture") }
+    pub fn base_texture(&self) -> Option<&str> {
+        self.get("$basetexture")
+    }
 
     /// Tangent-space normal map, if any.
-    pub fn bump_map(&self) -> Option<&str> { self.get("$bumpmap") }
+    pub fn bump_map(&self) -> Option<&str> {
+        self.get("$bumpmap")
+    }
 
     /// Every texture this material references, for content packing.
     ///
@@ -141,8 +159,17 @@ impl Material {
             .pairs()
             .filter(|(k, _)| {
                 // Any parameter naming a texture uses one of these keys.
-                matches!(*k, "$basetexture" | "$bumpmap" | "$detail" | "$selfillummask"
-                    | "$envmapmask" | "$blendmodulatetexture" | "$basetexture2" | "$bumpmap2")
+                matches!(
+                    *k,
+                    "$basetexture"
+                        | "$bumpmap"
+                        | "$detail"
+                        | "$selfillummask"
+                        | "$envmapmask"
+                        | "$blendmodulatetexture"
+                        | "$basetexture2"
+                        | "$bumpmap2"
+                )
             })
             .map(|(_, v)| v)
             .filter(|v| !v.is_empty())
@@ -157,7 +184,9 @@ impl Material {
     }
 
     /// Whether the surface should be drawn from both sides.
-    pub fn is_two_sided(&self) -> bool { self.get_bool("$nocull") }
+    pub fn is_two_sided(&self) -> bool {
+        self.get_bool("$nocull")
+    }
 
     /// Physical surface type, driving footstep sounds and impact effects.
     pub fn surface_property(&self) -> &str {
@@ -179,11 +208,15 @@ impl Material {
     }
 
     pub fn get_bool(&self, key: &str) -> bool {
-        self.get(key).and_then(|v| bool::from_kv(v).ok()).unwrap_or(false)
+        self.get(key)
+            .and_then(|v| bool::from_kv(v).ok())
+            .unwrap_or(false)
     }
 
     pub fn get_f32(&self, key: &str, default: f32) -> f32 {
-        self.get(key).and_then(|v| f32::from_kv(v).ok()).unwrap_or(default)
+        self.get(key)
+            .and_then(|v| f32::from_kv(v).ok())
+            .unwrap_or(default)
     }
 }
 
@@ -318,7 +351,8 @@ lit
     fn referenced_textures_finds_every_map() {
         let m = Material::parse(
             r#"lit { "$basetexture" "a" "$bumpmap" "b" "$detail" "c" "$surfaceprop" "metal" }"#,
-        ).unwrap();
+        )
+        .unwrap();
         assert_eq!(m.referenced_textures(), vec!["a", "b", "c"]);
     }
 
@@ -364,9 +398,12 @@ lit
 
     #[test]
     fn surface_types_parse_case_insensitively() {
-        assert_eq!(SurfaceProperty::parse("CONCRETE"), SurfaceProperty::Concrete);
+        assert_eq!(
+            SurfaceProperty::parse("CONCRETE"),
+            SurfaceProperty::Concrete
+        );
         assert_eq!(SurfaceProperty::parse("Metal"), SurfaceProperty::Metal);
-        assert_eq!(SurfaceProperty::parse(""  ), SurfaceProperty::Default);
+        assert_eq!(SurfaceProperty::parse(""), SurfaceProperty::Default);
         assert_eq!(SurfaceProperty::parse("default"), SurfaceProperty::Default);
     }
 
@@ -377,7 +414,10 @@ lit
 
     #[test]
     fn footstep_sounds_follow_the_convention() {
-        assert_eq!(SurfaceProperty::Concrete.footstep_sound(0), "footstep/concrete/1");
+        assert_eq!(
+            SurfaceProperty::Concrete.footstep_sound(0),
+            "footstep/concrete/1"
+        );
         assert_eq!(SurfaceProperty::Metal.footstep_sound(4), "footstep/metal/1");
         assert_eq!(SurfaceProperty::Metal.footstep_sound(2), "footstep/metal/3");
     }

@@ -35,7 +35,9 @@ const MAX_CLIMB: usize = 6;
 /// both `maps` and `materials` in it is one -- a project that has not written
 /// its own class definitions yet is still a project.
 pub fn is_content_root(dir: &Path) -> bool {
-    if dir.join(MARKER).is_file() { return true }
+    if dir.join(MARKER).is_file() {
+        return true;
+    }
     dir.join("maps").is_dir() && dir.join("materials").is_dir()
 }
 
@@ -55,7 +57,11 @@ pub struct Found {
 impl Found {
     /// A root nothing but the search knows about.
     fn guessed(root: PathBuf, why: &'static str) -> Found {
-        Found { root, why, project: None }
+        Found {
+            root,
+            why,
+            project: None,
+        }
     }
 }
 
@@ -87,15 +93,31 @@ pub fn find(explicit: Option<&Path>, map: Option<&Path>) -> Option<Found> {
         .and_then(|exe| exe.parent().map(Path::to_path_buf));
 
     let places: [(Option<PathBuf>, &'static str, &'static str); 3] = [
-        (map_dir, "named by the project holding the map", "found next to the map"),
-        (working, "named by the project in the working directory", "found from the working directory"),
-        (beside_exe, "named by the project beside the executable", "found next to the executable"),
+        (
+            map_dir,
+            "named by the project holding the map",
+            "found next to the map",
+        ),
+        (
+            working,
+            "named by the project in the working directory",
+            "found from the working directory",
+        ),
+        (
+            beside_exe,
+            "named by the project beside the executable",
+            "found next to the executable",
+        ),
     ];
 
     for (from, stated, guessed) in &places {
         let Some(from) = from else { continue };
         if let Some(project) = climb_for_project(from) {
-            return Some(Found { root: project.content.clone(), why: stated, project: Some(project) });
+            return Some(Found {
+                root: project.content.clone(),
+                why: stated,
+                project: Some(project),
+            });
         }
         if let Some(root) = climb(from) {
             return Some(Found::guessed(root, guessed));
@@ -118,7 +140,9 @@ fn climb_for_project(from: &Path) -> Option<Project> {
                 Err(e) => log::warn!("ignoring {}: {e}", file.display()),
             }
         }
-        if !at.pop() { break }
+        if !at.pop() {
+            break;
+        }
     }
     None
 }
@@ -128,14 +152,20 @@ fn climb_for_project(from: &Path) -> Option<Project> {
 fn climb(from: &Path) -> Option<PathBuf> {
     let mut at = from.to_path_buf();
     for _ in 0..MAX_CLIMB {
-        if is_content_root(&at) { return Some(at) }
+        if is_content_root(&at) {
+            return Some(at);
+        }
         // A repository holds its content in `content/`, and a map is usually
         // at `<root>/maps/name.keromap`, so both are worth a look at each
         // level rather than only at the end.
         let candidate = at.join("content");
-        if is_content_root(&candidate) { return Some(candidate) }
+        if is_content_root(&candidate) {
+            return Some(candidate);
+        }
 
-        if !at.pop() { break }
+        if !at.pop() {
+            break;
+        }
     }
     None
 }

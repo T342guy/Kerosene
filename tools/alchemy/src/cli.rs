@@ -17,7 +17,11 @@ use std::path::PathBuf;
 use crate::{batch, build_flags, build_textures, compile_image, devtex, info, write_material};
 
 #[derive(Parser, Debug)]
-#[command(name = "alchemy", version, about = "Compile textures and author materials")]
+#[command(
+    name = "alchemy",
+    version,
+    about = "Compile textures and author materials"
+)]
 struct Args {
     #[command(subcommand)]
     command: Command,
@@ -101,24 +105,69 @@ enum Command {
 pub fn run(args: Vec<String>) -> Result<()> {
     let args = Args::parse_from(std::iter::once("alchemy".to_string()).chain(args));
     match args.command {
-        Command::Compile { image, output, normal, clamp, point, ui, opaque } => {
+        Command::Compile {
+            image,
+            output,
+            normal,
+            clamp,
+            point,
+            ui,
+            opaque,
+        } => {
             let out = output.unwrap_or_else(|| image.with_extension("kerotex"));
             let flags = build_flags(normal, clamp, point, ui);
             let size = compile_image(&image, &out, flags, opaque)?;
-            println!("  wrote {} ({:.1} KiB)", out.display(), size as f64 / 1024.0);
+            println!(
+                "  wrote {} ({:.1} KiB)",
+                out.display(),
+                size as f64 / 1024.0
+            );
             Ok(())
         }
-        Command::Material { name, output, shader, basetexture, bumpmap, surfaceprop, translucent, extra } => {
+        Command::Material {
+            name,
+            output,
+            shader,
+            basetexture,
+            bumpmap,
+            surfaceprop,
+            translucent,
+            extra,
+        } => {
             let out = output.unwrap_or_else(|| PathBuf::from(kerosene_asset::material_path(&name)));
-            write_material(&name, &out, &shader, basetexture, bumpmap, &surfaceprop, translucent, &extra)
+            write_material(
+                &name,
+                &out,
+                &shader,
+                basetexture,
+                bumpmap,
+                &surfaceprop,
+                translucent,
+                &extra,
+            )
         }
-        Command::Batch { directory, output, make_materials } => {
+        Command::Batch {
+            directory,
+            output,
+            make_materials,
+        } => {
             let report = batch(&directory, &output, make_materials)?;
-            println!("alchemy: compiled {} textures into {}", report.compiled, output.display());
-            if report.skipped > 0 { println!("  {} already up to date", report.skipped); }
-            if report.materials > 0 { println!("  wrote {} materials", report.materials); }
+            println!(
+                "alchemy: compiled {} textures into {}",
+                report.compiled,
+                output.display()
+            );
+            if report.skipped > 0 {
+                println!("  {} already up to date", report.skipped);
+            }
+            if report.materials > 0 {
+                println!("  wrote {} materials", report.materials);
+            }
             if report.kept > 0 {
-                println!("  kept {} existing materials (delete one to regenerate it)", report.kept);
+                println!(
+                    "  kept {} existing materials (delete one to regenerate it)",
+                    report.kept
+                );
             }
             Ok(())
         }

@@ -61,7 +61,11 @@ impl std::fmt::Debug for LogRelay {
 
 impl LogRelay {
     fn new(level: log::LevelFilter, foreign: log::LevelFilter) -> LogRelay {
-        LogRelay { shared: Mutex::new(Shared::default()), level, foreign }
+        LogRelay {
+            shared: Mutex::new(Shared::default()),
+            level,
+            foreign,
+        }
     }
 
     /// A relay that is not the global logger.
@@ -96,7 +100,11 @@ impl LogRelay {
     }
 
     pub fn has_file(&self) -> bool {
-        self.shared.lock().unwrap_or_else(|e| e.into_inner()).file.is_some()
+        self.shared
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .file
+            .is_some()
     }
 
     /// Take everything logged since the last call.
@@ -110,7 +118,11 @@ impl LogRelay {
     }
 
     pub fn pending_len(&self) -> usize {
-        self.shared.lock().unwrap_or_else(|e| e.into_inner()).pending.len()
+        self.shared
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .pending
+            .len()
     }
 }
 
@@ -124,7 +136,11 @@ impl LogRelay {
     /// the restriction, because someone who sets it is debugging the thing
     /// they set it for.
     fn level_for(&self, target: &str) -> log::LevelFilter {
-        if is_ours(target) { self.level } else { self.foreign }
+        if is_ours(target) {
+            self.level
+        } else {
+            self.foreign
+        }
     }
 }
 
@@ -134,7 +150,9 @@ impl log::Log for LogRelay {
     }
 
     fn log(&self, record: &log::Record) {
-        if !self.enabled(record.metadata()) { return }
+        if !self.enabled(record.metadata()) {
+            return;
+        }
 
         let level = match record.level() {
             log::Level::Error => LogLevel::Error,
@@ -153,7 +171,9 @@ impl log::Log for LogRelay {
         // to print into, and a terminal is where that has to be readable.
         let _ = writeln!(std::io::stderr(), "[{:<5}] {}", record.level(), text);
 
-        if from_console { return }
+        if from_console {
+            return;
+        }
         if shared.pending.len() >= MAX_PENDING {
             shared.dropped += 1;
             return;
@@ -163,10 +183,11 @@ impl log::Log for LogRelay {
 
     fn flush(&self) {
         let mut shared = self.shared.lock().unwrap_or_else(|e| e.into_inner());
-        if let Some(file) = shared.file.as_mut() { let _ = file.flush(); }
+        if let Some(file) = shared.file.as_mut() {
+            let _ = file.flush();
+        }
     }
 }
-
 
 /// Crates whose chatter belongs in the game's console.
 ///
@@ -180,7 +201,9 @@ const OURS: &[&str] = &[
 pub fn is_ours(target: &str) -> bool {
     OURS.iter().any(|name| {
         target == *name
-            || target.strip_prefix(name).is_some_and(|rest| rest.starts_with(['_', ':']))
+            || target
+                .strip_prefix(name)
+                .is_some_and(|rest| rest.starts_with(['_', ':']))
     })
 }
 

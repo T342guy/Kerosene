@@ -24,13 +24,17 @@ pub mod lights;
 use anyhow::{Context, Result};
 use bake::BakeOptions;
 use clap::Parser;
+use kerosene_bsp::Bsp;
 use lights::LightSet;
 use std::path::PathBuf;
 use std::time::Instant;
-use kerosene_bsp::Bsp;
 
 #[derive(Parser, Debug)]
-#[command(name = "radiance", version, about = "Bake static lighting into a compiled .kerobsp")]
+#[command(
+    name = "radiance",
+    version,
+    about = "Bake static lighting into a compiled .kerobsp"
+)]
 struct Args {
     /// The .kerobsp to light, modified in place.
     map: PathBuf,
@@ -66,12 +70,16 @@ pub fn run(args: Vec<String>) -> Result<()> {
     let args = Args::parse_from(std::iter::once("radiance".to_string()).chain(args));
     let started = Instant::now();
 
-    let mut bsp = Bsp::load(&args.map)
-        .with_context(|| format!("loading {}", args.map.display()))?;
+    let mut bsp =
+        Bsp::load(&args.map).with_context(|| format!("loading {}", args.map.display()))?;
 
     let lights = LightSet::from_bsp(&bsp);
-    println!("radiance: {} ({} faces, {} lights)",
-        args.map.display(), bsp.faces.len(), lights.lights.len());
+    println!(
+        "radiance: {} ({} faces, {} lights)",
+        args.map.display(),
+        bsp.faces.len(),
+        lights.lights.len()
+    );
 
     if lights.is_empty() {
         // Worth saying plainly: a map with no lights compiles fine and is
@@ -87,7 +95,12 @@ pub fn run(args: Vec<String>) -> Result<()> {
     }
 
     let options = if args.fast {
-        BakeOptions { supersample: 1, bounces: 0, scale: args.scale, ambient_scale: args.ambient_scale }
+        BakeOptions {
+            supersample: 1,
+            bounces: 0,
+            scale: args.scale,
+            ambient_scale: args.ambient_scale,
+        }
     } else {
         BakeOptions {
             supersample: args.samples,
@@ -99,22 +112,41 @@ pub fn run(args: Vec<String>) -> Result<()> {
 
     let stats = bake::bake(&mut bsp, &lights, &options);
 
-    println!("  {} faces lit, {} unlit (sky, nodraw or tool surfaces)",
-        stats.faces_lit, stats.faces_unlit);
-    println!("  {} luxels at {}x supersampling", stats.luxels, options.supersample);
+    println!(
+        "  {} faces lit, {} unlit (sky, nodraw or tool surfaces)",
+        stats.faces_lit, stats.faces_unlit
+    );
+    println!(
+        "  {} luxels at {}x supersampling",
+        stats.luxels, options.supersample
+    );
     if options.bounces > 0 {
-        println!("  {} bounce patches over {} bounce(s)", stats.bounce_patches, options.bounces);
+        println!(
+            "  {} bounce patches over {} bounce(s)",
+            stats.bounce_patches, options.bounces
+        );
     }
-    println!("  lighting lump {:.1} KiB", (stats.luxels * 4) as f64 / 1024.0);
+    println!(
+        "  lighting lump {:.1} KiB",
+        (stats.luxels * 4) as f64 / 1024.0
+    );
 
     if args.dry_run {
-        println!("  dry run: nothing written ({:.2}s)", started.elapsed().as_secs_f32());
+        println!(
+            "  dry run: nothing written ({:.2}s)",
+            started.elapsed().as_secs_f32()
+        );
         return Ok(());
     }
 
-    let size = bsp.save(&args.map)
+    let size = bsp
+        .save(&args.map)
         .with_context(|| format!("writing {}", args.map.display()))?;
-    println!("  wrote {} ({:.1} KiB) in {:.2}s",
-        args.map.display(), size as f64 / 1024.0, started.elapsed().as_secs_f32());
+    println!(
+        "  wrote {} ({:.1} KiB) in {:.2}s",
+        args.map.display(),
+        size as f64 / 1024.0,
+        started.elapsed().as_secs_f32()
+    );
     Ok(())
 }

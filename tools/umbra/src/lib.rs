@@ -27,12 +27,16 @@ pub mod prt;
 
 use anyhow::{Context, Result};
 use clap::Parser;
+use kerosene_bsp::{Bsp, VisBuilder};
 use std::path::PathBuf;
 use std::time::Instant;
-use kerosene_bsp::{Bsp, VisBuilder};
 
 #[derive(Parser, Debug)]
-#[command(name = "umbra", version, about = "Compute the PVS for a compiled .kerobsp")]
+#[command(
+    name = "umbra",
+    version,
+    about = "Compute the PVS for a compiled .kerobsp"
+)]
 struct Args {
     /// The .kerobsp to add visibility to, modified in place.
     map: PathBuf,
@@ -56,10 +60,12 @@ pub fn run(args: Vec<String>) -> Result<()> {
     let args = Args::parse_from(std::iter::once("umbra".to_string()).chain(args));
     let started = Instant::now();
 
-    let mut bsp = Bsp::load(&args.map)
-        .with_context(|| format!("loading {}", args.map.display()))?;
+    let mut bsp =
+        Bsp::load(&args.map).with_context(|| format!("loading {}", args.map.display()))?;
 
-    let prt_path = args.portals.unwrap_or_else(|| args.map.with_extension("keroprt"));
+    let prt_path = args
+        .portals
+        .unwrap_or_else(|| args.map.with_extension("keroprt"));
     let prt_text = std::fs::read_to_string(&prt_path).with_context(|| {
         format!(
             "reading {}. Umbra needs the portal file Cleave writes next to the map.",
@@ -70,8 +76,12 @@ pub fn run(args: Vec<String>) -> Result<()> {
     let graph = prt::PortalGraph::parse(&prt_text)
         .with_context(|| format!("parsing {}", prt_path.display()))?;
 
-    println!("umbra: {} ({} clusters, {} portals)",
-        args.map.display(), graph.clusters, graph.portal_count() / 2);
+    println!(
+        "umbra: {} ({} clusters, {} portals)",
+        args.map.display(),
+        graph.clusters,
+        graph.portal_count() / 2
+    );
 
     if graph.clusters == 0 {
         println!("  nothing to do: the map has no visibility clusters");
@@ -105,13 +115,21 @@ pub fn run(args: Vec<String>) -> Result<()> {
     println!("  vis lump {} bytes", bsp.visibility.len());
 
     if args.dry_run {
-        println!("  dry run: nothing written ({:.2}s)", started.elapsed().as_secs_f32());
+        println!(
+            "  dry run: nothing written ({:.2}s)",
+            started.elapsed().as_secs_f32()
+        );
         return Ok(());
     }
 
-    let size = bsp.save(&args.map)
+    let size = bsp
+        .save(&args.map)
         .with_context(|| format!("writing {}", args.map.display()))?;
-    println!("  wrote {} ({:.1} KiB) in {:.2}s",
-        args.map.display(), size as f64 / 1024.0, started.elapsed().as_secs_f32());
+    println!(
+        "  wrote {} ({:.1} KiB) in {:.2}s",
+        args.map.display(),
+        size as f64 / 1024.0,
+        started.elapsed().as_secs_f32()
+    );
     Ok(())
 }

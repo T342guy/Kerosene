@@ -75,11 +75,17 @@ const BUTTON_OUTPUTS: MoverOutputs = MoverOutputs {
 };
 
 fn outputs_for(classname: &str) -> &'static MoverOutputs {
-    if classname.eq_ignore_ascii_case("func_button") { &BUTTON_OUTPUTS } else { &DOOR_OUTPUTS }
+    if classname.eq_ignore_ascii_case("func_button") {
+        &BUTTON_OUTPUTS
+    } else {
+        &DOOR_OUTPUTS
+    }
 }
 
 fn outputs_of(world: &EntityWorld, id: EntityId) -> &'static MoverOutputs {
-    world.get(id).map_or(&DOOR_OUTPUTS, |e| outputs_for(&e.classname))
+    world
+        .get(id)
+        .map_or(&DOOR_OUTPUTS, |e| outputs_for(&e.classname))
 }
 
 /// Which way a door is going.
@@ -101,10 +107,18 @@ pub fn register(registry: &mut ClassRegistry) {
             // Pressing a door is a toggle, which is what makes the use key
             // work on it without the map wiring anything at all.
             .input("Use", input_toggle)
-            .input("Lock", |w, id, _| { set_field(w, id, "locked", Value::Bool(true)); true })
-            .input("Unlock", |w, id, _| { set_field(w, id, "locked", Value::Bool(false)); true })
+            .input("Lock", |w, id, _| {
+                set_field(w, id, "locked", Value::Bool(true));
+                true
+            })
+            .input("Unlock", |w, id, _| {
+                set_field(w, id, "locked", Value::Bool(false));
+                true
+            })
             .input("SetSpeed", |w, id, e| {
-                if let Some(v) = e.parameter_f32() { set_field(w, id, "speed", Value::Float(v)); }
+                if let Some(v) = e.parameter_f32() {
+                    set_field(w, id, "speed", Value::Float(v));
+                }
                 true
             })
             .output("OnOpen")
@@ -123,8 +137,14 @@ pub fn register(registry: &mut ClassRegistry) {
             .input("Press", |w, id, e| start(w, id, e, true))
             .input("Use", |w, id, e| start(w, id, e, true))
             .input("Unpress", |w, id, e| start(w, id, e, false))
-            .input("Lock", |w, id, _| { set_field(w, id, "locked", Value::Bool(true)); true })
-            .input("Unlock", |w, id, _| { set_field(w, id, "locked", Value::Bool(false)); true })
+            .input("Lock", |w, id, _| {
+                set_field(w, id, "locked", Value::Bool(true));
+                true
+            })
+            .input("Unlock", |w, id, _| {
+                set_field(w, id, "locked", Value::Bool(false));
+                true
+            })
             .output("OnPressed")
             .output("OnIn")
             .output("OnOut")
@@ -135,8 +155,14 @@ pub fn register(registry: &mut ClassRegistry) {
         ClassDef::new("func_rotating")
             .on_spawn(spawn_rotating)
             .on_think(think_rotating)
-            .input("Start", |w, id, _| { set_spinning(w, id, true); true })
-            .input("Stop", |w, id, _| { set_spinning(w, id, false); true })
+            .input("Start", |w, id, _| {
+                set_spinning(w, id, true);
+                true
+            })
+            .input("Stop", |w, id, _| {
+                set_spinning(w, id, false);
+                true
+            })
             .input("Toggle", |w, id, _| {
                 let on = w.get(id).is_some_and(|e| e.fields.bool("spinning", false));
                 set_spinning(w, id, !on);
@@ -148,7 +174,9 @@ pub fn register(registry: &mut ClassRegistry) {
                 true
             })
             .input("SetSpeed", |w, id, e| {
-                if let Some(v) = e.parameter_f32() { set_field(w, id, "maxspeed", Value::Float(v)); }
+                if let Some(v) = e.parameter_f32() {
+                    set_field(w, id, "maxspeed", Value::Float(v));
+                }
                 true
             }),
     );
@@ -156,10 +184,19 @@ pub fn register(registry: &mut ClassRegistry) {
     registry.register(
         ClassDef::new("func_brush")
             .on_spawn(spawn_brush)
-            .input("Enable", |w, id, _| { set_field(w, id, "disabled", Value::Bool(false)); true })
-            .input("Disable", |w, id, _| { set_field(w, id, "disabled", Value::Bool(true)); true })
+            .input("Enable", |w, id, _| {
+                set_field(w, id, "disabled", Value::Bool(false));
+                true
+            })
+            .input("Disable", |w, id, _| {
+                set_field(w, id, "disabled", Value::Bool(true));
+                true
+            })
             .input("Toggle", |w, id, _| {
-                let off = w.get(id).map(|e| e.fields.bool("disabled", false)).unwrap_or(false);
+                let off = w
+                    .get(id)
+                    .map(|e| e.fields.bool("disabled", false))
+                    .unwrap_or(false);
                 set_field(w, id, "disabled", Value::Bool(!off));
                 true
             }),
@@ -190,7 +227,9 @@ fn set_spinning(world: &mut EntityWorld, id: EntityId, on: bool) {
 
 fn think_rotating(world: &mut EntityWorld, id: EntityId) {
     let Some(entity) = world.get(id) else { return };
-    if !entity.fields.bool("spinning", false) { return }
+    if !entity.fields.bool("spinning", false) {
+        return;
+    }
 
     let speed = entity.fields.f32("maxspeed", 100.0);
     let elapsed = (world.time - entity.fields.f32("last_move", world.time)).max(0.0);
@@ -208,13 +247,18 @@ fn think_rotating(world: &mut EntityWorld, id: EntityId) {
     // precision to a number that only ever grows.
     let angles = angles.normalized();
 
-    if let Some(e) = world.get_mut(id) { e.angles = angles }
+    if let Some(e) = world.get_mut(id) {
+        e.angles = angles
+    }
     set_field(world, id, "last_move", Value::Float(world.time));
     world.set_think_delay(id, MOVE_INTERVAL);
 }
 
 fn spawn_brush(world: &mut EntityWorld, id: EntityId) {
-    let start_disabled = world.get(id).map(|e| e.fields.bool("startdisabled", false)).unwrap_or(false);
+    let start_disabled = world
+        .get(id)
+        .map(|e| e.fields.bool("startdisabled", false))
+        .unwrap_or(false);
     set_field(world, id, "disabled", Value::Bool(start_disabled));
 }
 
@@ -229,7 +273,11 @@ fn spawn_brush(world: &mut EntityWorld, id: EntityId) {
 /// mean the picture and the behaviour agreeing only by luck.
 pub fn travel(size: Vec3, movedir: Vec3, lip: f32) -> (Vec3, f32) {
     let dir = movedir.normalize_or_zero();
-    let dir = if dir.length_squared() < 1e-6 { Vec3::Z } else { dir };
+    let dir = if dir.length_squared() < 1e-6 {
+        Vec3::Z
+    } else {
+        dir
+    };
     // Extent along the movement axis, whatever axis that is.
     let extent = (size.x * dir.x).abs() + (size.y * dir.y).abs() + (size.z * dir.z).abs();
     (dir, (extent - lip).max(1.0))
@@ -259,35 +307,69 @@ fn spawn_mover(world: &mut EntityWorld, id: EntityId) {
     set_field(world, id, "movedir", Value::Vector(dir));
     set_field(world, id, "travel", Value::Float(travel));
     set_field(world, id, "speed", Value::Float(speed));
-    set_field(world, id, "progress", Value::Float(if start_open { 1.0 } else { 0.0 }));
-    set_field(world, id, "door_state", Value::Int(if start_open { state::OPEN } else { state::CLOSED }));
+    set_field(
+        world,
+        id,
+        "progress",
+        Value::Float(if start_open { 1.0 } else { 0.0 }),
+    );
+    set_field(
+        world,
+        id,
+        "door_state",
+        Value::Int(if start_open {
+            state::OPEN
+        } else {
+            state::CLOSED
+        }),
+    );
     set_field(world, id, "locked", Value::Bool(false));
 
-    if start_open
-        && let Some(e) = world.get_mut(id)
-    {
+    if start_open && let Some(e) = world.get_mut(id) {
         e.origin = dir * travel;
     }
 }
 
 fn start(world: &mut EntityWorld, id: EntityId, event: &InputEvent, opening: bool) -> bool {
-    if world.get(id).map(|e| e.fields.bool("locked", false)).unwrap_or(false) {
+    if world
+        .get(id)
+        .map(|e| e.fields.bool("locked", false))
+        .unwrap_or(false)
+    {
         world.fire_output(id, "OnLockedUse", event.activator, None);
         return true;
     }
 
-    let current = world.get(id).map(|e| e.fields.i32("door_state", state::CLOSED)).unwrap_or(0);
+    let current = world
+        .get(id)
+        .map(|e| e.fields.i32("door_state", state::CLOSED))
+        .unwrap_or(0);
     let already = if opening {
         current == state::OPEN || current == state::OPENING
     } else {
         current == state::CLOSED || current == state::CLOSING
     };
-    if already { return true; }
+    if already {
+        return true;
+    }
 
     let outputs = outputs_of(world, id);
-    set_field(world, id, "door_state", Value::Int(if opening { state::OPENING } else { state::CLOSING }));
+    set_field(
+        world,
+        id,
+        "door_state",
+        Value::Int(if opening {
+            state::OPENING
+        } else {
+            state::CLOSING
+        }),
+    );
     set_field(world, id, "last_move", Value::Float(world.time));
-    let announce = if opening { Some(outputs.start_forward) } else { outputs.start_back };
+    let announce = if opening {
+        Some(outputs.start_forward)
+    } else {
+        outputs.start_back
+    };
     if let Some(name) = announce {
         world.fire_output(id, name, event.activator, None);
     }
@@ -296,7 +378,10 @@ fn start(world: &mut EntityWorld, id: EntityId, event: &InputEvent, opening: boo
 }
 
 fn input_toggle(world: &mut EntityWorld, id: EntityId, event: &InputEvent) -> bool {
-    let current = world.get(id).map(|e| e.fields.i32("door_state", state::CLOSED)).unwrap_or(0);
+    let current = world
+        .get(id)
+        .map(|e| e.fields.i32("door_state", state::CLOSED))
+        .unwrap_or(0);
     let opening = current == state::CLOSED || current == state::CLOSING;
     start(world, id, event, opening)
 }
@@ -335,7 +420,9 @@ fn think_mover(world: &mut EntityWorld, id: EntityId) {
 
     set_field(world, id, "progress", Value::Float(progress));
     set_field(world, id, "last_move", Value::Float(world.time));
-    if let Some(e) = world.get_mut(id) { e.origin = dir * (travel * progress); }
+    if let Some(e) = world.get_mut(id) {
+        e.origin = dir * (travel * progress);
+    }
 
     if next_state != door_state {
         let outputs = outputs_of(world, id);
@@ -371,5 +458,7 @@ pub fn door_progress(world: &EntityWorld, id: EntityId) -> f32 {
 
 /// Whether a `func_brush` is currently solid and drawn.
 pub fn brush_enabled(world: &EntityWorld, id: EntityId) -> bool {
-    world.get(id).is_none_or(|e| !e.fields.bool("disabled", false))
+    world
+        .get(id)
+        .is_none_or(|e| !e.fields.bool("disabled", false))
 }

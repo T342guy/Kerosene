@@ -17,6 +17,14 @@ use kerosene_console::{Console, ConsoleUi, LogLevel};
 /// Fraction of the window height the console covers.
 const HEIGHT: f32 = 0.5;
 
+/// Points of wheel travel per line of scrollback.
+const WHEEL_LINE: f32 = 14.0;
+
+/// Size of a scrollback line. The row height is measured from this exact font
+/// rather than from the Monospace text style, so what is counted and what is
+/// drawn cannot drift apart.
+const LINE: f32 = 12.0;
+
 /// Colour for each severity. Errors have to be findable in a wall of text.
 fn colour(level: LogLevel) -> Color32 {
     match level {
@@ -46,7 +54,7 @@ pub fn draw(ctx: &egui::Context, ui_state: &mut ConsoleUi, console: &mut Console
             // Keys the text field must not see. Consumed before it is built,
             // because egui gives a focused TextEdit first refusal otherwise
             // and tab would move focus instead of completing.
-            let (submit, up, down, tab, page_up, page_down) = ui.input_mut(|i| {
+            let (submit, up, down, tab, page_up, page_down, wheel) = ui.input_mut(|i| {
                 (
                     i.consume_key(egui::Modifiers::NONE, egui::Key::Enter),
                     i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowUp),
@@ -54,6 +62,7 @@ pub fn draw(ctx: &egui::Context, ui_state: &mut ConsoleUi, console: &mut Console
                     i.consume_key(egui::Modifiers::NONE, egui::Key::Tab),
                     i.consume_key(egui::Modifiers::NONE, egui::Key::PageUp),
                     i.consume_key(egui::Modifiers::NONE, egui::Key::PageDown),
+                    i.smooth_scroll_delta.y,
                 )
             });
 
@@ -71,6 +80,14 @@ pub fn draw(ctx: &egui::Context, ui_state: &mut ConsoleUi, console: &mut Console
             }
             if page_down {
                 ui_state.scroll_down();
+            }
+            // The wheel, which is what anyone actually reaches for. Positive
+            // delta is a push away from you, which reads back through the log.
+            if wheel.abs() > 0.5 {
+                let lines = (wheel / WHEEL_LINE).round() as i32;
+                if lines != 0 {
+                    ui_state.scroll_by(lines, console.log_len());
+                }
             }
 
             // The prompt is laid out first, upward from the bottom, so the
@@ -104,29 +121,35 @@ pub fn draw(ctx: &egui::Context, ui_state: &mut ConsoleUi, console: &mut Console
                 }
                 ui.separator();
 
-                // Everything above the prompt is scrollback, newest at the
-                // bottom, back to reading downward.
-                ui.with_layout(egui::Layout::top_down(egui::Align::Min), |ui| {
-                    let room = ui.available_height();
-                    let row = ui.text_style_height(&egui::TextStyle::Monospace).max(1.0);
-                    let rows = (room / row).max(1.0) as usize;
-                    let range = ui_state.visible_range(console.log_len(), rows);
+                // Everything above the prompt is scrollback: the newest line
+                // sits just above it and older ones stack upward, so it still
+                // reads downward.
+                //
+                // Laid out upward rather than downward from the top of the gap,
+                // because downward means working out how many lines fit and
+                // being wrong is invisible until it bites. It did: the row
+                // height used here left out `item_spacing`, so the estimate ran
+                // a few lines over, and those lines were drawn under the prompt
+                // where they could not be read. Filling upward from the prompt
+                // and stopping when the room runs out cannot overflow, whatever
+                // the font metrics turn out to be.
+                let row = ui.fonts(|f| f.row_height(&egui::FontId::monospace(LINE)))
+                    + ui.spacing().item_spacing.y;
+                let rows = (ui.available_height() / row).max(1.0) as usize;
+                let range = ui_state.visible_range(console.log_len(), rows);
 
-                    egui::ScrollArea::vertical()
-                        .max_height(room)
-                        .auto_shrink([false, false])
-                        .stick_to_bottom(ui_state.scroll == 0)
-                        .show(ui, |ui| {
-                            for line in console.log().skip(range.start).take(range.len()) {
-                                ui.label(
-                                    RichText::new(&line.text)
-                                        .monospace()
-                                        .size(12.0)
-                                        .color(colour(line.level)),
-                                );
-                            }
-                        });
-                });
+                let window: Vec<_> = console.log().skip(range.start).take(range.len()).collect();
+                for line in window.into_iter().rev() {
+                    if ui.available_height() < row {
+                        break;
+                    }
+                    ui.label(
+                        RichText::new(&line.text)
+                            .monospace()
+                            .size(LINE)
+                            .color(colour(line.level)),
+                    );
+                }
             });
 
             if submit {

@@ -170,11 +170,23 @@ impl ConsoleUi {
     }
 
     pub fn scroll_up(&mut self, log_len: usize) {
-        self.scroll = (self.scroll + PAGE).min(log_len.saturating_sub(1));
+        self.scroll_by(PAGE as i32, log_len);
     }
 
     pub fn scroll_down(&mut self) {
         self.scroll = self.scroll.saturating_sub(PAGE);
+    }
+
+    /// Scroll by a number of lines: positive back through the log, negative
+    /// toward the newest. What a mouse wheel turns into, where a page is too
+    /// coarse a step.
+    pub fn scroll_by(&mut self, lines: i32, log_len: usize) {
+        let ceiling = log_len.saturating_sub(1);
+        self.scroll = if lines >= 0 {
+            (self.scroll + lines as usize).min(ceiling)
+        } else {
+            self.scroll.saturating_sub(lines.unsigned_abs() as usize)
+        };
     }
 
     /// The window of the log to show, given how many lines fit.

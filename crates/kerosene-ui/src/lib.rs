@@ -142,7 +142,9 @@ impl ApplicationHandler for Host {
 
 impl Host {
     fn draw(&mut self) -> Result<()> {
-        let Some(gfx) = &mut self.gfx else { return Ok(()) };
+        let Some(gfx) = &mut self.gfx else {
+            return Ok(());
+        };
 
         let frame = match gfx.surface.get_current_texture() {
             Ok(frame) => frame,
@@ -152,14 +154,19 @@ impl Host {
             }
             Err(e) => return Err(anyhow::anyhow!("{e}")),
         };
-        let view = frame.texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let view = frame
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
 
         let raw_input = gfx.egui_state.take_egui_input(&gfx.window);
         let context = gfx.egui_state.egui_ctx().clone();
         let output = context.run(raw_input, |ctx| self.app.ui(ctx));
 
-        let Some(gfx) = &mut self.gfx else { return Ok(()) };
-        gfx.egui_state.handle_platform_output(&gfx.window, output.platform_output);
+        let Some(gfx) = &mut self.gfx else {
+            return Ok(());
+        };
+        gfx.egui_state
+            .handle_platform_output(&gfx.window, output.platform_output);
 
         let title = self.app.window_title();
         if !title.is_empty() && title != self.title {
@@ -178,7 +185,8 @@ impl Host {
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("ui") });
 
         for (id, delta) in &output.textures_delta.set {
-            gfx.egui_renderer.update_texture(&gfx.device, &gfx.queue, *id, delta);
+            gfx.egui_renderer
+                .update_texture(&gfx.device, &gfx.queue, *id, delta);
         }
         gfx.egui_renderer
             .update_buffers(&gfx.device, &gfx.queue, &mut encoder, &jobs, &descriptor);
@@ -227,11 +235,7 @@ impl Host {
     }
 }
 
-async fn create_gfx(
-    event_loop: &ActiveEventLoop,
-    title: &str,
-    size: (u32, u32),
-) -> Result<Gfx> {
+async fn create_gfx(event_loop: &ActiveEventLoop, title: &str, size: (u32, u32)) -> Result<Gfx> {
     let attributes = Window::default_attributes()
         .with_title(title)
         .with_inner_size(winit::dpi::LogicalSize::new(size.0, size.1));
@@ -293,5 +297,13 @@ async fn create_gfx(
     );
     let egui_renderer = egui_wgpu::Renderer::new(&device, format, None, 1, false);
 
-    Ok(Gfx { window, surface, device, queue, config, egui_state, egui_renderer })
+    Ok(Gfx {
+        window,
+        surface,
+        device,
+        queue,
+        config,
+        egui_state,
+        egui_renderer,
+    })
 }

@@ -25,8 +25,8 @@
 
 use std::path::Path;
 
-mod renderer;
 pub mod gpu;
+mod renderer;
 #[cfg(test)]
 mod tests;
 
@@ -76,7 +76,9 @@ impl EngineConf {
                 let text = conf.to_document();
                 match std::fs::write(&path, text) {
                     Ok(()) => log::info!("wrote default engine config {}", path.display()),
-                    Err(e) => log::warn!("could not write {} ({e}); using defaults", path.display()),
+                    Err(e) => {
+                        log::warn!("could not write {} ({e}); using defaults", path.display())
+                    }
                 }
                 conf
             }
@@ -100,12 +102,19 @@ impl EngineConf {
         // one, for the same reason the project file reader does.
         let block = kv.block("engineconf").unwrap_or(&kv);
 
-        let renderer = match block.get("renderer").map(str::trim).filter(|s| !s.is_empty()) {
+        let renderer = match block
+            .get("renderer")
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+        {
             None => Renderer::default(),
             Some(name) => match Renderer::from_str(name) {
                 Some(renderer) => renderer,
                 None => {
-                    log::warn!("unknown renderer {name:?}; using {}", Renderer::default().label());
+                    log::warn!(
+                        "unknown renderer {name:?}; using {}",
+                        Renderer::default().label()
+                    );
                     Renderer::default()
                 }
             },

@@ -62,7 +62,10 @@ fn input_sleep(world: &mut EntityWorld, id: EntityId, _e: &InputEvent) -> bool {
 
 /// A spawner that begins the map by spawning its first batch.
 fn spawn_spawner(world: &mut EntityWorld, id: EntityId) {
-    if world.get(id).is_some_and(|e| e.has_spawnflag(SF_SPAWN_ON_START)) {
+    if world
+        .get(id)
+        .is_some_and(|e| e.has_spawnflag(SF_SPAWN_ON_START))
+    {
         spawn_batch(world, id);
     }
 }
@@ -75,9 +78,15 @@ fn input_trigger(world: &mut EntityWorld, id: EntityId, _e: &InputEvent) -> bool
 
 /// Spawn one batch of physics props at the spawner's position.
 fn spawn_batch(world: &mut EntityWorld, id: EntityId) {
-    let Some(spawner) = world.get(id).cloned() else { return };
+    let Some(spawner) = world.get(id).cloned() else {
+        return;
+    };
 
-    let model = spawner.fields.text("model").unwrap_or("props/cube").to_string();
+    let model = spawner
+        .fields
+        .text("model")
+        .unwrap_or("props/cube")
+        .to_string();
     let batch = spawner.fields.i32("spawncount", 1).max(1) as usize;
     let max_total = spawner.fields.i32("maxprops", -1);
     let spread = spawner.fields.f32("spread", 0.0).max(0.0);
@@ -88,7 +97,9 @@ fn spawn_batch(world: &mut EntityWorld, id: EntityId) {
     let mut produced = spawner.fields.i32("_spawned", 0);
 
     for i in 0..batch {
-        if max_total >= 0 && produced >= max_total { break; }
+        if max_total >= 0 && produced >= max_total {
+            break;
+        }
 
         // A deterministic jitter so a batch of crates drops as a loose pile
         // instead of a perfectly interpenetrating stack.

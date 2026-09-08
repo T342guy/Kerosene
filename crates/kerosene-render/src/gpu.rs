@@ -8,16 +8,16 @@
 //! Materials each get their own bind group, and surfaces arrive sorted by
 //! material, so the loop rebinds only when the material actually changes.
 
+use crate::FrameStats;
 use crate::camera::Camera;
 use crate::lightmap::{ATLAS_SIZE, LightmapAtlas};
 use crate::mesh::{WorldMesh, WorldVertex};
-use crate::FrameStats;
 use bytemuck::{Pod, Zeroable};
-use std::collections::HashMap;
 use kerosene_asset::{Material, Model, Shader, Texture};
 use kerosene_bsp::surf;
 use kerosene_math::{Mat4, Pose, Vec3};
 use kerosene_vfs::Vfs;
+use std::collections::HashMap;
 use wgpu::util::DeviceExt;
 
 /// A vertex in a studio model, as uploaded to the GPU.
@@ -61,9 +61,15 @@ impl CameraUniform {
         }
     }
 
-    pub fn set_lightmaps(&mut self, on: bool) { self.params[2] = if on { 1.0 } else { 0.0 }; }
-    pub fn set_fullbright(&mut self, on: bool) { self.params[3] = if on { 1.0 } else { 0.0 }; }
-    pub fn set_sky_color(&mut self, c: Vec3) { self.sky_color = c.extend(1.0).to_array(); }
+    pub fn set_lightmaps(&mut self, on: bool) {
+        self.params[2] = if on { 1.0 } else { 0.0 };
+    }
+    pub fn set_fullbright(&mut self, on: bool) {
+        self.params[3] = if on { 1.0 } else { 0.0 };
+    }
+    pub fn set_sky_color(&mut self, c: Vec3) {
+        self.sky_color = c.extend(1.0).to_array();
+    }
 }
 
 /// Anisotropic filtering samples. 16 is the usual maximum and is supported
@@ -107,13 +113,17 @@ pub struct ModelUniform {
 
 impl Default for ModelUniform {
     fn default() -> Self {
-        ModelUniform { transform: Mat4::IDENTITY.to_cols_array_2d() }
+        ModelUniform {
+            transform: Mat4::IDENTITY.to_cols_array_2d(),
+        }
     }
 }
 
 impl From<Pose> for ModelUniform {
     fn from(pose: Pose) -> Self {
-        ModelUniform { transform: pose.to_mat4().to_cols_array_2d() }
+        ModelUniform {
+            transform: pose.to_mat4().to_cols_array_2d(),
+        }
     }
 }
 
@@ -147,7 +157,9 @@ pub struct Renderer {
 struct PipelineKey(u8);
 
 impl From<Pass> for PipelineKey {
-    fn from(p: Pass) -> Self { PipelineKey(p as u8) }
+    fn from(p: Pass) -> Self {
+        PipelineKey(p as u8)
+    }
 }
 
 impl Renderer {
@@ -228,7 +240,7 @@ impl Renderer {
                     ty: wgpu::BufferBindingType::Uniform,
                     has_dynamic_offset: true,
                     min_binding_size: wgpu::BufferSize::new(
-                        std::mem::size_of::<ModelUniform>() as u64,
+                        std::mem::size_of::<ModelUniform>() as u64
                     ),
                 },
                 count: None,
@@ -271,15 +283,35 @@ impl Renderer {
             array_stride: std::mem::size_of::<WorldVertex>() as wgpu::BufferAddress,
             step_mode: wgpu::VertexStepMode::Vertex,
             attributes: &[
-                wgpu::VertexAttribute { offset: 0, shader_location: 0, format: wgpu::VertexFormat::Float32x3 },
-                wgpu::VertexAttribute { offset: 12, shader_location: 1, format: wgpu::VertexFormat::Float32x3 },
-                wgpu::VertexAttribute { offset: 24, shader_location: 2, format: wgpu::VertexFormat::Float32x2 },
-                wgpu::VertexAttribute { offset: 32, shader_location: 3, format: wgpu::VertexFormat::Float32x2 },
+                wgpu::VertexAttribute {
+                    offset: 0,
+                    shader_location: 0,
+                    format: wgpu::VertexFormat::Float32x3,
+                },
+                wgpu::VertexAttribute {
+                    offset: 12,
+                    shader_location: 1,
+                    format: wgpu::VertexFormat::Float32x3,
+                },
+                wgpu::VertexAttribute {
+                    offset: 24,
+                    shader_location: 2,
+                    format: wgpu::VertexFormat::Float32x2,
+                },
+                wgpu::VertexAttribute {
+                    offset: 32,
+                    shader_location: 3,
+                    format: wgpu::VertexFormat::Float32x2,
+                },
             ],
         };
 
         let mut pipelines = HashMap::new();
-        for (pass, entry) in [(Pass::World, "fs_world"), (Pass::Sky, "fs_sky"), (Pass::Unlit, "fs_unlit")] {
+        for (pass, entry) in [
+            (Pass::World, "fs_world"),
+            (Pass::Sky, "fs_sky"),
+            (Pass::Unlit, "fs_unlit"),
+        ] {
             let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                 label: Some(entry),
                 layout: Some(&pipeline_layout),
@@ -333,9 +365,21 @@ impl Renderer {
             array_stride: std::mem::size_of::<ModelVertex>() as wgpu::BufferAddress,
             step_mode: wgpu::VertexStepMode::Vertex,
             attributes: &[
-                wgpu::VertexAttribute { offset: 0, shader_location: 0, format: wgpu::VertexFormat::Float32x3 },
-                wgpu::VertexAttribute { offset: 12, shader_location: 1, format: wgpu::VertexFormat::Float32x3 },
-                wgpu::VertexAttribute { offset: 24, shader_location: 2, format: wgpu::VertexFormat::Float32x2 },
+                wgpu::VertexAttribute {
+                    offset: 0,
+                    shader_location: 0,
+                    format: wgpu::VertexFormat::Float32x3,
+                },
+                wgpu::VertexAttribute {
+                    offset: 12,
+                    shader_location: 1,
+                    format: wgpu::VertexFormat::Float32x3,
+                },
+                wgpu::VertexAttribute {
+                    offset: 24,
+                    shader_location: 2,
+                    format: wgpu::VertexFormat::Float32x2,
+                },
             ],
         };
         let model_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -390,8 +434,16 @@ impl Renderer {
             array_stride: std::mem::size_of::<LineVertex>() as wgpu::BufferAddress,
             step_mode: wgpu::VertexStepMode::Vertex,
             attributes: &[
-                wgpu::VertexAttribute { offset: 0, shader_location: 0, format: wgpu::VertexFormat::Float32x3 },
-                wgpu::VertexAttribute { offset: 12, shader_location: 1, format: wgpu::VertexFormat::Float32x3 },
+                wgpu::VertexAttribute {
+                    offset: 0,
+                    shader_location: 0,
+                    format: wgpu::VertexFormat::Float32x3,
+                },
+                wgpu::VertexAttribute {
+                    offset: 12,
+                    shader_location: 1,
+                    format: wgpu::VertexFormat::Float32x3,
+                },
             ],
         };
         let line_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -487,17 +539,25 @@ impl Renderer {
         }
     }
 
-    pub fn format(&self) -> wgpu::TextureFormat { self.format }
+    pub fn format(&self) -> wgpu::TextureFormat {
+        self.format
+    }
 
     /// Create or resize the depth buffer.
     pub fn ensure_depth(&mut self, device: &wgpu::Device, width: u32, height: u32) {
         let (width, height) = (width.max(1), height.max(1));
         if let Some((_, _, w, h)) = &self.depth {
-            if *w == width && *h == height { return; }
+            if *w == width && *h == height {
+                return;
+            }
         }
         let texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("depth"),
-            size: wgpu::Extent3d { width, height, depth_or_array_layers: 1 },
+            size: wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
@@ -561,7 +621,9 @@ impl Renderer {
         slot: usize,
     ) -> FrameStats {
         let mut stats = FrameStats::default();
-        if gpu_model.meshes.is_empty() { return stats; }
+        if gpu_model.meshes.is_empty() {
+            return stats;
+        }
 
         pass.set_bind_group(0, frame_bind_group, &[]);
         pass.set_bind_group(2, &self.model_bind_group, &[self.model_offset(slot)]);
@@ -601,7 +663,9 @@ impl Renderer {
         vertex_buffer: &'a wgpu::Buffer,
         vertex_count: u32,
     ) {
-        if vertex_count == 0 { return; }
+        if vertex_count == 0 {
+            return;
+        }
         pass.set_pipeline(&self.pipelines[&PipelineKey::from(Pass::Lines)]);
         pass.set_bind_group(0, frame_bind_group, &[]);
         pass.set_vertex_buffer(0, vertex_buffer.slice(..));
@@ -617,9 +681,18 @@ impl Renderer {
             label: Some("frame"),
             layout: &self.frame_layout,
             entries: &[
-                wgpu::BindGroupEntry { binding: 0, resource: self.camera_buffer.as_entire_binding() },
-                wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::TextureView(lightmap_view) },
-                wgpu::BindGroupEntry { binding: 2, resource: wgpu::BindingResource::Sampler(&self.lightmap_sampler) },
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: self.camera_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::TextureView(lightmap_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: wgpu::BindingResource::Sampler(&self.lightmap_sampler),
+                },
             ],
         })
     }
@@ -655,7 +728,9 @@ impl Renderer {
         mesh: &WorldMesh,
         model: usize,
     ) -> FrameStats {
-        let Some(surfaces) = mesh.model_surfaces.get(model) else { return FrameStats::default() };
+        let Some(surfaces) = mesh.model_surfaces.get(model) else {
+            return FrameStats::default();
+        };
         self.draw_surfaces(pass, frame_bind_group, resources, mesh, surfaces, model)
     }
 
@@ -672,7 +747,9 @@ impl Renderer {
             surfaces_total: mesh.surfaces.len(),
             ..Default::default()
         };
-        if visible.is_empty() { return stats; }
+        if visible.is_empty() {
+            return stats;
+        }
 
         pass.set_bind_group(0, frame_bind_group, &[]);
         pass.set_bind_group(2, &self.model_bind_group, &[self.model_offset(model)]);
@@ -684,7 +761,9 @@ impl Renderer {
         // Accumulate adjacent surfaces into one draw.
         let mut run: Option<(u32, u32)> = None;
 
-        let flush = |pass: &mut wgpu::RenderPass<'a>, run: &mut Option<(u32, u32)>, stats: &mut FrameStats| {
+        let flush = |pass: &mut wgpu::RenderPass<'a>,
+                     run: &mut Option<(u32, u32)>,
+                     stats: &mut FrameStats| {
             if let Some((first, count)) = run.take() {
                 pass.draw_indexed(first..first + count, 0, 0..1);
                 stats.draw_calls += 1;
@@ -704,7 +783,9 @@ impl Renderer {
 
             if current_pass != Some(wanted_pass) {
                 flush(pass, &mut run, &mut stats);
-                let Some(pipeline) = self.pipelines.get(&PipelineKey::from(wanted_pass)) else { continue };
+                let Some(pipeline) = self.pipelines.get(&PipelineKey::from(wanted_pass)) else {
+                    continue;
+                };
                 pass.set_pipeline(pipeline);
                 current_pass = Some(wanted_pass);
                 // A pipeline change invalidates nothing about bindings, but
@@ -714,7 +795,9 @@ impl Renderer {
 
             if surface.material != current_material {
                 flush(pass, &mut run, &mut stats);
-                let Some(bind_group) = resources.material_bind_group(surface.material) else { continue };
+                let Some(bind_group) = resources.material_bind_group(surface.material) else {
+                    continue;
+                };
                 pass.set_bind_group(1, bind_group, &[]);
                 current_material = surface.material;
             }
@@ -814,8 +897,14 @@ impl MapResources {
                 label: Some(name),
                 layout: &renderer.material_layout,
                 entries: &[
-                    wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(&view) },
-                    wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::Sampler(&renderer.sampler) },
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: wgpu::BindingResource::TextureView(&view),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: wgpu::BindingResource::Sampler(&renderer.sampler),
+                    },
                 ],
             })));
         }
@@ -851,7 +940,14 @@ fn load_material_texture(
     let texture = Texture::from_bytes(&bytes).ok()?;
     let pixels = texture.mip_as_rgba8(0)?;
 
-    Some(upload_rgba(device, queue, name, texture.width(), texture.height(), &pixels))
+    Some(upload_rgba(
+        device,
+        queue,
+        name,
+        texture.width(),
+        texture.height(),
+        &pixels,
+    ))
 }
 
 fn upload_rgba(
@@ -862,7 +958,11 @@ fn upload_rgba(
     height: u32,
     pixels: &[u8],
 ) -> wgpu::Texture {
-    let size = wgpu::Extent3d { width, height, depth_or_array_layers: 1 };
+    let size = wgpu::Extent3d {
+        width,
+        height,
+        depth_or_array_layers: 1,
+    };
     let texture = device.create_texture(&wgpu::TextureDescriptor {
         label: Some(label),
         size,
@@ -942,7 +1042,11 @@ pub fn load_model(
     let vertices: Vec<ModelVertex> = model
         .vertices
         .iter()
-        .map(|v| ModelVertex { position: v.position, normal: v.normal, uv: v.uv })
+        .map(|v| ModelVertex {
+            position: v.position,
+            normal: v.normal,
+            uv: v.uv,
+        })
         .collect();
     let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("model vertices"),
@@ -980,8 +1084,14 @@ pub fn load_model(
                     label: Some(&material_name),
                     layout: &renderer.material_layout,
                     entries: &[
-                        wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(&view) },
-                        wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::Sampler(&renderer.sampler) },
+                        wgpu::BindGroupEntry {
+                            binding: 0,
+                            resource: wgpu::BindingResource::TextureView(&view),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 1,
+                            resource: wgpu::BindingResource::Sampler(&renderer.sampler),
+                        },
                     ],
                 });
                 let idx = material_bind_groups.len() as u32;
@@ -1006,7 +1116,9 @@ pub fn load_model(
 
 /// The view matrix a camera would use, exposed for tools that want it without
 /// building a whole renderer.
-pub fn view_projection(camera: &Camera) -> Mat4 { camera.view_projection() }
+pub fn view_projection(camera: &Camera) -> Mat4 {
+    camera.view_projection()
+}
 
 #[cfg(test)]
 mod tests {
@@ -1050,19 +1162,40 @@ mod tests {
     #[test]
     fn every_entry_point_the_pipelines_ask_for_exists() {
         let module = naga::front::wgsl::parse_str(WORLD_WGSL).expect("parses");
-        let names: Vec<&str> = module.entry_points.iter().map(|e| e.name.as_str()).collect();
+        let names: Vec<&str> = module
+            .entry_points
+            .iter()
+            .map(|e| e.name.as_str())
+            .collect();
         for wanted in ["vs_main", "fs_world", "fs_sky", "fs_unlit"] {
-            assert!(names.contains(&wanted), "missing entry point {wanted}; have {names:?}");
+            assert!(
+                names.contains(&wanted),
+                "missing entry point {wanted}; have {names:?}"
+            );
         }
         let module = naga::front::wgsl::parse_str(MODEL_WGSL).expect("parses");
-        let names: Vec<&str> = module.entry_points.iter().map(|e| e.name.as_str()).collect();
+        let names: Vec<&str> = module
+            .entry_points
+            .iter()
+            .map(|e| e.name.as_str())
+            .collect();
         for wanted in ["vs_model", "fs_model"] {
-            assert!(names.contains(&wanted), "missing entry point {wanted}; have {names:?}");
+            assert!(
+                names.contains(&wanted),
+                "missing entry point {wanted}; have {names:?}"
+            );
         }
         let module = naga::front::wgsl::parse_str(LINE_WGSL).expect("parses");
-        let names: Vec<&str> = module.entry_points.iter().map(|e| e.name.as_str()).collect();
+        let names: Vec<&str> = module
+            .entry_points
+            .iter()
+            .map(|e| e.name.as_str())
+            .collect();
         for wanted in ["vs_line", "fs_line"] {
-            assert!(names.contains(&wanted), "missing entry point {wanted}; have {names:?}");
+            assert!(
+                names.contains(&wanted),
+                "missing entry point {wanted}; have {names:?}"
+            );
         }
     }
 
@@ -1070,7 +1203,10 @@ mod tests {
     fn the_camera_uniform_matches_what_the_shader_declares() {
         // A mismatch here writes the wrong bytes into the wrong fields and
         // produces a picture that is subtly, inexplicably wrong.
-        assert_eq!(std::mem::size_of::<super::CameraUniform>(), 64 + 16 + 16 + 16);
+        assert_eq!(
+            std::mem::size_of::<super::CameraUniform>(),
+            64 + 16 + 16 + 16
+        );
     }
 
     #[test]

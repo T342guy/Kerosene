@@ -5,17 +5,30 @@ use log::Log;
 /// A record built by hand, since these tests must not depend on which logger
 /// the test binary happens to have installed globally.
 fn record(relay: &LogRelay, level: log::Level, target: &str, text: &str) {
-    relay.log(&log::Record::builder().level(level).target(target).args(format_args!("{text}")).build());
+    relay.log(
+        &log::Record::builder()
+            .level(level)
+            .target(target)
+            .args(format_args!("{text}"))
+            .build(),
+    );
 }
 
-fn relay() -> LogRelay { LogRelay::detached_uniform(log::LevelFilter::Debug) }
+fn relay() -> LogRelay {
+    LogRelay::detached_uniform(log::LevelFilter::Debug)
+}
 
 #[test]
 fn a_record_from_the_game_reaches_the_console() {
     // The gap this closes: a door reporting a missing target logged to a
     // terminal nobody was watching, while the console showed nothing.
     let relay = relay();
-    record(&relay, log::Level::Warn, "kerosene_game", "func_door has no target");
+    record(
+        &relay,
+        log::Level::Warn,
+        "kerosene_game",
+        "func_door has no target",
+    );
 
     let (lines, dropped) = relay.take();
     assert_eq!(dropped, 0);
@@ -37,7 +50,12 @@ fn the_consoles_own_output_is_not_queued_back_to_it() {
     // `Console::print` forwards to `log`, so without this every console line
     // would come back round and appear twice in the scrollback.
     let relay = relay();
-    record(&relay, log::Level::Info, "kerosene_console", "already in the scrollback");
+    record(
+        &relay,
+        log::Level::Info,
+        "kerosene_console",
+        "already in the scrollback",
+    );
     assert!(relay.take().0.is_empty());
 }
 
@@ -51,7 +69,12 @@ fn levels_map_onto_the_consoles_own() {
     let levels: Vec<LogLevel> = relay.take().0.into_iter().map(|l| l.level).collect();
     assert_eq!(
         levels,
-        [LogLevel::Error, LogLevel::Warning, LogLevel::Info, LogLevel::Developer]
+        [
+            LogLevel::Error,
+            LogLevel::Warning,
+            LogLevel::Info,
+            LogLevel::Developer
+        ]
     );
 }
 
@@ -72,7 +95,12 @@ fn a_flood_is_bounded_and_reported_rather_than_silently_truncated() {
     // like it logged nothing.
     let relay = relay();
     for i in 0..MAX_PENDING + 50 {
-        record(&relay, log::Level::Info, "kerosene_game", &format!("line {i}"));
+        record(
+            &relay,
+            log::Level::Info,
+            "kerosene_game",
+            &format!("line {i}"),
+        );
     }
     let (lines, dropped) = relay.take();
     assert_eq!(lines.len(), MAX_PENDING);
@@ -91,12 +119,20 @@ fn a_log_file_gets_every_line_including_the_consoles_own() {
     relay.open_file(&path).expect("the log file opens");
     assert!(relay.has_file());
     record(&relay, log::Level::Info, "kerosene_game", "from the game");
-    record(&relay, log::Level::Info, "kerosene_console", "from the console");
+    record(
+        &relay,
+        log::Level::Info,
+        "kerosene_console",
+        "from the console",
+    );
     relay.flush();
 
     let text = std::fs::read_to_string(&path).unwrap();
     assert!(text.contains("from the game"), "{text}");
-    assert!(text.contains("from the console"), "the file is the whole record: {text}");
+    assert!(
+        text.contains("from the console"),
+        "the file is the whole record: {text}"
+    );
 
     relay.close_file();
     assert!(!relay.has_file());
@@ -117,11 +153,20 @@ fn the_environment_can_choose_the_level_but_nonsense_does_not() {
     // Only a bare level is understood; anything else keeps the default rather
     // than turning logging off by accident.
     unsafe { std::env::set_var("RUST_LOG", "warn") };
-    assert_eq!(level_from_env(log::LevelFilter::Info), log::LevelFilter::Warn);
+    assert_eq!(
+        level_from_env(log::LevelFilter::Info),
+        log::LevelFilter::Warn
+    );
     unsafe { std::env::set_var("RUST_LOG", "kerosene_bsp=trace") };
-    assert_eq!(level_from_env(log::LevelFilter::Info), log::LevelFilter::Info);
+    assert_eq!(
+        level_from_env(log::LevelFilter::Info),
+        log::LevelFilter::Info
+    );
     unsafe { std::env::remove_var("RUST_LOG") };
-    assert_eq!(level_from_env(log::LevelFilter::Info), log::LevelFilter::Info);
+    assert_eq!(
+        level_from_env(log::LevelFilter::Info),
+        log::LevelFilter::Info
+    );
 }
 
 // ---- whose chatter belongs in the console ---------------------------------
@@ -130,14 +175,27 @@ fn the_environment_can_choose_the_level_but_nonsense_does_not() {
 fn our_own_crates_are_recognised_by_their_log_targets() {
     // `log` targets are crate paths with underscores, and a module path is
     // separated with colons -- both have to count.
-    for target in ["kerosene", "kerosene_engine", "kerosene_render::mesh", "chisel", "kiln", "cleave"] {
+    for target in [
+        "kerosene",
+        "kerosene_engine",
+        "kerosene_render::mesh",
+        "chisel",
+        "kiln",
+        "cleave",
+    ] {
         assert!(is_ours(target), "{target} should be ours");
     }
 }
 
 #[test]
 fn everything_else_is_not() {
-    for target in ["wgpu_hal::vulkan::instance", "naga", "winit", "calloop", "kerobird"] {
+    for target in [
+        "wgpu_hal::vulkan::instance",
+        "naga",
+        "winit",
+        "calloop",
+        "kerobird",
+    ] {
         assert!(!is_ours(target), "{target} should not be ours");
     }
 }
@@ -147,8 +205,18 @@ fn a_foreign_crates_information_does_not_reach_the_console() {
     // A console opened to read one line and found full of Vulkan loader
     // chatter is a console nobody opens twice.
     let relay = LogRelay::detached(log::LevelFilter::Info);
-    record(&relay, log::Level::Info, "wgpu_hal::vulkan", "Loader Message");
-    record(&relay, log::Level::Info, "kerosene_engine::host", "loading maps/x");
+    record(
+        &relay,
+        log::Level::Info,
+        "wgpu_hal::vulkan",
+        "Loader Message",
+    );
+    record(
+        &relay,
+        log::Level::Info,
+        "kerosene_engine::host",
+        "loading maps/x",
+    );
 
     let (lines, _) = relay.take();
     let texts: Vec<&str> = lines.iter().map(|l| l.text.as_str()).collect();

@@ -16,8 +16,8 @@
 //!   guessed from its name.
 
 use bytemuck::{Pod, Zeroable};
-use thiserror::Error;
 use kerosene_math::Vec3;
+use thiserror::Error;
 
 const MAGIC: [u8; 4] = *b"KRTX";
 const VERSION: u32 = 1;
@@ -39,7 +39,9 @@ pub enum TextureError {
     Truncated { needed: usize, available: usize },
     #[error("unknown pixel format {0}")]
     BadFormat(u32),
-    #[error("{width}x{height} is not a usable size (max {MAX_DIMENSION}, and neither side may be zero)")]
+    #[error(
+        "{width}x{height} is not a usable size (max {MAX_DIMENSION}, and neither side may be zero)"
+    )]
     BadSize { width: u32, height: u32 },
 }
 
@@ -94,12 +96,16 @@ impl TextureFlags {
     /// Interface art: never mipmapped, always clamped.
     pub const UI: TextureFlags = TextureFlags(1 << 4);
 
-    pub fn contains(self, other: TextureFlags) -> bool { self.0 & other.0 == other.0 }
+    pub fn contains(self, other: TextureFlags) -> bool {
+        self.0 & other.0 == other.0
+    }
 }
 
 impl std::ops::BitOr for TextureFlags {
     type Output = TextureFlags;
-    fn bitor(self, o: TextureFlags) -> TextureFlags { TextureFlags(self.0 | o.0) }
+    fn bitor(self, o: TextureFlags) -> TextureFlags {
+        TextureFlags(self.0 | o.0)
+    }
 }
 
 /// One mip level.
@@ -138,9 +144,15 @@ struct RawHeader {
 }
 
 impl Texture {
-    pub fn width(&self) -> u32 { self.mips.first().map_or(0, |m| m.width) }
-    pub fn height(&self) -> u32 { self.mips.first().map_or(0, |m| m.height) }
-    pub fn mip_count(&self) -> usize { self.mips.len() }
+    pub fn width(&self) -> u32 {
+        self.mips.first().map_or(0, |m| m.width)
+    }
+    pub fn height(&self) -> u32 {
+        self.mips.first().map_or(0, |m| m.height)
+    }
+    pub fn mip_count(&self) -> usize {
+        self.mips.len()
+    }
 
     /// Build a texture from top-level pixels, generating the mip chain.
     pub fn build(
@@ -155,18 +167,30 @@ impl Texture {
         }
         let expected = width as usize * height as usize * format.bytes_per_pixel();
         if pixels.len() != expected {
-            return Err(TextureError::Truncated { needed: expected, available: pixels.len() });
+            return Err(TextureError::Truncated {
+                needed: expected,
+                available: pixels.len(),
+            });
         }
 
         let reflectivity = average_color(&pixels, format);
-        let base = Mip { width, height, pixels };
+        let base = Mip {
+            width,
+            height,
+            pixels,
+        };
         let mips = if flags.contains(TextureFlags::UI) {
             vec![base]
         } else {
             generate_mips(base, format)
         };
 
-        Ok(Texture { format, flags, reflectivity, mips })
+        Ok(Texture {
+            format,
+            flags,
+            reflectivity,
+            mips,
+        })
     }
 
     pub fn to_bytes(&self) -> Vec<u8> {
@@ -181,7 +205,9 @@ impl Texture {
             reflectivity: self.reflectivity.to_array(),
             _reserved: [0; 2],
         };
-        let mut out = Vec::with_capacity(HEADER_SIZE + self.mips.iter().map(|m| m.pixels.len()).sum::<usize>());
+        let mut out = Vec::with_capacity(
+            HEADER_SIZE + self.mips.iter().map(|m| m.pixels.len()).sum::<usize>(),
+        );
         out.extend_from_slice(bytemuck::bytes_of(&header));
         debug_assert_eq!(out.len(), HEADER_SIZE);
         for mip in &self.mips {
@@ -192,19 +218,30 @@ impl Texture {
 
     pub fn from_bytes(bytes: &[u8]) -> Result<Texture, TextureError> {
         if bytes.len() < HEADER_SIZE {
-            return Err(TextureError::Truncated { needed: HEADER_SIZE, available: bytes.len() });
+            return Err(TextureError::Truncated {
+                needed: HEADER_SIZE,
+                available: bytes.len(),
+            });
         }
         let header: RawHeader = *bytemuck::from_bytes(&bytes[..HEADER_SIZE]);
-        if header.magic != MAGIC { return Err(TextureError::BadMagic); }
+        if header.magic != MAGIC {
+            return Err(TextureError::BadMagic);
+        }
         if header.version != VERSION {
-            return Err(TextureError::BadVersion { found: header.version, expected: VERSION });
+            return Err(TextureError::BadVersion {
+                found: header.version,
+                expected: VERSION,
+            });
         }
         if header.width == 0
             || header.height == 0
             || header.width > MAX_DIMENSION
             || header.height > MAX_DIMENSION
         {
-            return Err(TextureError::BadSize { width: header.width, height: header.height });
+            return Err(TextureError::BadSize {
+                width: header.width,
+                height: header.height,
+            });
         }
 
         let format = PixelFormat::from_u32(header.format)?;
@@ -221,7 +258,11 @@ impl Texture {
                     available: bytes.len(),
                 });
             }
-            mips.push(Mip { width: w, height: h, pixels: bytes[offset..offset + size].to_vec() });
+            mips.push(Mip {
+                width: w,
+                height: h,
+                pixels: bytes[offset..offset + size].to_vec(),
+            });
             offset += size;
             w = (w / 2).max(1);
             h = (h / 2).max(1);
@@ -283,7 +324,11 @@ fn generate_mips(base: Mip, format: PixelFormat) -> Vec<Mip> {
                 }
             }
         }
-        mips.push(Mip { width: w, height: h, pixels });
+        mips.push(Mip {
+            width: w,
+            height: h,
+            pixels,
+        });
     }
     mips
 }
@@ -291,14 +336,18 @@ fn generate_mips(base: Mip, format: PixelFormat) -> Vec<Mip> {
 /// Average colour of an image, as a 0..1 linear-ish value.
 fn average_color(pixels: &[u8], format: PixelFormat) -> Vec3 {
     let bpp = format.bytes_per_pixel();
-    if pixels.is_empty() || bpp == 0 { return Vec3::splat(0.5); }
+    if pixels.is_empty() || bpp == 0 {
+        return Vec3::splat(0.5);
+    }
     let count = (pixels.len() / bpp) as f64;
     let mut sum = [0f64; 3];
     for p in pixels.chunks_exact(bpp) {
         match format {
             PixelFormat::R8 => {
                 let v = p[0] as f64;
-                sum[0] += v; sum[1] += v; sum[2] += v;
+                sum[0] += v;
+                sum[1] += v;
+                sum[2] += v;
             }
             _ => {
                 sum[0] += p[0] as f64;
@@ -337,7 +386,14 @@ mod tests {
 
     #[test]
     fn a_texture_round_trips() {
-        let tex = Texture::build(64, 64, PixelFormat::Rgba8, TextureFlags::NONE, checkerboard(64)).unwrap();
+        let tex = Texture::build(
+            64,
+            64,
+            PixelFormat::Rgba8,
+            TextureFlags::NONE,
+            checkerboard(64),
+        )
+        .unwrap();
         let bytes = tex.to_bytes();
         let back = Texture::from_bytes(&bytes).unwrap();
         assert_eq!(back.width(), 64);
@@ -350,7 +406,14 @@ mod tests {
 
     #[test]
     fn the_mip_chain_runs_all_the_way_down() {
-        let tex = Texture::build(64, 64, PixelFormat::Rgba8, TextureFlags::NONE, checkerboard(64)).unwrap();
+        let tex = Texture::build(
+            64,
+            64,
+            PixelFormat::Rgba8,
+            TextureFlags::NONE,
+            checkerboard(64),
+        )
+        .unwrap();
         // 64, 32, 16, 8, 4, 2, 1
         assert_eq!(tex.mip_count(), 7);
         assert_eq!(tex.mips.last().unwrap().width, 1);
@@ -375,38 +438,97 @@ mod tests {
         let pixels = vec![200u8; 32 * 32 * 4];
         let tex = Texture::build(32, 32, PixelFormat::Rgba8, TextureFlags::NONE, pixels).unwrap();
         for mip in &tex.mips {
-            assert!(mip.pixels.iter().all(|&v| v == 200), "mip {}x{} drifted", mip.width, mip.height);
+            assert!(
+                mip.pixels.iter().all(|&v| v == 200),
+                "mip {}x{} drifted",
+                mip.width,
+                mip.height
+            );
         }
     }
 
     #[test]
     fn a_checkerboard_averages_to_grey_at_the_bottom() {
-        let tex = Texture::build(64, 64, PixelFormat::Rgba8, TextureFlags::NONE, checkerboard(64)).unwrap();
+        let tex = Texture::build(
+            64,
+            64,
+            PixelFormat::Rgba8,
+            TextureFlags::NONE,
+            checkerboard(64),
+        )
+        .unwrap();
         let last = tex.mips.last().unwrap();
-        assert!((last.pixels[0] as i32 - 127).abs() < 8, "got {}", last.pixels[0]);
+        assert!(
+            (last.pixels[0] as i32 - 127).abs() < 8,
+            "got {}",
+            last.pixels[0]
+        );
     }
 
     #[test]
     fn reflectivity_reflects_the_image() {
-        let white = Texture::build(8, 8, PixelFormat::Rgba8, TextureFlags::NONE, vec![255u8; 8 * 8 * 4]).unwrap();
+        let white = Texture::build(
+            8,
+            8,
+            PixelFormat::Rgba8,
+            TextureFlags::NONE,
+            vec![255u8; 8 * 8 * 4],
+        )
+        .unwrap();
         assert!((white.reflectivity.x - 1.0).abs() < 1e-4);
 
-        let black = Texture::build(8, 8, PixelFormat::Rgba8, TextureFlags::NONE, vec![0u8; 8 * 8 * 4]).unwrap();
+        let black = Texture::build(
+            8,
+            8,
+            PixelFormat::Rgba8,
+            TextureFlags::NONE,
+            vec![0u8; 8 * 8 * 4],
+        )
+        .unwrap();
         assert_eq!(black.reflectivity, Vec3::ZERO);
 
-        let checker = Texture::build(64, 64, PixelFormat::Rgba8, TextureFlags::NONE, checkerboard(64)).unwrap();
-        assert!((checker.reflectivity.x - 0.5).abs() < 0.05, "{}", checker.reflectivity.x);
+        let checker = Texture::build(
+            64,
+            64,
+            PixelFormat::Rgba8,
+            TextureFlags::NONE,
+            checkerboard(64),
+        )
+        .unwrap();
+        assert!(
+            (checker.reflectivity.x - 0.5).abs() < 0.05,
+            "{}",
+            checker.reflectivity.x
+        );
     }
 
     #[test]
     fn ui_textures_skip_mipmapping() {
-        let tex = Texture::build(64, 64, PixelFormat::Rgba8, TextureFlags::UI, checkerboard(64)).unwrap();
-        assert_eq!(tex.mip_count(), 1, "interface art has no business being mipmapped");
+        let tex = Texture::build(
+            64,
+            64,
+            PixelFormat::Rgba8,
+            TextureFlags::UI,
+            checkerboard(64),
+        )
+        .unwrap();
+        assert_eq!(
+            tex.mip_count(),
+            1,
+            "interface art has no business being mipmapped"
+        );
     }
 
     #[test]
     fn narrow_formats_widen_to_rgba() {
-        let tex = Texture::build(2, 2, PixelFormat::Rgb8, TextureFlags::NONE, vec![10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120]).unwrap();
+        let tex = Texture::build(
+            2,
+            2,
+            PixelFormat::Rgb8,
+            TextureFlags::NONE,
+            vec![10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120],
+        )
+        .unwrap();
         let rgba = tex.mip_as_rgba8(0).unwrap();
         assert_eq!(rgba.len(), 16);
         assert_eq!(&rgba[0..4], &[10, 20, 30, 255]);
@@ -426,15 +548,37 @@ mod tests {
     #[test]
     fn impossible_sizes_are_rejected() {
         assert!(Texture::build(0, 8, PixelFormat::Rgba8, TextureFlags::NONE, vec![]).is_err());
-        assert!(Texture::build(MAX_DIMENSION + 1, 8, PixelFormat::Rgba8, TextureFlags::NONE, vec![]).is_err());
+        assert!(
+            Texture::build(
+                MAX_DIMENSION + 1,
+                8,
+                PixelFormat::Rgba8,
+                TextureFlags::NONE,
+                vec![]
+            )
+            .is_err()
+        );
     }
 
     #[test]
     fn garbage_and_truncated_files_are_rejected() {
-        assert!(matches!(Texture::from_bytes(&[0u8; 64]), Err(TextureError::BadMagic)));
-        assert!(matches!(Texture::from_bytes(b"VT"), Err(TextureError::Truncated { .. })));
+        assert!(matches!(
+            Texture::from_bytes(&[0u8; 64]),
+            Err(TextureError::BadMagic)
+        ));
+        assert!(matches!(
+            Texture::from_bytes(b"VT"),
+            Err(TextureError::Truncated { .. })
+        ));
 
-        let tex = Texture::build(32, 32, PixelFormat::Rgba8, TextureFlags::NONE, vec![1; 32 * 32 * 4]).unwrap();
+        let tex = Texture::build(
+            32,
+            32,
+            PixelFormat::Rgba8,
+            TextureFlags::NONE,
+            vec![1; 32 * 32 * 4],
+        )
+        .unwrap();
         let bytes = tex.to_bytes();
         assert!(matches!(
             Texture::from_bytes(&bytes[..bytes.len() / 2]),

@@ -11,8 +11,8 @@
 //! registers must be offered by the schema, and everything the schema offers
 //! must exist in the game.
 
-use std::collections::BTreeSet;
 use kerosene_entity::{ClassKind, Schema};
+use std::collections::BTreeSet;
 
 fn schema() -> Schema {
     Schema::parse(kerosene_game::schema::BUILTIN).expect("the embedded schema must parse")
@@ -59,7 +59,9 @@ fn every_input_the_game_handles_is_offered() {
 
     let mut missing = Vec::new();
     for name in registry.class_names() {
-        let Some(spec) = schema.get(name) else { continue };
+        let Some(spec) = schema.get(name) else {
+            continue;
+        };
         let def = registry.get(name).expect("just listed");
         for (input, _) in &def.inputs {
             if !spec.has_input(input) {
@@ -74,7 +76,10 @@ fn every_input_the_game_handles_is_offered() {
             }
         }
     }
-    assert!(missing.is_empty(), "inputs the game handles but the schema does not offer: {missing:#?}");
+    assert!(
+        missing.is_empty(),
+        "inputs the game handles but the schema does not offer: {missing:#?}"
+    );
 }
 
 #[test]
@@ -103,7 +108,9 @@ fn outputs_agree_in_both_directions() {
 
     let mut missing = Vec::new();
     for name in registry.class_names() {
-        let Some(spec) = schema.get(name) else { continue };
+        let Some(spec) = schema.get(name) else {
+            continue;
+        };
         let def = registry.get(name).expect("just listed");
         for output in def.outputs.iter().copied().chain(common.iter().copied()) {
             if !spec.has_output(output) {
@@ -111,20 +118,31 @@ fn outputs_agree_in_both_directions() {
             }
         }
     }
-    assert!(missing.is_empty(), "outputs the game fires but the schema does not offer: {missing:#?}");
+    assert!(
+        missing.is_empty(),
+        "outputs the game fires but the schema does not offer: {missing:#?}"
+    );
 
     let mut unknown = Vec::new();
     for spec in schema.classes() {
-        let Some(def) = registry.get(&spec.name) else { continue };
+        let Some(def) = registry.get(&spec.name) else {
+            continue;
+        };
         for output in &spec.outputs {
-            let known = def.outputs.iter().any(|o| o.eq_ignore_ascii_case(&output.name))
+            let known = def
+                .outputs
+                .iter()
+                .any(|o| o.eq_ignore_ascii_case(&output.name))
                 || common.iter().any(|o| o.eq_ignore_ascii_case(&output.name));
             if !known {
                 unknown.push(format!("{}.{}", spec.name, output.name));
             }
         }
     }
-    assert!(unknown.is_empty(), "the schema offers outputs the game never fires: {unknown:#?}");
+    assert!(
+        unknown.is_empty(),
+        "the schema offers outputs the game never fires: {unknown:#?}"
+    );
 }
 
 #[test]
@@ -132,12 +150,32 @@ fn brush_classes_are_marked_as_such() {
     let schema = schema();
     // A class tied to brushes that the schema calls a point entity would be
     // offered in the wrong menu and refuse the brushes it needs.
-    for name in ["func_door", "func_brush", "func_detail", "trigger_multiple", "trigger_once"] {
-        let spec = schema.get(name).unwrap_or_else(|| panic!("{name} is in the schema"));
-        assert!(spec.kind.takes_brushes(), "{name} must be a brush class, not {:?}", spec.kind);
+    for name in [
+        "func_door",
+        "func_brush",
+        "func_detail",
+        "trigger_multiple",
+        "trigger_once",
+    ] {
+        let spec = schema
+            .get(name)
+            .unwrap_or_else(|| panic!("{name} is in the schema"));
+        assert!(
+            spec.kind.takes_brushes(),
+            "{name} must be a brush class, not {:?}",
+            spec.kind
+        );
     }
-    for name in ["info_player_start", "light", "light_spot", "logic_relay", "math_counter"] {
-        let spec = schema.get(name).unwrap_or_else(|| panic!("{name} is in the schema"));
+    for name in [
+        "info_player_start",
+        "light",
+        "light_spot",
+        "logic_relay",
+        "math_counter",
+    ] {
+        let spec = schema
+            .get(name)
+            .unwrap_or_else(|| panic!("{name} is in the schema"));
         assert_eq!(spec.kind, ClassKind::Point, "{name} must be a point class");
     }
 }
@@ -151,7 +189,10 @@ fn every_class_has_help_text() {
         .filter(|c| c.help.trim().is_empty())
         .map(|c| c.name.as_str())
         .collect();
-    assert!(silent.is_empty(), "a class with no help is a class nobody can use: {silent:?}");
+    assert!(
+        silent.is_empty(),
+        "a class with no help is a class nobody can use: {silent:?}"
+    );
 }
 
 #[test]
@@ -160,7 +201,10 @@ fn the_keys_the_game_reads_are_all_offered() {
     // designer would otherwise have to learn from the source.
     let schema = schema();
     for (class, keys) in [
-        ("func_door", &["speed", "lip", "movedir", "locked", "spawnflags"][..]),
+        (
+            "func_door",
+            &["speed", "lip", "movedir", "locked", "spawnflags"][..],
+        ),
         ("func_brush", &["startdisabled"][..]),
         ("trigger_multiple", &["startdisabled"][..]),
         ("trigger_hurt", &["damage"][..]),
@@ -168,17 +212,39 @@ fn the_keys_the_game_reads_are_all_offered() {
         ("logic_timer", &["refiretime", "startdisabled"][..]),
         ("math_counter", &["startvalue", "min", "max"][..]),
         ("point_message", &["message"][..]),
-        ("light", &["_light", "_constant_attn", "_linear_attn", "_quadratic_attn"][..]),
-        ("light_spot", &["_light", "_cone", "_inner_cone", "_exponent", "pitch"][..]),
+        (
+            "light",
+            &[
+                "_light",
+                "_constant_attn",
+                "_linear_attn",
+                "_quadratic_attn",
+            ][..],
+        ),
+        (
+            "light_spot",
+            &["_light", "_cone", "_inner_cone", "_exponent", "pitch"][..],
+        ),
         ("light_environment", &["_light", "_ambient", "pitch"][..]),
         ("worldspawn", &["skyname"][..]),
         ("prop_static", &["model"][..]),
-        ("prop_physics", &["model", "mass", "friction", "elasticity", "pickable"][..]),
-        ("prop_dynamic_spawner", &["model", "mass", "friction", "elasticity", "pickable"][..]),
+        (
+            "prop_physics",
+            &["model", "mass", "friction", "elasticity", "pickable"][..],
+        ),
+        (
+            "prop_dynamic_spawner",
+            &["model", "mass", "friction", "elasticity", "pickable"][..],
+        ),
     ] {
-        let spec = schema.get(class).unwrap_or_else(|| panic!("{class} is in the schema"));
+        let spec = schema
+            .get(class)
+            .unwrap_or_else(|| panic!("{class} is in the schema"));
         for key in keys {
-            assert!(spec.key(key).is_some(), "{class} reads `{key}` but the schema does not offer it");
+            assert!(
+                spec.key(key).is_some(),
+                "{class} reads `{key}` but the schema does not offer it"
+            );
         }
     }
 }

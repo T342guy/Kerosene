@@ -14,20 +14,29 @@ fn steady(frames: usize, channels: u16) -> Arc<Sound> {
     })
 }
 
-fn mixer() -> Mixer { Mixer::new(RATE) }
+fn mixer() -> Mixer {
+    Mixer::new(RATE)
+}
 
 /// Mix one block and report the peak in each ear.
 fn peaks(mixer: &mut Mixer, frames: usize) -> (f32, f32) {
     let mut out = vec![0.0; frames * 2];
     mixer.mix(&mut out);
     let left = out.iter().step_by(2).fold(0.0f32, |a, s| a.max(s.abs()));
-    let right = out.iter().skip(1).step_by(2).fold(0.0f32, |a, s| a.max(s.abs()));
+    let right = out
+        .iter()
+        .skip(1)
+        .step_by(2)
+        .fold(0.0f32, |a, s| a.max(s.abs()));
     (left, right)
 }
 
 /// A listener at the origin facing +X, which is yaw 0.
 fn facing_x() -> Listener {
-    Listener { position: Vec3::ZERO, basis: Angles::new(0.0, 0.0, 0.0).vectors() }
+    Listener {
+        position: Vec3::ZERO,
+        basis: Angles::new(0.0, 0.0, 0.0).vectors(),
+    }
 }
 
 // ---- playing and stopping -------------------------------------------------
@@ -84,7 +93,9 @@ fn stopping_a_sound_stops_it() {
 #[test]
 fn stop_all_clears_everything() {
     let mut mixer = mixer();
-    for _ in 0..5 { mixer.play(steady(10_000, 1), SoundParams::default()); }
+    for _ in 0..5 {
+        mixer.play(steady(10_000, 1), SoundParams::default());
+    }
     mixer.stop_all();
     assert_eq!(mixer.voice_count(), 0);
 }
@@ -94,7 +105,10 @@ fn a_handle_comes_back_even_for_a_sound_nobody_will_hear() {
     // So a caller can stop what it started without checking first.
     let mut mixer = mixer();
     mixer.listener = facing_x();
-    let far = SoundParams { position: Some(Vec3::new(1e6, 0.0, 0.0)), ..Default::default() };
+    let far = SoundParams {
+        position: Some(Vec3::new(1e6, 0.0, 0.0)),
+        ..Default::default()
+    };
     let handle = mixer.play(steady(100, 1), far);
     assert!(mixer.is_playing(handle));
 }
@@ -123,10 +137,15 @@ fn the_output_is_clipped_rather_than_wrapped() {
     // Eight sounds at full volume sum to 8. Wrapping would turn a loud moment
     // into a completely different waveform -- a buzz, not a bang.
     let mut mixer = mixer();
-    for _ in 0..8 { mixer.play(steady(1000, 1), SoundParams::default()); }
+    for _ in 0..8 {
+        mixer.play(steady(1000, 1), SoundParams::default());
+    }
     let mut out = vec![0.0; 256 * 2];
     mixer.mix(&mut out);
-    assert!(out.iter().all(|s| (-1.0..=1.0).contains(s)), "something escaped the clip");
+    assert!(
+        out.iter().all(|s| (-1.0..=1.0).contains(s)),
+        "something escaped the clip"
+    );
     assert!(out.iter().any(|s| *s > 0.99), "and it should be loud");
 }
 
@@ -137,7 +156,10 @@ fn a_sound_at_the_listener_is_at_full_volume() {
     let listener = facing_x();
     let params = SoundParams::at(listener.position);
     let [l, r] = gains_for(&params, &listener);
-    assert!((l * l + r * r - 1.0).abs() < 0.01, "constant power: {l} {r}");
+    assert!(
+        (l * l + r * r - 1.0).abs() < 0.01,
+        "constant power: {l} {r}"
+    );
 }
 
 #[test]
@@ -148,7 +170,10 @@ fn getting_further_away_gets_quieter() {
         let params = SoundParams::at(Vec3::new(distance, 0.0, 0.0));
         let [l, r] = gains_for(&params, &listener);
         let total = l + r;
-        assert!(total <= last + 1e-4, "louder at {distance} than at the step before");
+        assert!(
+            total <= last + 1e-4,
+            "louder at {distance} than at the step before"
+        );
         last = total;
     }
 }
@@ -188,8 +213,14 @@ fn a_sound_fades_out_rather_than_switching_off_at_its_limit() {
         ..Default::default()
     };
     let near_limit = gains_for(&params(990.0), &listener);
-    assert!(near_limit[0] + near_limit[1] < 0.02, "not faded: {near_limit:?}");
-    assert!(near_limit[0] + near_limit[1] > 0.0, "already gone: {near_limit:?}");
+    assert!(
+        near_limit[0] + near_limit[1] < 0.02,
+        "not faded: {near_limit:?}"
+    );
+    assert!(
+        near_limit[0] + near_limit[1] > 0.0,
+        "already gone: {near_limit:?}"
+    );
 }
 
 #[test]
@@ -269,7 +300,10 @@ fn panning_keeps_the_loudness_constant_across_the_front() {
     }
     let min = powers.iter().cloned().fold(f32::MAX, f32::min);
     let max = powers.iter().cloned().fold(0.0f32, f32::max);
-    assert!(max - min < 0.05, "power varies across the front: {powers:?}");
+    assert!(
+        max - min < 0.05,
+        "power varies across the front: {powers:?}"
+    );
 }
 
 // ---- pitch and resampling -------------------------------------------------
@@ -298,7 +332,11 @@ fn a_higher_pitch_finishes_sooner() {
 fn a_sound_recorded_at_another_rate_is_resampled_rather_than_played_wrong() {
     // A 22 kHz file on a 48 kHz device must take twice as long, not half.
     let mut mixer = Mixer::new(48_000);
-    let sound = Arc::new(Sound { channels: 1, sample_rate: 24_000, samples: vec![1.0; 2400] });
+    let sound = Arc::new(Sound {
+        channels: 1,
+        sample_rate: 24_000,
+        samples: vec![1.0; 2400],
+    });
     mixer.play(sound, SoundParams::default());
 
     // 2400 frames at 24 kHz is 100 ms, which is 4800 frames at 48 kHz.
@@ -338,11 +376,20 @@ fn the_voice_that_gives_way_is_the_quietest_one() {
     mixer.listener = facing_x();
     // Fill up with distant sounds, then add a near one.
     for _ in 0..MAX_VOICES {
-        let far = SoundParams { position: Some(Vec3::new(3000.0, 0.0, 0.0)), ..Default::default() };
+        let far = SoundParams {
+            position: Some(Vec3::new(3000.0, 0.0, 0.0)),
+            ..Default::default()
+        };
         mixer.play(steady(100_000, 1), far.looping());
     }
-    let near = mixer.play(steady(100_000, 1), SoundParams::at(Vec3::new(10.0, 0.0, 0.0)).looping());
-    assert!(mixer.is_playing(near), "the loudest sound was the one dropped");
+    let near = mixer.play(
+        steady(100_000, 1),
+        SoundParams::at(Vec3::new(10.0, 0.0, 0.0)).looping(),
+    );
+    assert!(
+        mixer.is_playing(near),
+        "the loudest sound was the one dropped"
+    );
     assert_eq!(mixer.voice_count(), MAX_VOICES);
 }
 
@@ -350,7 +397,10 @@ fn the_voice_that_gives_way_is_the_quietest_one() {
 fn a_moving_sound_can_be_moved() {
     let mut mixer = mixer();
     mixer.listener = facing_x();
-    let handle = mixer.play(steady(100_000, 1), SoundParams::at(Vec3::new(0.0, 0.0, 0.0)).looping());
+    let handle = mixer.play(
+        steady(100_000, 1),
+        SoundParams::at(Vec3::new(0.0, 0.0, 0.0)).looping(),
+    );
     mixer.set_position(handle, Vec3::new(0.0, 0.0, 5000.0));
     let (l, r) = peaks(&mut mixer, 2048);
     assert!(l + r < 0.3, "it did not move away: {l} {r}");
@@ -359,7 +409,11 @@ fn a_moving_sound_can_be_moved() {
 #[test]
 fn an_empty_sound_does_not_divide_by_anything() {
     let mut mixer = mixer();
-    let empty = Arc::new(Sound { channels: 1, sample_rate: RATE, samples: Vec::new() });
+    let empty = Arc::new(Sound {
+        channels: 1,
+        sample_rate: RATE,
+        samples: Vec::new(),
+    });
     mixer.play(empty, SoundParams::default());
     let mut out = vec![0.0; 64 * 2];
     mixer.mix(&mut out);

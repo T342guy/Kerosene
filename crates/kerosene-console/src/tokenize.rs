@@ -16,12 +16,17 @@ pub fn split_commands(text: &str) -> Vec<String> {
 
     while let Some(c) = chars.next() {
         match c {
-            '"' => { in_quotes = !in_quotes; current.push(c); }
+            '"' => {
+                in_quotes = !in_quotes;
+                current.push(c);
+            }
             '/' if !in_quotes && chars.peek() == Some(&'/') => {
                 // Comment: discard to end of line, but the line still ends the
                 // command in progress.
                 for c in chars.by_ref() {
-                    if c == '\n' { break; }
+                    if c == '\n' {
+                        break;
+                    }
                 }
                 push_trimmed(&mut out, &mut current);
             }
@@ -35,7 +40,9 @@ pub fn split_commands(text: &str) -> Vec<String> {
 
 fn push_trimmed(out: &mut Vec<String>, current: &mut String) {
     let trimmed = current.trim();
-    if !trimmed.is_empty() { out.push(trimmed.to_string()); }
+    if !trimmed.is_empty() {
+        out.push(trimmed.to_string());
+    }
     current.clear();
 }
 
@@ -58,12 +65,20 @@ pub fn tokenize(line: &str) -> Vec<String> {
                 has_token = true;
             }
             c if c.is_whitespace() && !in_quotes => {
-                if has_token { out.push(std::mem::take(&mut current)); has_token = false; }
+                if has_token {
+                    out.push(std::mem::take(&mut current));
+                    has_token = false;
+                }
             }
-            c => { current.push(c); has_token = true; }
+            c => {
+                current.push(c);
+                has_token = true;
+            }
         }
     }
-    if has_token { out.push(current); }
+    if has_token {
+        out.push(current);
+    }
     out
 }
 
@@ -83,7 +98,10 @@ mod tests {
 
     #[test]
     fn separators_inside_quotes_are_literal() {
-        assert_eq!(split_commands(r#"say "one; two""#), vec![r#"say "one; two""#]);
+        assert_eq!(
+            split_commands(r#"say "one; two""#),
+            vec![r#"say "one; two""#]
+        );
     }
 
     #[test]
@@ -102,7 +120,10 @@ mod tests {
 
     #[test]
     fn tokenize_groups_quoted_words() {
-        assert_eq!(tokenize(r#"hostname "The Refinery""#), vec!["hostname", "The Refinery"]);
+        assert_eq!(
+            tokenize(r#"hostname "The Refinery""#),
+            vec!["hostname", "The Refinery"]
+        );
     }
 
     #[test]

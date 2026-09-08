@@ -44,9 +44,15 @@ pub fn chop_brushes(brushes: &mut [BrushWork], planes: &PlaneSet) -> usize {
 
             let mut fragments = vec![winding];
             for (j, other) in snapshot.iter().enumerate() {
-                if i == j || fragments.is_empty() { continue; }
-                if !should_cut(&snapshot[i], other) { continue; }
-                if !snapshot[i].bounds.intersects(&other.bounds) { continue; }
+                if i == j || fragments.is_empty() {
+                    continue;
+                }
+                if !should_cut(&snapshot[i], other) {
+                    continue;
+                }
+                if !snapshot[i].bounds.intersects(&other.bounds) {
+                    continue;
+                }
 
                 // A tie on a shared surface goes to the lower-indexed brush,
                 // deterministically, so a recompile does not flip which of two
@@ -72,7 +78,9 @@ pub fn chop_brushes(brushes: &mut [BrushWork], planes: &PlaneSet) -> usize {
 fn should_cut(victim: &BrushWork, cutter: &BrushWork) -> bool {
     // Only within one entity. A door's brushes must not erase the world's
     // faces -- the door moves away and would leave a hole.
-    if victim.entity != cutter.entity { return false; }
+    if victim.entity != cutter.entity {
+        return false;
+    }
     // Only something at least as opaque as what it is burying. A trigger
     // volume around a doorway must not delete the doorway.
     priority(cutter.contents) >= priority(victim.contents) && priority(cutter.contents) > 0
@@ -81,11 +89,17 @@ fn should_cut(victim: &BrushWork, cutter: &BrushWork) -> bool {
 /// How thoroughly a contents type buries what is inside it.
 fn priority(contents: u32) -> u8 {
     use kerosene_bsp::contents as c;
-    if contents & c::SOLID != 0 { 4 }
-    else if contents & c::WINDOW != 0 { 3 }
-    else if contents & c::GRATE != 0 { 2 }
-    else if contents & (c::WATER | c::SLIME) != 0 { 1 }
-    else { 0 } // triggers, clips, hint: never bury anything
+    if contents & c::SOLID != 0 {
+        4
+    } else if contents & c::WINDOW != 0 {
+        3
+    } else if contents & c::GRATE != 0 {
+        2
+    } else if contents & (c::WATER | c::SLIME) != 0 {
+        1
+    } else {
+        0
+    } // triggers, clips, hint: never bury anything
 }
 
 /// The parts of `w` that lie outside `other`.
@@ -107,16 +121,26 @@ fn subtract_brush(
     let mut coplanar_opposite = false;
 
     for side in &other.sides {
-        if side.winding.is_none() { continue; }
+        if side.winding.is_none() {
+            continue;
+        }
 
         // Never clip a winding by its own plane: it lies on it, so the split
         // would classify the whole thing as behind and delete it.
-        if side.plane == w_plane { coplanar_same = true; continue; }
-        if side.plane == (w_plane ^ 1) { coplanar_opposite = true; continue; }
+        if side.plane == w_plane {
+            coplanar_same = true;
+            continue;
+        }
+        if side.plane == (w_plane ^ 1) {
+            coplanar_opposite = true;
+            continue;
+        }
 
         let (front, back) = rest.split(&planes.get(side.plane), ON_EPSILON);
         if let Some(f) = front {
-            if !f.is_tiny() { outside.push(f); }
+            if !f.is_tiny() {
+                outside.push(f);
+            }
         }
         match back {
             Some(b) => rest = b,
@@ -167,7 +191,11 @@ mod tests {
 
     #[test]
     fn a_lone_brush_keeps_every_face() {
-        let (mut b, planes) = make(&[(Aabb::new(Vec3::ZERO, Vec3::splat(64.0)), "dev/grid", "worldspawn")]);
+        let (mut b, planes) = make(&[(
+            Aabb::new(Vec3::ZERO, Vec3::splat(64.0)),
+            "dev/grid",
+            "worldspawn",
+        )]);
         let removed = chop_brushes(&mut b, &planes);
         assert_eq!(removed, 0);
         assert!((total_area(&b) - 6.0 * 4096.0).abs() < 1e-1);
@@ -176,15 +204,33 @@ mod tests {
     #[test]
     fn a_brush_fully_inside_another_loses_every_face() {
         let (mut b, planes) = make(&[
-            (Aabb::new(Vec3::ZERO, Vec3::splat(128.0)), "dev/grid", "worldspawn"),
-            (Aabb::new(Vec3::splat(32.0), Vec3::splat(64.0)), "dev/grid", "worldspawn"),
+            (
+                Aabb::new(Vec3::ZERO, Vec3::splat(128.0)),
+                "dev/grid",
+                "worldspawn",
+            ),
+            (
+                Aabb::new(Vec3::splat(32.0), Vec3::splat(64.0)),
+                "dev/grid",
+                "worldspawn",
+            ),
         ]);
         chop_brushes(&mut b, &planes);
-        let inner_area: f32 = b[1].sides.iter().flat_map(|s| s.fragments.iter()).map(|w| w.area()).sum();
+        let inner_area: f32 = b[1]
+            .sides
+            .iter()
+            .flat_map(|s| s.fragments.iter())
+            .map(|w| w.area())
+            .sum();
         assert_eq!(inner_area, 0.0, "a buried brush has no visible surface");
         // The container is untouched: the inner brush is lower priority to cut
         // it only where it overlaps, and it does not reach the outer surface.
-        let outer_area: f32 = b[0].sides.iter().flat_map(|s| s.fragments.iter()).map(|w| w.area()).sum();
+        let outer_area: f32 = b[0]
+            .sides
+            .iter()
+            .flat_map(|s| s.fragments.iter())
+            .map(|w| w.area())
+            .sum();
         assert!((outer_area - 6.0 * 128.0 * 128.0).abs() < 1e-1);
     }
 
@@ -192,8 +238,16 @@ mod tests {
     fn two_flush_brushes_keep_exactly_one_shared_face() {
         // Side by side, touching at x = 64. Each has a face there.
         let (mut b, planes) = make(&[
-            (Aabb::new(Vec3::ZERO, Vec3::new(64.0, 64.0, 64.0)), "dev/grid", "worldspawn"),
-            (Aabb::new(Vec3::new(64.0, 0.0, 0.0), Vec3::new(128.0, 64.0, 64.0)), "dev/grid", "worldspawn"),
+            (
+                Aabb::new(Vec3::ZERO, Vec3::new(64.0, 64.0, 64.0)),
+                "dev/grid",
+                "worldspawn",
+            ),
+            (
+                Aabb::new(Vec3::new(64.0, 0.0, 0.0), Vec3::new(128.0, 64.0, 64.0)),
+                "dev/grid",
+                "worldspawn",
+            ),
         ]);
         chop_brushes(&mut b, &planes);
 
@@ -202,19 +256,35 @@ mod tests {
         for brush in &b {
             for side in &brush.sides {
                 for f in &side.fragments {
-                    if f.points.iter().all(|p| (p.x - 64.0).abs() < 0.01) { on_seam += 1; }
+                    if f.points.iter().all(|p| (p.x - 64.0).abs() < 0.01) {
+                        on_seam += 1;
+                    }
                 }
             }
         }
-        assert_eq!(on_seam, 0, "back-to-back faces are an interior seam and both go");
+        assert_eq!(
+            on_seam, 0,
+            "back-to-back faces are an interior seam and both go"
+        );
     }
 
     #[test]
     fn a_pillar_sunk_into_a_floor_loses_only_the_buried_part() {
         // Floor slab 0..16 in Z; pillar from Z=8 up to Z=64, overlapping by 8.
         let (mut b, planes) = make(&[
-            (Aabb::new(Vec3::new(-128.0, -128.0, 0.0), Vec3::new(128.0, 128.0, 16.0)), "dev/grid", "worldspawn"),
-            (Aabb::new(Vec3::new(-8.0, -8.0, 8.0), Vec3::new(8.0, 8.0, 64.0)), "dev/grid", "worldspawn"),
+            (
+                Aabb::new(
+                    Vec3::new(-128.0, -128.0, 0.0),
+                    Vec3::new(128.0, 128.0, 16.0),
+                ),
+                "dev/grid",
+                "worldspawn",
+            ),
+            (
+                Aabb::new(Vec3::new(-8.0, -8.0, 8.0), Vec3::new(8.0, 8.0, 64.0)),
+                "dev/grid",
+                "worldspawn",
+            ),
         ]);
         chop_brushes(&mut b, &planes);
 
@@ -248,8 +318,19 @@ mod tests {
     #[test]
     fn the_floor_under_a_pillar_is_carved_out() {
         let (mut b, planes) = make(&[
-            (Aabb::new(Vec3::new(-128.0, -128.0, 0.0), Vec3::new(128.0, 128.0, 16.0)), "dev/grid", "worldspawn"),
-            (Aabb::new(Vec3::new(-8.0, -8.0, 8.0), Vec3::new(8.0, 8.0, 64.0)), "dev/grid", "worldspawn"),
+            (
+                Aabb::new(
+                    Vec3::new(-128.0, -128.0, 0.0),
+                    Vec3::new(128.0, 128.0, 16.0),
+                ),
+                "dev/grid",
+                "worldspawn",
+            ),
+            (
+                Aabb::new(Vec3::new(-8.0, -8.0, 8.0), Vec3::new(8.0, 8.0, 64.0)),
+                "dev/grid",
+                "worldspawn",
+            ),
         ]);
         chop_brushes(&mut b, &planes);
         let floor_top: f32 = b[0]
@@ -271,11 +352,24 @@ mod tests {
         // The bug this prevents: a trigger volume placed over a doorway
         // deleting the doorway's faces.
         let (mut b, planes) = make(&[
-            (Aabb::new(Vec3::ZERO, Vec3::splat(64.0)), "dev/grid", "worldspawn"),
-            (Aabb::new(Vec3::new(-8.0, -8.0, -8.0), Vec3::splat(72.0)), "tools/trigger", "worldspawn"),
+            (
+                Aabb::new(Vec3::ZERO, Vec3::splat(64.0)),
+                "dev/grid",
+                "worldspawn",
+            ),
+            (
+                Aabb::new(Vec3::new(-8.0, -8.0, -8.0), Vec3::splat(72.0)),
+                "tools/trigger",
+                "worldspawn",
+            ),
         ]);
         chop_brushes(&mut b, &planes);
-        let world_area: f32 = b[0].sides.iter().flat_map(|s| s.fragments.iter()).map(|w| w.area()).sum();
+        let world_area: f32 = b[0]
+            .sides
+            .iter()
+            .flat_map(|s| s.fragments.iter())
+            .map(|w| w.area())
+            .sum();
         assert!((world_area - 6.0 * 4096.0).abs() < 1e-1, "got {world_area}");
     }
 
@@ -283,14 +377,35 @@ mod tests {
     fn brushes_in_different_entities_do_not_cut_each_other() {
         // A door sitting flush in a wall must not delete the wall.
         let (mut b, planes) = make(&[
-            (Aabb::new(Vec3::ZERO, Vec3::splat(64.0)), "dev/grid", "worldspawn"),
-            (Aabb::new(Vec3::splat(16.0), Vec3::splat(48.0)), "dev/grid", "func_door"),
+            (
+                Aabb::new(Vec3::ZERO, Vec3::splat(64.0)),
+                "dev/grid",
+                "worldspawn",
+            ),
+            (
+                Aabb::new(Vec3::splat(16.0), Vec3::splat(48.0)),
+                "dev/grid",
+                "func_door",
+            ),
         ]);
         chop_brushes(&mut b, &planes);
-        let world: f32 = b[0].sides.iter().flat_map(|s| s.fragments.iter()).map(|w| w.area()).sum();
-        let door: f32 = b[1].sides.iter().flat_map(|s| s.fragments.iter()).map(|w| w.area()).sum();
+        let world: f32 = b[0]
+            .sides
+            .iter()
+            .flat_map(|s| s.fragments.iter())
+            .map(|w| w.area())
+            .sum();
+        let door: f32 = b[1]
+            .sides
+            .iter()
+            .flat_map(|s| s.fragments.iter())
+            .map(|w| w.area())
+            .sum();
         assert!((world - 6.0 * 4096.0).abs() < 1e-1);
-        assert!((door - 6.0 * 32.0 * 32.0).abs() < 1e-1, "the door keeps all its faces");
+        assert!(
+            (door - 6.0 * 32.0 * 32.0).abs() < 1e-1,
+            "the door keeps all its faces"
+        );
     }
 
     #[test]
@@ -298,7 +413,11 @@ mod tests {
         let boxes: Vec<(Aabb, &str, &str)> = (0..6)
             .map(|i| {
                 let x = i as f32 * 48.0;
-                (Aabb::new(Vec3::new(x, 0.0, 0.0), Vec3::new(x + 64.0, 64.0, 64.0)), "dev/grid", "worldspawn")
+                (
+                    Aabb::new(Vec3::new(x, 0.0, 0.0), Vec3::new(x + 64.0, 64.0, 64.0)),
+                    "dev/grid",
+                    "worldspawn",
+                )
             })
             .collect();
         let (mut a, pa) = make(&boxes);

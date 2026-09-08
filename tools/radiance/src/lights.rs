@@ -21,7 +21,12 @@ pub enum LightKind {
     Point,
     /// A cone. `cone` is the outer half-angle in degrees, `inner` the angle
     /// inside which the light is at full strength.
-    Spot { direction: Vec3, cone: f32, inner: f32, exponent: f32 },
+    Spot {
+        direction: Vec3,
+        cone: f32,
+        inner: f32,
+        exponent: f32,
+    },
     /// The sun: parallel rays from infinitely far away, only reaching surfaces
     /// with a clear line to the sky.
     Sun { direction: Vec3 },
@@ -90,7 +95,9 @@ impl LightSet {
                         inner: e.get_or("_inner_cone", 30.0f32),
                         exponent: e.get_or("_exponent", 1.0f32),
                     };
-                    if let Some(l) = point_light(e, origin, kind) { lights.push(l); }
+                    if let Some(l) = point_light(e, origin, kind) {
+                        lights.push(l);
+                    }
                 }
                 "light_environment" => {
                     has_sun = true;
@@ -98,7 +105,9 @@ impl LightSet {
                     // The entity's angles point the way the sun *shines*, so
                     // rays travel along `forward` and surfaces are lit from
                     // the opposite direction.
-                    let kind = LightKind::Sun { direction: angles.forward() };
+                    let kind = LightKind::Sun {
+                        direction: angles.forward(),
+                    };
                     if let Some((color, brightness)) = light_value(e, "_light") {
                         sky_color = color * brightness;
                         lights.push(Light {
@@ -118,7 +127,12 @@ impl LightSet {
             }
         }
 
-        LightSet { lights, ambient, sky_color, has_sun }
+        LightSet {
+            lights,
+            ambient,
+            sky_color,
+            has_sun,
+        }
     }
 
     pub fn is_empty(&self) -> bool {
@@ -127,7 +141,9 @@ impl LightSet {
 }
 
 fn vec3(s: &str) -> Option<Vec3> {
-    Vec3Value::from_kv(s).ok().map(|v| Vec3::from_array(v.to_array()))
+    Vec3Value::from_kv(s)
+        .ok()
+        .map(|v| Vec3::from_array(v.to_array()))
 }
 
 /// Read a `"r g b brightness"` key into a linear colour and a brightness.
@@ -137,7 +153,10 @@ fn vec3(s: &str) -> Option<Vec3> {
 /// it is. A three-number value means brightness 200, the editor default.
 fn light_value(e: &KeyValues, key: &str) -> Option<(Vec3, f32)> {
     let raw = e.get(key)?;
-    let nums: Vec<f32> = raw.split_whitespace().filter_map(|t| t.parse().ok()).collect();
+    let nums: Vec<f32> = raw
+        .split_whitespace()
+        .filter_map(|t| t.parse().ok())
+        .collect();
     match nums.len() {
         3 => Some((Vec3::new(nums[0], nums[1], nums[2]) / 255.0, 200.0)),
         4 => Some((Vec3::new(nums[0], nums[1], nums[2]) / 255.0, nums[3])),
@@ -171,7 +190,9 @@ fn point_light(e: &KeyValues, origin: Vec3, kind: LightKind) -> Option<Light> {
 /// "one part in 512 of a fully bright surface" is cheap and cuts most of them.
 fn cutoff_range(intensity: Vec3, (c, l, q): (f32, f32, f32)) -> f32 {
     let peak = intensity.max_element();
-    if peak <= 0.0 { return 0.0; }
+    if peak <= 0.0 {
+        return 0.0;
+    }
     let threshold = 1.0 / 512.0;
 
     if q > 0.0 {
@@ -181,7 +202,11 @@ fn cutoff_range(intensity: Vec3, (c, l, q): (f32, f32, f32)) -> f32 {
         peak * ATTN_REFERENCE / (l * threshold)
     } else if c > 0.0 {
         // No distance falloff at all; only the constant term limits it.
-        if peak / c > threshold { f32::INFINITY } else { 0.0 }
+        if peak / c > threshold {
+            f32::INFINITY
+        } else {
+            0.0
+        }
     } else {
         f32::INFINITY
     }
@@ -217,20 +242,33 @@ impl Light {
             LightKind::Point => {
                 let delta = self.origin - point;
                 let dist = delta.length();
-                if dist > self.range { return None; }
+                if dist > self.range {
+                    return None;
+                }
                 let falloff = self.falloff(dist);
-                if falloff <= 0.0 { return None; }
+                if falloff <= 0.0 {
+                    return None;
+                }
                 Some((self.intensity * falloff, delta / dist.max(1e-6)))
             }
-            LightKind::Spot { direction, cone, inner, exponent } => {
+            LightKind::Spot {
+                direction,
+                cone,
+                inner,
+                exponent,
+            } => {
                 let delta = self.origin - point;
                 let dist = delta.length();
-                if dist > self.range { return None; }
+                if dist > self.range {
+                    return None;
+                }
                 let to_point = -delta / dist.max(1e-6);
 
                 let cos_angle = to_point.dot(direction);
                 let cos_outer = cone.to_radians().cos();
-                if cos_angle < cos_outer { return None; }
+                if cos_angle < cos_outer {
+                    return None;
+                }
 
                 let cos_inner = inner.to_radians().cos();
                 let cone_scale = if cos_angle >= cos_inner {
@@ -242,7 +280,9 @@ impl Light {
                 };
 
                 let falloff = self.falloff(dist) * cone_scale;
-                if falloff <= 0.0 { return None; }
+                if falloff <= 0.0 {
+                    return None;
+                }
                 Some((self.intensity * falloff, delta / dist.max(1e-6)))
             }
         }
@@ -266,7 +306,9 @@ impl Light {
         }
     }
 
-    pub fn is_sun(&self) -> bool { matches!(self.kind, LightKind::Sun { .. }) }
+    pub fn is_sun(&self) -> bool {
+        matches!(self.kind, LightKind::Sun { .. })
+    }
 }
 
 #[cfg(test)]
@@ -279,7 +321,8 @@ mod tests {
 
     #[test]
     fn a_point_light_is_read_with_its_colour_and_brightness() {
-        let set = parse(r#"entity { "classname" "light" "origin" "0 0 128" "_light" "255 128 0 300" }"#);
+        let set =
+            parse(r#"entity { "classname" "light" "origin" "0 0 128" "_light" "255 128 0 300" }"#);
         assert_eq!(set.lights.len(), 1);
         let l = &set.lights[0];
         assert_eq!(l.origin, Vec3::new(0.0, 0.0, 128.0));
@@ -292,23 +335,32 @@ mod tests {
 
     #[test]
     fn a_three_number_light_gets_the_default_brightness() {
-        let set = parse(r#"entity { "classname" "light" "origin" "0 0 0" "_light" "255 255 255" }"#);
+        let set =
+            parse(r#"entity { "classname" "light" "origin" "0 0 0" "_light" "255 255 255" }"#);
         assert!((set.lights[0].intensity.x - 200.0).abs() < 1e-3);
     }
 
     #[test]
     fn brightness_falls_off_with_the_square_of_distance() {
-        let set = parse(r#"entity { "classname" "light" "origin" "0 0 0" "_light" "255 255 255 200" }"#);
+        let set =
+            parse(r#"entity { "classname" "light" "origin" "0 0 0" "_light" "255 255 255 200" }"#);
         let l = &set.lights[0];
         let near = l.sample(Vec3::new(100.0, 0.0, 0.0)).unwrap().0.x;
         let far = l.sample(Vec3::new(200.0, 0.0, 0.0)).unwrap().0.x;
-        assert!((near - 200.0).abs() < 1.0, "at the reference distance, brightness reads directly: {near}");
-        assert!((far / near - 0.25).abs() < 0.01, "doubling distance should quarter it: {far} vs {near}");
+        assert!(
+            (near - 200.0).abs() < 1.0,
+            "at the reference distance, brightness reads directly: {near}"
+        );
+        assert!(
+            (far / near - 0.25).abs() < 0.01,
+            "doubling distance should quarter it: {far} vs {near}"
+        );
     }
 
     #[test]
     fn a_light_is_dropped_beyond_its_useful_range() {
-        let set = parse(r#"entity { "classname" "light" "origin" "0 0 0" "_light" "255 255 255 200" }"#);
+        let set =
+            parse(r#"entity { "classname" "light" "origin" "0 0 0" "_light" "255 255 255 200" }"#);
         let l = &set.lights[0];
         assert!(l.range.is_finite() && l.range > 100.0);
         assert!(l.sample(Vec3::new(l.range * 2.0, 0.0, 0.0)).is_none());
@@ -316,7 +368,9 @@ mod tests {
 
     #[test]
     fn the_light_direction_points_at_the_light() {
-        let set = parse(r#"entity { "classname" "light" "origin" "0 0 128" "_light" "255 255 255 200" }"#);
+        let set = parse(
+            r#"entity { "classname" "light" "origin" "0 0 128" "_light" "255 255 255 200" }"#,
+        );
         let (_, dir) = set.lights[0].sample(Vec3::ZERO).unwrap();
         assert!((dir - Vec3::Z).length() < 1e-4, "{dir:?}");
     }
@@ -330,10 +384,18 @@ mod tests {
                         "pitch" "-90" "_cone" "45" "_inner_cone" "30" }"#,
         );
         let l = &set.lights[0];
-        let LightKind::Spot { direction, .. } = l.kind else { panic!("not a spot") };
-        assert!((direction - -Vec3::Z).length() < 1e-4, "should aim down, got {direction:?}");
+        let LightKind::Spot { direction, .. } = l.kind else {
+            panic!("not a spot")
+        };
+        assert!(
+            (direction - -Vec3::Z).length() < 1e-4,
+            "should aim down, got {direction:?}"
+        );
 
-        assert!(l.sample(Vec3::new(0.0, 0.0, 0.0)).is_some(), "directly below is lit");
+        assert!(
+            l.sample(Vec3::new(0.0, 0.0, 0.0)).is_some(),
+            "directly below is lit"
+        );
         assert!(
             l.sample(Vec3::new(1000.0, 0.0, 0.0)).is_none(),
             "far off to the side is outside the cone"
@@ -350,7 +412,10 @@ mod tests {
         let centre = l.sample(Vec3::ZERO).unwrap().0.x;
         // 45 degrees out: between the inner and outer cones.
         let edge = l.sample(Vec3::new(100.0, 0.0, 0.0)).unwrap().0.x;
-        assert!(edge < centre, "the cone edge must be dimmer: {edge} vs {centre}");
+        assert!(
+            edge < centre,
+            "the cone edge must be dimmer: {edge} vs {centre}"
+        );
         assert!(edge > 0.0);
     }
 
@@ -369,7 +434,9 @@ mod tests {
 
     #[test]
     fn the_sun_does_not_fall_off_with_distance() {
-        let set = parse(r#"entity { "classname" "light_environment" "pitch" "-90" "_light" "255 255 255 300" }"#);
+        let set = parse(
+            r#"entity { "classname" "light_environment" "pitch" "-90" "_light" "255 255 255 300" }"#,
+        );
         let l = &set.lights[0];
         let near = l.sample(Vec3::ZERO).unwrap().0;
         let far = l.sample(Vec3::new(0.0, 0.0, -5000.0)).unwrap().0;
@@ -379,16 +446,26 @@ mod tests {
     #[test]
     fn the_sun_lights_surfaces_from_where_its_rays_come_from() {
         // pitch -90 means shining downward from overhead.
-        let set = parse(r#"entity { "classname" "light_environment" "pitch" "-90" "_light" "255 255 255 300" }"#);
+        let set = parse(
+            r#"entity { "classname" "light_environment" "pitch" "-90" "_light" "255 255 255 300" }"#,
+        );
         let (_, dir) = set.lights[0].sample(Vec3::ZERO).unwrap();
-        assert!((dir - Vec3::Z).length() < 1e-4, "a floor should be lit from above, got {dir:?}");
+        assert!(
+            (dir - Vec3::Z).length() < 1e-4,
+            "a floor should be lit from above, got {dir:?}"
+        );
     }
 
     #[test]
     fn a_shadow_ray_to_the_sun_aims_out_of_the_map() {
-        let set = parse(r#"entity { "classname" "light_environment" "pitch" "-90" "_light" "255 255 255 300" }"#);
+        let set = parse(
+            r#"entity { "classname" "light_environment" "pitch" "-90" "_light" "255 255 255 300" }"#,
+        );
         let target = set.lights[0].shadow_target(Vec3::ZERO);
-        assert!(target.z > kerosene_math::MAX_MAP_COORD, "must reach past the sky, got {target:?}");
+        assert!(
+            target.z > kerosene_math::MAX_MAP_COORD,
+            "must reach past the sky, got {target:?}"
+        );
     }
 
     #[test]

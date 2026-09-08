@@ -44,7 +44,10 @@ fn a_round_trip_stays_close_to_the_original() {
     // -- a number worth pinning, because a bug in the predictor shows up as
     // this growing rather than as anything failing.
     let error = rms_error(&samples, &decoded);
-    assert!(error < 327.0, "rms error {error} is more than 1% of full scale");
+    assert!(
+        error < 327.0,
+        "rms error {error} is more than 1% of full scale"
+    );
 }
 
 #[test]
@@ -68,7 +71,10 @@ fn the_encoder_and_decoder_walk_the_same_predictor() {
     let half = samples.len() / 2;
     let early = rms_error(&samples[..half], &decoded[..half]);
     let late = rms_error(&samples[half..], &decoded[half..]);
-    assert!(late < early * 1.5, "error grew from {early} to {late} over one second");
+    assert!(
+        late < early * 1.5,
+        "error grew from {early} to {late} over one second"
+    );
 }
 
 #[test]
@@ -84,8 +90,17 @@ fn stereo_channels_do_not_bleed_into_each_other() {
     }
 
     let decoded = decode(&encode(&interleaved, 2), 2, interleaved.len());
-    let right_peak = decoded.iter().skip(1).step_by(2).map(|s| s.abs()).max().unwrap();
-    assert!(right_peak < 60, "a silent right channel decoded with a peak of {right_peak}");
+    let right_peak = decoded
+        .iter()
+        .skip(1)
+        .step_by(2)
+        .map(|s| s.abs())
+        .max()
+        .unwrap();
+    assert!(
+        right_peak < 60,
+        "a silent right channel decoded with a peak of {right_peak}"
+    );
 }
 
 #[test]
@@ -97,7 +112,11 @@ fn an_odd_sample_count_survives_the_half_byte_at_the_end() {
     assert_eq!(encoded.len(), 51);
 
     let decoded = decode(&encoded, 1, samples.len());
-    assert_eq!(decoded.len(), 101, "the padding nibble must not become a sample");
+    assert_eq!(
+        decoded.len(),
+        101,
+        "the padding nibble must not become a sample"
+    );
 }
 
 #[test]
@@ -124,7 +143,8 @@ fn a_full_scale_signal_does_not_wrap_around() {
     // once the predictor has caught up.
     for (i, (&want, &got)) in samples.iter().zip(&decoded).enumerate().skip(50) {
         assert_eq!(
-            want.signum(), got.signum(),
+            want.signum(),
+            got.signum(),
             "sample {i} flipped sign: wanted {want}, got {got}"
         );
     }

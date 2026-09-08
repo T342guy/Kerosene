@@ -411,6 +411,7 @@ impl PhysicsProps {
             max_speed,
             max_accel,
             max_spin,
+            max_angular_accel,
         } = limits;
         let Some(prop) = self.props.get(&id) else {
             return;
@@ -420,11 +421,28 @@ impl PhysicsProps {
         }
         let (current_position, current_rotation) = self.rigid.body_transform(prop.body);
 
-        // The velocity that would close the gap in exactly one tick, capped.
-        let mut velocity = (position - current_position) / dt;
-        let speed = velocity.length();
-        if speed > max_speed {
-            velocity *= max_speed / speed;
+        // How fast to be going, given how far there is left to go.
+        //
+        // Three ceilings, and the third is the one that stops it wobbling. A
+        // prop that runs at full speed until it reaches the hold point cannot
+        // shed that speed in time and sails straight past, then has to come
+        // back, and overshoots again on the way -- which is what a fast turn
+        // used to make a carried prop do. `sqrt(2ad)` is the fastest it can be
+        // going and still stop in the distance remaining, so it starts braking
+        // early enough to arrive rather than to arrive and continue.
+        let to_target = position - current_position;
+        let distance = to_target.length();
+        let mut velocity = Vec3::ZERO;
+        if distance > 1e-4 {
+            // `sqrt(2ad)` is the continuous answer, and it overshoots here:
+            // the speed is only revised once a tick, so the prop spends a
+            // whole tick going faster than the curve says it should by the
+            // end of it. Subtracting one tick's worth of braking is the
+            // discrete form, and it lands.
+            let step = max_accel * dt;
+            let braking = (step * step + 2.0 * max_accel * distance).sqrt() - step;
+            let speed = (distance / dt).min(max_speed).min(braking);
+            velocity = to_target / distance * speed;
         }
 
         // Asked for as an impulse with a ceiling on it, not set outright.
@@ -453,27 +471,42 @@ impl PhysicsProps {
         // The same for the turn: the rotation taking the body where it is to
         // where it should be, as a spin to apply over one tick. Negated when
         // it points the long way round, so a prop turns the short way.
+        // The turn, worked out the same way and for the same reason.
+        //
+        // This was assigned outright until it was caught screwing a carried
+        // prop into whatever it was pressed against: a forced spin overrides
+        // what the contact solver decided, so a prop wedged against something
+        // slowly rotated its way inside over a dozen ticks before being
+        // ejected. Asked for as an angular impulse it is one more force among
+        // the contacts, and a corner that cannot turn simply does not.
         let mut delta = rotation * current_rotation.inverse();
         if delta.w < 0.0 {
             delta = -delta;
         }
         let (axis, angle) = delta.to_axis_angle();
-        let mut spin = axis * (angle / dt);
-        let rate = spin.length();
-        if rate > max_spin {
-            spin *= max_spin / rate;
+        let mut spin = Vec3::ZERO;
+        if angle > 1e-5 {
+            let step = max_angular_accel * dt;
+            let braking = (step * step + 2.0 * max_angular_accel * angle).sqrt() - step;
+            spin = axis * (angle / dt).min(max_spin).min(braking);
         }
 
         // A prop that has settled is asleep, and a sleeping body would ignore
         // being steered.
+        let mut twist = spin - self.rigid.angular_velocity(prop.body);
+        let asked = twist.length();
+        let spin_ceiling = max_angular_accel * dt;
+        if asked > spin_ceiling {
+            twist *= spin_ceiling / asked;
+        }
+
         self.rigid.set_awake(prop.body, true);
         self.rigid.apply_impulse(prop.body, change * mass);
-        // The turn is still assigned rather than asked for: without the body's
-        // inertia tensor there is no honest way to turn a wanted change in
-        // spin into an angular impulse. It matters far less -- a prop wedged
-        // against something is stopped by the contact whatever it is spinning
-        // at, and it is the linear drive that was burrowing.
-        self.rigid.set_angular_velocity(prop.body, spin);
+        // An angular impulse is the body's inertia times the change in spin.
+        // A prop with no inertia to speak of is not one that turns.
+        if let Some(inertia) = self.rigid.world_inertia(prop.body) {
+            self.rigid.apply_angular_impulse(prop.body, inertia * twist);
+        }
     }
 
     /// Put the player into the simulation where they now stand, moving at
@@ -643,6 +676,9 @@ pub struct HoldLimits {
     pub max_accel: f32,
     /// Fastest it will be turned, in radians per second.
     pub max_spin: f32,
+    /// Hardest it will be turned, in radians per second squared. What the prop
+    /// is wedged against has to overcome this to stop it turning.
+    pub max_angular_accel: f32,
 }
 
 /// The world-space axis-aligned bounds of one prop's oriented box.

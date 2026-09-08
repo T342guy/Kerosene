@@ -11,11 +11,17 @@ use thiserror::Error;
 #[derive(Debug, Error)]
 pub enum ParseValueError {
     #[error("{value:?} is not a valid {expected}")]
-    Malformed { value: String, expected: &'static str },
+    Malformed {
+        value: String,
+        expected: &'static str,
+    },
 }
 
 fn malformed(value: &str, expected: &'static str) -> ParseValueError {
-    ParseValueError::Malformed { value: value.to_string(), expected }
+    ParseValueError::Malformed {
+        value: value.to_string(),
+        expected,
+    }
 }
 
 /// A value readable out of a KeyValues string.
@@ -55,7 +61,9 @@ impl FromKvValue for f32 {
 }
 
 impl ToKvValue for f32 {
-    fn to_kv(&self) -> String { format_float(*self) }
+    fn to_kv(&self) -> String {
+        format_float(*self)
+    }
 }
 
 impl FromKvValue for bool {
@@ -65,25 +73,36 @@ impl FromKvValue for bool {
             "0" | "false" | "no" | "off" | "" => Ok(false),
             // Anything numeric and non-zero counts as set, which is how the
             // engine has always read spawnflag-ish keys.
-            other => other.parse::<f64>().map(|v| v != 0.0).map_err(|_| malformed(s, "boolean")),
+            other => other
+                .parse::<f64>()
+                .map(|v| v != 0.0)
+                .map_err(|_| malformed(s, "boolean")),
         }
     }
 }
 
 impl ToKvValue for bool {
-    fn to_kv(&self) -> String { if *self { "1".into() } else { "0".into() } }
+    fn to_kv(&self) -> String {
+        if *self { "1".into() } else { "0".into() }
+    }
 }
 
 impl FromKvValue for String {
-    fn from_kv(s: &str) -> Result<Self, ParseValueError> { Ok(s.to_string()) }
+    fn from_kv(s: &str) -> Result<Self, ParseValueError> {
+        Ok(s.to_string())
+    }
 }
 
 impl ToKvValue for String {
-    fn to_kv(&self) -> String { self.clone() }
+    fn to_kv(&self) -> String {
+        self.clone()
+    }
 }
 
 impl ToKvValue for &str {
-    fn to_kv(&self) -> String { (*self).to_string() }
+    fn to_kv(&self) -> String {
+        (*self).to_string()
+    }
 }
 
 /// Three floats, however the file chose to punctuate them.
@@ -91,20 +110,36 @@ impl ToKvValue for &str {
 pub struct Vec3Value(pub [f32; 3]);
 
 impl Vec3Value {
-    pub fn x(&self) -> f32 { self.0[0] }
-    pub fn y(&self) -> f32 { self.0[1] }
-    pub fn z(&self) -> f32 { self.0[2] }
-    pub fn to_array(self) -> [f32; 3] { self.0 }
+    pub fn x(&self) -> f32 {
+        self.0[0]
+    }
+    pub fn y(&self) -> f32 {
+        self.0[1]
+    }
+    pub fn z(&self) -> f32 {
+        self.0[2]
+    }
+    pub fn to_array(self) -> [f32; 3] {
+        self.0
+    }
 }
 
 impl FromKvValue for Vec3Value {
     fn from_kv(s: &str) -> Result<Self, ParseValueError> {
         let cleaned: String = s
             .chars()
-            .map(|c| if matches!(c, '[' | ']' | '(' | ')' | ',') { ' ' } else { c })
+            .map(|c| {
+                if matches!(c, '[' | ']' | '(' | ')' | ',') {
+                    ' '
+                } else {
+                    c
+                }
+            })
             .collect();
         let parts: Vec<&str> = cleaned.split_whitespace().collect();
-        if parts.len() != 3 { return Err(malformed(s, "3-component vector")); }
+        if parts.len() != 3 {
+            return Err(malformed(s, "3-component vector"));
+        }
         let mut out = [0.0f32; 3];
         for (i, p) in parts.iter().enumerate() {
             out[i] = p.parse().map_err(|_| malformed(s, "3-component vector"))?;
@@ -115,22 +150,37 @@ impl FromKvValue for Vec3Value {
 
 impl ToKvValue for Vec3Value {
     fn to_kv(&self) -> String {
-        format!("{} {} {}", format_float(self.0[0]), format_float(self.0[1]), format_float(self.0[2]))
+        format!(
+            "{} {} {}",
+            format_float(self.0[0]),
+            format_float(self.0[1]),
+            format_float(self.0[2])
+        )
     }
 }
 
 impl fmt::Display for Vec3Value {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { f.write_str(&self.to_kv()) }
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.to_kv())
+    }
 }
 
 impl FromKvValue for [f32; 4] {
     fn from_kv(s: &str) -> Result<Self, ParseValueError> {
         let cleaned: String = s
             .chars()
-            .map(|c| if matches!(c, '[' | ']' | '(' | ')' | ',') { ' ' } else { c })
+            .map(|c| {
+                if matches!(c, '[' | ']' | '(' | ')' | ',') {
+                    ' '
+                } else {
+                    c
+                }
+            })
             .collect();
         let parts: Vec<&str> = cleaned.split_whitespace().collect();
-        if parts.len() != 4 { return Err(malformed(s, "4-component vector")); }
+        if parts.len() != 4 {
+            return Err(malformed(s, "4-component vector"));
+        }
         let mut out = [0.0f32; 4];
         for (i, p) in parts.iter().enumerate() {
             out[i] = p.parse().map_err(|_| malformed(s, "4-component vector"))?;
@@ -154,8 +204,18 @@ mod tests {
 
     #[test]
     fn vectors_accept_every_punctuation_style() {
-        for src in ["0 64 128", "[0 64 128]", "(0 64 128)", "0, 64, 128", "  0   64 128 "] {
-            assert_eq!(Vec3Value::from_kv(src).unwrap().0, [0.0, 64.0, 128.0], "{src}");
+        for src in [
+            "0 64 128",
+            "[0 64 128]",
+            "(0 64 128)",
+            "0, 64, 128",
+            "  0   64 128 ",
+        ] {
+            assert_eq!(
+                Vec3Value::from_kv(src).unwrap().0,
+                [0.0, 64.0, 128.0],
+                "{src}"
+            );
         }
     }
 
@@ -174,8 +234,12 @@ mod tests {
 
     #[test]
     fn booleans_take_the_usual_spellings() {
-        for t in ["1", "true", "yes", "on", "2"] { assert!(bool::from_kv(t).unwrap(), "{t}"); }
-        for f in ["0", "false", "no", "off", ""] { assert!(!bool::from_kv(f).unwrap(), "{f}"); }
+        for t in ["1", "true", "yes", "on", "2"] {
+            assert!(bool::from_kv(t).unwrap(), "{t}");
+        }
+        for f in ["0", "false", "no", "off", ""] {
+            assert!(!bool::from_kv(f).unwrap(), "{f}");
+        }
     }
 
     #[test]

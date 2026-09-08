@@ -26,8 +26,8 @@
 //! and `content` defaults to `content` beside it, then to the directory the
 //! file is in.
 
-use std::path::{Path, PathBuf};
 use kerosene_kv::KeyValues;
+use std::path::{Path, PathBuf};
 
 /// The extension a project file carries.
 pub const EXTENSION: &str = "keroproj";
@@ -63,14 +63,17 @@ impl Project {
 
     /// Parse a project file whose contents are already in hand.
     pub fn parse(text: &str, path: &Path) -> anyhow::Result<Project> {
-        let kv = KeyValues::parse(text)
-            .map_err(|e| anyhow::anyhow!("{}: {e}", path.display()))?;
+        let kv = KeyValues::parse(text).map_err(|e| anyhow::anyhow!("{}: {e}", path.display()))?;
         // Accept the block either as the document root or nested inside one,
         // because both are things people write and neither is wrong.
         let block = kv.block("project").unwrap_or(&kv);
 
         let dir = path.parent().unwrap_or(Path::new(".")).to_path_buf();
-        let content = match block.get("content").map(str::trim).filter(|c| !c.is_empty()) {
+        let content = match block
+            .get("content")
+            .map(str::trim)
+            .filter(|c| !c.is_empty())
+        {
             Some(relative) => dir.join(relative),
             // No `content` key: the conventional layout first, then the
             // project directory itself, for a project that is its own tree.
@@ -84,7 +87,10 @@ impl Project {
             .filter(|n| !n.is_empty())
             .map(str::to_string)
             .unwrap_or_else(|| {
-                path.file_stem().unwrap_or_default().to_string_lossy().into_owned()
+                path.file_stem()
+                    .unwrap_or_default()
+                    .to_string_lossy()
+                    .into_owned()
             });
 
         Ok(Project {
@@ -140,7 +146,11 @@ pub fn in_directory(dir: &Path) -> Option<PathBuf> {
         .flatten()
         .flatten()
         .map(|e| e.path())
-        .filter(|p| p.is_file() && p.extension().is_some_and(|e| e.eq_ignore_ascii_case(EXTENSION)))
+        .filter(|p| {
+            p.is_file()
+                && p.extension()
+                    .is_some_and(|e| e.eq_ignore_ascii_case(EXTENSION))
+        })
         .collect();
     found.sort();
     found.into_iter().next()
@@ -160,7 +170,10 @@ fn normalise(path: &Path) -> PathBuf {
                 // Only collapse when there is something to collapse into; a
                 // leading `..` is meaningful and must survive.
                 if out.components().next_back().is_some_and(|c| {
-                    !matches!(c, std::path::Component::ParentDir | std::path::Component::RootDir)
+                    !matches!(
+                        c,
+                        std::path::Component::ParentDir | std::path::Component::RootDir
+                    )
                 }) {
                     out.pop();
                 } else {
@@ -170,7 +183,9 @@ fn normalise(path: &Path) -> PathBuf {
             other => out.push(other),
         }
     }
-    if out.as_os_str().is_empty() { out.push(".") }
+    if out.as_os_str().is_empty() {
+        out.push(".")
+    }
     out
 }
 

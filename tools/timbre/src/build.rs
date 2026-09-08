@@ -29,10 +29,10 @@
 
 use crate::Options;
 use anyhow::{Context, Result};
-use std::collections::BTreeMap;
-use std::path::{Path, PathBuf};
 use kerosene_audio::compiled::{Encoding, Loop};
 use kerosene_kv::KeyValues;
+use std::collections::BTreeMap;
+use std::path::{Path, PathBuf};
 
 /// What the settings file is called, inside the sound directory.
 pub const FILE_NAME: &str = "timbre.kerobuild";
@@ -55,7 +55,10 @@ impl Script {
     pub fn load_beside(root: &Path) -> Result<Script> {
         let path = root.join(FILE_NAME);
         if !path.is_file() {
-            return Ok(Script { path, ..Default::default() });
+            return Ok(Script {
+                path,
+                ..Default::default()
+            });
         }
         let text = std::fs::read_to_string(&path)
             .with_context(|| format!("reading {}", path.display()))?;
@@ -128,7 +131,12 @@ impl Script {
              // A sound with no block here takes the defaults, which is most of them:\n\
              // the point of this file is the exceptions.\n\n",
         );
-        out.push_str(&block_text("defaults", None, &self.defaults, &Options::default()));
+        out.push_str(&block_text(
+            "defaults",
+            None,
+            &self.defaults,
+            &Options::default(),
+        ));
         for (file, options) in &self.entries {
             out.push('\n');
             out.push_str(&block_text("sound", Some(file), options, &self.defaults));
@@ -154,8 +162,12 @@ fn options_from(block: &KeyValues, fallback: &Options) -> Options {
         .map(|m| matches!(m.trim(), "1" | "true" | "yes"))
         .unwrap_or(fallback.mono);
 
-    let start = block.get("loopstart").and_then(|s| s.trim().parse::<u32>().ok());
-    let end = block.get("loopend").and_then(|s| s.trim().parse::<u32>().ok());
+    let start = block
+        .get("loopstart")
+        .and_then(|s| s.trim().parse::<u32>().ok());
+    let end = block
+        .get("loopend")
+        .and_then(|s| s.trim().parse::<u32>().ok());
     let looping = match (start, end) {
         (Some(start), Some(end)) if end > start => Some(Loop { start, end }),
         // Both zero is how "no loop, and I mean it" is written, which has to
@@ -164,7 +176,12 @@ fn options_from(block: &KeyValues, fallback: &Options) -> Options {
         _ => fallback.looping,
     };
 
-    Options { encoding, gain, mono, looping }
+    Options {
+        encoding,
+        gain,
+        mono,
+        looping,
+    }
 }
 
 fn block_text(name: &str, file: Option<&str>, options: &Options, against: &Options) -> String {
@@ -175,7 +192,10 @@ fn block_text(name: &str, file: Option<&str>, options: &Options, against: &Optio
     // Only what differs, so the file stays readable and a default that changes
     // later reaches everything that never overrode it.
     if file.is_none() || options.encoding != against.encoding {
-        out.push_str(&format!("\t\"encoding\"  \"{}\"\n", options.encoding.name()));
+        out.push_str(&format!(
+            "\t\"encoding\"  \"{}\"\n",
+            options.encoding.name()
+        ));
     }
     if options.gain != against.gain {
         out.push_str(&format!("\t\"gain\"      \"{:.3}\"\n", options.gain));
@@ -195,7 +215,9 @@ fn block_text(name: &str, file: Option<&str>, options: &Options, against: &Optio
 
 /// One spelling of a path, so a lookup written either way finds the entry.
 fn normalise(path: &str) -> String {
-    path.replace('\\', "/").trim_start_matches("./").to_ascii_lowercase()
+    path.replace('\\', "/")
+        .trim_start_matches("./")
+        .to_ascii_lowercase()
 }
 
 #[cfg(test)]

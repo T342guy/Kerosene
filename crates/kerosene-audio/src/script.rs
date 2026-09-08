@@ -20,8 +20,8 @@
 //! ```
 
 use crate::SoundParams;
-use std::collections::BTreeMap;
 use kerosene_kv::KeyValues;
+use std::collections::BTreeMap;
 
 /// One named sound.
 #[derive(Clone, Debug, PartialEq)]
@@ -129,6 +129,10 @@ impl SoundScript {
         self.defs.values().map(|d| d.name.as_str())
     }
 
-    pub fn len(&self) -> usize { self.defs.len() }
-    pub fn is_empty(&self) -> bool { self.defs.is_empty() }
+    pub fn len(&self) -> usize {
+        self.defs.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.defs.is_empty()
+    }
 }

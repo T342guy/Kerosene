@@ -35,7 +35,9 @@ pub enum PlaneKind {
 
 impl PlaneKind {
     #[inline]
-    pub fn is_axial(self) -> bool { (self as u8) < 3 }
+    pub fn is_axial(self) -> bool {
+        (self as u8) < 3
+    }
 }
 
 /// An infinite plane: the set of points `p` where `normal . p == dist`.
@@ -47,12 +49,17 @@ pub struct Plane {
 
 impl Plane {
     #[inline]
-    pub const fn new(normal: Vec3, dist: f32) -> Self { Self { normal, dist } }
+    pub const fn new(normal: Vec3, dist: f32) -> Self {
+        Self { normal, dist }
+    }
 
     /// Plane through `point` facing along `normal`.
     #[inline]
     pub fn from_point_normal(point: Vec3, normal: Vec3) -> Self {
-        Self { normal, dist: normal.dot(point) }
+        Self {
+            normal,
+            dist: normal.dot(point),
+        }
     }
 
     /// Plane from three points in the `.keromap` / Quake `.map` brush convention.
@@ -65,40 +72,63 @@ impl Plane {
     /// Returns `None` if the points are collinear.
     pub fn from_map_points(p0: Vec3, p1: Vec3, p2: Vec3) -> Option<Self> {
         let n = (p0 - p1).cross(p2 - p1);
-        if n.length_squared() < 1e-12 { return None; }
+        if n.length_squared() < 1e-12 {
+            return None;
+        }
         let n = snap_normal(n.normalize());
-        Some(Self { normal: n, dist: n.dot(p1) })
+        Some(Self {
+            normal: n,
+            dist: n.dot(p1),
+        })
     }
 
     /// Plane from three points wound counter-clockwise about the normal --
     /// the usual convention everywhere outside brush files.
     pub fn from_points_ccw(p0: Vec3, p1: Vec3, p2: Vec3) -> Option<Self> {
         let n = (p1 - p0).cross(p2 - p0);
-        if n.length_squared() < 1e-12 { return None; }
+        if n.length_squared() < 1e-12 {
+            return None;
+        }
         let n = snap_normal(n.normalize());
-        Some(Self { normal: n, dist: n.dot(p0) })
+        Some(Self {
+            normal: n,
+            dist: n.dot(p0),
+        })
     }
 
     /// Signed distance from `p` to the plane; positive is in front.
     #[inline]
-    pub fn distance_to(&self, p: Vec3) -> f32 { self.normal.dot(p) - self.dist }
+    pub fn distance_to(&self, p: Vec3) -> f32 {
+        self.normal.dot(p) - self.dist
+    }
 
     /// Classify a single point, with [`ON_EPSILON`] slack.
     #[inline]
     pub fn classify_point(&self, p: Vec3) -> PlaneSide {
         let d = self.distance_to(p);
-        if d > ON_EPSILON { PlaneSide::Front }
-        else if d < -ON_EPSILON { PlaneSide::Back }
-        else { PlaneSide::On }
+        if d > ON_EPSILON {
+            PlaneSide::Front
+        } else if d < -ON_EPSILON {
+            PlaneSide::Back
+        } else {
+            PlaneSide::On
+        }
     }
 
     /// The same plane facing the other way.
     #[inline]
-    pub fn flipped(&self) -> Self { Self { normal: -self.normal, dist: -self.dist } }
+    pub fn flipped(&self) -> Self {
+        Self {
+            normal: -self.normal,
+            dist: -self.dist,
+        }
+    }
 
     /// Project `p` onto the plane.
     #[inline]
-    pub fn project(&self, p: Vec3) -> Vec3 { p - self.normal * self.distance_to(p) }
+    pub fn project(&self, p: Vec3) -> Vec3 {
+        p - self.normal * self.distance_to(p)
+    }
 
     /// Where the segment `a -> b` crosses the plane, as a parameter in `[0,1]`.
     ///
@@ -107,7 +137,9 @@ impl Plane {
         let da = self.distance_to(a);
         let db = self.distance_to(b);
         let denom = da - db;
-        if denom.abs() < 1e-9 { return None; }
+        if denom.abs() < 1e-9 {
+            return None;
+        }
         Some(da / denom)
     }
 
@@ -120,8 +152,11 @@ impl Plane {
         // compounds through every later split.
         let mut p = a + (b - a) * t;
         for axis in 0..3 {
-            if self.normal[axis] == 1.0 { p[axis] = self.dist; }
-            else if self.normal[axis] == -1.0 { p[axis] = -self.dist; }
+            if self.normal[axis] == 1.0 {
+                p[axis] = self.dist;
+            } else if self.normal[axis] == -1.0 {
+                p[axis] = -self.dist;
+            }
         }
         Some(p)
     }
@@ -129,9 +164,15 @@ impl Plane {
     /// Cached orientation, used to pick trace fast paths and split axes.
     pub fn kind(&self) -> PlaneKind {
         let n = self.normal;
-        if n.x == 1.0 || n.x == -1.0 { return PlaneKind::X; }
-        if n.y == 1.0 || n.y == -1.0 { return PlaneKind::Y; }
-        if n.z == 1.0 || n.z == -1.0 { return PlaneKind::Z; }
+        if n.x == 1.0 || n.x == -1.0 {
+            return PlaneKind::X;
+        }
+        if n.y == 1.0 || n.y == -1.0 {
+            return PlaneKind::Y;
+        }
+        if n.z == 1.0 || n.z == -1.0 {
+            return PlaneKind::Z;
+        }
         match major_axis(n) {
             0 => PlaneKind::AnyX,
             1 => PlaneKind::AnyY,
@@ -149,8 +190,8 @@ impl Plane {
     pub fn box_distances(&self, center: Vec3, half: Vec3) -> (f32, f32) {
         let d = self.distance_to(center);
         let r = half.x * self.normal.x.abs()
-              + half.y * self.normal.y.abs()
-              + half.z * self.normal.z.abs();
+            + half.y * self.normal.y.abs()
+            + half.z * self.normal.z.abs();
         (d - r, d + r)
     }
 
@@ -182,14 +223,24 @@ pub struct PlaneSet {
 }
 
 impl PlaneSet {
-    pub fn new() -> Self { Self::default() }
+    pub fn new() -> Self {
+        Self::default()
+    }
 
-    pub fn len(&self) -> usize { self.planes.len() }
-    pub fn is_empty(&self) -> bool { self.planes.is_empty() }
-    pub fn planes(&self) -> &[Plane] { &self.planes }
+    pub fn len(&self) -> usize {
+        self.planes.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.planes.is_empty()
+    }
+    pub fn planes(&self) -> &[Plane] {
+        &self.planes
+    }
 
     #[inline]
-    pub fn get(&self, index: u32) -> Plane { self.planes[index as usize] }
+    pub fn get(&self, index: u32) -> Plane {
+        self.planes[index as usize]
+    }
 
     /// Intern a plane, returning its index.
     ///
@@ -201,18 +252,30 @@ impl PlaneSet {
             dist: snap_dist(plane.dist),
         };
 
-        if let Some(i) = self.find(&plane) { return i; }
+        if let Some(i) = self.find(&plane) {
+            return i;
+        }
         let flipped = plane.flipped();
-        if let Some(i) = self.find(&flipped) { return i ^ 1; }
+        if let Some(i) = self.find(&flipped) {
+            return i ^ 1;
+        }
 
         // Store the canonical orientation first so that the pair ordering is
         // reproducible between runs -- a compile that shuffles plane indices
         // produces gratuitously different .kerobsp files.
         let base = self.planes.len() as u32;
-        let (a, b) = if is_canonical(plane.normal) { (plane, flipped) } else { (flipped, plane) };
+        let (a, b) = if is_canonical(plane.normal) {
+            (plane, flipped)
+        } else {
+            (flipped, plane)
+        };
         self.push(a);
         self.push(b);
-        if is_canonical(plane.normal) { base } else { base + 1 }
+        if is_canonical(plane.normal) {
+            base
+        } else {
+            base + 1
+        }
     }
 
     fn push(&mut self, p: Plane) {
@@ -228,7 +291,9 @@ impl PlaneSet {
         for key in [k - 1, k, k + 1] {
             if let Some(list) = self.buckets.get(&key) {
                 for &i in list {
-                    if self.planes[i as usize].approx_eq(plane) { return Some(i); }
+                    if self.planes[i as usize].approx_eq(plane) {
+                        return Some(i);
+                    }
                 }
             }
         }
@@ -237,7 +302,9 @@ impl PlaneSet {
 }
 
 #[inline]
-fn bucket_of(dist: f32) -> i64 { dist.floor() as i64 }
+fn bucket_of(dist: f32) -> i64 {
+    dist.floor() as i64
+}
 
 /// Round a plane distance to 1/8 unit when it is very close to it.
 ///
@@ -246,7 +313,11 @@ fn bucket_of(dist: f32) -> i64 { dist.floor() as i64 }
 #[inline]
 fn snap_dist(d: f32) -> f32 {
     let r = (d * 8.0).round() / 8.0;
-    if (d - r).abs() < PLANE_DIST_EPSILON { r } else { d }
+    if (d - r).abs() < PLANE_DIST_EPSILON {
+        r
+    } else {
+        d
+    }
 }
 
 /// Whether a normal is in the orientation we store first in a plane pair.
@@ -255,8 +326,12 @@ fn snap_dist(d: f32) -> f32 {
 /// dominant axis, matching Source's habit of filing axial planes normal-positive.
 fn is_canonical(n: Vec3) -> bool {
     let ax = major_axis(n);
-    if n[ax] > 0.0 { return true; }
-    if n[ax] < 0.0 { return false; }
+    if n[ax] > 0.0 {
+        return true;
+    }
+    if n[ax] < 0.0 {
+        return false;
+    }
     true
 }
 
@@ -273,7 +348,8 @@ mod tests {
             Vec3::new(0.0, 0.0, 64.0),
             Vec3::new(0.0, 64.0, 64.0),
             Vec3::new(64.0, 64.0, 64.0),
-        ).unwrap();
+        )
+        .unwrap();
         assert_eq!(p.normal, Vec3::Z);
         assert_eq!(p.dist, 64.0);
     }
@@ -289,7 +365,9 @@ mod tests {
     #[test]
     fn segment_intersection_snaps_to_axial_planes() {
         let p = Plane::new(Vec3::Z, 32.0);
-        let hit = p.intersect_segment(Vec3::new(0.0, 0.0, 0.0), Vec3::new(100.0, 7.0, 64.0)).unwrap();
+        let hit = p
+            .intersect_segment(Vec3::new(0.0, 0.0, 0.0), Vec3::new(100.0, 7.0, 64.0))
+            .unwrap();
         // Exactly on the plane, not merely near it.
         assert_eq!(hit.z, 32.0);
     }
@@ -309,7 +387,10 @@ mod tests {
     fn near_identical_planes_intern_together() {
         let mut set = PlaneSet::new();
         let a = set.insert(Plane::new(Vec3::new(0.0, 0.0, 1.0), 64.0));
-        let b = set.insert(Plane::new(Vec3::new(1e-7, -1e-7, 1.0).normalize(), 64.000_004));
+        let b = set.insert(Plane::new(
+            Vec3::new(1e-7, -1e-7, 1.0).normalize(),
+            64.000_004,
+        ));
         assert_eq!(a, b);
         assert_eq!(set.len(), 2);
     }

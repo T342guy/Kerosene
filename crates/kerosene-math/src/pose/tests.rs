@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
 use super::*;
 
-fn close(a: Vec3, b: Vec3) -> bool { (a - b).length() < 1e-3 }
+fn close(a: Vec3, b: Vec3) -> bool {
+    (a - b).length() < 1e-3
+}
 
 #[test]
 fn an_unrotated_pose_is_just_a_translation() {
@@ -18,7 +20,10 @@ fn local_and_world_are_inverses_of_each_other() {
     let pose = Pose::new(Vec3::new(-40.0, 12.0, 96.0), Angles::new(20.0, 35.0, -15.0));
     for point in [Vec3::ZERO, Vec3::X * 64.0, Vec3::new(3.0, -7.0, 11.0)] {
         let round_tripped = pose.to_local(pose.to_world(point));
-        assert!(close(round_tripped, point), "{point:?} became {round_tripped:?}");
+        assert!(
+            close(round_tripped, point),
+            "{point:?} became {round_tripped:?}"
+        );
     }
 }
 
@@ -26,7 +31,11 @@ fn local_and_world_are_inverses_of_each_other() {
 fn yaw_turns_local_x_toward_local_y() {
     // Yaw 90 looks down +Y, so a model's nose ends up pointing that way.
     let pose = Pose::new(Vec3::ZERO, Angles::new(0.0, 90.0, 0.0));
-    assert!(close(pose.to_world(Vec3::X), Vec3::Y), "{:?}", pose.to_world(Vec3::X));
+    assert!(
+        close(pose.to_world(Vec3::X), Vec3::Y),
+        "{:?}",
+        pose.to_world(Vec3::X)
+    );
 }
 
 #[test]
@@ -48,14 +57,20 @@ fn rotating_a_box_takes_every_corner_not_just_two() {
     let expected = 10.0 * 2.0f32.sqrt();
     assert!((bounds.max.x - expected).abs() < 0.01, "{bounds:?}");
     assert!((bounds.min.x + expected).abs() < 0.01, "{bounds:?}");
-    assert!((bounds.max.z - 4.0).abs() < 0.01, "the axis turned about is unchanged: {bounds:?}");
+    assert!(
+        (bounds.max.z - 4.0).abs() < 0.01,
+        "the axis turned about is unchanged: {bounds:?}"
+    );
 }
 
 #[test]
 fn an_unrotated_box_is_moved_and_not_grown() {
     let local = Aabb::new(Vec3::new(-10.0, -10.0, 0.0), Vec3::new(10.0, 10.0, 4.0));
     let bounds = Pose::at(Vec3::new(5.0, 0.0, 0.0)).bounds_of(local);
-    assert_eq!(bounds, Aabb::new(Vec3::new(-5.0, -10.0, 0.0), Vec3::new(15.0, 10.0, 4.0)));
+    assert_eq!(
+        bounds,
+        Aabb::new(Vec3::new(-5.0, -10.0, 0.0), Vec3::new(15.0, 10.0, 4.0))
+    );
 }
 
 #[test]
@@ -91,7 +106,11 @@ fn a_pivot_turns_a_body_in_place_instead_of_around_the_world_origin() {
     assert!(close(pose.to_world(far_away), far_away));
     // And a point beside it swings to the other side of it, not to the origin.
     let beside = far_away + Vec3::X * 16.0;
-    assert!(close(pose.to_world(beside), far_away - Vec3::X * 16.0), "{:?}", pose.to_world(beside));
+    assert!(
+        close(pose.to_world(beside), far_away - Vec3::X * 16.0),
+        "{:?}",
+        pose.to_world(beside)
+    );
 }
 
 #[test]
@@ -101,7 +120,11 @@ fn local_and_world_still_invert_with_a_pivot() {
         Angles::new(12.0, 47.0, -8.0),
         Vec3::new(600.0, 300.0, 64.0),
     );
-    for point in [Vec3::ZERO, Vec3::new(600.0, 300.0, 64.0), Vec3::new(-11.0, 5.0, 2.0)] {
+    for point in [
+        Vec3::ZERO,
+        Vec3::new(600.0, 300.0, 64.0),
+        Vec3::new(-11.0, 5.0, 2.0),
+    ] {
         assert!(close(pose.to_local(pose.to_world(point)), point));
     }
 }
@@ -115,7 +138,10 @@ fn the_matrix_still_agrees_with_the_point_transform_when_there_is_a_pivot() {
     );
     let point = Vec3::new(300.0, 200.0, 48.0);
     let by_matrix = pose.to_mat4() * point.extend(1.0);
-    assert!(close(by_matrix.truncate(), pose.to_world(point)), "{by_matrix:?}");
+    assert!(
+        close(by_matrix.truncate(), pose.to_world(point)),
+        "{by_matrix:?}"
+    );
 }
 
 #[test]

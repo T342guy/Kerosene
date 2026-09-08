@@ -24,7 +24,13 @@ pub struct TextureAxis {
 }
 
 impl TextureAxis {
-    pub fn new(axis: Vec3, offset: f32, scale: f32) -> Self { Self { axis, offset, scale } }
+    pub fn new(axis: Vec3, offset: f32, scale: f32) -> Self {
+        Self {
+            axis,
+            offset,
+            scale,
+        }
+    }
 
     /// The scale to actually divide by.
     ///
@@ -34,7 +40,11 @@ impl TextureAxis {
     /// several stages later. Substituting the Hammer default keeps the face.
     #[inline]
     pub fn safe_scale(&self) -> f32 {
-        if self.scale.abs() < 1e-6 { 0.25 } else { self.scale }
+        if self.scale.abs() < 1e-6 {
+            0.25
+        } else {
+            self.scale
+        }
     }
 
     /// Texture coordinate of a world point, in texels.
@@ -51,7 +61,9 @@ impl TextureAxis {
             .split_whitespace()
             .map(|t| t.parse().ok())
             .collect::<Option<Vec<f32>>>()?;
-        if inner.len() != 4 { return None; }
+        if inner.len() != 4 {
+            return None;
+        }
         let scale: f32 = s[close + 1..].trim().parse().unwrap_or(0.25);
         Some(TextureAxis {
             axis: Vec3::new(inner[0], inner[1], inner[2]),
@@ -64,14 +76,22 @@ impl TextureAxis {
         use kerosene_kv::format_float as f;
         format!(
             "[{} {} {} {}] {}",
-            f(self.axis.x), f(self.axis.y), f(self.axis.z), f(self.offset), f(self.scale)
+            f(self.axis.x),
+            f(self.axis.y),
+            f(self.axis.z),
+            f(self.offset),
+            f(self.scale)
         )
     }
 }
 
 impl Default for TextureAxis {
     fn default() -> Self {
-        Self { axis: Vec3::X, offset: 0.0, scale: 0.25 }
+        Self {
+            axis: Vec3::X,
+            offset: 0.0,
+            scale: 0.25,
+        }
     }
 }
 
@@ -82,17 +102,41 @@ impl Default for TextureAxis {
 /// make textures read right side up on walls and ceilings rather than mirrored.
 const BASE_AXES: [[Vec3; 3]; 6] = [
     // floor
-    [Vec3::new(0.0, 0.0, 1.0), Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, -1.0, 0.0)],
+    [
+        Vec3::new(0.0, 0.0, 1.0),
+        Vec3::new(1.0, 0.0, 0.0),
+        Vec3::new(0.0, -1.0, 0.0),
+    ],
     // ceiling
-    [Vec3::new(0.0, 0.0, -1.0), Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, -1.0, 0.0)],
+    [
+        Vec3::new(0.0, 0.0, -1.0),
+        Vec3::new(1.0, 0.0, 0.0),
+        Vec3::new(0.0, -1.0, 0.0),
+    ],
     // west wall
-    [Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0), Vec3::new(0.0, 0.0, -1.0)],
+    [
+        Vec3::new(1.0, 0.0, 0.0),
+        Vec3::new(0.0, 1.0, 0.0),
+        Vec3::new(0.0, 0.0, -1.0),
+    ],
     // east wall
-    [Vec3::new(-1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0), Vec3::new(0.0, 0.0, -1.0)],
+    [
+        Vec3::new(-1.0, 0.0, 0.0),
+        Vec3::new(0.0, 1.0, 0.0),
+        Vec3::new(0.0, 0.0, -1.0),
+    ],
     // south wall
-    [Vec3::new(0.0, 1.0, 0.0), Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, -1.0)],
+    [
+        Vec3::new(0.0, 1.0, 0.0),
+        Vec3::new(1.0, 0.0, 0.0),
+        Vec3::new(0.0, 0.0, -1.0),
+    ],
     // north wall
-    [Vec3::new(0.0, -1.0, 0.0), Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, -1.0)],
+    [
+        Vec3::new(0.0, -1.0, 0.0),
+        Vec3::new(1.0, 0.0, 0.0),
+        Vec3::new(0.0, 0.0, -1.0),
+    ],
 ];
 
 /// Default world-aligned texture axes for a plane.
@@ -105,7 +149,10 @@ pub fn default_axes_for_plane(plane: &Plane, scale: f32) -> (TextureAxis, Textur
     let mut best_i = 0;
     for (i, entry) in BASE_AXES.iter().enumerate() {
         let dot = plane.normal.dot(entry[0]);
-        if dot > best { best = dot; best_i = i; }
+        if dot > best {
+            best = dot;
+            best_i = i;
+        }
     }
     (
         TextureAxis::new(BASE_AXES[best_i][1], 0.0, scale),
@@ -125,8 +172,14 @@ pub fn rotate_axes(
     // Rodrigues rotation about the face normal.
     let rot = |x: Vec3| x * c + n.cross(x) * s + n * n.dot(x) * (1.0 - c);
     (
-        TextureAxis { axis: rot(u.axis), ..u },
-        TextureAxis { axis: rot(v.axis), ..v },
+        TextureAxis {
+            axis: rot(u.axis),
+            ..u
+        },
+        TextureAxis {
+            axis: rot(v.axis),
+            ..v
+        },
     )
 }
 
@@ -195,6 +248,11 @@ mod tests {
         // The floor basis has V pointing at -Y, so it is a -90 degree turn
         // about the normal that carries U onto V.
         let (ru, _) = rotate_axes(&plane, u, v, -90.0);
-        assert!((ru.axis - v.axis).length() < 1e-5, "{:?} vs {:?}", ru.axis, v.axis);
+        assert!(
+            (ru.axis - v.axis).length() < 1e-5,
+            "{:?} vs {:?}",
+            ru.axis,
+            v.axis
+        );
     }
 }

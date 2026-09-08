@@ -41,10 +41,16 @@ pub fn collect(world_brushes: &[BrushWork], planes: &PlaneSet) -> Walkmap {
     for brush in world_brushes {
         for side in &brush.sides {
             let normal = planes.get(side.plane).normal;
-            if !walkable(side, normal) { continue; }
+            if !walkable(side, normal) {
+                continue;
+            }
             for fragment in &side.fragments {
-                if fragment.points.len() < 3 { continue; }
-                if fragment.area() < MIN_FACE_AREA { continue; }
+                if fragment.points.len() < 3 {
+                    continue;
+                }
+                if fragment.area() < MIN_FACE_AREA {
+                    continue;
+                }
                 faces.push(WalkFace {
                     vertices: fragment.points.clone(),
                     normal,
@@ -69,8 +75,12 @@ fn walkable(side: &crate::brush::SideWork, normal: kerosene_math::Vec3) -> bool 
 
     // An ordinary floor: pointing up, drawable, authored (not an interior
     // cut), and not sky or water, which are solid-looking but not ground.
-    if normal.z < WALK_SLOPE { return false; }
-    if !side.emits_face || side.generated { return false; }
+    if normal.z < WALK_SLOPE {
+        return false;
+    }
+    if !side.emits_face || side.generated {
+        return false;
+    }
     side.surface & (surf::SKY | surf::WARP) == 0
 }
 
@@ -118,7 +128,9 @@ mod tests {
     fn a_denied_floor_is_left_out() {
         let mut solid = Solid::cube(Aabb::new(Vec3::ZERO, Vec3::splat(128.0)), "dev/grid");
         for side in &mut solid.sides {
-            if side.plane().unwrap().normal == Vec3::Z { side.walkmap = WalkmapRule::Deny; }
+            if side.plane().unwrap().normal == Vec3::Z {
+                side.walkmap = WalkmapRule::Deny;
+            }
         }
         let (brush, planes) = chopped(&solid);
         let walk = collect(&[brush], &planes);
@@ -129,7 +141,9 @@ mod tests {
     fn an_avoid_floor_is_walkable_but_flagged() {
         let mut solid = Solid::cube(Aabb::new(Vec3::ZERO, Vec3::splat(128.0)), "dev/grid");
         for side in &mut solid.sides {
-            if side.plane().unwrap().normal == Vec3::Z { side.walkmap = WalkmapRule::Avoid; }
+            if side.plane().unwrap().normal == Vec3::Z {
+                side.walkmap = WalkmapRule::Avoid;
+            }
         }
         let (brush, planes) = chopped(&solid);
         let walk = collect(&[brush], &planes);
@@ -145,13 +159,19 @@ mod tests {
         // mark the ceiling's opposite (a wall) as always: the point is that
         // `always` overrides flatness.
         for side in &mut solid.sides {
-            if side.plane().unwrap().normal == Vec3::X { side.walkmap = WalkmapRule::Always; }
+            if side.plane().unwrap().normal == Vec3::X {
+                side.walkmap = WalkmapRule::Always;
+            }
         }
         let (brush, planes) = chopped(&solid);
         let walk = collect(&[brush], &planes);
         // The floor (flat) plus the forced wall.
         assert_eq!(walk.len(), 2);
-        assert!(walk.faces.iter().any(|f| f.normal == Vec3::X && f.rule == WalkmapRule::Always));
+        assert!(
+            walk.faces
+                .iter()
+                .any(|f| f.normal == Vec3::X && f.rule == WalkmapRule::Always)
+        );
     }
 
     #[test]

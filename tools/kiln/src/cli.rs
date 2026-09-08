@@ -11,11 +11,11 @@
 //! kerosene-tools kiln --ship dist                  # build, then assemble
 //! ```
 
+use crate::{Settings, Stage};
 use anyhow::{Result, bail};
 use clap::Parser;
-use crate::{Settings, Stage};
-use std::path::PathBuf;
 use kerosene_vfs::toolchain;
+use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
 #[command(name = "kiln", version, about = "Build a Kerosene project's content")]
@@ -67,9 +67,19 @@ pub fn run(args: Vec<String>) -> Result<()> {
             } else {
                 toolchain::path(name)
                     .map(|p| p.display().to_string())
-                    .unwrap_or_else(|| if found { "on PATH".into() } else { "not found".into() })
+                    .unwrap_or_else(|| {
+                        if found {
+                            "on PATH".into()
+                        } else {
+                            "not found".into()
+                        }
+                    })
             };
-            println!("  {:<9} {:<3} {where_}", name, if found { "ok" } else { "--" });
+            println!(
+                "  {:<9} {:<3} {where_}",
+                name,
+                if found { "ok" } else { "--" }
+            );
         }
         return Ok(());
     }
@@ -84,12 +94,14 @@ pub fn run(args: Vec<String>) -> Result<()> {
     for name in &args.only {
         match Stage::parse(name) {
             Some(stage) => stages.push(stage),
-            None => bail!(
-                "unknown stage {name:?}. Try textures, sounds, models, maps, pack or ship."
-            ),
+            None => {
+                bail!("unknown stage {name:?}. Try textures, sounds, models, maps, pack or ship.")
+            }
         }
     }
-    if stages.is_empty() { stages = Stage::ALL.to_vec() }
+    if stages.is_empty() {
+        stages = Stage::ALL.to_vec()
+    }
     // Asking for a distribution is asking for the stage that makes one, so it
     // does not also have to be named with --only. Naming it explicitly still
     // works, and is how you assemble without rebuilding.
@@ -131,7 +143,10 @@ pub fn run(args: Vec<String>) -> Result<()> {
     // map compiles and then behaves like a broken renderer.
     if !report.leaking.is_empty() {
         println!();
-        println!("{} map(s) LEAK and will not light or cull correctly:", report.leaking.len());
+        println!(
+            "{} map(s) LEAK and will not light or cull correctly:",
+            report.leaking.len()
+        );
         for name in &report.leaking {
             println!("  {name} -- open it in Chisel; the leak is drawn as a red line");
         }

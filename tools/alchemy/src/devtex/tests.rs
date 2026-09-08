@@ -9,11 +9,23 @@ fn the_set_covers_every_tool_material_the_compiler_knows() {
     // gave a missing texture.
     let names: HashSet<&str> = set().iter().map(|t| t.name).collect();
     for tool in [
-        "nodraw", "clip", "playerclip", "npcclip", "trigger", "skybox", "hint", "skip",
-        "blocklight", "grate", "water",
+        "nodraw",
+        "clip",
+        "playerclip",
+        "npcclip",
+        "trigger",
+        "skybox",
+        "hint",
+        "skip",
+        "blocklight",
+        "grate",
+        "water",
     ] {
         let name = format!("tools/{tool}");
-        assert!(names.contains(name.as_str()), "{name} is missing from the set");
+        assert!(
+            names.contains(name.as_str()),
+            "{name} is missing from the set"
+        );
     }
 }
 
@@ -22,7 +34,9 @@ fn every_tool_texture_in_the_set_is_one_the_compiler_understands() {
     // The other direction: offering a tool material the compiler treats as
     // world geometry would silently wall off a doorway.
     for texture in set() {
-        if !texture.name.starts_with("tools/") { continue }
+        if !texture.name.starts_with("tools/") {
+            continue;
+        }
         assert!(
             cleave::material::is_known_tool(texture.name),
             "{} is not a tool the compiler knows",
@@ -69,7 +83,11 @@ fn a_checkerboard_actually_alternates() {
     let canvas = measure([220, 220, 220], [60, 60, 60], None);
     let cell = (DEV_SIZE / (DEV_SPAN / DEV_CELL)) as i32;
     let sample = |cx: i32, cy: i32| canvas.get(cx * cell + cell / 2, cy * cell + cell / 4);
-    assert_ne!(sample(0, 0), sample(1, 0), "neighbouring cells are the same shade");
+    assert_ne!(
+        sample(0, 0),
+        sample(1, 0),
+        "neighbouring cells are the same shade"
+    );
     assert_eq!(sample(0, 0), sample(1, 1), "the diagonal should match");
 }
 
@@ -93,8 +111,16 @@ fn only_the_measurement_texture_carries_a_label() {
     let labelled = measure([200, 200, 200], [100, 100, 100], Some("16 KU"));
     assert_ne!(plain.pixels, labelled.pixels, "the label was not drawn");
 
-    let bright = |c: &Canvas| c.pixels.chunks(3).filter(|p| p[0] > 240 && p[1] > 240).count();
-    assert!(bright(&labelled) > bright(&plain) + 50, "the label is not legible");
+    let bright = |c: &Canvas| {
+        c.pixels
+            .chunks(3)
+            .filter(|p| p[0] > 240 && p[1] > 240)
+            .count()
+    };
+    assert!(
+        bright(&labelled) > bright(&plain) + 50,
+        "the label is not legible"
+    );
 }
 
 #[test]
@@ -104,7 +130,11 @@ fn a_label_is_drawn_somewhere_light() {
     assert_ne!(plain.pixels, labelled.pixels, "the label was not drawn");
 
     // ...and it is legible: something near white exists on it.
-    let bright = labelled.pixels.chunks(3).filter(|p| p[0] > 240 && p[1] > 240).count();
+    let bright = labelled
+        .pixels
+        .chunks(3)
+        .filter(|p| p[0] > 240 && p[1] > 240)
+        .count();
     assert!(bright > 50, "only {bright} bright pixels");
 }
 
@@ -113,7 +143,10 @@ fn a_sky_gets_darker_towards_the_top() {
     let canvas = sky([40, 50, 80], [140, 150, 180]);
     let top = canvas.get(128, 2);
     let bottom = canvas.get(128, DEV_SIZE as i32 - 3);
-    assert!(bottom[2] > top[2], "the gradient runs the wrong way: {top:?} to {bottom:?}");
+    assert!(
+        bottom[2] > top[2],
+        "the gradient runs the wrong way: {top:?} to {bottom:?}"
+    );
 }
 
 #[test]
@@ -122,7 +155,10 @@ fn a_flat_texture_is_not_perfectly_flat_but_is_deterministic() {
     // produce the same bytes.
     let a = flat([128, 128, 128], None);
     let b = flat([128, 128, 128], None);
-    assert_eq!(a.pixels, b.pixels, "the same texture came out differently twice");
+    assert_eq!(
+        a.pixels, b.pixels,
+        "the same texture came out differently twice"
+    );
 
     let unique: HashSet<Rgb> = (0..64).map(|x| a.get(x, 7)).collect();
     assert!(unique.len() > 1, "no variation at all");
@@ -148,7 +184,10 @@ fn blending_moves_a_colour_towards_the_new_one() {
     let [r, _, _] = canvas.get(1, 1);
     assert!((126..=129).contains(&r), "{r}");
     canvas.blend(1, 1, [255, 255, 255], 0.0);
-    assert!((126..=129).contains(&canvas.get(1, 1)[0]), "an alpha of zero changed something");
+    assert!(
+        (126..=129).contains(&canvas.get(1, 1)[0]),
+        "an alpha of zero changed something"
+    );
 }
 
 #[test]
@@ -189,11 +228,19 @@ fn running_it_again_changes_nothing() {
     write_materials(&dir.join("materials")).expect("first run");
 
     let again = write_all(&dir).expect("second run");
-    assert_eq!(again.changed, 0, "{} textures came out different", again.changed);
+    assert_eq!(
+        again.changed, 0,
+        "{} textures came out different",
+        again.changed
+    );
     assert_eq!(again.unchanged, set().len());
 
     let materials = write_materials(&dir.join("materials")).expect("second run");
-    assert_eq!(materials.changed, 0, "{} materials came out different", materials.changed);
+    assert_eq!(
+        materials.changed, 0,
+        "{} materials came out different",
+        materials.changed
+    );
 
     let _ = std::fs::remove_dir_all(&dir);
 }
@@ -216,9 +263,20 @@ fn a_texture_someone_deleted_comes_back() {
 
 #[test]
 fn a_report_says_what_happened_in_words() {
-    assert_eq!(Written { changed: 0, unchanged: 20 }.to_string(), "20 already up to date");
     assert_eq!(
-        Written { changed: 3, unchanged: 17 }.to_string(),
+        Written {
+            changed: 0,
+            unchanged: 20
+        }
+        .to_string(),
+        "20 already up to date"
+    );
+    assert_eq!(
+        Written {
+            changed: 3,
+            unchanged: 17
+        }
+        .to_string(),
         "3 written, 17 already up to date"
     );
 }

@@ -24,16 +24,16 @@
 //! the texture build a library call rather than a second implementation.
 
 pub mod build;
-pub mod decode;
 mod cli;
+pub mod decode;
 pub mod gui;
 
 pub use cli::run;
 
 use anyhow::{Context, Result};
-use std::path::{Path, PathBuf};
 use kerosene_audio::compiled::{self, Encoding, Loop};
 use kerosene_audio::wav::Sound;
+use std::path::{Path, PathBuf};
 
 /// Every source extension Timbre reads. See [`decode`].
 pub use decode::EXTENSIONS as SOURCE_EXTENSIONS;
@@ -53,7 +53,12 @@ pub struct Options {
 
 impl Default for Options {
     fn default() -> Self {
-        Options { encoding: Encoding::Adpcm, gain: 1.0, mono: false, looping: None }
+        Options {
+            encoding: Encoding::Adpcm,
+            gain: 1.0,
+            mono: false,
+            looping: None,
+        }
     }
 }
 
@@ -76,11 +81,15 @@ impl Compiled {
     /// MP3 at 64 kbit is already smaller than four bits a sample, so
     /// compiling one costs size as well as quality.
     pub fn saved(&self) -> f32 {
-        if self.source_bytes == 0 { return 0.0 }
+        if self.source_bytes == 0 {
+            return 0.0;
+        }
         1.0 - (self.output_bytes as f32 / self.source_bytes as f32)
     }
 
-    pub fn grew(&self) -> bool { self.output_bytes > self.source_bytes }
+    pub fn grew(&self) -> bool {
+        self.output_bytes > self.source_bytes
+    }
 
     /// How the size change reads, in the direction it actually went.
     pub fn size_change(&self) -> String {
@@ -100,7 +109,11 @@ impl std::fmt::Display for Compiled {
             self.output.display(),
             self.info.duration(),
             self.info.channels,
-            if self.info.channels == 1 { "channel" } else { "channels" },
+            if self.info.channels == 1 {
+                "channel"
+            } else {
+                "channels"
+            },
             self.info.encoding.name(),
             self.size_change(),
         )
@@ -119,7 +132,11 @@ pub fn prepare(sound: &Sound, options: &Options) -> Sound {
             sample_rate: sound.sample_rate,
             // Averaged, not summed: summing two correlated channels is a
             // 6 dB boost and clips anything that was already loud.
-            samples: sound.samples.chunks_exact(2).map(|c| (c[0] + c[1]) * 0.5).collect(),
+            samples: sound
+                .samples
+                .chunks_exact(2)
+                .map(|c| (c[0] + c[1]) * 0.5)
+                .collect(),
         }
     } else {
         sound.clone()
@@ -140,8 +157,7 @@ pub fn peak_of(sound: &Sound) -> f32 {
 
 /// Compile one `.wav` into a `.keroaud`.
 pub fn compile(source: &Path, output: &Path, options: &Options) -> Result<Compiled> {
-    let bytes = std::fs::read(source)
-        .with_context(|| format!("reading {}", source.display()))?;
+    let bytes = std::fs::read(source).with_context(|| format!("reading {}", source.display()))?;
     let read = decode::any(source, &bytes)?;
     let decoded = read.sound;
 
@@ -180,8 +196,7 @@ pub fn compile(source: &Path, output: &Path, options: &Options) -> Result<Compil
         std::fs::create_dir_all(parent)
             .with_context(|| format!("creating {}", parent.display()))?;
     }
-    std::fs::write(output, &encoded)
-        .with_context(|| format!("writing {}", output.display()))?;
+    std::fs::write(output, &encoded).with_context(|| format!("writing {}", output.display()))?;
 
     // Checked after encoding, because it is the encoded size that decides it.
     // A source that is already compressed gains nothing from four bits a
@@ -214,9 +229,13 @@ pub fn loop_from_wav(bytes: &[u8], frames: u32) -> Option<Loop> {
     let chunk = find_chunk(bytes, b"smpl")?;
     // The sample loop count sits at offset 28, and the first loop's start and
     // end at 44 and 48 within the chunk body.
-    if chunk.len() < 60 { return None }
+    if chunk.len() < 60 {
+        return None;
+    }
     let at = |o: usize| u32::from_le_bytes([chunk[o], chunk[o + 1], chunk[o + 2], chunk[o + 3]]);
-    if at(28) == 0 { return None }
+    if at(28) == 0 {
+        return None;
+    }
 
     let start = at(44);
     // The `smpl` end is the last frame *played*, inclusive; ours is one past.
@@ -235,7 +254,9 @@ fn find_chunk<'a>(bytes: &'a [u8], id: &[u8; 4]) -> Option<&'a [u8]> {
             as usize;
         let body = at + 8;
         let end = body.checked_add(size)?;
-        if end > bytes.len() { return None }
+        if end > bytes.len() {
+            return None;
+        }
         if &bytes[at..at + 4] == id {
             return Some(&bytes[body..end]);
         }
@@ -264,9 +285,15 @@ pub struct Batch {
 }
 
 impl Batch {
-    pub fn source_bytes(&self) -> usize { self.compiled.iter().map(|c| c.source_bytes).sum() }
-    pub fn output_bytes(&self) -> usize { self.compiled.iter().map(|c| c.output_bytes).sum() }
-    pub fn warnings(&self) -> usize { self.compiled.iter().map(|c| c.warnings.len()).sum() }
+    pub fn source_bytes(&self) -> usize {
+        self.compiled.iter().map(|c| c.source_bytes).sum()
+    }
+    pub fn output_bytes(&self) -> usize {
+        self.compiled.iter().map(|c| c.output_bytes).sum()
+    }
+    pub fn warnings(&self) -> usize {
+        self.compiled.iter().map(|c| c.warnings.len()).sum()
+    }
 }
 
 impl std::fmt::Display for Batch {
@@ -344,7 +371,9 @@ fn colliding(sources: &[PathBuf]) -> Vec<(PathBuf, PathBuf)> {
 /// and rebuilding has to actually rebuild, or the change silently does
 /// nothing and the next person spends an hour on it.
 fn is_up_to_date(source: &Path, output: &Path, script: &Path) -> bool {
-    let Ok(out) = output.metadata().and_then(|m| m.modified()) else { return false };
+    let Ok(out) = output.metadata().and_then(|m| m.modified()) else {
+        return false;
+    };
     let newer_than_out = |p: &Path| {
         p.metadata()
             .and_then(|m| m.modified())

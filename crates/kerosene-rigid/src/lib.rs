@@ -375,6 +375,32 @@ impl RigidWorld {
         b3::body::body_is_awake(&self.world, body.0)
     }
 
+    /// A body's angular velocity (axis-and-angle), in radians per second.
+    pub fn angular_velocity(&self, body: Body) -> Vec3 {
+        from_b3(b3::body::body_get_angular_velocity(&self.world, body.0))
+    }
+
+    /// The body's rotational inertia about its centre of mass, in world space.
+    ///
+    /// Box3D keeps the inverse, because that is what a solver wants; this
+    /// returns the forward tensor, which is what anyone converting a wanted
+    /// change in spin into an angular impulse needs. Returns `None` for a body
+    /// with no rotational inertia to speak of -- a static or kinematic one,
+    /// whose inverse tensor is zero and cannot be inverted.
+    pub fn world_inertia(&self, body: Body) -> Option<kerosene_math::Mat3> {
+        let m = b3::body::body_get_world_inverse_rotational_inertia(&self.world, body.0);
+        let inverse = kerosene_math::Mat3::from_cols(from_b3(m.cx), from_b3(m.cy), from_b3(m.cz));
+        if inverse.determinant().abs() < 1e-12 {
+            return None;
+        }
+        Some(inverse.inverse())
+    }
+
+    /// Apply an instantaneous angular impulse about the centre of mass.
+    pub fn apply_angular_impulse(&mut self, body: Body, impulse: Vec3) {
+        b3::body::body_apply_angular_impulse(&mut self.world, body.0, to_b3(impulse), true);
+    }
+
     /// Apply an instantaneous impulse to a body's centre of mass (a shot, an
     /// explosion, a kick).
     pub fn apply_impulse(&mut self, body: Body, impulse: Vec3) {

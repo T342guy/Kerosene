@@ -22,11 +22,15 @@
 
 use anyhow::{Context, Result, bail};
 use clap::{Parser, Subcommand};
-use std::path::{Path, PathBuf};
 use kerosene_vfs::{Archive, ArchiveBuilder};
+use std::path::{Path, PathBuf};
 
 #[derive(Parser, Debug)]
-#[command(name = "vault", version, about = "Pack and inspect Kerosene content archives")]
+#[command(
+    name = "vault",
+    version,
+    about = "Pack and inspect Kerosene content archives"
+)]
 struct Args {
     #[command(subcommand)]
     command: Command,
@@ -72,9 +76,12 @@ enum Command {
 pub fn run(args: Vec<String>) -> Result<()> {
     let args = Args::parse_from(std::iter::once("vault".to_string()).chain(args));
     match args.command {
-        Command::Pack { directory, output, extensions, excludes } => {
-            pack(&directory, &output, &extensions, &excludes)
-        }
+        Command::Pack {
+            directory,
+            output,
+            extensions,
+            excludes,
+        } => pack(&directory, &output, &extensions, &excludes),
         Command::List { archive, long } => list(&archive, long),
         Command::Verify { archive } => verify(&archive),
         Command::Unpack { archive, output } => unpack(&archive, &output),
@@ -82,9 +89,14 @@ pub fn run(args: Vec<String>) -> Result<()> {
 }
 
 fn pack(dir: &Path, out: &Path, extensions: &[String], excludes: &[String]) -> Result<()> {
-    if !dir.is_dir() { bail!("{} is not a directory", dir.display()); }
+    if !dir.is_dir() {
+        bail!("{} is not a directory", dir.display());
+    }
 
-    let wanted: Vec<String> = extensions.iter().map(|e| e.trim_start_matches('.').to_lowercase()).collect();
+    let wanted: Vec<String> = extensions
+        .iter()
+        .map(|e| e.trim_start_matches('.').to_lowercase())
+        .collect();
     let mut builder = ArchiveBuilder::new();
     let mut files = Vec::new();
     collect(dir, dir, &mut files)?;
@@ -95,7 +107,10 @@ fn pack(dir: &Path, out: &Path, extensions: &[String], excludes: &[String]) -> R
     for (disk, virtual_path) in files {
         if !wanted.is_empty() {
             let ext = virtual_path.rsplit('.').next().unwrap_or("").to_lowercase();
-            if !wanted.contains(&ext) { skipped += 1; continue; }
+            if !wanted.contains(&ext) {
+                skipped += 1;
+                continue;
+            }
         }
         if excludes.iter().any(|e| virtual_path.contains(e.as_str())) {
             skipped += 1;
@@ -108,13 +123,24 @@ fn pack(dir: &Path, out: &Path, extensions: &[String], excludes: &[String]) -> R
     }
 
     if builder.is_empty() {
-        bail!("nothing to pack from {} (check --ext and --exclude)", dir.display());
+        bail!(
+            "nothing to pack from {} (check --ext and --exclude)",
+            dir.display()
+        );
     }
 
-    let size = builder.write(out).with_context(|| format!("writing {}", out.display()))?;
-    println!("vault: packed {} files ({:.1} KiB of content) into {}",
-        builder.len(), total as f64 / 1024.0, out.display());
-    if skipped > 0 { println!("  {skipped} files skipped by filters"); }
+    let size = builder
+        .write(out)
+        .with_context(|| format!("writing {}", out.display()))?;
+    println!(
+        "vault: packed {} files ({:.1} KiB of content) into {}",
+        builder.len(),
+        total as f64 / 1024.0,
+        out.display()
+    );
+    if skipped > 0 {
+        println!("  {skipped} files skipped by filters");
+    }
     println!("  archive is {:.1} KiB", size as f64 / 1024.0);
     Ok(())
 }
@@ -139,7 +165,12 @@ fn collect(root: &Path, dir: &Path, out: &mut Vec<(PathBuf, String)>) -> Result<
 fn list(path: &Path, long: bool) -> Result<()> {
     let archive = Archive::open(path).with_context(|| format!("opening {}", path.display()))?;
     let total: u64 = archive.entries().iter().map(|e| e.size).sum();
-    println!("vault: {} ({} files, {:.1} KiB)", path.display(), archive.len(), total as f64 / 1024.0);
+    println!(
+        "vault: {} ({} files, {:.1} KiB)",
+        path.display(),
+        archive.len(),
+        total as f64 / 1024.0
+    );
     for entry in archive.entries() {
         if long {
             println!("  {:>10}  {:08x}  {}", entry.size, entry.crc, entry.path);
@@ -162,11 +193,21 @@ fn verify(path: &Path) -> Result<()> {
         }
     }
     if bad.is_empty() {
-        println!("vault: {} -- all {} entries verified", path.display(), archive.len());
+        println!(
+            "vault: {} -- all {} entries verified",
+            path.display(),
+            archive.len()
+        );
         Ok(())
     } else {
-        for b in &bad { println!("  {b}"); }
-        bail!("{} of {} entries failed verification", bad.len(), archive.len())
+        for b in &bad {
+            println!("  {b}");
+        }
+        bail!(
+            "{} of {} entries failed verification",
+            bad.len(),
+            archive.len()
+        )
     }
 }
 
@@ -174,7 +215,9 @@ fn unpack(path: &Path, out: &Path) -> Result<()> {
     let archive = Archive::open(path).with_context(|| format!("opening {}", path.display()))?;
     let mut written = 0usize;
     for entry in archive.entries() {
-        let Some(data) = archive.read(&entry.path)? else { continue };
+        let Some(data) = archive.read(&entry.path)? else {
+            continue;
+        };
         // Entry paths were normalised when packed and cannot contain `..`, so
         // joining them onto the output directory is safe.
         let target = out.join(&entry.path);

@@ -19,7 +19,9 @@ fn counter_hit(world: &mut EntityWorld, id: EntityId, _e: &InputEvent) -> bool {
 
 fn set_value(world: &mut EntityWorld, id: EntityId, e: &InputEvent) -> bool {
     let v = e.parameter_f32().unwrap_or(0.0);
-    if let Some(ent) = world.get_mut(id) { ent.fields.set("value", Value::Float(v)); }
+    if let Some(ent) = world.get_mut(id) {
+        ent.fields.set("value", Value::Float(v));
+    }
     true
 }
 
@@ -52,7 +54,9 @@ fn registry() -> Arc<ClassRegistry> {
     Arc::new(r)
 }
 
-fn world() -> EntityWorld { EntityWorld::new(registry()) }
+fn world() -> EntityWorld {
+    EntityWorld::new(registry())
+}
 
 /// Total deliveries across every entity in a world.
 fn hits(w: &EntityWorld) -> i32 {
@@ -75,7 +79,9 @@ fn several_entities_can_share_a_name() {
     // How a designer opens six doors with one wire.
     let mut w = world();
     let ids: Vec<_> = (0..3).map(|_| w.spawn("logic_relay")).collect();
-    for id in &ids { w.set_targetname(*id, "gates"); }
+    for id in &ids {
+        w.set_targetname(*id, "gates");
+    }
     assert_eq!(w.find_by_name("gates").len(), 3);
 }
 
@@ -85,7 +91,10 @@ fn an_output_fires_its_input() {
     let source = w.spawn("logic_relay");
     let target = w.spawn("logic_relay");
     w.set_targetname(target, "target");
-    w.get_mut(source).unwrap().connections.push(Connection::new("OnUse", "target", "Trigger"));
+    w.get_mut(source)
+        .unwrap()
+        .connections
+        .push(Connection::new("OnUse", "target", "Trigger"));
 
     assert_eq!(w.fire_output(source, "OnUse", None, None), 1);
     assert_eq!(hits(&w), 0, "nothing is delivered before the queue runs");
@@ -139,10 +148,11 @@ fn an_only_once_output_cannot_double_fire_while_in_flight() {
     let source = w.spawn("logic_relay");
     let target = w.spawn("logic_relay");
     w.set_targetname(target, "target");
-    w.get_mut(source)
-        .unwrap()
-        .connections
-        .push(Connection::new("OnUse", "target", "Trigger").once().with_delay(1.0));
+    w.get_mut(source).unwrap().connections.push(
+        Connection::new("OnUse", "target", "Trigger")
+            .once()
+            .with_delay(1.0),
+    );
 
     w.fire_output(source, "OnUse", None, None);
     w.fire_output(source, "OnUse", None, None);
@@ -190,10 +200,16 @@ fn activator_and_caller_are_addressable() {
     let sink = w.spawn("logic_relay");
     w.set_targetname(sink, "sink");
 
-    w.get_mut(trigger).unwrap().connections.push(Connection::new("OnTouch", "!activator", "Kill"));
+    w.get_mut(trigger)
+        .unwrap()
+        .connections
+        .push(Connection::new("OnTouch", "!activator", "Kill"));
     w.fire_output(trigger, "OnTouch", Some(player), None);
     w.run(0.0);
-    assert!(!w.exists(player), "!activator should have resolved to the player");
+    assert!(
+        !w.exists(player),
+        "!activator should have resolved to the player"
+    );
     assert!(w.exists(sink));
 }
 
@@ -206,11 +222,19 @@ fn a_chain_of_relays_propagates() {
     let c = w.spawn("logic_relay");
     w.set_targetname(b, "b");
     w.set_targetname(c, "c");
-    w.get_mut(a).unwrap().connections.push(Connection::new("Go", "b", "Trigger"));
-    w.get_mut(b).unwrap().connections.push(Connection::new("OnTrigger", "c", "Trigger"));
+    w.get_mut(a)
+        .unwrap()
+        .connections
+        .push(Connection::new("Go", "b", "Trigger"));
+    w.get_mut(b)
+        .unwrap()
+        .connections
+        .push(Connection::new("OnTrigger", "c", "Trigger"));
 
     w.fire_output(a, "Go", None, None);
-    for _ in 0..4 { w.run(0.0); }
+    for _ in 0..4 {
+        w.run(0.0);
+    }
     assert_eq!(hits(&w), 2, "both b and c should have been triggered");
 }
 
@@ -223,14 +247,24 @@ fn a_wiring_loop_is_broken_rather_than_hanging() {
     let b = w.spawn("logic_relay");
     w.set_targetname(a, "a");
     w.set_targetname(b, "b");
-    w.get_mut(a).unwrap().connections.push(Connection::new("OnTrigger", "b", "Trigger"));
-    w.get_mut(b).unwrap().connections.push(Connection::new("OnTrigger", "a", "Trigger"));
+    w.get_mut(a)
+        .unwrap()
+        .connections
+        .push(Connection::new("OnTrigger", "b", "Trigger"));
+    w.get_mut(b)
+        .unwrap()
+        .connections
+        .push(Connection::new("OnTrigger", "a", "Trigger"));
 
     w.fire_output(a, "OnTrigger", None, None);
     // Must return rather than spin.
     let delivered = w.run(0.0);
     assert!(delivered <= MAX_EVENTS_PER_TICK);
-    assert_eq!(w.pending_event_count(), 0, "the queue should have been cleared");
+    assert_eq!(
+        w.pending_event_count(),
+        0,
+        "the queue should have been cleared"
+    );
 }
 
 #[test]
@@ -274,7 +308,10 @@ fn removal_is_deferred_until_the_end_of_the_tick() {
     let mut w = world();
     let a = w.spawn("logic_relay");
     w.set_targetname(a, "a");
-    w.get_mut(a).unwrap().connections.push(Connection::new("OnTrigger", "a", "Kill"));
+    w.get_mut(a)
+        .unwrap()
+        .connections
+        .push(Connection::new("OnTrigger", "a", "Kill"));
     w.fire_output(a, "OnTrigger", None, None);
     w.run(0.0);
     assert!(!w.exists(a));
@@ -286,7 +323,9 @@ fn thinks_run_when_scheduled_and_stop_when_not_rescheduled() {
     let t = w.spawn("ticker");
     w.set_think_delay(t, 0.1);
 
-    for _ in 0..20 { w.run(0.05); }
+    for _ in 0..20 {
+        w.run(0.05);
+    }
     // The handler reschedules until it has ticked three times.
     assert_eq!(w.get(t).unwrap().fields.i32("ticks", 0), 3);
     assert!(w.get(t).unwrap().next_think.is_none());
@@ -298,7 +337,9 @@ fn clearing_a_think_stops_it() {
     let t = w.spawn("ticker");
     w.set_think_delay(t, 0.1);
     w.clear_think(t);
-    for _ in 0..10 { w.run(0.05); }
+    for _ in 0..10 {
+        w.run(0.05);
+    }
     assert_eq!(w.get(t).unwrap().fields.i32("ticks", 0), 0);
 }
 
@@ -312,8 +353,10 @@ fn simultaneous_events_are_delivered_in_the_order_they_were_queued() {
     w.set_targetname(second, "second");
     {
         let e = w.get_mut(source).unwrap();
-        e.connections.push(Connection::new("Go", "first", "SetValue").with_parameter("1"));
-        e.connections.push(Connection::new("Go", "second", "SetValue").with_parameter("2"));
+        e.connections
+            .push(Connection::new("Go", "first", "SetValue").with_parameter("1"));
+        e.connections
+            .push(Connection::new("Go", "second", "SetValue").with_parameter("2"));
     }
     w.fire_output(source, "Go", None, None);
     w.run(0.0);
@@ -351,14 +394,20 @@ entity { "classname" "func_door" "targetname" "gate" "model" "*1" }
 
     let door = w.find_by_name("gate")[0];
     assert_eq!(w.get(door).unwrap().brush_model, Some(1));
-    assert_eq!(w.get(w.first_of_class("worldspawn").unwrap()).unwrap().brush_model, Some(0));
+    assert_eq!(
+        w.get(w.first_of_class("worldspawn").unwrap())
+            .unwrap()
+            .brush_model,
+        Some(0)
+    );
 }
 
 #[test]
 fn an_unregistered_class_loads_inert_rather_than_failing() {
     // A map may reference entities a given game does not implement. It should
     // still load and play, minus that entity's behaviour.
-    let kv = KeyValues::parse(r#"entity { "classname" "prop_from_another_mod" "origin" "0 0 0" }"#).unwrap();
+    let kv = KeyValues::parse(r#"entity { "classname" "prop_from_another_mod" "origin" "0 0 0" }"#)
+        .unwrap();
     let mut w = world();
     assert_eq!(w.load_from_kv(&kv).unwrap(), 1);
     assert_eq!(w.len(), 1);

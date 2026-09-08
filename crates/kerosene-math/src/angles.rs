@@ -20,7 +20,11 @@ pub struct Angles {
 }
 
 impl Angles {
-    pub const ZERO: Angles = Angles { pitch: 0.0, yaw: 0.0, roll: 0.0 };
+    pub const ZERO: Angles = Angles {
+        pitch: 0.0,
+        yaw: 0.0,
+        roll: 0.0,
+    };
 
     #[inline]
     pub const fn new(pitch: f32, yaw: f32, roll: f32) -> Self {
@@ -124,14 +128,20 @@ pub struct Basis {
 #[inline]
 pub fn wrap180(a: f32) -> f32 {
     let mut a = a % 360.0;
-    if a >= 180.0 { a -= 360.0; }
-    if a < -180.0 { a += 360.0; }
+    if a >= 180.0 {
+        a -= 360.0;
+    }
+    if a < -180.0 {
+        a += 360.0;
+    }
     a
 }
 
 /// Shortest signed difference `a - b` in degrees.
 #[inline]
-pub fn angle_diff(a: f32, b: f32) -> f32 { wrap180(a - b) }
+pub fn angle_diff(a: f32, b: f32) -> f32 {
+    wrap180(a - b)
+}
 
 impl fmt::Debug for Angles {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -163,7 +173,9 @@ impl std::ops::Sub for Angles {
 mod tests {
     use super::*;
 
-    fn close(a: Vec3, b: Vec3) -> bool { (a - b).length() < 1e-5 }
+    fn close(a: Vec3, b: Vec3) -> bool {
+        (a - b).length() < 1e-5
+    }
 
     #[test]
     fn zero_angles_look_down_positive_x() {
@@ -209,12 +221,20 @@ mod tests {
 
     #[test]
     fn from_mat3_inverts_to_mat3() {
-        for &(p, y, r) in &[(0.0, 0.0, 0.0), (13.0, 47.0, 21.0), (-80.0, 200.0, -33.0), (0.0, 90.0, 0.0)] {
+        for &(p, y, r) in &[
+            (0.0, 0.0, 0.0),
+            (13.0, 47.0, 21.0),
+            (-80.0, 200.0, -33.0),
+            (0.0, 90.0, 0.0),
+        ] {
             let a = Angles::new(p, y, r);
             let back = Angles::from_mat3(&a.to_mat3());
             // Roll and yaw may wrap, but every component must land back within
             // a degree.
-            assert!((angle_diff(back.pitch, p)).abs() < 0.01, "{a:?} -> {back:?}");
+            assert!(
+                (angle_diff(back.pitch, p)).abs() < 0.01,
+                "{a:?} -> {back:?}"
+            );
             assert!((angle_diff(back.yaw, y)).abs() < 0.01, "{a:?} -> {back:?}");
             assert!((angle_diff(back.roll, r)).abs() < 0.01, "{a:?} -> {back:?}");
         }
@@ -226,7 +246,10 @@ mod tests {
             let a = Angles::new(p, y, r);
             let q = Quat::from_mat3(&a.to_mat3());
             let back = Angles::from_quat(q);
-            assert!((angle_diff(back.pitch, p)).abs() < 0.01, "{a:?} -> {back:?}");
+            assert!(
+                (angle_diff(back.pitch, p)).abs() < 0.01,
+                "{a:?} -> {back:?}"
+            );
             assert!((angle_diff(back.yaw, y)).abs() < 0.01, "{a:?} -> {back:?}");
             assert!((angle_diff(back.roll, r)).abs() < 0.01, "{a:?} -> {back:?}");
         }

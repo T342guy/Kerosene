@@ -19,7 +19,9 @@ use std::io::Write;
 
 /// Bytes needed for a bit per cluster.
 #[inline]
-pub const fn row_bytes(num_clusters: usize) -> usize { num_clusters.div_ceil(8) }
+pub const fn row_bytes(num_clusters: usize) -> usize {
+    num_clusters.div_ceil(8)
+}
 
 /// Reader over a compiled visibility lump.
 pub struct VisData<'a> {
@@ -43,18 +45,32 @@ impl<'a> VisData<'a> {
     /// which callers should treat as "everything is visible" -- an
     /// uncompiled map must still render, just slowly.
     pub fn new(raw: &'a [u8]) -> Option<VisData<'a>> {
-        if raw.len() < 4 { return None; }
+        if raw.len() < 4 {
+            return None;
+        }
         let num_clusters = u32::from_le_bytes(raw[0..4].try_into().ok()?) as usize;
-        if num_clusters == 0 { return None; }
+        if num_clusters == 0 {
+            return None;
+        }
         let table_end = 4 + num_clusters * 8;
-        if raw.len() < table_end { return None; }
-        Some(VisData { num_clusters, offsets: &raw[4..table_end], raw })
+        if raw.len() < table_end {
+            return None;
+        }
+        Some(VisData {
+            num_clusters,
+            offsets: &raw[4..table_end],
+            raw,
+        })
     }
 
-    pub fn num_clusters(&self) -> usize { self.num_clusters }
+    pub fn num_clusters(&self) -> usize {
+        self.num_clusters
+    }
 
     fn offset_of(&self, cluster: usize, kind: VisKind) -> Option<usize> {
-        if cluster >= self.num_clusters { return None; }
+        if cluster >= self.num_clusters {
+            return None;
+        }
         let base = cluster * 8 + if kind == VisKind::Pas { 4 } else { 0 };
         let off = u32::from_le_bytes(self.offsets[base..base + 4].try_into().ok()?) as usize;
         (off < self.raw.len()).then_some(off)
@@ -65,7 +81,9 @@ impl<'a> VisData<'a> {
         let bytes = row_bytes(self.num_clusters);
         out.clear();
         out.resize(bytes, 0);
-        let Some(offset) = self.offset_of(cluster, kind) else { return false };
+        let Some(offset) = self.offset_of(cluster, kind) else {
+            return false;
+        };
         decompress_row(&self.raw[offset..], out);
         true
     }
@@ -81,7 +99,9 @@ impl<'a> VisData<'a> {
     /// Decompresses the whole row, so callers that test many targets from one
     /// viewpoint should decompress once and use [`row_test`] instead.
     pub fn is_visible(&self, from: usize, to: usize, kind: VisKind) -> bool {
-        if from >= self.num_clusters || to >= self.num_clusters { return false; }
+        if from >= self.num_clusters || to >= self.num_clusters {
+            return false;
+        }
         let row = self.decompress(from, kind);
         row_test(&row, to)
     }
@@ -90,13 +110,16 @@ impl<'a> VisData<'a> {
 /// Test a bit in a decompressed row.
 #[inline]
 pub fn row_test(row: &[u8], cluster: usize) -> bool {
-    row.get(cluster >> 3).is_some_and(|b| b & (1 << (cluster & 7)) != 0)
+    row.get(cluster >> 3)
+        .is_some_and(|b| b & (1 << (cluster & 7)) != 0)
 }
 
 /// Set a bit in a row.
 #[inline]
 pub fn row_set(row: &mut [u8], cluster: usize) {
-    if let Some(b) = row.get_mut(cluster >> 3) { *b |= 1 << (cluster & 7); }
+    if let Some(b) = row.get_mut(cluster >> 3) {
+        *b |= 1 << (cluster & 7);
+    }
 }
 
 /// Expand a run-length-encoded row.
@@ -141,7 +164,9 @@ pub fn compress_row(row: &[u8], out: &mut Vec<u8>) {
             continue;
         }
         let start = i;
-        while i < row.len() && row[i] == 0 { i += 1; }
+        while i < row.len() && row[i] == 0 {
+            i += 1;
+        }
         let mut run = i - start;
         // The count is one byte, so long runs emit several records.
         while run > 0 {
@@ -183,19 +208,31 @@ impl VisBuilder {
         b
     }
 
-    pub fn num_clusters(&self) -> usize { self.num_clusters }
+    pub fn num_clusters(&self) -> usize {
+        self.num_clusters
+    }
 
     pub fn set_visible(&mut self, from: usize, to: usize) {
-        if from < self.num_clusters { row_set(&mut self.pvs[from], to); }
+        if from < self.num_clusters {
+            row_set(&mut self.pvs[from], to);
+        }
     }
 
     pub fn set_audible(&mut self, from: usize, to: usize) {
-        if from < self.num_clusters { row_set(&mut self.pas[from], to); }
+        if from < self.num_clusters {
+            row_set(&mut self.pas[from], to);
+        }
     }
 
-    pub fn pvs_row(&self, cluster: usize) -> &[u8] { &self.pvs[cluster] }
-    pub fn pvs_row_mut(&mut self, cluster: usize) -> &mut [u8] { &mut self.pvs[cluster] }
-    pub fn pas_row_mut(&mut self, cluster: usize) -> &mut [u8] { &mut self.pas[cluster] }
+    pub fn pvs_row(&self, cluster: usize) -> &[u8] {
+        &self.pvs[cluster]
+    }
+    pub fn pvs_row_mut(&mut self, cluster: usize) -> &mut [u8] {
+        &mut self.pvs[cluster]
+    }
+    pub fn pas_row_mut(&mut self, cluster: usize) -> &mut [u8] {
+        &mut self.pas[cluster]
+    }
 
     /// Number of visible clusters summed over every row -- the headline
     /// statistic a vis compile reports.
@@ -213,8 +250,12 @@ impl VisBuilder {
         for from in 0..self.num_clusters {
             let mut acc = vec![0u8; bytes];
             for mid in 0..self.num_clusters {
-                if !row_test(&self.pvs[from], mid) { continue; }
-                for (a, b) in acc.iter_mut().zip(self.pvs[mid].iter()) { *a |= b; }
+                if !row_test(&self.pvs[from], mid) {
+                    continue;
+                }
+                for (a, b) in acc.iter_mut().zip(self.pvs[mid].iter()) {
+                    *a |= b;
+                }
             }
             self.pas[from] = acc;
         }
@@ -225,15 +266,19 @@ impl VisBuilder {
         let mut data: Vec<u8> = Vec::new();
         let mut offsets: Vec<[u32; 2]> = Vec::with_capacity(self.num_clusters);
         // Rows repeat often, so intern them by their compressed bytes.
-        let mut interned: std::collections::HashMap<Vec<u8>, u32> = std::collections::HashMap::new();
+        let mut interned: std::collections::HashMap<Vec<u8>, u32> =
+            std::collections::HashMap::new();
 
         let table_size = 4 + self.num_clusters * 8;
         let emit = |row: &[u8],
-                        data: &mut Vec<u8>,
-                        interned: &mut std::collections::HashMap<Vec<u8>, u32>| -> u32 {
+                    data: &mut Vec<u8>,
+                    interned: &mut std::collections::HashMap<Vec<u8>, u32>|
+         -> u32 {
             let mut packed = Vec::new();
             compress_row(row, &mut packed);
-            if let Some(&at) = interned.get(&packed) { return at; }
+            if let Some(&at) = interned.get(&packed) {
+                return at;
+            }
             let at = (table_size + data.len()) as u32;
             interned.insert(packed.clone(), at);
             data.extend_from_slice(&packed);
@@ -269,7 +314,11 @@ mod tests {
         row[63] = 0x80;
         let mut packed = Vec::new();
         compress_row(&row, &mut packed);
-        assert!(packed.len() < row.len(), "sparse rows should shrink: {}", packed.len());
+        assert!(
+            packed.len() < row.len(),
+            "sparse rows should shrink: {}",
+            packed.len()
+        );
 
         let mut back = vec![0u8; 64];
         decompress_row(&packed, &mut back);
@@ -303,7 +352,10 @@ mod tests {
         let mut out = vec![0xAAu8; 32];
         decompress_row(&[0x01], &mut out); // claims one byte, row wants 32
         assert_eq!(out[0], 0x01);
-        assert!(out[1..].iter().all(|&b| b == 0), "the rest must be zeroed, not garbage");
+        assert!(
+            out[1..].iter().all(|&b| b == 0),
+            "the rest must be zeroed, not garbage"
+        );
     }
 
     #[test]
@@ -367,7 +419,10 @@ mod tests {
         let lump = b.build();
         let vis = VisData::new(&lump).unwrap();
         assert!(!vis.is_visible(0, 2, VisKind::Pvs));
-        assert!(vis.is_visible(0, 2, VisKind::Pas), "sound should carry around the corner");
+        assert!(
+            vis.is_visible(0, 2, VisKind::Pas),
+            "sound should carry around the corner"
+        );
     }
 
     #[test]

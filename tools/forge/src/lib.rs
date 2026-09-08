@@ -18,14 +18,18 @@ pub mod obj;
 
 use anyhow::{Context, Result, bail};
 use clap::{Parser, Subcommand};
+use kerosene_asset::{Mesh, Model, Vertex};
+use kerosene_math::Vec3;
 use obj::{ObjMesh, UpAxis, VU_PER_METRE};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use kerosene_asset::{Mesh, Model, Vertex};
-use kerosene_math::Vec3;
 
 #[derive(Parser, Debug)]
-#[command(name = "forge", version, about = "Compile source meshes into .keromdl models")]
+#[command(
+    name = "forge",
+    version,
+    about = "Compile source meshes into .keromdl models"
+)]
 struct Args {
     #[command(subcommand)]
     command: Command,
@@ -72,13 +76,27 @@ pub fn run(args: Vec<String>) -> Result<()> {
     let args = Args::parse_from(std::iter::once("forge".to_string()).chain(args));
     match args.command {
         Command::Compile {
-            source, output, default_material, materials, scale, scale_metres, z_up,
+            source,
+            output,
+            default_material,
+            materials,
+            scale,
+            scale_metres,
+            z_up,
             recompute_normals,
         } => {
             let out = output.unwrap_or_else(|| source.with_extension("keromdl"));
             let scale = scale * if scale_metres { VU_PER_METRE } else { 1.0 };
             let up = if z_up { UpAxis::Z } else { UpAxis::Y };
-            compile(&source, &out, &default_material, &materials, scale, up, recompute_normals)
+            compile(
+                &source,
+                &out,
+                &default_material,
+                &materials,
+                scale,
+                up,
+                recompute_normals,
+            )
         }
         Command::Info { model } => info(&model),
     }
@@ -94,8 +112,8 @@ fn compile(
     up: UpAxis,
     recompute_normals: bool,
 ) -> Result<()> {
-    let text = std::fs::read_to_string(source)
-        .with_context(|| format!("reading {}", source.display()))?;
+    let text =
+        std::fs::read_to_string(source).with_context(|| format!("reading {}", source.display()))?;
     let mesh = ObjMesh::parse(&text, up, scale)
         .with_context(|| format!("parsing {}", source.display()))?;
 
@@ -107,8 +125,13 @@ fn compile(
         renames.insert(from, to);
     }
 
-    println!("forge: {} -- {} positions, {} triangles, {} material groups",
-        source.display(), mesh.positions.len(), mesh.triangle_count(), mesh.groups.len());
+    println!(
+        "forge: {} -- {} positions, {} triangles, {} material groups",
+        source.display(),
+        mesh.positions.len(),
+        mesh.triangle_count(),
+        mesh.groups.len()
+    );
 
     let mut model = Model::new();
     // Weld by the full corner tuple, not by position: two faces meeting at a
@@ -117,10 +140,13 @@ fn compile(
     let mut seen: HashMap<obj::Corner, u32> = HashMap::new();
 
     for group in &mesh.groups {
-        let name = renames
-            .get(group.material.as_str())
-            .copied()
-            .unwrap_or(if group.material == "default" { default_material } else { &group.material });
+        let name = renames.get(group.material.as_str()).copied().unwrap_or(
+            if group.material == "default" {
+                default_material
+            } else {
+                &group.material
+            },
+        );
         let material_offset = model.intern(name);
 
         let first_index = model.indices.len() as u32;
@@ -150,23 +176,45 @@ fn compile(
         }
 
         let index_count = model.indices.len() as u32 - first_index;
-        if index_count == 0 { continue; }
-        model.meshes.push(Mesh { first_index, index_count, material_offset, flags: 0 });
+        if index_count == 0 {
+            continue;
+        }
+        model.meshes.push(Mesh {
+            first_index,
+            index_count,
+            material_offset,
+            flags: 0,
+        });
     }
 
     model.recompute_bounds();
-    model.validate().context("the compiled model is inconsistent")?;
+    model
+        .validate()
+        .context("the compiled model is inconsistent")?;
 
     let size = model.bounds.size();
-    println!("  {} vertices, {} triangles, {} meshes",
-        model.vertices.len(), model.triangle_count(), model.meshes.len());
-    println!("  bounds {:.1} x {:.1} x {:.1} inches", size.x, size.y, size.z);
+    println!(
+        "  {} vertices, {} triangles, {} meshes",
+        model.vertices.len(),
+        model.triangle_count(),
+        model.meshes.len()
+    );
+    println!(
+        "  bounds {:.1} x {:.1} x {:.1} inches",
+        size.x, size.y, size.z
+    );
     println!("  materials: {}", model.materials().join(", "));
 
-    if let Some(parent) = out.parent() { std::fs::create_dir_all(parent)?; }
+    if let Some(parent) = out.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
     let bytes = model.to_bytes();
     std::fs::write(out, &bytes).with_context(|| format!("writing {}", out.display()))?;
-    println!("  wrote {} ({:.1} KiB)", out.display(), bytes.len() as f64 / 1024.0);
+    println!(
+        "  wrote {} ({:.1} KiB)",
+        out.display(),
+        bytes.len() as f64 / 1024.0
+    );
     Ok(())
 }
 
@@ -176,7 +224,11 @@ fn face_normal(mesh: &ObjMesh, triangle: &[obj::Corner; 3]) -> Vec3 {
     let b = mesh.positions[triangle[1].position];
     let c = mesh.positions[triangle[2].position];
     let n = (b - a).cross(c - a);
-    if n.length_squared() < 1e-12 { Vec3::Z } else { n.normalize() }
+    if n.length_squared() < 1e-12 {
+        Vec3::Z
+    } else {
+        n.normalize()
+    }
 }
 
 fn info(path: &Path) -> Result<()> {
@@ -185,13 +237,28 @@ fn info(path: &Path) -> Result<()> {
     let size = model.bounds.size();
 
     println!("{}", path.display());
-    println!("  {} vertices, {} triangles", model.vertices.len(), model.triangle_count());
-    println!("  {} meshes, {} bones", model.meshes.len(), model.bones.len());
-    println!("  bounds {:.1} x {:.1} x {:.1} inches", size.x, size.y, size.z);
+    println!(
+        "  {} vertices, {} triangles",
+        model.vertices.len(),
+        model.triangle_count()
+    );
+    println!(
+        "  {} meshes, {} bones",
+        model.meshes.len(),
+        model.bones.len()
+    );
+    println!(
+        "  bounds {:.1} x {:.1} x {:.1} inches",
+        size.x, size.y, size.z
+    );
     println!("  {:.1} KiB", bytes.len() as f64 / 1024.0);
     for i in 0..model.meshes.len() {
         let m = &model.meshes[i];
-        println!("    mesh {i}: {} triangles, material {}", m.index_count / 3, model.mesh_material(i));
+        println!(
+            "    mesh {i}: {} triangles, material {}",
+            m.index_count / 3,
+            model.mesh_material(i)
+        );
     }
     for i in 0..model.bones.len() {
         let b = &model.bones[i];
@@ -217,7 +284,8 @@ mod tests {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content");
         for name in ["cube", "crate"] {
             let path = root.join(format!("art/props/{name}.obj"));
-            let text = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+            let text = std::fs::read_to_string(&path)
+                .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
             let mesh = ObjMesh::parse(&text, UpAxis::Y, VU_PER_METRE).unwrap();
 
             let mut checked = 0;
@@ -248,7 +316,10 @@ mod tests {
                     }
                 }
             }
-            assert!(checked >= 12, "{name}: expected every face to carry a normal");
+            assert!(
+                checked >= 12,
+                "{name}: expected every face to carry a normal"
+            );
         }
     }
 }

@@ -13,16 +13,16 @@
 //! uses, and writes its settings to the file `timbre build` reads -- which is
 //! what stops the two from ever disagreeing about what a build is.
 
+use crate::Options;
+use crate::build::Script;
 use anyhow::Result;
 use egui::{Color32, Pos2, Rect, Sense, Stroke, StrokeKind, Vec2};
-use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
-use std::time::Instant;
-use crate::build::Script;
-use crate::Options;
 use kerosene_audio::compiled::{Encoding, Loop};
 use kerosene_audio::wav::Sound;
 use kerosene_audio::{Mixer, SoundHandle, SoundParams};
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
+use std::time::Instant;
 
 /// How many columns the waveform is reduced to before drawing.
 ///
@@ -117,7 +117,10 @@ impl Timbre {
 
     /// Find every source sound under the tree and note its state.
     fn rescan(&mut self) {
-        let previous = self.selected.and_then(|i| self.entries.get(i)).map(|e| e.name.clone());
+        let previous = self
+            .selected
+            .and_then(|i| self.entries.get(i))
+            .map(|e| e.name.clone());
         self.entries = crate::sources(&self.sound_root)
             .into_iter()
             .map(|path| {
@@ -128,9 +131,16 @@ impl Timbre {
                     .replace('\\', "/");
                 let options = self.script.options_for(&path, &self.sound_root);
                 let compiled = crate::output_for(&path).is_file();
-                let format =
-                    crate::decode::Format::of(&path).unwrap_or(crate::decode::Format::Wav);
-                Entry { path, name, format, options, loaded: None, error: None, compiled }
+                let format = crate::decode::Format::of(&path).unwrap_or(crate::decode::Format::Wav);
+                Entry {
+                    path,
+                    name,
+                    format,
+                    options,
+                    loaded: None,
+                    error: None,
+                    compiled,
+                }
             })
             .collect();
 
@@ -148,7 +158,9 @@ impl Timbre {
 
     /// Decode a sound and build its picture, once.
     fn load(&mut self, index: usize) {
-        let Some(entry) = self.entries.get(index) else { return };
+        let Some(entry) = self.entries.get(index) else {
+            return;
+        };
         if entry.loaded.is_some() || entry.error.is_some() {
             return;
         }
@@ -162,7 +174,9 @@ impl Timbre {
                 Ok((read.sound, read.looping, read.format))
             });
 
-        let Some(entry) = self.entries.get_mut(index) else { return };
+        let Some(entry) = self.entries.get_mut(index) else {
+            return;
+        };
         match result {
             Ok((source, source_loop, format)) => {
                 entry.format = format;
@@ -174,7 +188,9 @@ impl Timbre {
 
     /// Rebuild the prepared samples after a setting changed.
     fn refresh(&mut self, index: usize) {
-        let Some(entry) = self.entries.get_mut(index) else { return };
+        let Some(entry) = self.entries.get_mut(index) else {
+            return;
+        };
         let options = entry.options;
         if let Some(loaded) = entry.loaded.take() {
             entry.loaded = Some(Loaded::build(loaded.source, loaded.source_loop, &options));
@@ -183,7 +199,9 @@ impl Timbre {
 
     /// Record a setting change and write the script.
     fn settings_changed(&mut self, index: usize) {
-        let Some(entry) = self.entries.get(index) else { return };
+        let Some(entry) = self.entries.get(index) else {
+            return;
+        };
         let (name, options) = (entry.name.clone(), entry.options);
         self.script.set(&name, options);
         self.refresh(index);
@@ -200,7 +218,9 @@ impl Timbre {
             return;
         };
         self.load(index);
-        let Some(entry) = self.entries.get(index) else { return };
+        let Some(entry) = self.entries.get(index) else {
+            return;
+        };
         let Some(loaded) = &entry.loaded else { return };
 
         let sound = Arc::clone(&loaded.prepared);
@@ -209,11 +229,19 @@ impl Timbre {
         // Centred on the listener with no attenuation: this is an audition,
         // not a placement, and hearing it quieter than it is would be a lie
         // about the gain being set.
-        let params = SoundParams { volume: 1.0, ..SoundParams::default() };
+        let params = SoundParams {
+            volume: 1.0,
+            ..SoundParams::default()
+        };
         let handle = mixer.lock().map(|mut m| m.play(sound, params));
         match handle {
             Ok(handle) => {
-                self.playing = Some(Playing { handle, started: Instant::now(), rate, frames });
+                self.playing = Some(Playing {
+                    handle,
+                    started: Instant::now(),
+                    rate,
+                    frames,
+                });
             }
             Err(_) => self.status = "the mixer is wedged".into(),
         }
@@ -240,7 +268,9 @@ impl Timbre {
     }
 
     fn compile_one(&mut self, index: usize) {
-        let Some(entry) = self.entries.get(index) else { return };
+        let Some(entry) = self.entries.get(index) else {
+            return;
+        };
         let (path, options, name) = (entry.path.clone(), entry.options, entry.name.clone());
         let output = crate::output_for(&path);
         match crate::compile(&path, &output, &options) {
@@ -272,7 +302,13 @@ impl Loaded {
         let prepared = crate::prepare(&source, options);
         let peak = crate::peak_of(&prepared);
         let envelope = envelope_of(&prepared, WAVE_COLUMNS);
-        Loaded { source, prepared: Arc::new(prepared), envelope, peak, source_loop }
+        Loaded {
+            source,
+            prepared: Arc::new(prepared),
+            envelope,
+            peak,
+            source_loop,
+        }
     }
 }
 
@@ -344,7 +380,11 @@ impl kerosene_ui::App for Timbre {
 
         egui::TopBottomPanel::bottom("status").show(ctx, |ui| {
             ui.horizontal(|ui| {
-                ui.label(if self.status.is_empty() { "ready" } else { &self.status });
+                ui.label(if self.status.is_empty() {
+                    "ready"
+                } else {
+                    &self.status
+                });
             });
         });
 
@@ -459,7 +499,9 @@ impl Timbre {
         let rect = response.rect;
         painter.rect_filled(rect, 2.0, Color32::from_rgb(18, 22, 26));
 
-        let Some(entry) = self.entries.get(index) else { return };
+        let Some(entry) = self.entries.get(index) else {
+            return;
+        };
         let Some(loaded) = &entry.loaded else { return };
         if loaded.envelope.is_empty() {
             return;
@@ -471,7 +513,11 @@ impl Timbre {
 
         // The loop region, behind the wave, so it reads as a place rather than
         // as a line drawn over it.
-        let region = entry.options.looping.or(loaded.source_loop).unwrap_or_default();
+        let region = entry
+            .options
+            .looping
+            .or(loaded.source_loop)
+            .unwrap_or_default();
         if !region.is_empty() {
             let frames = loaded.prepared.frames().max(1) as f32;
             let x0 = rect.left() + rect.width() * (region.start as f32 / frames);
@@ -545,9 +591,15 @@ impl Timbre {
 
     /// The loudest sample near the playhead, or nothing when stopped.
     fn level_now(&self, index: usize) -> f32 {
-        let Some(frame) = self.playhead() else { return 0.0 };
-        let Some(entry) = self.entries.get(index) else { return 0.0 };
-        let Some(loaded) = &entry.loaded else { return 0.0 };
+        let Some(frame) = self.playhead() else {
+            return 0.0;
+        };
+        let Some(entry) = self.entries.get(index) else {
+            return 0.0;
+        };
+        let Some(loaded) = &entry.loaded else {
+            return 0.0;
+        };
         // A twentieth of a second either side: short enough to follow a
         // transient, long enough not to flicker at the frame rate.
         let window = (loaded.prepared.sample_rate / 20).max(1) as usize;
@@ -560,14 +612,27 @@ impl Timbre {
     }
 
     fn controls(&mut self, ui: &mut egui::Ui, index: usize, channels: u16) {
-        let Some(entry) = self.entries.get_mut(index) else { return };
+        let Some(entry) = self.entries.get_mut(index) else {
+            return;
+        };
         let mut changed = false;
         let mut options = entry.options;
 
         ui.horizontal(|ui| {
             let playing = self.playing.is_some();
-            if ui.button(if playing { "\u{25a0} stop" } else { "\u{25b6} play" }).clicked() {
-                if playing { self.stop() } else { self.play(index) }
+            if ui
+                .button(if playing {
+                    "\u{25a0} stop"
+                } else {
+                    "\u{25b6} play"
+                })
+                .clicked()
+            {
+                if playing {
+                    self.stop()
+                } else {
+                    self.play(index)
+                }
             }
             ui.separator();
             if ui.button("compile").clicked() {
@@ -576,49 +641,60 @@ impl Timbre {
         });
 
         ui.add_space(8.0);
-        egui::Grid::new("options").num_columns(2).spacing([14.0, 8.0]).show(ui, |ui| {
-            ui.label("gain");
-            // In decibels, because that is the unit gain is thought in, while
-            // the value stored stays a plain multiplier.
-            let mut db = decibels_value(options.gain);
-            if ui
-                .add(egui::Slider::new(&mut db, -24.0..=12.0).suffix(" dB").fixed_decimals(1))
-                .changed()
-            {
-                options.gain = 10f32.powf(db / 20.0);
-                changed = true;
-            }
-            ui.end_row();
+        egui::Grid::new("options")
+            .num_columns(2)
+            .spacing([14.0, 8.0])
+            .show(ui, |ui| {
+                ui.label("gain");
+                // In decibels, because that is the unit gain is thought in, while
+                // the value stored stays a plain multiplier.
+                let mut db = decibels_value(options.gain);
+                if ui
+                    .add(
+                        egui::Slider::new(&mut db, -24.0..=12.0)
+                            .suffix(" dB")
+                            .fixed_decimals(1),
+                    )
+                    .changed()
+                {
+                    options.gain = 10f32.powf(db / 20.0);
+                    changed = true;
+                }
+                ui.end_row();
 
-            ui.label("encoding");
-            ui.horizontal(|ui| {
-                changed |= ui
-                    .radio_value(&mut options.encoding, Encoding::Adpcm, "ADPCM")
-                    .on_hover_text("A quarter the size. Close to transparent on impacts and speech.")
-                    .changed();
-                changed |= ui
-                    .radio_value(&mut options.encoding, Encoding::Pcm16, "PCM 16")
-                    .on_hover_text("Every bit kept. For quiet, exposed material where ADPCM is audible.")
-                    .changed();
-            });
-            ui.end_row();
-
-            ui.label("channels");
-            ui.horizontal(|ui| {
-                if channels == 1 && !options.mono {
-                    ui.label(egui::RichText::new("mono already").weak());
-                } else {
+                ui.label("encoding");
+                ui.horizontal(|ui| {
                     changed |= ui
+                        .radio_value(&mut options.encoding, Encoding::Adpcm, "ADPCM")
+                        .on_hover_text(
+                            "A quarter the size. Close to transparent on impacts and speech.",
+                        )
+                        .changed();
+                    changed |= ui
+                        .radio_value(&mut options.encoding, Encoding::Pcm16, "PCM 16")
+                        .on_hover_text(
+                            "Every bit kept. For quiet, exposed material where ADPCM is audible.",
+                        )
+                        .changed();
+                });
+                ui.end_row();
+
+                ui.label("channels");
+                ui.horizontal(|ui| {
+                    if channels == 1 && !options.mono {
+                        ui.label(egui::RichText::new("mono already").weak());
+                    } else {
+                        changed |= ui
                         .checkbox(&mut options.mono, "fold to mono")
                         .on_hover_text(
                             "A stereo sound cannot be placed in the world: there is one pan and \
                              two channels already carrying their own image.",
                         )
                         .changed();
-                }
+                    }
+                });
+                ui.end_row();
             });
-            ui.end_row();
-        });
 
         if let Some(entry) = self.entries.get_mut(index)
             && changed
@@ -666,7 +742,11 @@ fn decibels(level: f32) -> String {
 }
 
 fn decibels_value(level: f32) -> f32 {
-    if level <= 0.0 { -96.0 } else { 20.0 * level.log10() }
+    if level <= 0.0 {
+        -96.0
+    } else {
+        20.0 * level.log10()
+    }
 }
 
 #[cfg(test)]

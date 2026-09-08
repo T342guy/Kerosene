@@ -48,8 +48,14 @@ use std::time::SystemTime;
 /// time, because `kiln` installed somewhere else still has to be able to
 /// write them, and a licence file that is missing when it matters is the
 /// whole failure this module exists to prevent.
-const MPL: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../LICENSE-MPL-2.0"));
-const LGPL: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../LICENSE-LGPL-3.0"));
+const MPL: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../LICENSE-MPL-2.0"
+));
+const LGPL: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../LICENSE-LGPL-3.0"
+));
 
 /// What was assembled.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -88,12 +94,18 @@ pub(crate) fn ship_from(settings: &Settings, out: &Path, source: &Path) -> Resul
         Some(project) => slug(&project.name),
         None => "kerosene".to_string(),
     };
-    let exe = if cfg!(windows) { format!("{name}.exe") } else { name.clone() };
+    let exe = if cfg!(windows) {
+        format!("{name}.exe")
+    } else {
+        name.clone()
+    };
 
     let shipped = Shipped {
         root: out.to_path_buf(),
         binary: out.join(&exe),
-        archive: out.join("content").join(archive.file_name().unwrap_or_default()),
+        archive: out
+            .join("content")
+            .join(archive.file_name().unwrap_or_default()),
         notices: ["LICENSE-LGPL-3.0", "LICENSE-MPL-2.0", "README.txt"]
             .iter()
             .map(|n| out.join(n))
@@ -101,7 +113,11 @@ pub(crate) fn ship_from(settings: &Settings, out: &Path, source: &Path) -> Resul
     };
 
     if settings.dry_run {
-        println!("  would assemble {} from {}", out.display(), source.display());
+        println!(
+            "  would assemble {} from {}",
+            out.display(),
+            source.display()
+        );
         return Ok(shipped);
     }
 
@@ -145,7 +161,11 @@ fn check_archive(settings: &Settings, archive: &Path) -> Result<()> {
             archive.display(),
             stale.len(),
             listed.join("\n"),
-            if more > 0 { format!("\n  ... and {more} more") } else { String::new() },
+            if more > 0 {
+                format!("\n  ... and {more} more")
+            } else {
+                String::new()
+            },
         );
     }
     Ok(())
@@ -171,7 +191,10 @@ fn collect_newer(dir: &Path, skip: &Path, when: SystemTime, out: &mut Vec<PathBu
         if path.is_dir() {
             collect_newer(&path, skip, when, out);
         } else if path != skip
-            && entry.metadata().and_then(|m| m.modified()).is_ok_and(|m| m > when)
+            && entry
+                .metadata()
+                .and_then(|m| m.modified())
+                .is_ok_and(|m| m > when)
         {
             out.push(path);
         }
@@ -216,8 +239,10 @@ fn game_binary(settings: &Settings) -> Result<PathBuf> {
     }
 
     built_binary(&from, package).with_context(|| {
-        format!("cargo built {package}, but its binary is not under any target/release above {}",
-            from.display())
+        format!(
+            "cargo built {package}, but its binary is not under any target/release above {}",
+            from.display()
+        )
     })
 }
 
@@ -226,7 +251,11 @@ fn game_binary(settings: &Settings) -> Result<PathBuf> {
 /// Cheaper and less brittle than parsing `cargo metadata`, which would need a
 /// JSON dependency to answer a question a directory walk answers.
 fn built_binary(from: &Path, package: &str) -> Option<PathBuf> {
-    let file = if cfg!(windows) { format!("{package}.exe") } else { package.to_string() };
+    let file = if cfg!(windows) {
+        format!("{package}.exe")
+    } else {
+        package.to_string()
+    };
     let mut at = Some(from);
     while let Some(dir) = at {
         let candidate = dir.join("target").join("release").join(&file);
@@ -250,12 +279,15 @@ fn write_project(settings: &Settings, path: &Path, name: &str) -> Result<()> {
     body.push_str("project\n{\n");
     body.push_str(&format!("\t\"name\" \"{title}\"\n"));
     body.push_str("\t\"content\" \"content\"\n");
-    if let Some(map) = settings.project.as_ref().and_then(|p| p.start_map.as_deref()) {
+    if let Some(map) = settings
+        .project
+        .as_ref()
+        .and_then(|p| p.start_map.as_deref())
+    {
         body.push_str(&format!("\t\"startmap\" \"{map}\"\n"));
     }
     body.push_str("}\n");
-    std::fs::write(path, body)
-        .with_context(|| format!("writing {}", path.display()))?;
+    std::fs::write(path, body).with_context(|| format!("writing {}", path.display()))?;
     Ok(())
 }
 
@@ -322,7 +354,10 @@ fn copy(from: &Path, to: &Path) -> Result<()> {
     // that will not start because of a permission bit is a miserable first
     // impression.
     #[cfg(unix)]
-    if from.metadata().is_ok_and(|m| std::os::unix::fs::PermissionsExt::mode(&m.permissions()) & 0o111 != 0) {
+    if from
+        .metadata()
+        .is_ok_and(|m| std::os::unix::fs::PermissionsExt::mode(&m.permissions()) & 0o111 != 0)
+    {
         use std::os::unix::fs::PermissionsExt;
         let mut permissions = std::fs::metadata(to)?.permissions();
         permissions.set_mode(permissions.mode() | 0o755);

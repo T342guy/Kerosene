@@ -21,10 +21,10 @@
 //! straddles the plane.
 
 use crate::tree::Tree;
-use std::collections::VecDeque;
-use std::fmt::Write as _;
 use kerosene_bsp::contents;
 use kerosene_math::{Aabb, ON_EPSILON, Plane, PlaneSet, Vec3, Winding};
+use std::collections::VecDeque;
+use std::fmt::Write as _;
 
 /// The polygon where two leaves meet.
 #[derive(Clone, Debug)]
@@ -48,7 +48,11 @@ impl Portal {
 
     /// The other side of the portal from `node`.
     pub fn other(&self, node: usize) -> usize {
-        if self.nodes[0] == node { self.nodes[1] } else { self.nodes[0] }
+        if self.nodes[0] == node {
+            self.nodes[1]
+        } else {
+            self.nodes[0]
+        }
     }
 }
 
@@ -87,28 +91,43 @@ fn make_head_portals(tree: &mut Tree, planes: &mut PlaneSet, set: &mut PortalSet
             // The interior is in front of every one of these, so a portal's
             // front side is always the world and its back is the outside.
             normal[axis] = if far { -1.0 } else { 1.0 };
-            let dist = if far { -bounds.max[axis] } else { bounds.min[axis] };
+            let dist = if far {
+                -bounds.max[axis]
+            } else {
+                bounds.min[axis]
+            };
             box_planes.push(Plane::new(normal, dist));
         }
     }
 
-    let mut windings: Vec<Winding> =
-        box_planes.iter().map(Winding::base_for_plane).collect();
+    let mut windings: Vec<Winding> = box_planes.iter().map(Winding::base_for_plane).collect();
     // Cut each face of the box back by the other five.
     for i in 0..6 {
         for j in 0..6 {
-            if i == j { continue; }
+            if i == j {
+                continue;
+            }
             match windings[i].clipped(&box_planes[j], ON_EPSILON) {
                 Some(w) => windings[i] = w,
-                None => { windings[i] = Winding::new(Vec::new()); break; }
+                None => {
+                    windings[i] = Winding::new(Vec::new());
+                    break;
+                }
             }
         }
     }
 
     for (plane, winding) in box_planes.into_iter().zip(windings) {
-        if winding.is_empty() { continue; }
+        if winding.is_empty() {
+            continue;
+        }
         let plane_index = planes.insert(plane);
-        let portal = Portal { plane: plane_index, winding, nodes: [root, outside], on_node: None };
+        let portal = Portal {
+            plane: plane_index,
+            winding,
+            nodes: [root, outside],
+            on_node: None,
+        };
         add_portal(tree, set, portal);
     }
 }
@@ -133,7 +152,9 @@ fn detach(tree: &mut Tree, portal: usize, node: usize) {
 
 fn make_tree_portals(tree: &mut Tree, planes: &mut PlaneSet, set: &mut PortalSet, node: usize) {
     calc_node_bounds(tree, set, node);
-    if tree.nodes[node].is_leaf() { return; }
+    if tree.nodes[node].is_leaf() {
+        return;
+    }
     make_node_portal(tree, planes, set, node);
     split_node_portals(tree, planes, set, node);
     let [front, back] = tree.nodes[node].children;
@@ -148,15 +169,23 @@ fn make_tree_portals(tree: &mut Tree, planes: &mut PlaneSet, set: &mut PortalSet
 fn calc_node_bounds(tree: &mut Tree, set: &PortalSet, node: usize) {
     let mut bounds = Aabb::EMPTY;
     for &p in &tree.nodes[node].portals {
-        for pt in &set.portals[p].winding.points { bounds.add_point(*pt); }
+        for pt in &set.portals[p].winding.points {
+            bounds.add_point(*pt);
+        }
     }
-    if !bounds.is_empty() { tree.nodes[node].bounds = bounds; }
+    if !bounds.is_empty() {
+        tree.nodes[node].bounds = bounds;
+    }
 }
 
 /// Create the portal lying on a node's own split plane.
 fn make_node_portal(tree: &mut Tree, planes: &mut PlaneSet, set: &mut PortalSet, node: usize) {
-    let Some(plane_index) = tree.nodes[node].plane else { return };
-    let Some(mut w) = base_winding_for_node(tree, planes, node) else { return };
+    let Some(plane_index) = tree.nodes[node].plane else {
+        return;
+    };
+    let Some(mut w) = base_winding_for_node(tree, planes, node) else {
+        return;
+    };
 
     // Cut it back by every portal already bounding this node, each oriented so
     // that the node's own side is kept.
@@ -164,14 +193,21 @@ fn make_node_portal(tree: &mut Tree, planes: &mut PlaneSet, set: &mut PortalSet,
     for p in touching {
         let portal = &set.portals[p];
         let plane = planes.get(portal.plane);
-        let clip = if portal.nodes[0] == node { plane } else { plane.flipped() };
+        let clip = if portal.nodes[0] == node {
+            plane
+        } else {
+            plane.flipped()
+        };
         match w.clipped(&clip, 0.1) {
             Some(next) => w = next,
             None => return,
         }
     }
 
-    if w.is_tiny() { set.tiny += 1; return; }
+    if w.is_tiny() {
+        set.tiny += 1;
+        return;
+    }
 
     let [front, back] = tree.nodes[node].children;
     let portal = Portal {
@@ -193,7 +229,11 @@ fn base_winding_for_node(tree: &Tree, planes: &PlaneSet, node: usize) -> Option<
     while let Some(p) = parent {
         let plane = planes.get(tree.nodes[p].plane?);
         // Keep the side of the ancestor that leads back down to `child`.
-        let clip = if tree.nodes[p].children[0] == child { plane } else { plane.flipped() };
+        let clip = if tree.nodes[p].children[0] == child {
+            plane
+        } else {
+            plane.flipped()
+        };
         w = w.clipped(&clip, ON_EPSILON)?;
         child = p;
         parent = tree.nodes[p].parent;
@@ -203,14 +243,18 @@ fn base_winding_for_node(tree: &Tree, planes: &PlaneSet, node: usize) -> Option<
 
 /// Hand each of a node's portals down to its children, splitting as needed.
 fn split_node_portals(tree: &mut Tree, planes: &PlaneSet, set: &mut PortalSet, node: usize) {
-    let Some(plane_index) = tree.nodes[node].plane else { return };
+    let Some(plane_index) = tree.nodes[node].plane else {
+        return;
+    };
     let plane = planes.get(plane_index);
     let [front_child, back_child] = tree.nodes[node].children;
 
     let touching = tree.nodes[node].portals.clone();
     for p in touching {
         // The portal created on this very node already joins the children.
-        if set.portals[p].on_node == Some(node) { continue; }
+        if set.portals[p].on_node == Some(node) {
+            continue;
+        }
 
         let node_is_front = set.portals[p].nodes[0] == node;
         let other = set.portals[p].other(node);
@@ -223,16 +267,24 @@ fn split_node_portals(tree: &mut Tree, planes: &PlaneSet, set: &mut PortalSet, n
         let b = b.filter(|w| !w.is_tiny());
 
         match (f, b) {
-            (None, None) => { set.tiny += 1; }
+            (None, None) => {
+                set.tiny += 1;
+            }
             (Some(w), None) => {
                 set.portals[p].winding = w;
-                if node_is_front { attach(tree, set, p, front_child, other); }
-                else { attach(tree, set, p, other, front_child); }
+                if node_is_front {
+                    attach(tree, set, p, front_child, other);
+                } else {
+                    attach(tree, set, p, other, front_child);
+                }
             }
             (None, Some(w)) => {
                 set.portals[p].winding = w;
-                if node_is_front { attach(tree, set, p, back_child, other); }
-                else { attach(tree, set, p, other, back_child); }
+                if node_is_front {
+                    attach(tree, set, p, back_child, other);
+                } else {
+                    attach(tree, set, p, other, back_child);
+                }
             }
             (Some(fw), Some(bw)) => {
                 // Straddles the plane: one portal becomes two.
@@ -311,7 +363,9 @@ pub fn flood_entities(
             result.entities_in_solid.push(origin);
             continue;
         }
-        if tree.nodes[leaf].occupied != 0 { continue; }
+        if tree.nodes[leaf].occupied != 0 {
+            continue;
+        }
 
         // Breadth-first so the recorded route out is the shortest one, and so
         // depth cannot blow the stack on a large open map.
@@ -325,12 +379,18 @@ pub fn flood_entities(
             let dist = tree.nodes[node].occupied;
             for &p in &tree.nodes[node].portals.clone() {
                 let portal = &set.portals[p];
-                if !portal.passable(tree) { continue; }
+                if !portal.passable(tree) {
+                    continue;
+                }
                 let other = portal.other(node);
-                if tree.nodes[other].occupied != 0 { continue; }
+                if tree.nodes[other].occupied != 0 {
+                    continue;
+                }
                 tree.nodes[other].occupied = dist + 1;
                 came_from[other] = Some((node, p));
-                if other == tree.outside { escaped = true; }
+                if other == tree.outside {
+                    escaped = true;
+                }
                 queue.push_back(other);
             }
         }
@@ -340,7 +400,10 @@ pub fn flood_entities(
         }
     }
 
-    result.occupied_leaves = tree.leaves().filter(|&l| tree.nodes[l].occupied != 0).count();
+    result.occupied_leaves = tree
+        .leaves()
+        .filter(|&l| tree.nodes[l].occupied != 0)
+        .count();
     result
 }
 
@@ -357,11 +420,16 @@ fn build_leak_path(
     while let Some((prev, portal)) = came_from[at] {
         points.push(set.portals[portal].winding.center());
         at = prev;
-        if points.len() > tree.nodes.len() { break; }
+        if points.len() > tree.nodes.len() {
+            break;
+        }
     }
     points.push(origin);
     points.reverse();
-    LeakPath { from: origin, points }
+    LeakPath {
+        from: origin,
+        points,
+    }
 }
 
 /// Turn every leaf the flood never reached into solid rock.
@@ -419,11 +487,19 @@ pub fn write_prt(tree: &Tree, set: &PortalSet, clusters: usize) -> String {
 
     for portal in &set.portals {
         let (a, b) = (portal.nodes[0], portal.nodes[1]);
-        if a == tree.outside || b == tree.outside { continue; }
-        if !tree.nodes[a].is_leaf() || !tree.nodes[b].is_leaf() { continue; }
+        if a == tree.outside || b == tree.outside {
+            continue;
+        }
+        if !tree.nodes[a].is_leaf() || !tree.nodes[b].is_leaf() {
+            continue;
+        }
         let (ca, cb) = (tree.nodes[a].cluster, tree.nodes[b].cluster);
-        if ca < 0 || cb < 0 { continue; }
-        if portal.winding.is_empty() { continue; }
+        if ca < 0 || cb < 0 {
+            continue;
+        }
+        if portal.winding.is_empty() {
+            continue;
+        }
 
         let _ = write!(body, "{} {} {}", portal.winding.len(), ca, cb);
         for p in &portal.winding.points {
@@ -464,8 +540,14 @@ mod tests {
         let (lo, hi) = (0.0f32, 256.0);
         let x_wall_hi = if gap { hi - 32.0 } else { hi + t };
         vec![
-            Aabb::new(Vec3::new(lo - t, lo - t, lo - t), Vec3::new(hi + t, hi + t, lo)),
-            Aabb::new(Vec3::new(lo - t, lo - t, hi), Vec3::new(hi + t, hi + t, hi + t)),
+            Aabb::new(
+                Vec3::new(lo - t, lo - t, lo - t),
+                Vec3::new(hi + t, hi + t, lo),
+            ),
+            Aabb::new(
+                Vec3::new(lo - t, lo - t, hi),
+                Vec3::new(hi + t, hi + t, hi + t),
+            ),
             Aabb::new(Vec3::new(lo - t, lo - t, lo), Vec3::new(lo, hi + t, hi)),
             Aabb::new(Vec3::new(hi, lo - t, lo), Vec3::new(hi + t, hi + t, hi)),
             // Front wall: shortened when `gap` is set, leaving a hole.
@@ -480,7 +562,10 @@ mod tests {
         assert!(!set.portals.is_empty());
         for p in &set.portals {
             assert!(p.nodes[0] < tree.nodes.len() && p.nodes[1] < tree.nodes.len());
-            assert_ne!(p.nodes[0], p.nodes[1], "a portal must separate two different nodes");
+            assert_ne!(
+                p.nodes[0], p.nodes[1],
+                "a portal must separate two different nodes"
+            );
             assert!(!p.winding.is_empty());
         }
     }
@@ -489,8 +574,14 @@ mod tests {
     fn every_portal_is_listed_by_both_its_leaves() {
         let (tree, set, _) = build(&room_boxes(false));
         for (i, p) in set.portals.iter().enumerate() {
-            assert!(tree.nodes[p.nodes[0]].portals.contains(&i), "portal {i} missing from front node");
-            assert!(tree.nodes[p.nodes[1]].portals.contains(&i), "portal {i} missing from back node");
+            assert!(
+                tree.nodes[p.nodes[0]].portals.contains(&i),
+                "portal {i} missing from front node"
+            );
+            assert!(
+                tree.nodes[p.nodes[1]].portals.contains(&i),
+                "portal {i} missing from back node"
+            );
         }
     }
 
@@ -509,10 +600,19 @@ mod tests {
         let (mut tree, set, planes) = build(&room_boxes(true));
         let inside = vec![Vec3::splat(128.0)];
         let result = flood_entities(&mut tree, &set, &planes, &inside);
-        let leak = result.leak.expect("an open wall must be reported as a leak");
+        let leak = result
+            .leak
+            .expect("an open wall must be reported as a leak");
         assert_eq!(leak.from, Vec3::splat(128.0));
-        assert!(leak.points.len() >= 2, "the route needs at least a start and an exit");
-        assert_eq!(leak.points[0], Vec3::splat(128.0), "the route starts at the entity");
+        assert!(
+            leak.points.len() >= 2,
+            "the route needs at least a start and an exit"
+        );
+        assert_eq!(
+            leak.points[0],
+            Vec3::splat(128.0),
+            "the route starts at the entity"
+        );
         let lin = leak.to_lin();
         assert_eq!(lin.lines().count(), leak.points.len());
     }
@@ -530,7 +630,10 @@ mod tests {
         let (mut tree, set, planes) = build(&room_boxes(false));
         flood_entities(&mut tree, &set, &planes, &[Vec3::splat(128.0)]);
         let filled = fill_outside(&mut tree);
-        assert!(filled > 0, "the space outside the room should have been filled");
+        assert!(
+            filled > 0,
+            "the space outside the room should have been filled"
+        );
 
         // The room's air survives; the space beyond the walls does not.
         let air = tree.point_leaf(Vec3::splat(128.0), &planes);
@@ -568,7 +671,11 @@ mod tests {
         assert_eq!(lines.next(), Some("VPRT1"));
         assert_eq!(lines.next().unwrap().parse::<usize>().unwrap(), clusters);
         let count: usize = lines.next().unwrap().parse().unwrap();
-        assert_eq!(lines.clone().count(), count, "header count must match the body");
+        assert_eq!(
+            lines.clone().count(),
+            count,
+            "header count must match the body"
+        );
         for line in lines {
             let n: usize = line.split_whitespace().next().unwrap().parse().unwrap();
             assert!(n >= 3, "a portal needs at least three points");

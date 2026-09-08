@@ -93,7 +93,9 @@ pub fn snap_normal(mut n: Vec3) -> Vec3 {
     n.x = snap_near_integer(n.x);
     n.y = snap_near_integer(n.y);
     n.z = snap_near_integer(n.z);
-    if n != before { n = n.normalize_or_zero(); }
+    if n != before {
+        n = n.normalize_or_zero();
+    }
     n
 }
 
@@ -104,9 +106,17 @@ pub fn snap_normal(mut n: Vec3) -> Vec3 {
 #[inline]
 pub fn major_axis(v: Vec3) -> usize {
     let a = v.abs();
-    if a.x >= a.y && a.x >= a.z { 0 } else if a.y >= a.z { 1 } else { 2 }
+    if a.x >= a.y && a.x >= a.z {
+        0
+    } else if a.y >= a.z {
+        1
+    } else {
+        2
+    }
 }
 
 /// Linear interpolation that is exact at both endpoints.
 #[inline]
-pub fn lerp(a: f32, b: f32, t: f32) -> f32 { a + (b - a) * t }
+pub fn lerp(a: f32, b: f32, t: f32) -> f32 {
+    a + (b - a) * t
+}

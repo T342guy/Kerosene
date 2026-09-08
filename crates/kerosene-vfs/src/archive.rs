@@ -41,7 +41,11 @@ pub enum ArchiveError {
     #[error("{path} is not a .vault archive (bad magic)")]
     BadMagic { path: String },
     #[error("{path} is a version {found} archive; this build reads version {expected}")]
-    BadVersion { path: String, found: u32, expected: u32 },
+    BadVersion {
+        path: String,
+        found: u32,
+        expected: u32,
+    },
     #[error("{path} is truncated or malformed: {detail}")]
     Malformed { path: String, detail: String },
     #[error("{archive}: entry {entry:?} failed its checksum (archive is corrupt)")]
@@ -73,19 +77,29 @@ impl Archive {
     /// Read an archive's directory and keep its file handle open.
     pub fn open(path: &Path) -> Result<Archive> {
         let name = path.display().to_string();
-        let io = |source| ArchiveError::Io { path: name.clone(), source };
+        let io = |source| ArchiveError::Io {
+            path: name.clone(),
+            source,
+        };
         let mut file = File::open(path).map_err(io)?;
 
         let mut header = [0u8; HEADER_SIZE as usize];
-        file.read_exact(&mut header).map_err(|_| ArchiveError::Malformed {
-            path: name.clone(),
-            detail: "file is shorter than a header".into(),
-        })?;
+        file.read_exact(&mut header)
+            .map_err(|_| ArchiveError::Malformed {
+                path: name.clone(),
+                detail: "file is shorter than a header".into(),
+            })?;
 
-        if header[0..4] != MAGIC { return Err(ArchiveError::BadMagic { path: name }); }
+        if header[0..4] != MAGIC {
+            return Err(ArchiveError::BadMagic { path: name });
+        }
         let version = u32::from_le_bytes(header[4..8].try_into().unwrap());
         if version != VERSION {
-            return Err(ArchiveError::BadVersion { path: name, found: version, expected: VERSION });
+            return Err(ArchiveError::BadVersion {
+                path: name,
+                found: version,
+                expected: VERSION,
+            });
         }
         let entry_count = u32::from_le_bytes(header[12..16].try_into().unwrap()) as usize;
         let tree_size = u32::from_le_bytes(header[16..20].try_into().unwrap()) as usize;
@@ -104,10 +118,11 @@ impl Archive {
         }
 
         let mut tree = vec![0u8; tree_size];
-        file.read_exact(&mut tree).map_err(|_| ArchiveError::Malformed {
-            path: name.clone(),
-            detail: "directory is truncated".into(),
-        })?;
+        file.read_exact(&mut tree)
+            .map_err(|_| ArchiveError::Malformed {
+                path: name.clone(),
+                detail: "directory is truncated".into(),
+            })?;
 
         let mut entries = Vec::with_capacity(entry_count);
         let mut cur = 0usize;
@@ -147,7 +162,12 @@ impl Archive {
                     detail: format!("entry {epath:?} points outside the data blob"),
                 });
             }
-            entries.push(Entry { path: epath, crc, offset, size });
+            entries.push(Entry {
+                path: epath,
+                crc,
+                offset,
+                size,
+            });
         }
 
         // The writer sorts, but a hand-made archive might not; a binary search
@@ -162,24 +182,43 @@ impl Archive {
         })
     }
 
-    pub fn source(&self) -> &str { &self.source }
-    pub fn entries(&self) -> &[Entry] { &self.entries }
-    pub fn len(&self) -> usize { self.entries.len() }
-    pub fn is_empty(&self) -> bool { self.entries.is_empty() }
+    pub fn source(&self) -> &str {
+        &self.source
+    }
+    pub fn entries(&self) -> &[Entry] {
+        &self.entries
+    }
+    pub fn len(&self) -> usize {
+        self.entries.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
 
     fn find(&self, vpath: &str) -> Option<&Entry> {
-        let i = self.entries.binary_search_by(|e| e.path.as_str().cmp(vpath)).ok()?;
+        let i = self
+            .entries
+            .binary_search_by(|e| e.path.as_str().cmp(vpath))
+            .ok()?;
         Some(&self.entries[i])
     }
 
-    pub fn contains(&self, vpath: &str) -> bool { self.find(vpath).is_some() }
+    pub fn contains(&self, vpath: &str) -> bool {
+        self.find(vpath).is_some()
+    }
 
     /// Read one file out of the archive, verifying its checksum.
     pub fn read(&self, vpath: &str) -> Result<Option<Vec<u8>>> {
-        let Some(entry) = self.find(vpath) else { return Ok(None) };
+        let Some(entry) = self.find(vpath) else {
+            return Ok(None);
+        };
         let mut file = self.file.lock().expect("archive handle poisoned");
-        let io = |source| ArchiveError::Io { path: self.source.clone(), source };
-        file.seek(SeekFrom::Start(self.data_offset + entry.offset)).map_err(io)?;
+        let io = |source| ArchiveError::Io {
+            path: self.source.clone(),
+            source,
+        };
+        file.seek(SeekFrom::Start(self.data_offset + entry.offset))
+            .map_err(io)?;
         let mut buf = vec![0u8; entry.size as usize];
         file.read_exact(&mut buf).map_err(io)?;
         if crc32(&buf) != entry.crc {
@@ -193,7 +232,11 @@ impl Archive {
 
     /// Entries under `dir`, optionally filtered by extension.
     pub fn list(&self, dir: &str, ext: Option<&str>) -> Vec<String> {
-        let prefix = if dir.is_empty() { String::new() } else { format!("{dir}/") };
+        let prefix = if dir.is_empty() {
+            String::new()
+        } else {
+            format!("{dir}/")
+        };
         self.entries
             .iter()
             .filter(|e| e.path.starts_with(&prefix))
@@ -217,7 +260,9 @@ pub struct ArchiveBuilder {
 }
 
 impl ArchiveBuilder {
-    pub fn new() -> Self { Self::default() }
+    pub fn new() -> Self {
+        Self::default()
+    }
 
     /// Stage a file. A repeated path replaces the earlier content.
     pub fn add(&mut self, vpath: &str, data: Vec<u8>) -> Result<()> {
@@ -235,14 +280,23 @@ impl ArchiveBuilder {
         self.add(vpath, data)
     }
 
-    pub fn len(&self) -> usize { self.files.len() }
-    pub fn is_empty(&self) -> bool { self.files.is_empty() }
-    pub fn paths(&self) -> impl Iterator<Item = &str> { self.files.keys().map(|s| s.as_str()) }
+    pub fn len(&self) -> usize {
+        self.files.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.files.is_empty()
+    }
+    pub fn paths(&self) -> impl Iterator<Item = &str> {
+        self.files.keys().map(|s| s.as_str())
+    }
 
     /// Write the archive out.
     pub fn write(&self, out: &Path) -> Result<u64> {
         let name = out.display().to_string();
-        let io = |source| ArchiveError::Io { path: name.clone(), source };
+        let io = |source| ArchiveError::Io {
+            path: name.clone(),
+            source,
+        };
         let file = File::create(out).map_err(io)?;
         let mut w = BufWriter::new(file);
 
@@ -273,7 +327,9 @@ impl ArchiveBuilder {
 
         w.write_all(&header).map_err(io)?;
         w.write_all(&tree).map_err(io)?;
-        for data in self.files.values() { w.write_all(data).map_err(io)?; }
+        for data in self.files.values() {
+            w.write_all(data).map_err(io)?;
+        }
         w.flush().map_err(io)?;
         Ok(data_offset + data_size)
     }
@@ -288,7 +344,11 @@ pub fn crc32(data: &[u8]) -> u32 {
         for (i, slot) in t.iter_mut().enumerate() {
             let mut c = i as u32;
             for _ in 0..8 {
-                c = if c & 1 != 0 { 0xEDB8_8320 ^ (c >> 1) } else { c >> 1 };
+                c = if c & 1 != 0 {
+                    0xEDB8_8320 ^ (c >> 1)
+                } else {
+                    c >> 1
+                };
             }
             *slot = c;
         }
@@ -321,15 +381,22 @@ mod tests {
     fn round_trips_content() {
         let out = tmp("roundtrip.vault");
         let mut b = ArchiveBuilder::new();
-        b.add("materials/dev/grid.keromat", b"shader { }".to_vec()).unwrap();
+        b.add("materials/dev/grid.keromat", b"shader { }".to_vec())
+            .unwrap();
         b.add(r"Maps\Kero_Start.kerobsp", vec![7u8; 5000]).unwrap();
         b.write(&out).unwrap();
 
         let a = Archive::open(&out).unwrap();
         assert_eq!(a.len(), 2);
-        assert_eq!(a.read("materials/dev/grid.keromat").unwrap().unwrap(), b"shader { }");
+        assert_eq!(
+            a.read("materials/dev/grid.keromat").unwrap().unwrap(),
+            b"shader { }"
+        );
         // Path was normalised on the way in, so it reads back lowercase.
-        assert_eq!(a.read("maps/kero_start.kerobsp").unwrap().unwrap().len(), 5000);
+        assert_eq!(
+            a.read("maps/kero_start.kerobsp").unwrap().unwrap().len(),
+            5000
+        );
         assert!(a.read("nothing/here").unwrap().is_none());
         let _ = std::fs::remove_file(&out);
     }
@@ -366,7 +433,10 @@ mod tests {
         std::fs::write(&out, &bytes).unwrap();
 
         let a = Archive::open(&out).unwrap();
-        assert!(matches!(a.read("a.txt"), Err(ArchiveError::ChecksumMismatch { .. })));
+        assert!(matches!(
+            a.read("a.txt"),
+            Err(ArchiveError::ChecksumMismatch { .. })
+        ));
         let _ = std::fs::remove_file(&out);
     }
 
@@ -374,9 +444,15 @@ mod tests {
     fn garbage_is_rejected_rather_than_read() {
         let out = tmp("garbage.vault");
         std::fs::write(&out, b"this is definitely not an archive at all!!").unwrap();
-        assert!(matches!(Archive::open(&out), Err(ArchiveError::BadMagic { .. })));
+        assert!(matches!(
+            Archive::open(&out),
+            Err(ArchiveError::BadMagic { .. })
+        ));
         std::fs::write(&out, b"tiny").unwrap();
-        assert!(matches!(Archive::open(&out), Err(ArchiveError::Malformed { .. })));
+        assert!(matches!(
+            Archive::open(&out),
+            Err(ArchiveError::Malformed { .. })
+        ));
         let _ = std::fs::remove_file(&out);
     }
 
@@ -402,7 +478,10 @@ mod tests {
         b.write(&out).unwrap();
         let a = Archive::open(&out).unwrap();
         assert_eq!(a.list("materials", None).len(), 2);
-        assert_eq!(a.list("materials", Some("keromat")), vec!["materials/a.keromat"]);
+        assert_eq!(
+            a.list("materials", Some("keromat")),
+            vec!["materials/a.keromat"]
+        );
         assert_eq!(a.list("", None).len(), 3);
         let _ = std::fs::remove_file(&out);
     }
@@ -410,7 +489,10 @@ mod tests {
     #[test]
     fn traversal_paths_are_refused_at_build_time() {
         let mut b = ArchiveBuilder::new();
-        assert!(matches!(b.add("../escape.txt", vec![]), Err(ArchiveError::BadPath(_))));
+        assert!(matches!(
+            b.add("../escape.txt", vec![]),
+            Err(ArchiveError::BadPath(_))
+        ));
     }
 
     #[test]

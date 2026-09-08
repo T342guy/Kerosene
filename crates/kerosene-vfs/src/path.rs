@@ -25,7 +25,9 @@ pub fn normalize(path: &str) -> Option<String> {
             p => out.push(p),
         }
     }
-    if out.is_empty() { return None; }
+    if out.is_empty() {
+        return None;
+    }
     Some(out.join("/"))
 }
 
@@ -56,9 +58,10 @@ pub fn find_ignoring_case(dir: &std::path::Path, relative: &str) -> Option<std::
 
     while let Some(part) = parts.next() {
         let wanted = part.to_lowercase();
-        let matched = std::fs::read_dir(&at).ok()?.flatten().find(|entry| {
-            entry.file_name().to_string_lossy().to_lowercase() == wanted
-        })?;
+        let matched = std::fs::read_dir(&at)
+            .ok()?
+            .flatten()
+            .find(|entry| entry.file_name().to_string_lossy().to_lowercase() == wanted)?;
         at = matched.path();
         // Every part but the last has to be a directory to keep walking.
         if parts.peek().is_some() && !at.is_dir() {
@@ -117,9 +120,18 @@ mod tests {
         // Two jobs, and conflating them is what broke lookups: an archive
         // stores folded keys and can be asked in any case, while a directory
         // has to be asked for the name the filesystem actually holds.
-        assert_eq!(normalize("Sound/Ambient/Track.WAV").as_deref(), Some("Sound/Ambient/Track.WAV"));
-        assert_eq!(key("Sound/Ambient/Track.WAV").as_deref(), Some("sound/ambient/track.wav"));
-        assert_eq!(key(r"Materials\Dev\Grid.keromat").as_deref(), Some("materials/dev/grid.keromat"));
+        assert_eq!(
+            normalize("Sound/Ambient/Track.WAV").as_deref(),
+            Some("Sound/Ambient/Track.WAV")
+        );
+        assert_eq!(
+            key("Sound/Ambient/Track.WAV").as_deref(),
+            Some("sound/ambient/track.wav")
+        );
+        assert_eq!(
+            key(r"Materials\Dev\Grid.keromat").as_deref(),
+            Some("materials/dev/grid.keromat")
+        );
     }
 
     #[test]
@@ -167,7 +179,10 @@ mod tests {
 
     #[test]
     fn interior_dotdot_resolves() {
-        assert_eq!(normalize("materials/dev/../props/x.keromat").as_deref(), Some("materials/props/x.keromat"));
+        assert_eq!(
+            normalize("materials/dev/../props/x.keromat").as_deref(),
+            Some("materials/props/x.keromat")
+        );
     }
 
     #[test]
@@ -190,7 +205,13 @@ mod tests {
         assert_eq!(extension("a/b/noext"), None);
         assert_eq!(parent("a/b/c.keromat"), "a/b");
         assert_eq!(parent("c.keromat"), "");
-        assert_eq!(with_extension("maps/kero_start.keromap", "kerobsp"), "maps/kero_start.kerobsp");
-        assert_eq!(with_extension("maps/noext", "kerobsp"), "maps/noext.kerobsp");
+        assert_eq!(
+            with_extension("maps/kero_start.keromap", "kerobsp"),
+            "maps/kero_start.kerobsp"
+        );
+        assert_eq!(
+            with_extension("maps/noext", "kerobsp"),
+            "maps/noext.kerobsp"
+        );
     }
 }

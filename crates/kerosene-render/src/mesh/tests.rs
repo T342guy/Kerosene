@@ -24,7 +24,10 @@ fn two_quad_map(lit: bool) -> Bsp {
             view_width: 256,
             view_height: 256,
         });
-        let mut ti = TexInfo { texdata: i as u32, ..Default::default() };
+        let mut ti = TexInfo {
+            texdata: i as u32,
+            ..Default::default()
+        };
         ti.texture_vecs[0] = [0.25, 0.0, 0.0, 0.0];
         ti.texture_vecs[1] = [0.0, -0.25, 0.0, 0.0];
         ti.lightmap_vecs[0] = [1.0 / 16.0, 0.0, 0.0, 0.0];
@@ -44,13 +47,23 @@ fn two_quad_map(lit: bool) -> Bsp {
         ]);
         let edge_base = bsp.edges.len() as u32;
         bsp.edges.extend([
-            Edge { v: [base, base + 1] },
-            Edge { v: [base + 1, base + 2] },
-            Edge { v: [base + 2, base + 3] },
-            Edge { v: [base + 3, base] },
+            Edge {
+                v: [base, base + 1],
+            },
+            Edge {
+                v: [base + 1, base + 2],
+            },
+            Edge {
+                v: [base + 2, base + 3],
+            },
+            Edge {
+                v: [base + 3, base],
+            },
         ]);
         let surfedge_base = bsp.surfedges.len() as u32;
-        for i in 0..4 { bsp.surfedges.push((edge_base + i) as i32); }
+        for i in 0..4 {
+            bsp.surfedges.push((edge_base + i) as i32);
+        }
 
         let (w, h) = (5u32, 5u32);
         bsp.faces.push(Face {
@@ -68,7 +81,12 @@ fn two_quad_map(lit: bool) -> Bsp {
         });
         if lit {
             bsp.lighting.extend(std::iter::repeat_n(
-                ColorRgbExp32 { r: 200, g: 200, b: 200, exponent: 0 },
+                ColorRgbExp32 {
+                    r: 200,
+                    g: 200,
+                    b: 200,
+                    exponent: 0,
+                },
                 (w * h) as usize,
             ));
             lighting_offset += (w * h) as i32;
@@ -145,7 +163,8 @@ fn texture_coordinates_are_normalised_by_the_texture_size() {
     // The first quad spans 0..64 world units at 0.25 texels per unit on a
     // 256-texel texture, so it covers a quarter of one tile.
     let us: Vec<f32> = mesh.vertices[..4].iter().map(|v| v.uv[0]).collect();
-    let span = us.iter().cloned().fold(f32::MIN, f32::max) - us.iter().cloned().fold(f32::MAX, f32::min);
+    let span =
+        us.iter().cloned().fold(f32::MIN, f32::max) - us.iter().cloned().fold(f32::MAX, f32::min);
     assert!((span - 0.0625).abs() < 1e-4, "u spanned {span}");
 }
 
@@ -156,7 +175,10 @@ fn surfaces_are_grouped_into_one_batch_per_material() {
     assert_eq!(mesh.batches.len(), 2);
     for batch in &mesh.batches {
         assert_eq!(batch.surfaces.len(), 1);
-        assert!(batch.contiguous_range.is_some(), "a batch should be one draw call");
+        assert!(
+            batch.contiguous_range.is_some(),
+            "a batch should be one draw call"
+        );
     }
     // Sorted by name, so the buffer layout is stable between runs.
     assert_eq!(mesh.materials, vec!["dev/grid", "dev/wall"]);
@@ -196,8 +218,16 @@ fn lit_faces_get_atlas_coordinates_and_unlit_ones_do_not() {
 fn lightmap_coordinates_stay_inside_the_atlas() {
     let (_, mesh) = build(true);
     for v in &mesh.vertices {
-        assert!((0.0..=1.0).contains(&v.lightmap_uv[0]), "{:?}", v.lightmap_uv);
-        assert!((0.0..=1.0).contains(&v.lightmap_uv[1]), "{:?}", v.lightmap_uv);
+        assert!(
+            (0.0..=1.0).contains(&v.lightmap_uv[0]),
+            "{:?}",
+            v.lightmap_uv
+        );
+        assert!(
+            (0.0..=1.0).contains(&v.lightmap_uv[1]),
+            "{:?}",
+            v.lightmap_uv
+        );
     }
 }
 
@@ -231,9 +261,16 @@ fn the_frustum_culls_what_is_behind_the_camera() {
     assert!(!seen.is_empty(), "should see the floor ahead");
 
     // Turning around sees neither.
-    let behind = Camera { angles: Angles::new(20.0, 180.0, 0.0), ..ahead };
+    let behind = Camera {
+        angles: Angles::new(20.0, 180.0, 0.0),
+        ..ahead
+    };
     let seen = mesh.visible_surfaces(&bsp, behind.position, &behind.frustum());
-    assert!(seen.is_empty(), "turned away, but still drew {} surfaces", seen.len());
+    assert!(
+        seen.is_empty(),
+        "turned away, but still drew {} surfaces",
+        seen.len()
+    );
 }
 
 #[test]
@@ -245,10 +282,16 @@ fn visible_surfaces_come_back_grouped_by_material() {
         ..Default::default()
     };
     let seen = mesh.visible_surfaces(&bsp, cam.position, &cam.frustum());
-    let materials: Vec<u32> = seen.iter().map(|&s| mesh.surfaces[s as usize].material).collect();
+    let materials: Vec<u32> = seen
+        .iter()
+        .map(|&s| mesh.surfaces[s as usize].material)
+        .collect();
     let mut sorted = materials.clone();
     sorted.sort_unstable();
-    assert_eq!(materials, sorted, "surfaces should arrive grouped so draws can batch");
+    assert_eq!(
+        materials, sorted,
+        "surfaces should arrive grouped so draws can batch"
+    );
 }
 
 #[test]
@@ -273,7 +316,11 @@ fn nodraw_faces_are_skipped() {
     bsp.texinfo[0].flags = surf::NODRAW;
     let atlas = LightmapAtlas::build(&bsp, 1.0);
     let mesh = WorldMesh::build(&bsp, &atlas);
-    assert_eq!(mesh.surfaces.len(), 1, "the nodraw face should not be drawn");
+    assert_eq!(
+        mesh.surfaces.len(),
+        1,
+        "the nodraw face should not be drawn"
+    );
 }
 
 #[test]
@@ -282,7 +329,10 @@ fn surface_flags_reach_the_renderer() {
     bsp.texinfo[0].flags = surf::SKY;
     let atlas = LightmapAtlas::build(&bsp, 1.0);
     let mesh = WorldMesh::build(&bsp, &atlas);
-    assert!(mesh.surfaces.iter().any(|s| s.is_sky()), "the sky needs its own shader path");
+    assert!(
+        mesh.surfaces.iter().any(|s| s.is_sky()),
+        "the sky needs its own shader path"
+    );
 }
 
 #[test]
@@ -348,9 +398,15 @@ fn a_brush_models_faces_are_in_no_leaf_which_is_why_they_need_their_own_pass() {
         mesh.leaf_surfaces.iter().flatten().copied().collect();
 
     for &surface in &mesh.model_surfaces[1] {
-        assert!(!reachable.contains(&surface), "surface {surface} would be found twice");
+        assert!(
+            !reachable.contains(&surface),
+            "surface {surface} would be found twice"
+        );
     }
-    assert!(!mesh.model_surfaces[1].is_empty(), "the model has surfaces to draw");
+    assert!(
+        !mesh.model_surfaces[1].is_empty(),
+        "the model has surfaces to draw"
+    );
 }
 
 #[test]
@@ -358,7 +414,9 @@ fn every_surface_belongs_to_exactly_one_model() {
     let (_, mesh) = build_with_model();
     let mut seen = vec![0usize; mesh.surfaces.len()];
     for surfaces in &mesh.model_surfaces {
-        for &s in surfaces { seen[s as usize] += 1; }
+        for &s in surfaces {
+            seen[s as usize] += 1;
+        }
     }
     assert!(seen.iter().all(|&n| n == 1), "{seen:?}");
 }
@@ -380,7 +438,10 @@ fn the_world_pass_is_sorted_by_material_like_the_pvs_pass() {
     // `draw_world` merges adjacent surfaces into one call and relies on it.
     let (_, mesh) = build(true);
     let world = mesh.world_surfaces();
-    let materials: Vec<u32> = world.iter().map(|&s| mesh.surfaces[s as usize].material).collect();
+    let materials: Vec<u32> = world
+        .iter()
+        .map(|&s| mesh.surfaces[s as usize].material)
+        .collect();
     let mut sorted = materials.clone();
     sorted.sort();
     assert_eq!(materials, sorted);
@@ -444,7 +505,11 @@ fn a_model_is_culled_by_the_bounds_it_has_after_turning() {
     let frustum = camera.frustum();
 
     // Turned in place, it is still under the camera and still drawn.
-    let spun = Pose::about(Vec3::ZERO, Angles::new(0.0, 45.0, 0.0), Vec3::new(96.0, 32.0, 0.0));
+    let spun = Pose::about(
+        Vec3::ZERO,
+        Angles::new(0.0, 45.0, 0.0),
+        Vec3::new(96.0, 32.0, 0.0),
+    );
     assert!(mesh.model_is_visible(1, spun, &frustum));
 
     // Turned about a point far away, it is flung off screen -- which only
@@ -472,6 +537,12 @@ fn a_model_with_nothing_in_it_is_not_drawn() {
     // all nodraw -- a trigger, most often. Asking the GPU to draw nothing is
     // a wasted bind and a wasted call.
     let (_, mesh) = build_with_model();
-    let camera = Camera { aspect: 1.0, ..Default::default() };
-    assert!(!mesh.model_is_visible(99, Pose::IDENTITY, &camera.frustum()), "no such model");
+    let camera = Camera {
+        aspect: 1.0,
+        ..Default::default()
+    };
+    assert!(
+        !mesh.model_is_visible(99, Pose::IDENTITY, &camera.frustum()),
+        "no such model"
+    );
 }

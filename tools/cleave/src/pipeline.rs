@@ -69,7 +69,9 @@ pub struct CompileOutput {
 pub enum CompileError {
     #[error("the map has no brushes to compile")]
     NoBrushes,
-    #[error("the map leaks: {0} entity could reach the void. Compile with --ignore-leaks to build it anyway.")]
+    #[error(
+        "the map leaks: {0} entity could reach the void. Compile with --ignore-leaks to build it anyway."
+    )]
     Leaked(String),
 }
 
@@ -89,21 +91,31 @@ pub fn compile(map: &Map, options: &CompileOptions) -> Result<CompileOutput, Com
     // Entity indices start at 1; index 0 is worldspawn.
     let mut model_entities: Vec<usize> = Vec::new();
     for (i, entity) in map.entities.iter().enumerate() {
-        if entity.solids.is_empty() { continue; }
+        if entity.solids.is_empty() {
+            continue;
+        }
         model_entities.push(i);
         let entity_slot = model_entities.len();
         for solid in &entity.solids {
             stats.source_brushes += 1;
-            if let Some(b) =
-                BrushWork::from_solid(solid, entity_slot, entity.classname(), &mut planes, &mut warnings)
-            {
+            if let Some(b) = BrushWork::from_solid(
+                solid,
+                entity_slot,
+                entity.classname(),
+                &mut planes,
+                &mut warnings,
+            ) {
                 all.push(b);
             }
         }
     }
-    if all.is_empty() { return Err(CompileError::NoBrushes); }
+    if all.is_empty() {
+        return Err(CompileError::NoBrushes);
+    }
 
-    for (i, b) in all.iter_mut().enumerate() { b.original = i; }
+    for (i, b) in all.iter_mut().enumerate() {
+        b.original = i;
+    }
 
     // ---- CSG ----
     stats.faces_removed_by_csg = csg::chop_brushes(&mut all, &planes);
@@ -114,7 +126,11 @@ pub fn compile(map: &Map, options: &CompileOptions) -> Result<CompileOutput, Com
     stats.entity_brushes = all.len() - world.len();
 
     // ---- tree ----
-    let structural: Vec<BrushWork> = world.iter().filter(|b| b.is_structural()).cloned().collect();
+    let structural: Vec<BrushWork> = world
+        .iter()
+        .filter(|b| b.is_structural())
+        .cloned()
+        .collect();
     let mut tree = Tree::build(structural, &planes);
     stats.tree_nodes = tree.node_count();
     stats.tree_leaves = tree.leaf_count();
@@ -160,11 +176,12 @@ pub fn compile(map: &Map, options: &CompileOptions) -> Result<CompileOutput, Com
     let mut models: Vec<BrushModel> = Vec::new();
     for &entity_index in &model_entities {
         let slot = models.len() + 1;
-        let brushes: Vec<BrushWork> =
-            all.iter().filter(|b| b.entity == slot).cloned().collect();
+        let brushes: Vec<BrushWork> = all.iter().filter(|b| b.entity == slot).cloned().collect();
         models.push(BrushModel {
             brushes,
-            origin: map.entities[entity_index].get_vec3("origin").unwrap_or(Vec3::ZERO),
+            origin: map.entities[entity_index]
+                .get_vec3("origin")
+                .unwrap_or(Vec3::ZERO),
         });
     }
 
@@ -176,7 +193,14 @@ pub fn compile(map: &Map, options: &CompileOptions) -> Result<CompileOutput, Com
     stats.faces = bsp.faces.len();
     stats.vertices = bsp.vertices.len();
 
-    Ok(CompileOutput { bsp, prt, walk, leak: flood.leak, warnings, stats })
+    Ok(CompileOutput {
+        bsp,
+        prt,
+        walk,
+        leak: flood.leak,
+        warnings,
+        stats,
+    })
 }
 
 /// Points the flood fill starts from.
@@ -204,8 +228,12 @@ fn filter_brush(tree: &mut Tree, planes: &PlaneSet, node: usize, brush: BrushWor
     let plane_index = tree.nodes[node].plane.expect("interior node has a plane");
     let [front_child, back_child] = tree.nodes[node].children;
     let (f, b) = brush.split(plane_index, planes);
-    if let Some(fb) = f { filter_brush(tree, planes, front_child, fb); }
-    if let Some(bb) = b { filter_brush(tree, planes, back_child, bb); }
+    if let Some(fb) = f {
+        filter_brush(tree, planes, front_child, fb);
+    }
+    if let Some(bb) = b {
+        filter_brush(tree, planes, back_child, bb);
+    }
 }
 
 /// Serialise the entity lump.
@@ -218,20 +246,28 @@ fn build_entity_lump(map: &Map, model_entities: &[usize]) -> String {
     let mut root = KeyValues::new("");
 
     let mut world = KeyValues::new("entity");
-    for (k, v) in &map.world.properties { world.push(k.clone(), v.clone()); }
-    if !world.contains_key("classname") { world.push("classname", "worldspawn"); }
+    for (k, v) in &map.world.properties {
+        world.push(k.clone(), v.clone());
+    }
+    if !world.contains_key("classname") {
+        world.push("classname", "worldspawn");
+    }
     world.set("model", "*0");
     root.push_block(world);
 
     for (i, entity) in map.entities.iter().enumerate() {
         let mut kv = KeyValues::new("entity");
-        for (k, v) in &entity.properties { kv.push(k.clone(), v.clone()); }
+        for (k, v) in &entity.properties {
+            kv.push(k.clone(), v.clone());
+        }
         if let Some(slot) = model_entities.iter().position(|&e| e == i) {
             kv.set("model", format!("*{}", slot + 1));
         }
         if !entity.connections.is_empty() {
             let mut conn = KeyValues::new("connections");
-            for c in &entity.connections { conn.push(c.output.clone(), c.to_value()); }
+            for c in &entity.connections {
+                conn.push(c.output.clone(), c.to_value());
+            }
             kv.push_block(conn);
         }
         root.push_block(kv);

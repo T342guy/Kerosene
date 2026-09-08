@@ -35,9 +35,9 @@
 //! Keeping this as data rather than code is what lets the tools stay separate
 //! programs. Chisel never links the game; it reads the game's file.
 
+use kerosene_kv::KeyValues;
 use std::collections::BTreeMap;
 use thiserror::Error;
-use kerosene_kv::KeyValues;
 
 #[derive(Debug, Error)]
 pub enum SchemaError {
@@ -84,7 +84,9 @@ impl ClassKind {
     }
 
     /// Whether a class of this kind may be tied to brushes.
-    pub fn takes_brushes(self) -> bool { matches!(self, ClassKind::Brush | ClassKind::Any) }
+    pub fn takes_brushes(self) -> bool {
+        matches!(self, ClassKind::Brush | ClassKind::Any)
+    }
 }
 
 /// What kind of value a key holds, so an editor can pick a widget for it.
@@ -201,11 +203,15 @@ impl ClassSpec {
     }
 
     pub fn has_input(&self, name: &str) -> bool {
-        self.inputs.iter().any(|i| i.name.eq_ignore_ascii_case(name))
+        self.inputs
+            .iter()
+            .any(|i| i.name.eq_ignore_ascii_case(name))
     }
 
     pub fn has_output(&self, name: &str) -> bool {
-        self.outputs.iter().any(|o| o.name.eq_ignore_ascii_case(name))
+        self.outputs
+            .iter()
+            .any(|o| o.name.eq_ignore_ascii_case(name))
     }
 }
 
@@ -287,12 +293,20 @@ impl Schema {
     }
 
     pub fn get(&self, classname: &str) -> Option<&ClassSpec> {
-        self.index.get(&classname.to_ascii_lowercase()).map(|&at| &self.classes[at])
+        self.index
+            .get(&classname.to_ascii_lowercase())
+            .map(|&at| &self.classes[at])
     }
 
-    pub fn classes(&self) -> &[ClassSpec] { &self.classes }
-    pub fn len(&self) -> usize { self.classes.len() }
-    pub fn is_empty(&self) -> bool { self.classes.is_empty() }
+    pub fn classes(&self) -> &[ClassSpec] {
+        &self.classes
+    }
+    pub fn len(&self) -> usize {
+        self.classes.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.classes.is_empty()
+    }
 
     /// Class names of a given kind, for a "place entity" menu.
     pub fn names_of_kind(&self, kind: ClassKind) -> Vec<&str> {
@@ -306,7 +320,10 @@ impl Schema {
 
 fn merge_keys(into: &mut Vec<KeySpec>, from: Vec<KeySpec>) {
     for key in from {
-        match into.iter_mut().find(|k| k.name.eq_ignore_ascii_case(&key.name)) {
+        match into
+            .iter_mut()
+            .find(|k| k.name.eq_ignore_ascii_case(&key.name))
+        {
             Some(existing) => *existing = key,
             None => into.push(key),
         }
@@ -315,18 +332,26 @@ fn merge_keys(into: &mut Vec<KeySpec>, from: Vec<KeySpec>) {
 
 fn merge_io(into: &mut Vec<IoSpec>, from: Vec<IoSpec>) {
     for io in from {
-        match into.iter_mut().find(|i| i.name.eq_ignore_ascii_case(&io.name)) {
+        match into
+            .iter_mut()
+            .find(|i| i.name.eq_ignore_ascii_case(&io.name))
+        {
             Some(existing) => *existing = io,
             None => into.push(io),
         }
     }
 }
 
-fn parse_class_body(block: &KeyValues, kind_of_block: &'static str) -> Result<ClassSpec, SchemaError> {
+fn parse_class_body(
+    block: &KeyValues,
+    kind_of_block: &'static str,
+) -> Result<ClassSpec, SchemaError> {
     let name = block
         .get("name")
         .filter(|n| !n.trim().is_empty())
-        .ok_or(SchemaError::Unnamed { block: kind_of_block })?
+        .ok_or(SchemaError::Unnamed {
+            block: kind_of_block,
+        })?
         .to_string();
 
     let kind = match block.get("kind") {
@@ -361,7 +386,10 @@ fn parse_class_body(block: &KeyValues, kind_of_block: &'static str) -> Result<Cl
             .collect();
 
         spec.keys.push(KeySpec {
-            label: key_block.get("label").unwrap_or(key_name.as_str()).to_string(),
+            label: key_block
+                .get("label")
+                .unwrap_or(key_name.as_str())
+                .to_string(),
             name: key_name,
             kind,
             default: key_block.get("default").unwrap_or_default().to_string(),
@@ -375,7 +403,9 @@ fn parse_class_body(block: &KeyValues, kind_of_block: &'static str) -> Result<Cl
             let io_name = io_block
                 .get("name")
                 .filter(|n| !n.trim().is_empty())
-                .ok_or(SchemaError::Unnamed { block: "input or output" })?
+                .ok_or(SchemaError::Unnamed {
+                    block: "input or output",
+                })?
                 .to_string();
             out.push(IoSpec {
                 name: io_name,

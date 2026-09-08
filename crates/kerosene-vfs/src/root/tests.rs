@@ -57,8 +57,11 @@ fn an_explicit_root_wins_even_when_it_looks_wrong() {
     // empty: if someone names a directory, that is the directory.
     let dir = scratch("explicit");
     project(&dir.join("real"));
-    let found = find(Some(&dir.join("elsewhere")), Some(&dir.join("real/maps/x.keromap")))
-        .expect("an explicit path is always taken");
+    let found = find(
+        Some(&dir.join("elsewhere")),
+        Some(&dir.join("real/maps/x.keromap")),
+    )
+    .expect("an explicit path is always taken");
     assert_eq!(found.root, dir.join("elsewhere"));
     assert!(found.why.contains("--content"));
     let _ = std::fs::remove_dir_all(&dir);
@@ -116,7 +119,11 @@ fn it_gives_up_rather_than_climbing_to_the_root_of_the_disk() {
     project(&dir);
     let deep = dir.join("a/b/c/d/e/f/g/h");
     std::fs::create_dir_all(&deep).unwrap();
-    assert_eq!(climb(&deep), None, "climbed further than {MAX_CLIMB} levels");
+    assert_eq!(
+        climb(&deep),
+        None,
+        "climbed further than {MAX_CLIMB} levels"
+    );
     // ...and from just inside the limit it does find it.
     assert_eq!(climb(&dir.join("a/b/c")), Some(dir.clone()));
     let _ = std::fs::remove_dir_all(&dir);
@@ -142,7 +149,10 @@ fn what_it_found_is_something_a_person_can_read() {
     assert!(text.contains("next to the map"), "{text}");
 
     let nothing = describe(&None);
-    assert!(nothing.contains("--content"), "it should say how to fix it: {nothing}");
+    assert!(
+        nothing.contains("--content"),
+        "it should say how to fix it: {nothing}"
+    );
     let _ = std::fs::remove_dir_all(&dir);
 }
 
@@ -153,7 +163,9 @@ fn the_repositorys_own_content_tree_is_found_from_a_map_in_it() {
     // crate), so discovery falls back to `maps/` + `materials/`.
     let repo = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let map = repo.join("content/maps/kero_start.keromap");
-    if !map.exists() { return }
+    if !map.exists() {
+        return;
+    }
 
     let found = find(None, Some(&map)).expect("the sample map's content is findable");
     assert!(
@@ -172,11 +184,18 @@ fn a_project_file_names_the_content_and_the_search_stops_guessing() {
     // says the content is somewhere else entirely. The project wins.
     project(&dir);
     std::fs::create_dir_all(dir.join("elsewhere/maps")).unwrap();
-    std::fs::write(dir.join("game.keroproj"), "project { \"content\" \"elsewhere\" }").unwrap();
+    std::fs::write(
+        dir.join("game.keroproj"),
+        "project { \"content\" \"elsewhere\" }",
+    )
+    .unwrap();
 
     let found = find(None, Some(&dir.join("maps/x.keromap"))).unwrap();
     assert_eq!(found.root, dir.join("elsewhere"));
-    assert_eq!(found.project.as_ref().map(|p| p.path.clone()), Some(dir.join("game.keroproj")));
+    assert_eq!(
+        found.project.as_ref().map(|p| p.path.clone()),
+        Some(dir.join("game.keroproj"))
+    );
     assert!(found.why.contains("project"), "{}", found.why);
 
     let _ = std::fs::remove_dir_all(&dir);
@@ -187,7 +206,11 @@ fn a_project_further_up_beats_a_content_tree_closer_down() {
     // The whole reason to write one: a stated answer that loses to an
     // inferred one is not an answer.
     let dir = scratch("project-depth");
-    std::fs::write(dir.join("game.keroproj"), "project { \"content\" \"real\" }").unwrap();
+    std::fs::write(
+        dir.join("game.keroproj"),
+        "project { \"content\" \"real\" }",
+    )
+    .unwrap();
     std::fs::create_dir_all(dir.join("real/maps")).unwrap();
 
     let deep = dir.join("a/b/c");
@@ -202,7 +225,11 @@ fn a_project_further_up_beats_a_content_tree_closer_down() {
 #[test]
 fn an_explicit_content_directory_still_beats_a_project_file() {
     let dir = scratch("explicit-wins");
-    std::fs::write(dir.join("game.keroproj"), "project { \"content\" \"elsewhere\" }").unwrap();
+    std::fs::write(
+        dir.join("game.keroproj"),
+        "project { \"content\" \"elsewhere\" }",
+    )
+    .unwrap();
 
     let asked = dir.join("what/i/asked/for");
     let found = find(Some(&asked), Some(&dir.join("maps/x.keromap"))).unwrap();

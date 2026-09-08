@@ -112,7 +112,12 @@ impl LightmapAtlas {
                 continue;
             }
 
-            let rect = AtlasRect { x: cursor_x, y: cursor_y, width: w, height: h };
+            let rect = AtlasRect {
+                x: cursor_x,
+                y: cursor_y,
+                width: w,
+                height: h,
+            };
             atlas.blit(bsp, face_index, rect, exposure);
             atlas.rects[face_index] = Some(rect);
             atlas.used_pixels += w * h;
@@ -125,7 +130,9 @@ impl LightmapAtlas {
     }
 
     fn blit(&mut self, bsp: &Bsp, face_index: usize, rect: AtlasRect, exposure: f32) {
-        let Some(samples) = bsp.face_lightmap(face_index) else { return };
+        let Some(samples) = bsp.face_lightmap(face_index) else {
+            return;
+        };
         for y in 0..rect.height {
             for x in 0..rect.width {
                 let sample = samples
@@ -167,7 +174,10 @@ mod tests {
     fn map_with_faces(sizes: &[(u32, u32)]) -> Bsp {
         let mut bsp = Bsp::new();
         let name = bsp.intern_texdata_string("dev/grid");
-        bsp.texdata.push(TexData { name_offset: name, ..Default::default() });
+        bsp.texdata.push(TexData {
+            name_offset: name,
+            ..Default::default()
+        });
         bsp.texinfo.push(TexInfo::default());
 
         let mut offset = 0i32;
@@ -181,7 +191,12 @@ mod tests {
             });
             let count = (w * h) as usize;
             bsp.lighting.extend(std::iter::repeat_n(
-                ColorRgbExp32 { r: 128, g: 128, b: 128, exponent: 0 },
+                ColorRgbExp32 {
+                    r: 128,
+                    g: 128,
+                    b: 128,
+                    exponent: 0,
+                },
                 count,
             ));
             offset += count as i32;
@@ -258,7 +273,12 @@ mod tests {
 
     #[test]
     fn uv_conversion_lands_inside_the_patch() {
-        let rect = AtlasRect { x: 100, y: 200, width: 16, height: 8 };
+        let rect = AtlasRect {
+            x: 100,
+            y: 200,
+            width: 16,
+            height: 8,
+        };
         let [u, v] = rect.to_uv(0.0, 0.0);
         let size = ATLAS_SIZE as f32;
         // Half a texel in, not on the boundary with the padding.
@@ -267,7 +287,11 @@ mod tests {
 
         // Out-of-range luxels clamp rather than sampling a neighbour.
         let [u, _] = rect.to_uv(1000.0, 0.0);
-        assert!(u * size < 116.0, "should clamp inside the patch, got {}", u * size);
+        assert!(
+            u * size < 116.0,
+            "should clamp inside the patch, got {}",
+            u * size
+        );
     }
 
     #[test]

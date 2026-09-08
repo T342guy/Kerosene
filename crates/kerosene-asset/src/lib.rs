@@ -41,18 +41,30 @@ pub mod ext {
 /// prefix and extension are added here rather than being written into every
 /// map, so content can be reorganised without rewriting geometry.
 pub fn material_path(name: &str) -> String {
-    format!("materials/{}.{}", name.trim_start_matches('/'), ext::MATERIAL)
+    format!(
+        "materials/{}.{}",
+        name.trim_start_matches('/'),
+        ext::MATERIAL
+    )
 }
 
 /// Where a texture lives, given the name a material refers to it by.
 pub fn texture_path(name: &str) -> String {
-    format!("materials/{}.{}", name.trim_start_matches('/'), ext::TEXTURE)
+    format!(
+        "materials/{}.{}",
+        name.trim_start_matches('/'),
+        ext::TEXTURE
+    )
 }
 
 /// Where a model lives, given the name an entity refers to it by.
 pub fn model_path(name: &str) -> String {
     let name = name.trim_start_matches('/');
-    if name.ends_with(ext::MODEL) { name.to_string() } else { format!("models/{name}.{}", ext::MODEL) }
+    if name.ends_with(ext::MODEL) {
+        name.to_string()
+    } else {
+        format!("models/{name}.{}", ext::MODEL)
+    }
 }
 
 #[cfg(test)]
@@ -73,6 +85,9 @@ mod tests {
 
     #[test]
     fn an_explicit_model_path_is_left_alone() {
-        assert_eq!(model_path("models/props/crate.keromdl"), "models/props/crate.keromdl");
+        assert_eq!(
+            model_path("models/props/crate.keromdl"),
+            "models/props/crate.keromdl"
+        );
     }
 }

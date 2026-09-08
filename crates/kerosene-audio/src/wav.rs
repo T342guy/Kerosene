@@ -26,16 +26,22 @@ pub struct Sound {
 impl Sound {
     /// How many frames -- samples divided by channels.
     pub fn frames(&self) -> usize {
-        if self.channels == 0 { return 0 }
+        if self.channels == 0 {
+            return 0;
+        }
         self.samples.len() / self.channels as usize
     }
 
     pub fn duration(&self) -> f32 {
-        if self.sample_rate == 0 { return 0.0 }
+        if self.sample_rate == 0 {
+            return 0.0;
+        }
         self.frames() as f32 / self.sample_rate as f32
     }
 
-    pub fn is_empty(&self) -> bool { self.samples.is_empty() }
+    pub fn is_empty(&self) -> bool {
+        self.samples.is_empty()
+    }
 
     /// One channel of a frame, or silence past the end.
     pub fn sample(&self, frame: usize, channel: u16) -> f32 {
@@ -84,7 +90,9 @@ pub fn decode(bytes: &[u8]) -> Result<Sound, AudioError> {
 
         // Chunks are padded to even lengths.
         at = body_at + size + (size & 1);
-        if size == 0 && id != b"data" { break }
+        if size == 0 && id != b"data" {
+            break;
+        }
     }
 
     let format = format.ok_or_else(|| AudioError::Malformed("no fmt chunk".into()))?;
@@ -129,7 +137,11 @@ pub fn decode(bytes: &[u8]) -> Result<Sound, AudioError> {
         }
     };
 
-    Ok(Sound { channels: format.channels, sample_rate: format.sample_rate, samples })
+    Ok(Sound {
+        channels: format.channels,
+        sample_rate: format.sample_rate,
+        samples,
+    })
 }
 
 struct Format {
@@ -152,12 +164,19 @@ fn parse_format(body: &[u8]) -> Result<Format, AudioError> {
     // bytes are the tag it would otherwise have carried.
     if tag == FORMAT_EXTENSIBLE {
         if body.len() < 26 {
-            return Err(AudioError::Malformed("extensible fmt chunk is too short".into()));
+            return Err(AudioError::Malformed(
+                "extensible fmt chunk is too short".into(),
+            ));
         }
         tag = u16::from_le_bytes([body[24], body[25]]);
     }
 
-    Ok(Format { tag, channels, sample_rate, bits })
+    Ok(Format {
+        tag,
+        channels,
+        sample_rate,
+        bits,
+    })
 }
 
 #[cfg(test)]

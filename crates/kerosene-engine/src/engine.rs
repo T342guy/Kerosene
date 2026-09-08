@@ -681,6 +681,7 @@ impl Engine {
                             max_speed: self.console.float("phys_hold_speed"),
                             max_accel: self.console.float("phys_hold_accel"),
                             max_spin: self.console.float("phys_hold_spin"),
+                            max_angular_accel: self.console.float("phys_hold_spin_accel"),
                         },
                     );
                 } else {
@@ -972,7 +973,7 @@ impl Engine {
                 .physics
                 .launch_prop(held.id, self.player.movement.velocity)
             {
-                self.console.print("dropped prop");
+                self.console.developer("dropped prop");
             } else {
                 self.console.warn("held prop no longer has a body");
             }
@@ -990,7 +991,7 @@ impl Engine {
                 pitch: grabbed.pitch,
                 roll: grabbed.roll,
             });
-            self.console.print("picked up prop");
+            self.console.developer("picked up prop");
             return;
         }
 
@@ -1041,7 +1042,7 @@ impl Engine {
         let speed = self.console.float("phys_launch_speed");
         let velocity = self.player.movement.velocity + self.player.view_angles.forward() * speed;
         if self.physics.launch_prop(held.id, velocity) {
-            self.console.print("threw prop");
+            self.console.developer("threw prop");
         } else {
             self.console.warn("held prop no longer has a body");
         }
@@ -1298,6 +1299,7 @@ fn register_cvars(console: &mut Console) {
         ConVarFlags::REPLICATED,
         "How fast a carried prop is turned toward the hold angle, in radians per second.",
     );
+    console.register_cvar("phys_hold_spin_accel", "120", ConVarFlags::REPLICATED, "Ceiling on how hard a carried prop is turned toward the hold angle, in radians per second squared. What it is wedged against can still refuse it.");
     console.register_cvar("phys_player_push_force", "8000", ConVarFlags::REPLICATED, "How hard the player can shove a physics prop. A prop's own mass decides how far that gets it.");
     console.register_cvar(
         "phys_launch_speed",

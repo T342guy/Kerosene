@@ -15,8 +15,8 @@
 //! layout, one shader path, and no branch in the hot loop.
 
 use bytemuck::{Pod, Zeroable};
-use thiserror::Error;
 use kerosene_math::{Aabb, Vec3};
+use thiserror::Error;
 
 const MAGIC: [u8; 4] = *b"KRMD";
 const VERSION: u32 = 1;
@@ -114,10 +114,19 @@ pub struct Model {
 }
 
 impl Model {
-    pub fn new() -> Self { Model { bounds: Aabb::EMPTY, ..Default::default() } }
+    pub fn new() -> Self {
+        Model {
+            bounds: Aabb::EMPTY,
+            ..Default::default()
+        }
+    }
 
-    pub fn triangle_count(&self) -> usize { self.indices.len() / 3 }
-    pub fn is_skinned(&self) -> bool { self.bones.len() > 1 }
+    pub fn triangle_count(&self) -> usize {
+        self.indices.len() / 3
+    }
+    pub fn is_skinned(&self) -> bool {
+        self.bones.len() > 1
+    }
 
     /// Intern a name, reusing an existing entry.
     pub fn intern(&mut self, name: &str) -> u32 {
@@ -125,7 +134,9 @@ impl Model {
         let mut offset = 0usize;
         while offset < self.strings.len() {
             let existing = read_string(&self.strings, offset);
-            if existing.as_bytes() == needle { return offset as u32; }
+            if existing.as_bytes() == needle {
+                return offset as u32;
+            }
             offset += existing.len() + 1;
         }
         let at = self.strings.len() as u32;
@@ -134,19 +145,27 @@ impl Model {
         at
     }
 
-    pub fn string_at(&self, offset: u32) -> &str { read_string(&self.strings, offset as usize) }
+    pub fn string_at(&self, offset: u32) -> &str {
+        read_string(&self.strings, offset as usize)
+    }
 
     pub fn mesh_material(&self, mesh: usize) -> &str {
-        self.meshes.get(mesh).map_or("", |m| self.string_at(m.material_offset))
+        self.meshes
+            .get(mesh)
+            .map_or("", |m| self.string_at(m.material_offset))
     }
 
     pub fn bone_name(&self, bone: usize) -> &str {
-        self.bones.get(bone).map_or("", |b| self.string_at(b.name_offset))
+        self.bones
+            .get(bone)
+            .map_or("", |b| self.string_at(b.name_offset))
     }
 
     /// Every material this model draws with, for content packing.
     pub fn materials(&self) -> Vec<&str> {
-        let mut out: Vec<&str> = (0..self.meshes.len()).map(|i| self.mesh_material(i)).collect();
+        let mut out: Vec<&str> = (0..self.meshes.len())
+            .map(|i| self.mesh_material(i))
+            .collect();
         out.sort_unstable();
         out.dedup();
         out
@@ -155,7 +174,9 @@ impl Model {
     /// Recompute the bounding box from the vertices.
     pub fn recompute_bounds(&mut self) {
         let mut b = Aabb::EMPTY;
-        for v in &self.vertices { b.add_point(Vec3::from_array(v.position)); }
+        for v in &self.vertices {
+            b.add_point(Vec3::from_array(v.position));
+        }
         self.bounds = b;
     }
 
@@ -163,7 +184,9 @@ impl Model {
     pub fn validate(&self) -> Result<(), ModelError> {
         for (i, mesh) in self.meshes.iter().enumerate() {
             let end = mesh.first_index as usize + mesh.index_count as usize;
-            if end > self.indices.len() { return Err(ModelError::BadIndex { mesh: i }); }
+            if end > self.indices.len() {
+                return Err(ModelError::BadIndex { mesh: i });
+            }
             for &index in &self.indices[mesh.first_index as usize..end] {
                 if index as usize >= self.vertices.len() {
                     return Err(ModelError::BadIndex { mesh: i });
@@ -174,7 +197,10 @@ impl Model {
         // transforms without recursion or sorting.
         for (i, bone) in self.bones.iter().enumerate() {
             if bone.parent >= 0 && bone.parent as usize >= i {
-                return Err(ModelError::BadBoneOrder { bone: i, parent: bone.parent });
+                return Err(ModelError::BadBoneOrder {
+                    bone: i,
+                    parent: bone.parent,
+                });
             }
         }
         Ok(())
@@ -208,12 +234,20 @@ impl Model {
 
     pub fn from_bytes(bytes: &[u8]) -> Result<Model, ModelError> {
         if bytes.len() < HEADER_SIZE {
-            return Err(ModelError::Truncated { needed: HEADER_SIZE, available: bytes.len() });
+            return Err(ModelError::Truncated {
+                needed: HEADER_SIZE,
+                available: bytes.len(),
+            });
         }
         let header: RawHeader = *bytemuck::from_bytes(&bytes[..HEADER_SIZE]);
-        if header.magic != MAGIC { return Err(ModelError::BadMagic); }
+        if header.magic != MAGIC {
+            return Err(ModelError::BadMagic);
+        }
         if header.version != VERSION {
-            return Err(ModelError::BadVersion { found: header.version, expected: VERSION });
+            return Err(ModelError::BadVersion {
+                found: header.version,
+                expected: VERSION,
+            });
         }
 
         let mut offset = HEADER_SIZE;
@@ -224,7 +258,10 @@ impl Model {
 
         let string_end = offset + header.string_bytes as usize;
         if string_end > bytes.len() {
-            return Err(ModelError::Truncated { needed: string_end, available: bytes.len() });
+            return Err(ModelError::Truncated {
+                needed: string_end,
+                available: bytes.len(),
+            });
         }
         let strings = bytes[offset..string_end].to_vec();
 
@@ -241,11 +278,18 @@ impl Model {
     }
 }
 
-fn read_array<T: Pod>(bytes: &[u8], offset: &mut usize, count: usize) -> Result<Vec<T>, ModelError> {
+fn read_array<T: Pod>(
+    bytes: &[u8],
+    offset: &mut usize,
+    count: usize,
+) -> Result<Vec<T>, ModelError> {
     let size = count * std::mem::size_of::<T>();
     let end = *offset + size;
     if end > bytes.len() {
-        return Err(ModelError::Truncated { needed: end, available: bytes.len() });
+        return Err(ModelError::Truncated {
+            needed: end,
+            available: bytes.len(),
+        });
     }
     let mut out: Vec<T> = vec![T::zeroed(); count];
     bytemuck::cast_slice_mut::<T, u8>(&mut out).copy_from_slice(&bytes[*offset..end]);
@@ -254,7 +298,9 @@ fn read_array<T: Pod>(bytes: &[u8], offset: &mut usize, count: usize) -> Result<
 }
 
 fn read_string(buf: &[u8], offset: usize) -> &str {
-    if offset >= buf.len() { return ""; }
+    if offset >= buf.len() {
+        return "";
+    }
     let rest = &buf[offset..];
     let end = rest.iter().position(|&b| b == 0).unwrap_or(rest.len());
     std::str::from_utf8(&rest[..end]).unwrap_or("")
@@ -281,7 +327,8 @@ mod tests {
                 ));
             }
             let first_index = m.indices.len() as u32;
-            m.indices.extend([base, base + 1, base + 2, base, base + 2, base + 3]);
+            m.indices
+                .extend([base, base + 1, base + 2, base, base + 2, base + 3]);
             m.meshes.push(Mesh {
                 first_index,
                 index_count: 6,
@@ -317,7 +364,10 @@ mod tests {
 
     #[test]
     fn materials_are_listed_once_each() {
-        assert_eq!(crate_model().materials(), vec!["props/crate_metal", "props/crate_wood"]);
+        assert_eq!(
+            crate_model().materials(),
+            vec!["props/crate_metal", "props/crate_wood"]
+        );
     }
 
     #[test]
@@ -344,7 +394,10 @@ mod tests {
     fn out_of_range_indices_are_rejected() {
         let mut m = crate_model();
         m.indices[0] = 9999;
-        assert!(matches!(m.validate(), Err(ModelError::BadIndex { mesh: 0 })));
+        assert!(matches!(
+            m.validate(),
+            Err(ModelError::BadIndex { mesh: 0 })
+        ));
         // And a file carrying them fails to load rather than crashing later.
         assert!(Model::from_bytes(&m.to_bytes()).is_err());
     }
@@ -353,7 +406,10 @@ mod tests {
     fn a_mesh_range_past_the_index_array_is_rejected() {
         let mut m = crate_model();
         m.meshes[0].index_count = 999;
-        assert!(matches!(m.validate(), Err(ModelError::BadIndex { mesh: 0 })));
+        assert!(matches!(
+            m.validate(),
+            Err(ModelError::BadIndex { mesh: 0 })
+        ));
     }
 
     #[test]
@@ -362,9 +418,22 @@ mod tests {
         let root = m.intern("root");
         let child = m.intern("child");
         // Child listed before its parent.
-        m.bones.push(Bone { parent: 1, name_offset: child, rotation: [0.0, 0.0, 0.0, 1.0], ..Default::default() });
-        m.bones.push(Bone { parent: -1, name_offset: root, rotation: [0.0, 0.0, 0.0, 1.0], ..Default::default() });
-        assert!(matches!(m.validate(), Err(ModelError::BadBoneOrder { bone: 0, .. })));
+        m.bones.push(Bone {
+            parent: 1,
+            name_offset: child,
+            rotation: [0.0, 0.0, 0.0, 1.0],
+            ..Default::default()
+        });
+        m.bones.push(Bone {
+            parent: -1,
+            name_offset: root,
+            rotation: [0.0, 0.0, 0.0, 1.0],
+            ..Default::default()
+        });
+        assert!(matches!(
+            m.validate(),
+            Err(ModelError::BadBoneOrder { bone: 0, .. })
+        ));
 
         m.bones.swap(0, 1);
         m.bones[1].parent = 0;
@@ -375,8 +444,14 @@ mod tests {
 
     #[test]
     fn garbage_and_truncation_are_rejected() {
-        assert!(matches!(Model::from_bytes(&[0u8; 128]), Err(ModelError::BadMagic)));
-        assert!(matches!(Model::from_bytes(b"VM"), Err(ModelError::Truncated { .. })));
+        assert!(matches!(
+            Model::from_bytes(&[0u8; 128]),
+            Err(ModelError::BadMagic)
+        ));
+        assert!(matches!(
+            Model::from_bytes(b"VM"),
+            Err(ModelError::Truncated { .. })
+        ));
 
         let bytes = crate_model().to_bytes();
         assert!(matches!(

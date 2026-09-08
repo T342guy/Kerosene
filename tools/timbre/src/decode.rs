@@ -29,9 +29,9 @@
 //! bits describing the first one's mistakes. Timbre says so on every one.
 
 use anyhow::{Context, Result, bail};
-use std::path::Path;
 use kerosene_audio::compiled::Loop;
 use kerosene_audio::wav::Sound;
+use std::path::Path;
 
 /// The formats Timbre will read.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -111,7 +111,11 @@ pub fn any(path: &Path, bytes: &[u8]) -> Result<Decoded> {
             let sound = kerosene_audio::wav::decode(bytes)
                 .with_context(|| format!("decoding {}", path.display()))?;
             let looping = crate::loop_from_wav(bytes, sound.frames() as u32);
-            Ok(Decoded { sound, format, looping })
+            Ok(Decoded {
+                sound,
+                format,
+                looping,
+            })
         }
         Format::Flac | Format::Mp3 => symphonia(path, bytes, format),
     }
@@ -173,7 +177,12 @@ fn symphonia(path: &Path, bytes: &[u8], format: Format) -> Result<Decoded> {
     hint.with_extension(format.name());
 
     let mut reader = symphonia::default::get_probe()
-        .probe(&hint, stream, FormatOptions::default(), MetadataOptions::default())
+        .probe(
+            &hint,
+            stream,
+            FormatOptions::default(),
+            MetadataOptions::default(),
+        )
         .with_context(|| format!("reading {}", path.display()))?;
 
     let track = reader
@@ -181,7 +190,10 @@ fn symphonia(path: &Path, bytes: &[u8], format: Format) -> Result<Decoded> {
         .with_context(|| format!("{}: no audio track", path.display()))?;
     let track_id = track.id;
     let Some(CodecParameters::Audio(params)) = track.codec_params.clone() else {
-        bail!("{}: the audio track has no codec parameters", path.display());
+        bail!(
+            "{}: the audio track has no codec parameters",
+            path.display()
+        );
     };
 
     let mut decoder = symphonia::default::get_codecs()
@@ -223,9 +235,17 @@ fn symphonia(path: &Path, bytes: &[u8], format: Format) -> Result<Decoded> {
         );
     }
 
-    let sound = Sound { channels, sample_rate: rate, samples };
+    let sound = Sound {
+        channels,
+        sample_rate: rate,
+        samples,
+    };
     let frames = sound.frames() as u32;
-    Ok(Decoded { sound, format, looping: loop_from_tags(&mut reader, frames) })
+    Ok(Decoded {
+        sound,
+        format,
+        looping: loop_from_tags(&mut reader, frames),
+    })
 }
 
 /// The loop a container declares in its tags.
@@ -256,7 +276,9 @@ fn loop_from_tags(
     }
 
     let start = start?;
-    let end = end.or_else(|| length.map(|l| start.saturating_add(l)))?.min(frames);
+    let end = end
+        .or_else(|| length.map(|l| start.saturating_add(l)))?
+        .min(frames);
     (start < end).then_some(Loop { start, end })
 }
 

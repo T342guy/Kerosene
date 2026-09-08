@@ -38,8 +38,8 @@ pub mod scripted;
 pub mod sound;
 pub mod triggers;
 
-use std::sync::Arc;
 use kerosene_entity::{ClassDef, ClassRegistry, EntityId, EntityWorld, Value};
+use std::sync::Arc;
 
 /// Register every class this game provides.
 pub fn register(registry: &mut ClassRegistry) {
@@ -105,7 +105,9 @@ fn input_add_output(
     };
     match kerosene_map::Connection::parse(output, rest.trim()) {
         Ok(c) => {
-            if let Some(e) = world.get_mut(id) { e.connections.push(c.into()); }
+            if let Some(e) = world.get_mut(id) {
+                e.connections.push(c.into());
+            }
             true
         }
         Err(err) => {
@@ -126,9 +128,13 @@ fn fire_user(world: &mut EntityWorld, id: EntityId, n: u8) -> bool {
 
 /// Shorthand for reading a numeric field with a default.
 pub(crate) fn field_f32(world: &EntityWorld, id: EntityId, key: &str, default: f32) -> f32 {
-    world.get(id).map_or(default, |e| e.fields.f32(key, default))
+    world
+        .get(id)
+        .map_or(default, |e| e.fields.f32(key, default))
 }
 
 pub(crate) fn set_field(world: &mut EntityWorld, id: EntityId, key: &str, value: Value) {
-    if let Some(e) = world.get_mut(id) { e.fields.set(key, value); }
+    if let Some(e) = world.get_mut(id) {
+        e.fields.set(key, value);
+    }
 }

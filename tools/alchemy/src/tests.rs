@@ -15,7 +15,9 @@ fn scratch(name: &str) -> PathBuf {
 
 /// Write a small solid PNG at `path`.
 fn png(path: &Path, size: u32) {
-    if let Some(parent) = path.parent() { std::fs::create_dir_all(parent).unwrap(); }
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).unwrap();
+    }
     let image = image::RgbImage::from_pixel(size, size, image::Rgb([40, 90, 160]));
     image.save(path).unwrap();
 }
@@ -42,7 +44,10 @@ fn a_second_batch_skips_everything_and_keeps_the_material() {
     batch(&dir.join("art"), &dir.join("materials"), true).unwrap();
 
     let report = batch(&dir.join("art"), &dir.join("materials"), true).unwrap();
-    assert_eq!(report.compiled, 0, "nothing changed, so nothing should recompile");
+    assert_eq!(
+        report.compiled, 0,
+        "nothing changed, so nothing should recompile"
+    );
     assert_eq!(report.skipped, 1);
     assert_eq!(report.materials, 0);
     assert_eq!(report.kept, 1, "an authored material is never clobbered");
@@ -95,13 +100,19 @@ fn a_texture_build_populates_an_empty_content_tree() {
 
     let build = build_textures(&dir).unwrap();
     assert!(build.did_anything());
-    assert!(build.dev_art.changed > 0, "the developer set is generated, not required to exist");
+    assert!(
+        build.dev_art.changed > 0,
+        "the developer set is generated, not required to exist"
+    );
     assert!(build.textures.compiled > 0, "and then compiled");
 
     // The generator's own materials must survive the batch that follows it:
     // the sky is not a lit surface, and only the generator knows that.
     let sky = std::fs::read_to_string(dir.join("materials/dev/sky_kero.keromat")).unwrap();
-    assert!(sky.starts_with("sky"), "expected the sky shader, got {sky:?}");
+    assert!(
+        sky.starts_with("sky"),
+        "expected the sky shader, got {sky:?}"
+    );
 
     let _ = std::fs::remove_dir_all(&dir);
 }
@@ -112,11 +123,20 @@ fn a_second_texture_build_has_nothing_to_do() {
     build_textures(&dir).unwrap();
 
     let build = build_textures(&dir).unwrap();
-    assert!(!build.did_anything(), "a build with nothing to do should do nothing");
+    assert!(
+        !build.did_anything(),
+        "a build with nothing to do should do nothing"
+    );
     assert_eq!(build.dev_art.changed, 0);
     assert_eq!(build.textures.compiled, 0);
     assert!(build.textures.skipped > 0);
-    assert_eq!(build.to_string(), format!("textures already built ({} up to date)", build.textures.skipped));
+    assert_eq!(
+        build.to_string(),
+        format!(
+            "textures already built ({} up to date)",
+            build.textures.skipped
+        )
+    );
 
     let _ = std::fs::remove_dir_all(&dir);
 }

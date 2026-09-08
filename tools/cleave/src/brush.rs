@@ -170,10 +170,15 @@ impl BrushWork {
             let mut w = Winding::base_for_plane(&ps[i]);
             let mut alive = true;
             for j in 0..self.sides.len() {
-                if i == j || indices[j] == indices[i] { continue; }
+                if i == j || indices[j] == indices[i] {
+                    continue;
+                }
                 match w.clipped(&ps[j].flipped(), ON_EPSILON) {
                     Some(next) => w = next,
-                    None => { alive = false; break; }
+                    None => {
+                        alive = false;
+                        break;
+                    }
                 }
             }
             self.sides[i].winding = if alive {
@@ -190,7 +195,9 @@ impl BrushWork {
         let mut b = Aabb::EMPTY;
         for side in &self.sides {
             if let Some(w) = &side.winding {
-                for p in &w.points { b.add_point(*p); }
+                for p in &w.points {
+                    b.add_point(*p);
+                }
             }
         }
         self.bounds = b;
@@ -214,12 +221,16 @@ impl BrushWork {
     /// consider.
     pub fn is_structural(&self) -> bool {
         use kerosene_bsp::contents as c;
-        if self.is_detail() { return false; }
+        if self.is_detail() {
+            return false;
+        }
         self.contents & (c::SOLID | c::WINDOW | c::GRATE | c::OPAQUE) != 0
     }
 
     pub fn contains_point(&self, p: Vec3, planes: &PlaneSet) -> bool {
-        self.sides.iter().all(|s| planes.get(s.plane).distance_to(p) <= ON_EPSILON)
+        self.sides
+            .iter()
+            .all(|s| planes.get(s.plane).distance_to(p) <= ON_EPSILON)
     }
 
     /// Which side of a plane this brush is on.
@@ -234,9 +245,14 @@ impl BrushWork {
             let Some(w) = &side.winding else { continue };
             for &p in &w.points {
                 let d = plane.distance_to(p);
-                if d > ON_EPSILON { front = true; }
-                else if d < -ON_EPSILON { back = true; }
-                if front && back { return PlaneSide::Cross; }
+                if d > ON_EPSILON {
+                    front = true;
+                } else if d < -ON_EPSILON {
+                    back = true;
+                }
+                if front && back {
+                    return PlaneSide::Cross;
+                }
             }
         }
         match (front, back) {
@@ -252,7 +268,11 @@ impl BrushWork {
     /// Both halves stay convex because each simply gains one more half-space.
     /// The new face is marked `generated` so it can bound collision without
     /// ever being drawn -- it is an interior cut, not a surface anyone can see.
-    pub fn split(&self, plane_index: u32, planes: &PlaneSet) -> (Option<BrushWork>, Option<BrushWork>) {
+    pub fn split(
+        &self,
+        plane_index: u32,
+        planes: &PlaneSet,
+    ) -> (Option<BrushWork>, Option<BrushWork>) {
         let plane = planes.get(plane_index);
         match self.classify(&plane) {
             PlaneSide::Front => return (Some(self.clone()), None),
@@ -265,13 +285,17 @@ impl BrushWork {
         // does lie on one side.
         let mut mid = Winding::base_for_plane(&plane);
         for side in &self.sides {
-            if side.plane == plane_index || side.plane == (plane_index ^ 1) { continue; }
+            if side.plane == plane_index || side.plane == (plane_index ^ 1) {
+                continue;
+            }
             match mid.clipped(&planes.get(side.plane).flipped(), ON_EPSILON) {
                 Some(next) => mid = next,
                 None => return (Some(self.clone()), None),
             }
         }
-        if mid.is_tiny() { return (Some(self.clone()), None); }
+        if mid.is_tiny() {
+            return (Some(self.clone()), None);
+        }
 
         let make = |extra_plane: u32| -> Option<BrushWork> {
             let mut b = self.clone();
@@ -311,7 +335,9 @@ pub fn resolve_contents(face_contents: &[u32]) -> u32 {
     use kerosene_bsp::contents as c;
     let mut combined = 0u32;
     for &f in face_contents {
-        if f != c::SOLID { combined |= f; }
+        if f != c::SOLID {
+            combined |= f;
+        }
     }
     if combined == 0 { c::SOLID } else { combined }
 }
@@ -350,7 +376,12 @@ mod tests {
         // pairing property instead: every plane index has its inverse present.
         let (b, planes, _) = build(&cube(0.0, 64.0, "dev/grid"));
         for s in &b.sides {
-            assert!(planes.get(s.plane).flipped().approx_eq(&planes.get(s.plane ^ 1)));
+            assert!(
+                planes
+                    .get(s.plane)
+                    .flipped()
+                    .approx_eq(&planes.get(s.plane ^ 1))
+            );
         }
     }
 
@@ -377,7 +408,10 @@ mod tests {
         let front = front.unwrap();
         let generated: Vec<_> = front.sides.iter().filter(|s| s.generated).collect();
         assert_eq!(generated.len(), 1);
-        assert!(!generated[0].is_visible_surface(), "an interior cut must not draw");
+        assert!(
+            !generated[0].is_visible_surface(),
+            "an interior cut must not draw"
+        );
     }
 
     #[test]
@@ -385,7 +419,10 @@ mod tests {
         let (b, mut planes, _) = build(&cube(0.0, 64.0, "dev/grid"));
         let outside = planes.insert(Plane::new(Vec3::X, 500.0));
         let (front, back) = b.split(outside, &planes);
-        assert!(front.is_none() && back.is_some(), "the brush is entirely behind");
+        assert!(
+            front.is_none() && back.is_some(),
+            "the brush is entirely behind"
+        );
 
         let outside = planes.insert(Plane::new(Vec3::X, -500.0));
         let (front, back) = b.split(outside, &planes);
@@ -397,7 +434,10 @@ mod tests {
         let (b, mut planes, _) = build(&cube(0.0, 64.0, "dev/grid"));
         let on_face = planes.insert(Plane::new(Vec3::X, 64.0));
         let (front, back) = b.split(on_face, &planes);
-        assert!(front.is_none(), "nothing lies in front of the brush's own boundary");
+        assert!(
+            front.is_none(),
+            "nothing lies in front of the brush's own boundary"
+        );
         assert!(back.is_some());
     }
 
@@ -429,7 +469,10 @@ mod tests {
     fn clip_material_makes_the_whole_brush_a_clip() {
         let (b, _, _) = build(&cube(0.0, 64.0, "tools/clip"));
         assert_eq!(b.contents, kerosene_bsp::contents::PLAYER_CLIP);
-        assert!(!b.is_structural(), "a clip brush must not split the world tree");
+        assert!(
+            !b.is_structural(),
+            "a clip brush must not split the world tree"
+        );
     }
 
     #[test]
@@ -456,7 +499,9 @@ mod tests {
         solid.sides.truncate(3);
         let mut planes = PlaneSet::new();
         let mut warnings = Vec::new();
-        assert!(BrushWork::from_solid(&solid, 0, "worldspawn", &mut planes, &mut warnings).is_none());
+        assert!(
+            BrushWork::from_solid(&solid, 0, "worldspawn", &mut planes, &mut warnings).is_none()
+        );
         assert_eq!(warnings.len(), 1);
         assert_eq!(warnings[0].brush_id, solid.id);
     }
@@ -471,14 +516,24 @@ mod tests {
         }
         let mut planes = PlaneSet::new();
         let mut warnings = Vec::new();
-        assert!(BrushWork::from_solid(&solid, 0, "worldspawn", &mut planes, &mut warnings).is_none());
-        assert!(warnings.iter().any(|w| w.message.contains("encloses no volume")));
+        assert!(
+            BrushWork::from_solid(&solid, 0, "worldspawn", &mut planes, &mut warnings).is_none()
+        );
+        assert!(
+            warnings
+                .iter()
+                .any(|w| w.message.contains("encloses no volume"))
+        );
     }
 
     #[test]
     fn an_unknown_tool_material_warns() {
         let (_, _, warnings) = build(&cube(0.0, 64.0, "tools/clpi"));
-        assert!(warnings.iter().any(|w| w.message.contains("unknown tool material")));
+        assert!(
+            warnings
+                .iter()
+                .any(|w| w.message.contains("unknown tool material"))
+        );
     }
 
     #[test]

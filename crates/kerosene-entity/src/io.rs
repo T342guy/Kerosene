@@ -29,11 +29,22 @@ impl Connection {
         }
     }
 
-    pub fn with_delay(mut self, delay: f32) -> Self { self.delay = delay; self }
-    pub fn with_parameter(mut self, p: &str) -> Self { self.parameter = p.to_string(); self }
-    pub fn once(mut self) -> Self { self.times_to_fire = 1; self }
+    pub fn with_delay(mut self, delay: f32) -> Self {
+        self.delay = delay;
+        self
+    }
+    pub fn with_parameter(mut self, p: &str) -> Self {
+        self.parameter = p.to_string();
+        self
+    }
+    pub fn once(mut self) -> Self {
+        self.times_to_fire = 1;
+        self
+    }
 
-    pub fn is_exhausted(&self) -> bool { self.times_to_fire == 0 }
+    pub fn is_exhausted(&self) -> bool {
+        self.times_to_fire == 0
+    }
 }
 
 impl From<kerosene_map::Connection> for Connection {
@@ -70,10 +81,15 @@ impl InputEvent {
         }
     }
 
-    pub fn with_parameter(mut self, p: &str) -> Self { self.parameter = p.to_string(); self }
+    pub fn with_parameter(mut self, p: &str) -> Self {
+        self.parameter = p.to_string();
+        self
+    }
 
     /// The parameter as a number, for inputs like `SetSpeed`.
-    pub fn parameter_f32(&self) -> Option<f32> { self.parameter.trim().parse().ok() }
+    pub fn parameter_f32(&self) -> Option<f32> {
+        self.parameter.trim().parse().ok()
+    }
     pub fn parameter_bool(&self) -> Option<bool> {
         crate::Value::Text(self.parameter.clone()).as_bool()
     }
@@ -127,7 +143,9 @@ pub struct PendingEvent {
 }
 
 impl PartialEq for PendingEvent {
-    fn eq(&self, other: &Self) -> bool { self.sequence == other.sequence }
+    fn eq(&self, other: &Self) -> bool {
+        self.sequence == other.sequence
+    }
 }
 impl Eq for PendingEvent {}
 
@@ -143,7 +161,9 @@ impl Ord for PendingEvent {
 }
 
 impl PartialOrd for PendingEvent {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> { Some(self.cmp(other)) }
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
 }
 
 #[cfg(test)]
@@ -169,7 +189,9 @@ mod tests {
         heap.push(event(3.0, 0));
         heap.push(event(1.0, 1));
         heap.push(event(2.0, 2));
-        let order: Vec<f32> = std::iter::from_fn(|| heap.pop()).map(|e| e.fire_at).collect();
+        let order: Vec<f32> = std::iter::from_fn(|| heap.pop())
+            .map(|e| e.fire_at)
+            .collect();
         assert_eq!(order, vec![1.0, 2.0, 3.0]);
     }
 
@@ -180,7 +202,9 @@ mod tests {
         heap.push(event(1.0, 2));
         heap.push(event(1.0, 0));
         heap.push(event(1.0, 1));
-        let order: Vec<u64> = std::iter::from_fn(|| heap.pop()).map(|e| e.sequence).collect();
+        let order: Vec<u64> = std::iter::from_fn(|| heap.pop())
+            .map(|e| e.sequence)
+            .collect();
         assert_eq!(order, vec![0, 1, 2]);
     }
 
@@ -205,6 +229,9 @@ mod tests {
     fn input_parameters_convert() {
         let e = InputEvent::new("SetSpeed").with_parameter("120");
         assert_eq!(e.parameter_f32(), Some(120.0));
-        assert_eq!(InputEvent::new("x").with_parameter("yes").parameter_bool(), Some(true));
+        assert_eq!(
+            InputEvent::new("x").with_parameter("yes").parameter_bool(),
+            Some(true)
+        );
     }
 }

@@ -63,12 +63,19 @@ fn twenty_four_bit_pcm_sign_extends() {
     let bytes = wav(FORMAT_PCM, 24, 1, 48000, &quiet_negative);
     let sound = decode(&bytes).unwrap();
     assert!(sound.samples[0] < 0.0, "got {}", sound.samples[0]);
-    assert!(sound.samples[0] > -0.01, "the magnitude is wrong: {}", sound.samples[0]);
+    assert!(
+        sound.samples[0] > -0.01,
+        "the magnitude is wrong: {}",
+        sound.samples[0]
+    );
 }
 
 #[test]
 fn thirty_two_bit_float_passes_through() {
-    let data: Vec<u8> = [0.25f32, -0.5, 1.0].iter().flat_map(|f| f.to_le_bytes()).collect();
+    let data: Vec<u8> = [0.25f32, -0.5, 1.0]
+        .iter()
+        .flat_map(|f| f.to_le_bytes())
+        .collect();
     let bytes = wav(FORMAT_FLOAT, 32, 1, 48000, &data);
     let sound = decode(&bytes).unwrap();
     assert_eq!(sound.samples, vec![0.25, -0.5, 1.0]);

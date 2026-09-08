@@ -7,6 +7,7 @@
 //! binary and without a temporary file in between.
 
 pub mod brush;
+mod cli;
 pub mod csg;
 pub mod emit;
 pub mod material;
@@ -14,7 +15,6 @@ pub mod pipeline;
 pub mod portal;
 pub mod tree;
 pub mod walk;
-mod cli;
 
 pub use cli::run;
 pub use pipeline::{CompileError, CompileOptions, CompileOutput, Stats, compile, lint_materials};

@@ -16,10 +16,10 @@
 //! and the engine is structured so that it needs nothing from the renderer.
 
 use anyhow::Result;
-use std::path::PathBuf;
 use kerosene_engine::engine::{Engine, EngineConfig, report_unhandled, take_console_requests};
 use kerosene_engine::input::InputState;
 use kerosene_math::Angles;
+use std::path::PathBuf;
 
 fn main() -> Result<()> {
     // The engine's own relay rather than env_logger: everything logged
@@ -128,25 +128,43 @@ fn run_headless(config: EngineConfig, ticks: u64) -> Result<()> {
         engine.tick(interval, &input);
         engine.console.run_buffered();
         let unclaimed = take_console_requests(&mut engine);
-    report_unhandled(&mut engine, unclaimed);
-        if engine.should_quit { break; }
+        report_unhandled(&mut engine, unclaimed);
+        if engine.should_quit {
+            break;
+        }
     }
     let elapsed = started.elapsed().as_secs_f32();
 
     let simulated = engine.tick_count as f32 * interval;
     println!("--- headless run ---");
-    println!("  {} ticks ({simulated:.1}s simulated in {elapsed:.2}s real)", engine.tick_count);
+    println!(
+        "  {} ticks ({simulated:.1}s simulated in {elapsed:.2}s real)",
+        engine.tick_count
+    );
     if let Some(level) = &engine.level {
-        println!("  map: {} ({} faces, {} leaves, {} clusters)",
-            level.name, level.bsp.faces.len(), level.bsp.leaves.len(), level.bsp.num_clusters());
+        println!(
+            "  map: {} ({} faces, {} leaves, {} clusters)",
+            level.name,
+            level.bsp.faces.len(),
+            level.bsp.leaves.len(),
+            level.bsp.num_clusters()
+        );
     }
     println!("  entities: {}", engine.entities.len());
-    println!("  physics: {} props, {} static hulls, {} movers, {} bodies",
-        engine.physics.prop_count(), engine.physics.static_body_count(),
-        engine.physics.mover_count(), engine.physics.body_count());
+    println!(
+        "  physics: {} props, {} static hulls, {} movers, {} bodies",
+        engine.physics.prop_count(),
+        engine.physics.static_body_count(),
+        engine.physics.mover_count(),
+        engine.physics.body_count()
+    );
     let player = &engine.player;
     println!("  player at {:?}", player.movement.origin);
-    println!("  speed {}, on ground: {}", kerosene_math::units::speed(player.movement.ground_speed()), player.movement.on_ground);
+    println!(
+        "  speed {}, on ground: {}",
+        kerosene_math::units::speed(player.movement.ground_speed()),
+        player.movement.on_ground
+    );
     println!("  health {:.0}", player.health);
 
     // Anything the run logged as a problem is worth surfacing: a headless run
@@ -154,14 +172,21 @@ fn run_headless(config: EngineConfig, ticks: u64) -> Result<()> {
     let problems: Vec<&str> = engine
         .console
         .log()
-        .filter(|l| matches!(l.level, kerosene_console::LogLevel::Warning | kerosene_console::LogLevel::Error))
+        .filter(|l| {
+            matches!(
+                l.level,
+                kerosene_console::LogLevel::Warning | kerosene_console::LogLevel::Error
+            )
+        })
         .map(|l| l.text.as_str())
         .collect();
     if problems.is_empty() {
         println!("  no warnings");
     } else {
         println!("  {} warnings:", problems.len());
-        for p in problems.iter().take(20) { println!("    {p}"); }
+        for p in problems.iter().take(20) {
+            println!("    {p}");
+        }
     }
     Ok(())
 }
@@ -199,7 +224,10 @@ fn parse_args(args: &[String]) -> Result<ParsedArgs> {
                 // console starts, so it is lifted out rather than queued.
                 let command = other.trim_start_matches('+').to_string();
                 let mut parts = vec![command.clone()];
-                while i + 1 < args.len() && !args[i + 1].starts_with('+') && !args[i + 1].starts_with("--") {
+                while i + 1 < args.len()
+                    && !args[i + 1].starts_with('+')
+                    && !args[i + 1].starts_with("--")
+                {
                     i += 1;
                     parts.push(args[i].clone());
                 }

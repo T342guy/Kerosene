@@ -17,12 +17,12 @@
 
 use crate::brush::BrushWork;
 use crate::tree::Tree;
-use std::collections::HashMap;
 use kerosene_bsp::{
     Brush, BrushSide, Bsp, ColorRgbExp32, Edge, Face, Leaf, Model, Node, TexData, TexInfo,
     contents, encode_leaf, surf,
 };
 use kerosene_math::{Aabb, ON_EPSILON, Plane, PlaneSet, PlaneSide, Vec3, Winding};
+use std::collections::HashMap;
 
 /// Largest lightmap a single face may claim, in luxels per side.
 ///
@@ -59,7 +59,11 @@ struct VertexWelder {
 
 impl VertexWelder {
     fn cell(p: Vec3) -> (i32, i32, i32) {
-        ((p.x / 1.0).floor() as i32, (p.y / 1.0).floor() as i32, (p.z / 1.0).floor() as i32)
+        (
+            (p.x / 1.0).floor() as i32,
+            (p.y / 1.0).floor() as i32,
+            (p.z / 1.0).floor() as i32,
+        )
     }
 
     fn add(&mut self, p: Vec3) -> u32 {
@@ -70,10 +74,14 @@ impl VertexWelder {
         for dx in -1..=1 {
             for dy in -1..=1 {
                 for dz in -1..=1 {
-                    let Some(list) = self.buckets.get(&(cx + dx, cy + dy, cz + dz)) else { continue };
+                    let Some(list) = self.buckets.get(&(cx + dx, cy + dy, cz + dz)) else {
+                        continue;
+                    };
                     for &i in list {
                         let q = Vec3::from_array(self.vertices[i as usize]);
-                        if (q - p).length() < WELD_EPSILON { return i; }
+                        if (q - p).length() < WELD_EPSILON {
+                            return i;
+                        }
                     }
                 }
             }
@@ -104,7 +112,10 @@ impl EdgeBuilder {
     fn new() -> Self {
         // Edge 0 is a placeholder: surfedges are signed, and -0 cannot mean
         // "edge 0 reversed".
-        EdgeBuilder { edges: vec![Edge { v: [0, 0] }], ..Default::default() }
+        EdgeBuilder {
+            edges: vec![Edge { v: [0, 0] }],
+            ..Default::default()
+        }
     }
 
     fn add(&mut self, v0: u32, v1: u32) -> i32 {
@@ -141,7 +152,9 @@ struct TexBuilder {
 
 impl TexBuilder {
     fn texdata_for(&mut self, name: &str) -> u32 {
-        if let Some(&i) = self.texdata_by_name.get(name) { return i; }
+        if let Some(&i) = self.texdata_by_name.get(name) {
+            return i;
+        }
         let offset = self.strings.len() as u32;
         self.strings.extend_from_slice(name.as_bytes());
         self.strings.push(0);
@@ -170,10 +183,16 @@ impl TexBuilder {
             "{}|{:?}|{}|{:?}|{}|{}|{}",
             side.material, u.axis, u.offset, v.axis, v.offset, lm, side.surface
         );
-        if let Some(&i) = self.texinfo_seen.get(&key) { return i; }
+        if let Some(&i) = self.texinfo_seen.get(&key) {
+            return i;
+        }
 
         let texdata = self.texdata_for(&side.material);
-        let mut ti = TexInfo { flags: side.surface, texdata, ..Default::default() };
+        let mut ti = TexInfo {
+            flags: side.surface,
+            texdata,
+            ..Default::default()
+        };
         ti.texture_vecs[0] = [u.axis.x / us, u.axis.y / us, u.axis.z / us, u.offset];
         ti.texture_vecs[1] = [v.axis.x / vs, v.axis.y / vs, v.axis.z / vs, v.offset];
 
@@ -212,7 +231,11 @@ pub fn emit(
     let mut bsp = Bsp::new();
     bsp.revision = revision;
     bsp.entities = entities_text;
-    bsp.planes = planes.planes().iter().map(kerosene_bsp::BspPlane::from_plane).collect();
+    bsp.planes = planes
+        .planes()
+        .iter()
+        .map(kerosene_bsp::BspPlane::from_plane)
+        .collect();
 
     let mut tex = TexBuilder::default();
     let mut welder = VertexWelder::default();
@@ -222,7 +245,9 @@ pub fn emit(
     let mut leaf_faces: HashMap<usize, Vec<PendingFace>> = HashMap::new();
     for brush in world_brushes {
         for side in &brush.sides {
-            if !side.is_visible_surface() { continue; }
+            if !side.is_visible_surface() {
+                continue;
+            }
             let texinfo = tex.intern(side);
             for fragment in &side.fragments {
                 let plane = planes.get(side.plane);
@@ -271,7 +296,11 @@ pub fn emit(
         for side in &brush.sides {
             bsp.brushsides.push(BrushSide {
                 plane: side.plane,
-                texinfo: if side.generated { -1 } else { tex.intern(side) as i32 },
+                texinfo: if side.generated {
+                    -1
+                } else {
+                    tex.intern(side) as i32
+                },
                 bevel: side.generated as u32,
             });
         }
@@ -287,7 +316,9 @@ pub fn emit(
     // ---- 4. emit faces and leaves ----
     for &n in &order {
         let node = &tree.nodes[n];
-        if !node.is_leaf() { continue; }
+        if !node.is_leaf() {
+            continue;
+        }
 
         let first_leafface = bsp.leaffaces.len() as u32;
         let solid = node.contents & contents::SOLID != 0;
@@ -306,14 +337,20 @@ pub fn emit(
         let mut seen: Vec<u32> = Vec::new();
         for fragment in &node.brushes {
             if let Some(&index) = brush_index_map.get(&fragment.original) {
-                if !seen.contains(&index) { seen.push(index); }
+                if !seen.contains(&index) {
+                    seen.push(index);
+                }
             }
         }
         seen.sort_unstable();
         bsp.leafbrushes.extend(&seen);
         let num_leafbrushes = bsp.leafbrushes.len() as u32 - first_leafbrush;
 
-        let b = if node.bounds.is_empty() { Aabb::new(Vec3::ZERO, Vec3::ZERO) } else { node.bounds };
+        let b = if node.bounds.is_empty() {
+            Aabb::new(Vec3::ZERO, Vec3::ZERO)
+        } else {
+            node.bounds
+        };
         bsp.leaves[leaf_index[n] as usize] = Leaf {
             contents: node.contents,
             first_leafface,
@@ -332,7 +369,11 @@ pub fn emit(
         let node = &tree.nodes[n];
         let Some(plane) = node.plane else { continue };
         let child_ref = |c: usize| -> i32 {
-            if tree.nodes[c].is_leaf() { encode_leaf(leaf_index[c] as usize) } else { node_index[c] }
+            if tree.nodes[c].is_leaf() {
+                encode_leaf(leaf_index[c] as usize)
+            } else {
+                node_index[c]
+            }
         };
         let b = node.bounds;
         bsp.nodes[node_index[n] as usize] = Node {
@@ -352,7 +393,11 @@ pub fn emit(
         mins: world_bounds.min.to_array(),
         maxs: world_bounds.max.to_array(),
         origin: [0.0; 3],
-        head_node: if bsp.nodes.is_empty() { encode_leaf(0) } else { 0 },
+        head_node: if bsp.nodes.is_empty() {
+            encode_leaf(0)
+        } else {
+            0
+        },
         first_face: 0,
         num_faces: bsp.faces.len() as u32,
     });
@@ -373,7 +418,11 @@ pub fn emit(
             for side in &brush.sides {
                 bsp.brushsides.push(BrushSide {
                     plane: side.plane,
-                    texinfo: if side.generated { -1 } else { tex.intern(side) as i32 },
+                    texinfo: if side.generated {
+                        -1
+                    } else {
+                        tex.intern(side) as i32
+                    },
                     bevel: side.generated as u32,
                 });
             }
@@ -385,7 +434,9 @@ pub fn emit(
             });
 
             for side in &brush.sides {
-                if !side.is_visible_surface() { continue; }
+                if !side.is_visible_surface() {
+                    continue;
+                }
                 let texinfo = tex.intern(side);
                 for fragment in &side.fragments {
                     let pf = PendingFace {
@@ -403,9 +454,16 @@ pub fn emit(
 
         let num_leafbrushes = bsp.leafbrushes.len() as u32 - first_leafbrush;
         let leaf = bsp.leaves.len();
-        let b = if bounds.is_empty() { Aabb::new(Vec3::ZERO, Vec3::ZERO) } else { bounds };
+        let b = if bounds.is_empty() {
+            Aabb::new(Vec3::ZERO, Vec3::ZERO)
+        } else {
+            bounds
+        };
         bsp.leaves.push(Leaf {
-            contents: model.brushes.first().map_or(contents::SOLID, |b| b.contents),
+            contents: model
+                .brushes
+                .first()
+                .map_or(contents::SOLID, |b| b.contents),
             first_leafface: 0,
             first_leafbrush,
             num_leaffaces: 0,
@@ -458,13 +516,17 @@ fn file_face(
     lightmap_scale: f32,
     out: &mut HashMap<usize, Vec<PendingFace>>,
 ) {
-    if winding.is_tiny() { return; }
+    if winding.is_tiny() {
+        return;
+    }
 
     let n = &tree.nodes[node];
     let Some(node_plane_index) = n.plane else {
         // A face pointing into solid rock cannot be seen and is dropped. After
         // the flood fill this is what removes the map's entire outer shell.
-        if n.contents & contents::SOLID != 0 { return; }
+        if n.contents & contents::SOLID != 0 {
+            return;
+        }
         out.entry(node).or_default().push(PendingFace {
             winding,
             plane: plane_index & !1,
@@ -479,7 +541,17 @@ fn file_face(
 
     let node_plane = planes.get(node_plane_index);
     let recurse = |child: usize, w: Winding, out: &mut HashMap<usize, Vec<PendingFace>>| {
-        file_face(tree, planes, child, w, plane_index, face_plane, texinfo, lightmap_scale, out);
+        file_face(
+            tree,
+            planes,
+            child,
+            w,
+            plane_index,
+            face_plane,
+            texinfo,
+            lightmap_scale,
+            out,
+        );
     };
 
     match winding.classify(&node_plane, ON_EPSILON) {
@@ -497,8 +569,12 @@ fn file_face(
         }
         PlaneSide::Cross => {
             let (f, b) = winding.split(&node_plane, ON_EPSILON);
-            if let Some(w) = f { recurse(n.children[0], w, out); }
-            if let Some(w) = b { recurse(n.children[1], w, out); }
+            if let Some(w) = f {
+                recurse(n.children[0], w, out);
+            }
+            if let Some(w) = b {
+                recurse(n.children[1], w, out);
+            }
         }
     }
 }
@@ -549,7 +625,9 @@ fn lightmap_extents(w: &Winding, ti: &TexInfo, scale: f32) -> ([i32; 2], [u32; 2
         min_v = min_v.min(v);
         max_v = max_v.max(v);
     }
-    if !min_u.is_finite() || !min_v.is_finite() { return ([0, 0], [0, 0]); }
+    if !min_u.is_finite() || !min_v.is_finite() {
+        return ([0, 0], [0, 0]);
+    }
 
     let mins = [min_u.floor() as i32, min_v.floor() as i32];
     let mut size = [

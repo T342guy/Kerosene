@@ -66,7 +66,13 @@ fn a_malformed_number_falls_back_and_the_rest_survives() {
 
 #[test]
 fn booleans_accept_the_same_words_the_engine_always_has() {
-    for (text, expected) in [("1", true), ("0", false), ("true", true), ("off", false), ("yes", true)] {
+    for (text, expected) in [
+        ("1", true),
+        ("0", false),
+        ("true", true),
+        ("off", false),
+        ("yes", true),
+    ] {
         let conf = EngineConf::parse(&format!("engineconf\n{{\n\t\"vsync\" \"{text}\"\n}}\n"));
         assert_eq!(conf.vsync, expected, "vsync {text:?}");
     }

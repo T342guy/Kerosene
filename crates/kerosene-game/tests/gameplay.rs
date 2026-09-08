@@ -19,11 +19,15 @@ fn world_from(src: &str) -> EntityWorld {
 
 fn run(w: &mut EntityWorld, seconds: f32) {
     let ticks = (seconds / TICK).ceil() as usize;
-    for _ in 0..ticks { w.run(TICK); }
+    for _ in 0..ticks {
+        w.run(TICK);
+    }
 }
 
 fn named(w: &EntityWorld, name: &str) -> EntityId {
-    *w.find_by_name(name).first().unwrap_or_else(|| panic!("no entity named {name}"))
+    *w.find_by_name(name)
+        .first()
+        .unwrap_or_else(|| panic!("no entity named {name}"))
 }
 
 fn field(w: &EntityWorld, id: EntityId, key: &str) -> f32 {
@@ -65,12 +69,19 @@ fn a_door_opens_and_stops_at_the_top() {
 
     run(&mut w, 0.5);
     let part_way = w.get(gate).unwrap().origin.z;
-    assert!(part_way > 0.0 && part_way < 120.0, "should be moving, at {part_way}");
+    assert!(
+        part_way > 0.0 && part_way < 120.0,
+        "should be moving, at {part_way}"
+    );
 
     // 120 units at 100 units/s takes 1.2 seconds, and should do so regardless
     // of how think times quantise onto the tick rate.
     run(&mut w, 1.3);
-    assert_eq!(w.get(gate).unwrap().origin.z, 120.0, "should have stopped at the top");
+    assert_eq!(
+        w.get(gate).unwrap().origin.z,
+        120.0,
+        "should have stopped at the top"
+    );
     assert_eq!(field(&w, gate, "progress"), 1.0);
 }
 
@@ -88,7 +99,11 @@ fn a_door_fires_when_it_finishes_opening() {
 
     w.accept_input(gate, &InputEvent::new("Open"));
     run(&mut w, 2.0);
-    assert_eq!(field(&w, witness, "value"), 1.0, "OnFullyOpen should have fired exactly once");
+    assert_eq!(
+        field(&w, witness, "value"),
+        1.0,
+        "OnFullyOpen should have fired exactly once"
+    );
 }
 
 #[test]
@@ -101,10 +116,18 @@ fn a_door_with_a_wait_closes_itself() {
     // 120 units at 100 units/s opens in 1.2s, then the 0.5s wait means the
     // door starts closing again at about 1.7s.
     run(&mut w, 1.4);
-    assert_eq!(w.get(gate).unwrap().origin.z, 120.0, "open, and still waiting");
+    assert_eq!(
+        w.get(gate).unwrap().origin.z,
+        120.0,
+        "open, and still waiting"
+    );
     assert!(w.get(gate).unwrap().fields.f32("progress", 0.0) == 1.0);
     run(&mut w, 3.0);
-    assert_eq!(w.get(gate).unwrap().origin.z, 0.0, "should have closed itself again");
+    assert_eq!(
+        w.get(gate).unwrap().origin.z,
+        0.0,
+        "should have closed itself again"
+    );
 }
 
 #[test]
@@ -155,7 +178,11 @@ fn a_locked_door_refuses_to_open_and_says_so() {
     w.accept_input(gate, &InputEvent::new("Lock"));
     w.accept_input(gate, &InputEvent::new("Open"));
     run(&mut w, 2.0);
-    assert_eq!(w.get(gate).unwrap().origin.z, 0.0, "a locked door must not move");
+    assert_eq!(
+        w.get(gate).unwrap().origin.z,
+        0.0,
+        "a locked door must not move"
+    );
     assert_eq!(field(&w, named(&w, "witness"), "value"), 1.0);
 
     w.accept_input(gate, &InputEvent::new("Unlock"));
@@ -216,7 +243,10 @@ fn a_trigger_once_removes_itself_after_firing() {
     let zone = named(&w, "zone");
     kerosene_game::triggers::update_touch(&mut w, zone, true, None);
     w.run(TICK);
-    assert!(!w.exists(zone), "a trigger_once should be gone after it fires");
+    assert!(
+        !w.exists(zone),
+        "a trigger_once should be gone after it fires"
+    );
     assert_eq!(field(&w, named(&w, "counter"), "value"), 1.0);
 }
 
@@ -247,12 +277,20 @@ fn disabling_an_occupied_trigger_releases_it() {
 
     w.accept_input(zone, &InputEvent::new("Disable"));
     w.run(TICK);
-    assert_eq!(field(&w, named(&w, "counter"), "value"), 0.0, "OnEndTouch should have fired");
+    assert_eq!(
+        field(&w, named(&w, "counter"), "value"),
+        0.0,
+        "OnEndTouch should have fired"
+    );
 
     w.accept_input(zone, &InputEvent::new("Enable"));
     kerosene_game::triggers::update_touch(&mut w, zone, true, None);
     w.run(TICK);
-    assert_eq!(field(&w, named(&w, "counter"), "value"), 1.0, "it should fire again");
+    assert_eq!(
+        field(&w, named(&w, "counter"), "value"),
+        1.0,
+        "it should fire again"
+    );
 }
 
 // ---- logic ---------------------------------------------------------------
@@ -268,7 +306,11 @@ entity { "classname" "math_counter" "targetname" "counter" }
     run(&mut w, 1.0);
     assert_eq!(field(&w, named(&w, "counter"), "value"), 1.0);
     run(&mut w, 5.0);
-    assert_eq!(field(&w, named(&w, "counter"), "value"), 1.0, "and never again");
+    assert_eq!(
+        field(&w, named(&w, "counter"), "value"),
+        1.0,
+        "and never again"
+    );
 }
 
 #[test]
@@ -292,7 +334,11 @@ entity { "classname" "math_counter" "targetname" "witness" }
         w.accept_input(counter, &InputEvent::new("Add").with_parameter("1"));
         w.run(TICK);
     }
-    assert_eq!(field(&w, counter, "value"), 3.0, "should clamp at its maximum");
+    assert_eq!(
+        field(&w, counter, "value"),
+        3.0,
+        "should clamp at its maximum"
+    );
     assert_eq!(
         field(&w, named(&w, "witness"), "value"),
         1.0,
@@ -312,9 +358,18 @@ entity { "classname" "info_target" "targetname" "victim" "origin" "0 0 0" }
     );
     let victim = named(&w, "victim");
     let a = named(&w, "a");
-    w.accept_input(a, &InputEvent { activator: Some(victim), ..InputEvent::new("Trigger") });
+    w.accept_input(
+        a,
+        &InputEvent {
+            activator: Some(victim),
+            ..InputEvent::new("Trigger")
+        },
+    );
     run(&mut w, 0.1);
-    assert!(!w.exists(victim), "the activator should have survived two relays");
+    assert!(
+        !w.exists(victim),
+        "the activator should have survived two relays"
+    );
 }
 
 #[test]
@@ -348,7 +403,10 @@ entity { "classname" "math_counter" "targetname" "counter" }
     );
     run(&mut w, 1.1);
     let fired = field(&w, named(&w, "counter"), "value");
-    assert!((3.0..=5.0).contains(&fired), "fired {fired} times in 1.1s at 0.25s intervals");
+    assert!(
+        (3.0..=5.0).contains(&fired),
+        "fired {fired} times in 1.1s at 0.25s intervals"
+    );
 }
 
 #[test]
@@ -362,7 +420,11 @@ entity { "classname" "math_counter" "targetname" "counter" }
     let a = named(&w, "a");
     w.accept_input(a, &InputEvent::new("Trigger"));
     run(&mut w, 0.1);
-    assert_eq!(field(&w, named(&w, "counter"), "value"), 0.0, "nothing wired yet");
+    assert_eq!(
+        field(&w, named(&w, "counter"), "value"),
+        0.0,
+        "nothing wired yet"
+    );
 
     w.accept_input(
         a,
@@ -400,7 +462,11 @@ entity {{ "classname" "math_counter" "targetname" "counter" }}
     kerosene_game::triggers::update_touch(&mut w, zone, true, None);
     run(&mut w, 3.0);
 
-    assert_eq!(w.get(gate).unwrap().origin.z, 120.0, "the door should have opened");
+    assert_eq!(
+        w.get(gate).unwrap().origin.z,
+        120.0,
+        "the door should have opened"
+    );
     assert_eq!(field(&w, named(&w, "counter"), "value"), 1.0);
 }
 
@@ -421,9 +487,8 @@ entity { "classname" "info_player_start" "origin" "0 0 16" }
 
 #[test]
 fn a_brush_entity_can_be_switched_off() {
-    let mut w = world_from(
-        r#"entity { "classname" "func_brush" "targetname" "wall" "model" "*3" }"#,
-    );
+    let mut w =
+        world_from(r#"entity { "classname" "func_brush" "targetname" "wall" "model" "*3" }"#);
     let wall = named(&w, "wall");
     assert!(kerosene_game::doors::brush_enabled(&w, wall));
     w.accept_input(wall, &InputEvent::new("Disable"));
@@ -436,7 +501,10 @@ fn a_brush_entity_can_be_switched_off() {
 fn setting_a_field_directly_still_works_for_engine_code() {
     let mut w = EntityWorld::new(kerosene_game::registry());
     let id = w.spawn("math_counter");
-    w.get_mut(id).unwrap().fields.set("value", Value::Float(7.0));
+    w.get_mut(id)
+        .unwrap()
+        .fields
+        .set("value", Value::Float(7.0));
     assert_eq!(field(&w, id, "value"), 7.0);
 }
 
@@ -456,7 +524,11 @@ fn a_door_takes_the_time_its_speed_implies() {
         "should not be there yet at 1.15s"
     );
     run(&mut w, 0.15);
-    assert_eq!(w.get(gate).unwrap().origin.z, 120.0, "should arrive by about 1.2s");
+    assert_eq!(
+        w.get(gate).unwrap().origin.z,
+        120.0,
+        "should arrive by about 1.2s"
+    );
 }
 
 // ---- logic_branch: the alternative ---------------------------------------
@@ -497,10 +569,15 @@ fn send(w: &mut EntityWorld, input: &str, parameter: &str) {
     run(w, 0.1);
 }
 
-fn test(w: &mut EntityWorld) { send(w, "Test", "") }
+fn test(w: &mut EntityWorld) {
+    send(w, "Test", "")
+}
 
 fn counts(w: &EntityWorld) -> (f32, f32) {
-    (field(w, named(w, "yes"), "value"), field(w, named(w, "no"), "value"))
+    (
+        field(w, named(w, "yes"), "value"),
+        field(w, named(w, "no"), "value"),
+    )
 }
 
 #[test]
@@ -511,7 +588,11 @@ fn a_branch_fires_one_side_and_never_both() {
     test(&mut w);
     run(&mut w, 0.1);
 
-    assert_eq!(counts(&w), (0.0, 1.0), "it started false, so the false side fired");
+    assert_eq!(
+        counts(&w),
+        (0.0, 1.0),
+        "it started false, so the false side fired"
+    );
 }
 
 #[test]
@@ -640,8 +721,14 @@ fn pressing_a_button_fires_as_it_starts_moving_not_when_it_arrives() {
     press(&mut w, switch);
     run(&mut w, 0.1);
 
-    assert!(field(&w, gate, "progress") > 0.0, "the door should already be opening");
-    assert!(field(&w, switch, "progress") < 1.0, "while the button is still travelling in");
+    assert!(
+        field(&w, gate, "progress") > 0.0,
+        "the door should already be opening"
+    );
+    assert!(
+        field(&w, switch, "progress") < 1.0,
+        "while the button is still travelling in"
+    );
 }
 
 #[test]
@@ -651,30 +738,46 @@ fn a_button_pops_back_out_after_its_wait() {
 
     press(&mut w, switch);
     run(&mut w, 0.5);
-    assert_eq!(field(&w, switch, "progress"), 1.0, "8 units at 40 ku/s is in by now");
+    assert_eq!(
+        field(&w, switch, "progress"),
+        1.0,
+        "8 units at 40 ku/s is in by now"
+    );
 
     // 1 second of wait, then 0.2s to travel back out.
     run(&mut w, 1.5);
-    assert_eq!(field(&w, switch, "progress"), 0.0, "and back out again by itself");
+    assert_eq!(
+        field(&w, switch, "progress"),
+        0.0,
+        "and back out again by itself"
+    );
 }
 
 #[test]
 fn a_button_held_in_stays_in() {
     let mut w = world_from(BUTTON_MAP);
     let switch = named(&w, "switch");
-    if let Some(e) = w.get_mut(switch) { e.fields.set("wait", Value::Float(-1.0)); }
+    if let Some(e) = w.get_mut(switch) {
+        e.fields.set("wait", Value::Float(-1.0));
+    }
 
     press(&mut w, switch);
     run(&mut w, 3.0);
 
-    assert_eq!(field(&w, switch, "progress"), 1.0, "a negative wait means stay put");
+    assert_eq!(
+        field(&w, switch, "progress"),
+        1.0,
+        "a negative wait means stay put"
+    );
 }
 
 #[test]
 fn pressing_a_button_that_is_already_in_does_nothing() {
     let mut w = world_from(BUTTON_MAP);
     let switch = named(&w, "switch");
-    if let Some(e) = w.get_mut(switch) { e.fields.set("wait", Value::Float(-1.0)); }
+    if let Some(e) = w.get_mut(switch) {
+        e.fields.set("wait", Value::Float(-1.0));
+    }
 
     press(&mut w, switch);
     run(&mut w, 0.5);
@@ -682,7 +785,8 @@ fn pressing_a_button_that_is_already_in_does_nothing() {
     run(&mut w, 0.5);
 
     assert_eq!(
-        field(&w, named(&w, "count"), "value"), 1.0,
+        field(&w, named(&w, "count"), "value"),
+        1.0,
         "a second press while it is already in must not fire OnPressed again"
     );
 }
@@ -692,15 +796,30 @@ fn a_locked_button_says_so_instead_of_pressing() {
     let mut w = world_from(BUTTON_MAP);
     let switch = named(&w, "switch");
     let gate = named(&w, "gate");
-    w.get_mut(switch).unwrap().connections.push(Connection::new("OnUseLocked", "gate", "Close"));
+    w.get_mut(switch)
+        .unwrap()
+        .connections
+        .push(Connection::new("OnUseLocked", "gate", "Close"));
     w.accept_input(switch, &InputEvent::new("Lock"));
 
     press(&mut w, switch);
     run(&mut w, 0.5);
 
-    assert_eq!(field(&w, switch, "progress"), 0.0, "a locked button does not move");
-    assert_eq!(field(&w, gate, "progress"), 0.0, "and does not fire what it is wired to");
-    assert_eq!(field(&w, named(&w, "count"), "value"), 0.0, "OnPressed must not fire either");
+    assert_eq!(
+        field(&w, switch, "progress"),
+        0.0,
+        "a locked button does not move"
+    );
+    assert_eq!(
+        field(&w, gate, "progress"),
+        0.0,
+        "and does not fire what it is wired to"
+    );
+    assert_eq!(
+        field(&w, named(&w, "count"), "value"),
+        0.0,
+        "OnPressed must not fire either"
+    );
 }
 
 #[test]
@@ -712,12 +831,16 @@ fn a_button_and_a_door_fire_different_words_for_the_same_movement() {
 
     // The button reaches the end of its travel in this time and announces it
     // as OnIn. Anything listening for OnFullyOpen must hear nothing.
-    w.get_mut(switch).unwrap().connections.push(Connection::new("OnFullyOpen", "count", "Add"));
+    w.get_mut(switch)
+        .unwrap()
+        .connections
+        .push(Connection::new("OnFullyOpen", "count", "Add"));
     press(&mut w, switch);
     run(&mut w, 0.5);
 
     assert_eq!(
-        field(&w, named(&w, "count"), "value"), 1.0,
+        field(&w, named(&w, "count"), "value"),
+        1.0,
         "only OnPressed should have counted: a button must not fire a door's outputs"
     );
 }
@@ -789,7 +912,11 @@ fn a_rotating_brush_flagged_on_starts_turning_by_itself() {
     // 90 degrees a second for a second, less up to one think's worth of lag:
     // movers run on their own cadence, quantised to the tick rate, so the
     // last step before the second is up lands a little short of it.
-    assert!((yaw(&w, fan) - 90.0).abs() < 8.0, "turned to {}", yaw(&w, fan));
+    assert!(
+        (yaw(&w, fan) - 90.0).abs() < 8.0,
+        "turned to {}",
+        yaw(&w, fan)
+    );
 }
 
 #[test]
@@ -801,7 +928,11 @@ fn a_rotating_brush_without_the_flag_stays_still_until_told() {
 
     w.accept_input(stopped, &InputEvent::new("Start"));
     run(&mut w, 1.0);
-    assert!((yaw(&w, stopped) - 90.0).abs() < 8.0, "turned to {}", yaw(&w, stopped));
+    assert!(
+        (yaw(&w, stopped) - 90.0).abs() < 8.0,
+        "turned to {}",
+        yaw(&w, stopped)
+    );
 }
 
 #[test]
@@ -831,7 +962,10 @@ fn restarting_does_not_jump_through_the_time_it_was_stopped() {
     run(&mut w, TICK * 2.0);
 
     let moved = (yaw(&w, fan) - stopped_at).abs();
-    assert!(moved < 10.0, "jumped {moved} degrees on the first think after restarting");
+    assert!(
+        moved < 10.0,
+        "jumped {moved} degrees on the first think after restarting"
+    );
 }
 
 #[test]
@@ -844,7 +978,12 @@ fn reversing_turns_the_other_way() {
     w.accept_input(fan, &InputEvent::new("Reverse"));
     run(&mut w, 1.0);
 
-    assert!(yaw(&w, fan) < forward, "should have come back, {} then {}", forward, yaw(&w, fan));
+    assert!(
+        yaw(&w, fan) < forward,
+        "should have come back, {} then {}",
+        forward,
+        yaw(&w, fan)
+    );
 }
 
 #[test]
@@ -861,8 +1000,14 @@ entity { "classname" "func_rotating" "targetname" "pitch" "model" "*2" "maxspeed
     let rolling = w.get(named(&w, "roll")).unwrap().angles;
     let pitching = w.get(named(&w, "pitch")).unwrap().angles;
 
-    assert!(rolling.roll.abs() > 80.0 && rolling.yaw == 0.0, "{rolling:?}");
-    assert!(pitching.pitch.abs() > 80.0 && pitching.yaw == 0.0, "{pitching:?}");
+    assert!(
+        rolling.roll.abs() > 80.0 && rolling.yaw == 0.0,
+        "{rolling:?}"
+    );
+    assert!(
+        pitching.pitch.abs() > 80.0 && pitching.yaw == 0.0,
+        "{pitching:?}"
+    );
 }
 
 #[test]
@@ -874,7 +1019,11 @@ fn a_fan_left_running_keeps_its_angle_in_range() {
     run(&mut w, 60.0);
 
     let angles = w.get(fan).unwrap().angles;
-    assert!(angles.yaw >= -180.0 && angles.yaw < 180.0, "yaw ran away to {}", angles.yaw);
+    assert!(
+        angles.yaw >= -180.0 && angles.yaw < 180.0,
+        "yaw ran away to {}",
+        angles.yaw
+    );
 }
 
 // ---- sounds --------------------------------------------------------------
@@ -912,7 +1061,10 @@ entity
 "#;
 
 fn requests_of(w: &mut EntityWorld) -> Vec<(String, String)> {
-    w.take_requests().into_iter().map(|r| (r.kind.to_string(), r.payload)).collect()
+    w.take_requests()
+        .into_iter()
+        .map(|r| (r.kind.to_string(), r.payload))
+        .collect()
 }
 
 #[test]
@@ -922,7 +1074,10 @@ fn a_one_shot_sound_does_not_play_until_it_is_fired() {
     let mut w = world_from(SOUND_MAP);
     let _ = requests_of(&mut w);
     run(&mut w, 1.0);
-    assert!(requests_of(&mut w).is_empty(), "nothing should have played on its own");
+    assert!(
+        requests_of(&mut w).is_empty(),
+        "nothing should have played on its own"
+    );
 
     let chime = named(&w, "chime");
     w.accept_input(chime, &InputEvent::new("Play"));
@@ -946,7 +1101,11 @@ fn an_ambience_starts_with_the_map_unless_told_not_to() {
     let mut w = world_from(
         r#"entity { "classname" "ambient_generic" "targetname" "hum" "sound" "ambient/room_tone" }"#,
     );
-    assert_eq!(requests_of(&mut w).len(), 1, "an ambience is a bed and beds start");
+    assert_eq!(
+        requests_of(&mut w).len(),
+        1,
+        "an ambience is a bed and beds start"
+    );
 }
 
 #[test]
@@ -968,7 +1127,10 @@ fn the_source_spelling_of_the_sound_key_still_works() {
 fn a_sound_entity_naming_nothing_says_so_rather_than_playing_silence() {
     let mut w = world_from(r#"entity { "classname" "point_sound" "targetname" "quiet" }"#);
     let quiet = named(&w, "quiet");
-    assert!(!w.accept_input(quiet, &InputEvent::new("Play")), "it should report failure");
+    assert!(
+        !w.accept_input(quiet, &InputEvent::new("Play")),
+        "it should report failure"
+    );
     assert!(requests_of(&mut w).is_empty());
 }
 
@@ -999,14 +1161,16 @@ fn a_one_shot_announces_itself_so_something_can_follow_it() {
 
 #[test]
 fn a_spawner_drops_a_batch_when_triggered() {
-    let mut w = world_from(r#"
+    let mut w = world_from(
+        r#"
 entity {
     "classname" "prop_dynamic_spawner"
     "targetname" "dropper"
     "model" "props/cube"
     "spawncount" "3"
 }
-"#);
+"#,
+    );
     let dropper = named(&w, "dropper");
     w.accept_input(dropper, &InputEvent::new("Trigger"));
 
@@ -1019,19 +1183,26 @@ entity {
 
 #[test]
 fn a_spawner_can_spawn_on_map_start() {
-    let w = world_from(r#"
+    let w = world_from(
+        r#"
 entity {
     "classname" "prop_dynamic_spawner"
     "model" "props/cube"
     "spawnflags" "1"
 }
-"#);
-    assert_eq!(w.find_by_class("prop_physics").len(), 1, "spawned once at map start");
+"#,
+    );
+    assert_eq!(
+        w.find_by_class("prop_physics").len(),
+        1,
+        "spawned once at map start"
+    );
 }
 
 #[test]
 fn a_spawner_respects_its_total_limit() {
-    let mut w = world_from(r#"
+    let mut w = world_from(
+        r#"
 entity {
     "classname" "prop_dynamic_spawner"
     "targetname" "dropper"
@@ -1039,18 +1210,25 @@ entity {
     "spawncount" "5"
     "maxprops" "3"
 }
-"#);
+"#,
+    );
     let dropper = named(&w, "dropper");
     w.accept_input(dropper, &InputEvent::new("Trigger"));
     w.accept_input(dropper, &InputEvent::new("Trigger"));
-    assert_eq!(w.find_by_class("prop_physics").len(), 3, "capped at maxprops");
+    assert_eq!(
+        w.find_by_class("prop_physics").len(),
+        3,
+        "capped at maxprops"
+    );
 }
 
 #[test]
 fn breaking_a_prop_removes_it() {
-    let mut w = world_from(r#"
+    let mut w = world_from(
+        r#"
 entity { "classname" "prop_physics" "targetname" "box" "model" "props/cube" }
-"#);
+"#,
+    );
     let box_id = named(&w, "box");
     assert!(w.accept_input(box_id, &InputEvent::new("Break")));
     run(&mut w, TICK);

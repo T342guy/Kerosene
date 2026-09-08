@@ -149,7 +149,10 @@ impl kerosene_ui::App for Toolset {
 
     fn wants_continuous_redraw(&self) -> bool {
         match self.tab {
-            Tab::Sound => self.sound.as_ref().is_some_and(|s| s.wants_continuous_redraw()),
+            Tab::Sound => self
+                .sound
+                .as_ref()
+                .is_some_and(|s| s.wants_continuous_redraw()),
             Tab::Build => self.build.running(),
             Tab::Archive => self.archive.running(),
             Tab::Editor => false,

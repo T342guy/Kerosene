@@ -7,8 +7,8 @@
 //!
 //! This is Source's datadesc idea with the boilerplate removed.
 
-use std::collections::HashMap;
 use kerosene_math::{Angles, Vec3};
+use std::collections::HashMap;
 
 /// A value an entity field can hold.
 #[derive(Clone, Debug, PartialEq)]
@@ -70,7 +70,11 @@ impl Value {
             Value::Int(v) => Some(*v),
             Value::Float(v) => Some(*v as i32),
             Value::Bool(v) => Some(*v as i32),
-            Value::Text(t) => t.trim().parse().ok().or_else(|| t.trim().parse::<f32>().ok().map(|f| f as i32)),
+            Value::Text(t) => t
+                .trim()
+                .parse()
+                .ok()
+                .or_else(|| t.trim().parse::<f32>().ok().map(|f| f as i32)),
             _ => None,
         }
     }
@@ -112,9 +116,15 @@ impl Value {
     /// entity class having to declare its schema up front.
     pub fn from_keyvalue(raw: &str) -> Value {
         let trimmed = raw.trim();
-        if let Some(v) = parse_vec3(trimmed) { return Value::Vector(v); }
-        if let Ok(i) = trimmed.parse::<i32>() { return Value::Int(i); }
-        if let Ok(f) = trimmed.parse::<f32>() { return Value::Float(f); }
+        if let Some(v) = parse_vec3(trimmed) {
+            return Value::Vector(v);
+        }
+        if let Ok(i) = trimmed.parse::<i32>() {
+            return Value::Int(i);
+        }
+        if let Ok(f) = trimmed.parse::<f32>() {
+            return Value::Float(f);
+        }
         Value::Text(raw.to_string())
     }
 }
@@ -122,10 +132,18 @@ impl Value {
 fn parse_vec3(s: &str) -> Option<Vec3> {
     let cleaned: String = s
         .chars()
-        .map(|c| if matches!(c, '[' | ']' | '(' | ')' | ',') { ' ' } else { c })
+        .map(|c| {
+            if matches!(c, '[' | ']' | '(' | ')' | ',') {
+                ' '
+            } else {
+                c
+            }
+        })
         .collect();
     let parts: Vec<&str> = cleaned.split_whitespace().collect();
-    if parts.len() != 3 { return None; }
+    if parts.len() != 3 {
+        return None;
+    }
     let mut out = [0.0f32; 3];
     for (i, p) in parts.iter().enumerate() {
         out[i] = p.parse().ok()?;
@@ -140,19 +158,33 @@ pub struct Fields {
 }
 
 impl Fields {
-    pub fn new() -> Self { Self::default() }
+    pub fn new() -> Self {
+        Self::default()
+    }
 
     pub fn set(&mut self, key: &str, value: Value) -> &mut Self {
         self.map.insert(key.to_lowercase(), value);
         self
     }
 
-    pub fn get(&self, key: &str) -> Option<&Value> { self.map.get(&key.to_lowercase()) }
-    pub fn contains(&self, key: &str) -> bool { self.map.contains_key(&key.to_lowercase()) }
-    pub fn remove(&mut self, key: &str) -> Option<Value> { self.map.remove(&key.to_lowercase()) }
-    pub fn len(&self) -> usize { self.map.len() }
-    pub fn is_empty(&self) -> bool { self.map.is_empty() }
-    pub fn iter(&self) -> impl Iterator<Item = (&String, &Value)> { self.map.iter() }
+    pub fn get(&self, key: &str) -> Option<&Value> {
+        self.map.get(&key.to_lowercase())
+    }
+    pub fn contains(&self, key: &str) -> bool {
+        self.map.contains_key(&key.to_lowercase())
+    }
+    pub fn remove(&mut self, key: &str) -> Option<Value> {
+        self.map.remove(&key.to_lowercase())
+    }
+    pub fn len(&self) -> usize {
+        self.map.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.map.is_empty()
+    }
+    pub fn iter(&self) -> impl Iterator<Item = (&String, &Value)> {
+        self.map.iter()
+    }
 
     pub fn f32(&self, key: &str, default: f32) -> f32 {
         self.get(key).and_then(Value::as_f32).unwrap_or(default)
@@ -163,7 +195,9 @@ impl Fields {
     pub fn bool(&self, key: &str, default: bool) -> bool {
         self.get(key).and_then(Value::as_bool).unwrap_or(default)
     }
-    pub fn text(&self, key: &str) -> Option<&str> { self.get(key).and_then(Value::as_str) }
+    pub fn text(&self, key: &str) -> Option<&str> {
+        self.get(key).and_then(Value::as_str)
+    }
     pub fn vec3(&self, key: &str, default: Vec3) -> Vec3 {
         self.get(key).and_then(Value::as_vec3).unwrap_or(default)
     }
@@ -175,7 +209,10 @@ mod tests {
 
     #[test]
     fn keyvalue_types_are_guessed_from_shape() {
-        assert_eq!(Value::from_keyvalue("0 64 128"), Value::Vector(Vec3::new(0.0, 64.0, 128.0)));
+        assert_eq!(
+            Value::from_keyvalue("0 64 128"),
+            Value::Vector(Vec3::new(0.0, 64.0, 128.0))
+        );
         assert_eq!(Value::from_keyvalue("100"), Value::Int(100));
         assert_eq!(Value::from_keyvalue("1.5"), Value::Float(1.5));
         assert_eq!(Value::from_keyvalue("door1"), Value::Text("door1".into()));
@@ -211,7 +248,10 @@ mod tests {
     #[test]
     fn vectors_read_back_from_several_spellings() {
         for src in ["0 64 128", "[0 64 128]", "(0 64 128)"] {
-            assert_eq!(Value::Text(src.into()).as_vec3(), Some(Vec3::new(0.0, 64.0, 128.0)));
+            assert_eq!(
+                Value::Text(src.into()).as_vec3(),
+                Some(Vec3::new(0.0, 64.0, 128.0))
+            );
         }
     }
 

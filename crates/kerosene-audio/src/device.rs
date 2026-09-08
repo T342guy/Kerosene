@@ -63,12 +63,23 @@ impl AudioDevice {
             .play()
             .map_err(|e| AudioError::NoDevice(format!("could not start the stream: {e}")))?;
 
-        Ok(AudioDevice { mixer, _stream: stream, rate, name })
+        Ok(AudioDevice {
+            mixer,
+            _stream: stream,
+            rate,
+            name,
+        })
     }
 
-    pub fn mixer(&self) -> &Arc<Mutex<Mixer>> { &self.mixer }
-    pub fn sample_rate(&self) -> u32 { self.rate }
-    pub fn name(&self) -> &str { &self.name }
+    pub fn mixer(&self) -> &Arc<Mutex<Mixer>> {
+        &self.mixer
+    }
+    pub fn sample_rate(&self) -> u32 {
+        self.rate
+    }
+    pub fn name(&self) -> &str {
+        &self.name
+    }
 
     /// Do something with the mixer.
     ///
@@ -97,7 +108,9 @@ fn build_stream(
 
     let fill = move |data: &mut [f32]| {
         let frames = data.len() / channels.max(1);
-        if scratch.len() < frames * 2 { scratch.resize(frames * 2, 0.0); }
+        if scratch.len() < frames * 2 {
+            scratch.resize(frames * 2, 0.0);
+        }
         let block = &mut scratch[..frames * 2];
 
         match mixer.try_lock() {
@@ -118,7 +131,9 @@ fn build_stream(
                     // More than stereo: the extra channels get silence rather
                     // than a copy, which would put the same sound in the
                     // surrounds.
-                    for extra in &mut out[2..] { *extra = 0.0; }
+                    for extra in &mut out[2..] {
+                        *extra = 0.0;
+                    }
                 }
             }
         }
@@ -140,7 +155,9 @@ fn build_stream(
             device.build_output_stream(
                 stream_config,
                 move |data: &mut [i16], _| {
-                    if block.len() < data.len() { block.resize(data.len(), 0.0); }
+                    if block.len() < data.len() {
+                        block.resize(data.len(), 0.0);
+                    }
                     let slice = &mut block[..data.len()];
                     fill(slice);
                     for (out, v) in data.iter_mut().zip(slice.iter()) {
@@ -157,7 +174,9 @@ fn build_stream(
             device.build_output_stream(
                 stream_config,
                 move |data: &mut [u16], _| {
-                    if block.len() < data.len() { block.resize(data.len(), 0.0); }
+                    if block.len() < data.len() {
+                        block.resize(data.len(), 0.0);
+                    }
                     let slice = &mut block[..data.len()];
                     fill(slice);
                     for (out, v) in data.iter_mut().zip(slice.iter()) {

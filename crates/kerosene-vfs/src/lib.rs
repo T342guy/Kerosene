@@ -22,8 +22,8 @@
 pub mod archive;
 pub mod path;
 pub mod project;
-pub mod toolchain;
 pub mod root;
+pub mod toolchain;
 
 pub use archive::{Archive, ArchiveBuilder, ArchiveError, crc32};
 pub use path::{extension, normalize, parent, with_extension};
@@ -75,7 +75,9 @@ pub struct Vfs {
 }
 
 impl Vfs {
-    pub fn new() -> Self { Self::default() }
+    pub fn new() -> Self {
+        Self::default()
+    }
 
     /// Add a directory to the end of the search order.
     pub fn add_directory(&mut self, dir: &Path, id: &str) -> &mut Self {
@@ -88,10 +90,13 @@ impl Vfs {
 
     /// Add a directory at the *front*, so it overrides everything mounted so far.
     pub fn add_directory_front(&mut self, dir: &Path, id: &str) -> &mut Self {
-        self.paths.insert(0, SearchPath {
-            layer: Layer::Directory(dir.to_path_buf()),
-            id: id.to_string(),
-        });
+        self.paths.insert(
+            0,
+            SearchPath {
+                layer: Layer::Directory(dir.to_path_buf()),
+                id: id.to_string(),
+            },
+        );
         self
     }
 
@@ -112,19 +117,28 @@ impl Vfs {
     /// not stable across filesystems and a mod that works only on one
     /// developer's box is a miserable bug to chase.
     pub fn mount_archives_in(&mut self, dir: &Path, id: &str) -> Result<usize> {
-        let Ok(read_dir) = std::fs::read_dir(dir) else { return Ok(0) };
+        let Ok(read_dir) = std::fs::read_dir(dir) else {
+            return Ok(0);
+        };
         let mut files: Vec<PathBuf> = read_dir
             .filter_map(|e| e.ok())
             .map(|e| e.path())
-            .filter(|p| p.extension().is_some_and(|e| e.eq_ignore_ascii_case("vault")))
+            .filter(|p| {
+                p.extension()
+                    .is_some_and(|e| e.eq_ignore_ascii_case("vault"))
+            })
             .collect();
         files.sort();
         let n = files.len();
-        for f in files { self.mount_archive(&f, id)?; }
+        for f in files {
+            self.mount_archive(&f, id)?;
+        }
         Ok(n)
     }
 
-    pub fn path_count(&self) -> usize { self.paths.len() }
+    pub fn path_count(&self) -> usize {
+        self.paths.len()
+    }
 
     /// Describe the mounted layers, in search order -- what a `path` console
     /// command prints.
@@ -155,7 +169,9 @@ impl Vfs {
     fn read_normalized(&self, key: &str, id: Option<&str>) -> Result<Option<Vec<u8>>> {
         let folded = key.to_lowercase();
         for sp in &self.paths {
-            if id.is_some_and(|want| sp.id != want) { continue; }
+            if id.is_some_and(|want| sp.id != want) {
+                continue;
+            }
             match &sp.layer {
                 Layer::Directory(dir) => {
                     let full = dir.join(key);
@@ -168,12 +184,14 @@ impl Vfs {
                             // or a game works from a checkout and breaks the
                             // moment it is packed.
                             match path::find_ignoring_case(dir, key) {
-                                Some(found) => return Ok(Some(std::fs::read(&found).map_err(
-                                    |source| VfsError::Io {
-                                        path: found.display().to_string(),
-                                        source,
-                                    },
-                                )?)),
+                                Some(found) => {
+                                    return Ok(Some(std::fs::read(&found).map_err(|source| {
+                                        VfsError::Io {
+                                            path: found.display().to_string(),
+                                            source,
+                                        }
+                                    })?));
+                                }
                                 None => continue,
                             }
                         }
@@ -181,12 +199,17 @@ impl Vfs {
                         // surfacing; quietly falling through to a stale copy
                         // in a lower layer would be worse than failing.
                         Err(source) => {
-                            return Err(VfsError::Io { path: full.display().to_string(), source });
+                            return Err(VfsError::Io {
+                                path: full.display().to_string(),
+                                source,
+                            });
                         }
                     }
                 }
                 Layer::Archive(a) => {
-                    if let Some(bytes) = a.read(&folded)? { return Ok(Some(bytes)); }
+                    if let Some(bytes) = a.read(&folded)? {
+                        return Ok(Some(bytes));
+                    }
                 }
             }
         }
@@ -196,7 +219,9 @@ impl Vfs {
     /// Read a file as UTF-8 text.
     pub fn read_string(&self, vpath: &str) -> Result<String> {
         let bytes = self.read(vpath)?;
-        String::from_utf8(bytes).map_err(|_| VfsError::NotUtf8 { path: vpath.to_string() })
+        String::from_utf8(bytes).map_err(|_| VfsError::NotUtf8 {
+            path: vpath.to_string(),
+        })
     }
 
     /// Read a file, returning `None` if it is simply absent.
@@ -209,7 +234,9 @@ impl Vfs {
     }
 
     pub fn exists(&self, vpath: &str) -> bool {
-        let Some(key) = normalize(vpath) else { return false };
+        let Some(key) = normalize(vpath) else {
+            return false;
+        };
         let folded = key.to_lowercase();
         self.paths.iter().any(|sp| match &sp.layer {
             Layer::Directory(dir) => {
@@ -231,7 +258,9 @@ impl Vfs {
                 }
                 path::find_ignoring_case(dir, &key).map(|p| p.display().to_string())
             }
-            Layer::Archive(a) => a.contains(&folded).then(|| format!("{}:{folded}", a.source())),
+            Layer::Archive(a) => a
+                .contains(&folded)
+                .then(|| format!("{}:{folded}", a.source())),
         })
     }
 
@@ -280,11 +309,20 @@ impl Vfs {
 }
 
 fn collect_dir(disk: &Path, prefix: &str, ext: Option<&str>, out: &mut BTreeSet<String>) {
-    let Ok(entries) = std::fs::read_dir(disk) else { return };
+    let Ok(entries) = std::fs::read_dir(disk) else {
+        return;
+    };
     for e in entries.flatten() {
         let name = e.file_name().to_string_lossy().to_lowercase();
-        let vpath = if prefix.is_empty() { name.clone() } else { format!("{prefix}/{name}") };
-        let ty = match e.file_type() { Ok(t) => t, Err(_) => continue };
+        let vpath = if prefix.is_empty() {
+            name.clone()
+        } else {
+            format!("{prefix}/{name}")
+        };
+        let ty = match e.file_type() {
+            Ok(t) => t,
+            Err(_) => continue,
+        };
         if ty.is_dir() {
             collect_dir(&e.path(), &vpath, ext, out);
         } else if ext.is_none_or(|want| vpath.rsplit('.').next() == Some(want)) {
@@ -314,7 +352,9 @@ mod tests {
         }
     }
     impl Drop for TempDir {
-        fn drop(&mut self) { let _ = std::fs::remove_dir_all(&self.0); }
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
     }
 
     #[test]
@@ -353,7 +393,8 @@ mod tests {
         dir.file("materials/loose.keromat", b"loose");
         let vault = dir.0.join("content.vault");
         let mut b = ArchiveBuilder::new();
-        b.add("materials/packed.keromat", b"packed".to_vec()).unwrap();
+        b.add("materials/packed.keromat", b"packed".to_vec())
+            .unwrap();
         b.write(&vault).unwrap();
 
         let mut vfs = Vfs::new();
@@ -397,7 +438,10 @@ mod tests {
         dir.file("inside.txt", b"x");
         let mut vfs = Vfs::new();
         vfs.add_directory(&dir.0, "GAME");
-        assert!(matches!(vfs.read("../../../etc/passwd"), Err(VfsError::BadPath(_))));
+        assert!(matches!(
+            vfs.read("../../../etc/passwd"),
+            Err(VfsError::BadPath(_))
+        ));
         assert!(!vfs.exists("../secrets"));
     }
 
@@ -426,7 +470,10 @@ mod tests {
         ArchiveBuilder::new().write(&vault).unwrap();
         let mut vfs = Vfs::new();
         vfs.mount_archive(&vault, "GAME").unwrap();
-        assert!(matches!(vfs.write("a.txt", b"x"), Err(VfsError::NoWritablePath)));
+        assert!(matches!(
+            vfs.write("a.txt", b"x"),
+            Err(VfsError::NoWritablePath)
+        ));
     }
 
     #[test]

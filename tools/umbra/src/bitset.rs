@@ -13,17 +13,26 @@ pub struct BitSet {
 
 impl BitSet {
     pub fn new(bits: usize) -> Self {
-        BitSet { words: vec![0; bits.div_ceil(64)], bits }
+        BitSet {
+            words: vec![0; bits.div_ceil(64)],
+            bits,
+        }
     }
 
-    pub fn len(&self) -> usize { self.bits }
+    pub fn len(&self) -> usize {
+        self.bits
+    }
     // Present because `len` without `is_empty` is a lint; vis code never asks.
     #[allow(dead_code)]
-    pub fn is_empty(&self) -> bool { self.bits == 0 }
+    pub fn is_empty(&self) -> bool {
+        self.bits == 0
+    }
 
     #[inline]
     pub fn set(&mut self, i: usize) {
-        if i < self.bits { self.words[i >> 6] |= 1u64 << (i & 63); }
+        if i < self.bits {
+            self.words[i >> 6] |= 1u64 << (i & 63);
+        }
     }
 
     #[inline]
@@ -51,7 +60,10 @@ impl BitSet {
     /// Whether every bit set here is also set in `other`.
     #[cfg_attr(not(test), allow(dead_code))]
     pub fn is_subset_of(&self, other: &BitSet) -> bool {
-        self.words.iter().zip(&other.words).all(|(a, b)| a & !b == 0)
+        self.words
+            .iter()
+            .zip(&other.words)
+            .all(|(a, b)| a & !b == 0)
     }
 
     /// Set every bit up to the declared width.
@@ -111,8 +123,11 @@ mod tests {
     fn intersect_reports_whether_anything_is_new() {
         let bits = 128;
         let (mut a, mut b, mut seen) = (BitSet::new(bits), BitSet::new(bits), BitSet::new(bits));
-        a.set(5); a.set(10); a.set(100);
-        b.set(5); b.set(100);
+        a.set(5);
+        a.set(10);
+        a.set(100);
+        b.set(5);
+        b.set(100);
         seen.set(5);
 
         let mut out = BitSet::new(bits);
@@ -129,8 +144,11 @@ mod tests {
     fn subset_relation() {
         let mut a = BitSet::new(64);
         let mut b = BitSet::new(64);
-        a.set(1); a.set(2);
-        b.set(1); b.set(2); b.set(3);
+        a.set(1);
+        a.set(2);
+        b.set(1);
+        b.set(2);
+        b.set(3);
         assert!(a.is_subset_of(&b));
         assert!(!b.is_subset_of(&a));
     }

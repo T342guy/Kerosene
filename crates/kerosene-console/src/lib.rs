@@ -54,17 +54,25 @@ impl ConVarFlags {
     pub const SERVER_CAN_EXECUTE: ConVarFlags = ConVarFlags(1 << 7);
 
     #[inline]
-    pub fn contains(self, other: ConVarFlags) -> bool { self.0 & other.0 == other.0 }
+    pub fn contains(self, other: ConVarFlags) -> bool {
+        self.0 & other.0 == other.0
+    }
 
     pub fn describe(self) -> String {
         let mut parts = Vec::new();
         for (flag, name) in [
-            (Self::ARCHIVE, "archive"), (Self::CHEAT, "cheat"),
-            (Self::REPLICATED, "replicated"), (Self::NOTIFY, "notify"),
-            (Self::USERINFO, "userinfo"), (Self::HIDDEN, "hidden"),
-            (Self::DEVELOPMENT, "development"), (Self::SERVER_CAN_EXECUTE, "server_can_execute"),
+            (Self::ARCHIVE, "archive"),
+            (Self::CHEAT, "cheat"),
+            (Self::REPLICATED, "replicated"),
+            (Self::NOTIFY, "notify"),
+            (Self::USERINFO, "userinfo"),
+            (Self::HIDDEN, "hidden"),
+            (Self::DEVELOPMENT, "development"),
+            (Self::SERVER_CAN_EXECUTE, "server_can_execute"),
         ] {
-            if self.contains(flag) { parts.push(name); }
+            if self.contains(flag) {
+                parts.push(name);
+            }
         }
         parts.join(", ")
     }
@@ -72,7 +80,9 @@ impl ConVarFlags {
 
 impl std::ops::BitOr for ConVarFlags {
     type Output = ConVarFlags;
-    fn bitor(self, o: ConVarFlags) -> ConVarFlags { ConVarFlags(self.0 | o.0) }
+    fn bitor(self, o: ConVarFlags) -> ConVarFlags {
+        ConVarFlags(self.0 | o.0)
+    }
 }
 
 /// A single console variable.
@@ -94,19 +104,33 @@ pub struct ConVar {
 }
 
 impl ConVar {
-    pub fn string(&self) -> &str { &self.value }
-    pub fn float(&self) -> f32 { self.float }
-    pub fn int(&self) -> i32 { self.int }
-    pub fn bool(&self) -> bool { self.int != 0 }
-    pub fn is_default(&self) -> bool { self.value == self.default }
+    pub fn string(&self) -> &str {
+        &self.value
+    }
+    pub fn float(&self) -> f32 {
+        self.float
+    }
+    pub fn int(&self) -> i32 {
+        self.int
+    }
+    pub fn bool(&self) -> bool {
+        self.int != 0
+    }
+    pub fn is_default(&self) -> bool {
+        self.value == self.default
+    }
 
     fn apply(&mut self, raw: &str) {
         let mut f: f32 = raw.trim().parse().unwrap_or(0.0);
         let clamped = match (self.min, self.max) {
             (lo, hi) => {
                 let mut v = f;
-                if let Some(lo) = lo { v = v.max(lo); }
-                if let Some(hi) = hi { v = v.min(hi); }
+                if let Some(lo) = lo {
+                    v = v.max(lo);
+                }
+                if let Some(hi) = hi {
+                    v = v.min(hi);
+                }
                 v
             }
         };
@@ -132,12 +156,23 @@ pub struct Args {
 }
 
 impl Args {
-    pub fn count(&self) -> usize { self.argv.len() }
-    pub fn get(&self, i: usize) -> Option<&str> { self.argv.get(i).map(|s| s.as_str()) }
-    pub fn name(&self) -> &str { self.argv.first().map(|s| s.as_str()).unwrap_or("") }
-    pub fn float(&self, i: usize) -> Option<f32> { self.get(i)?.parse().ok() }
+    pub fn count(&self) -> usize {
+        self.argv.len()
+    }
+    pub fn get(&self, i: usize) -> Option<&str> {
+        self.argv.get(i).map(|s| s.as_str())
+    }
+    pub fn name(&self) -> &str {
+        self.argv.first().map(|s| s.as_str()).unwrap_or("")
+    }
+    pub fn float(&self, i: usize) -> Option<f32> {
+        self.get(i)?.parse().ok()
+    }
     pub fn int(&self, i: usize) -> Option<i32> {
-        self.get(i)?.parse().ok().or_else(|| self.get(i)?.parse::<f32>().ok().map(|f| f as i32))
+        self.get(i)?
+            .parse()
+            .ok()
+            .or_else(|| self.get(i)?.parse::<f32>().ok().map(|f| f as i32))
     }
 }
 
@@ -158,7 +193,13 @@ pub struct ConCommand {
 
 /// Severity of a console line.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum LogLevel { Echo, Info, Warning, Error, Developer }
+pub enum LogLevel {
+    Echo,
+    Info,
+    Warning,
+    Error,
+    Developer,
+}
 
 #[derive(Clone, Debug)]
 pub struct LogLine {
@@ -227,7 +268,9 @@ pub mod requests {
 const MAX_EXEC_DEPTH: u32 = 16;
 
 impl Default for Console {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Console {
@@ -313,8 +356,15 @@ impl Console {
         self
     }
 
-    pub fn on_change(&mut self, name: &str, f: impl Fn(&mut Console, &str, &str) + Send + Sync + 'static) {
-        self.change_callbacks.entry(name.to_string()).or_default().push(Arc::new(f));
+    pub fn on_change(
+        &mut self,
+        name: &str,
+        f: impl Fn(&mut Console, &str, &str) + Send + Sync + 'static,
+    ) {
+        self.change_callbacks
+            .entry(name.to_string())
+            .or_default()
+            .push(Arc::new(f));
     }
 
     pub fn set_exec_handler(&mut self, f: impl Fn(&str) -> Option<String> + Send + Sync + 'static) {
@@ -323,23 +373,39 @@ impl Console {
 
     // ---- reading ---------------------------------------------------------
 
-    pub fn cvar(&self, name: &str) -> Option<&ConVar> { self.cvars.get(name) }
-    pub fn has_cvar(&self, name: &str) -> bool { self.cvars.contains_key(name) }
-    pub fn has_command(&self, name: &str) -> bool { self.commands.contains_key(name) }
+    pub fn cvar(&self, name: &str) -> Option<&ConVar> {
+        self.cvars.get(name)
+    }
+    pub fn has_cvar(&self, name: &str) -> bool {
+        self.cvars.contains_key(name)
+    }
+    pub fn has_command(&self, name: &str) -> bool {
+        self.commands.contains_key(name)
+    }
 
     /// Convar value as a float, or `0.0` if it does not exist.
     ///
     /// Reads deliberately do not panic on a missing convar: subsystems query
     /// convars owned by other subsystems that may not have registered yet.
-    pub fn float(&self, name: &str) -> f32 { self.cvars.get(name).map_or(0.0, |c| c.float) }
-    pub fn int(&self, name: &str) -> i32 { self.cvars.get(name).map_or(0, |c| c.int) }
-    pub fn bool(&self, name: &str) -> bool { self.cvars.get(name).is_some_and(|c| c.int != 0) }
+    pub fn float(&self, name: &str) -> f32 {
+        self.cvars.get(name).map_or(0.0, |c| c.float)
+    }
+    pub fn int(&self, name: &str) -> i32 {
+        self.cvars.get(name).map_or(0, |c| c.int)
+    }
+    pub fn bool(&self, name: &str) -> bool {
+        self.cvars.get(name).is_some_and(|c| c.int != 0)
+    }
     pub fn string(&self, name: &str) -> &str {
         self.cvars.get(name).map_or("", |c| c.value.as_str())
     }
 
-    pub fn cvars(&self) -> impl Iterator<Item = &ConVar> { self.cvars.values() }
-    pub fn commands(&self) -> impl Iterator<Item = &ConCommand> { self.commands.values() }
+    pub fn cvars(&self) -> impl Iterator<Item = &ConVar> {
+        self.cvars.values()
+    }
+    pub fn commands(&self) -> impl Iterator<Item = &ConCommand> {
+        self.commands.values()
+    }
 
     /// Convars whose value differs from their default and that are marked
     /// [`ConVarFlags::ARCHIVE`] -- exactly what belongs in `config.cfg`.
@@ -390,7 +456,9 @@ impl Console {
             Some(cv) => {
                 let old = cv.value.clone();
                 cv.apply(value);
-                if cv.value == old { return; }
+                if cv.value == old {
+                    return;
+                }
                 old
             }
             None => {
@@ -401,23 +469,39 @@ impl Console {
         // Callbacks are cloned out first: they take `&mut Console`, and the
         // map they live in belongs to that same Console.
         if let Some(cbs) = self.change_callbacks.get(name).cloned() {
-            for cb in cbs { cb(self, name, &old); }
+            for cb in cbs {
+                cb(self, name, &old);
+            }
         }
     }
 
-    pub fn set_float(&mut self, name: &str, v: f32) { self.set(name, &v.to_string()); }
-    pub fn set_bool(&mut self, name: &str, v: bool) { self.set(name, if v { "1" } else { "0" }); }
+    pub fn set_float(&mut self, name: &str, v: f32) {
+        self.set(name, &v.to_string());
+    }
+    pub fn set_bool(&mut self, name: &str, v: bool) {
+        self.set(name, if v { "1" } else { "0" });
+    }
 
     // ---- logging ---------------------------------------------------------
 
-    pub fn print(&mut self, text: impl Into<String>) { self.log_line(LogLevel::Info, text.into()); }
-    pub fn echo(&mut self, text: impl Into<String>) { self.log_line(LogLevel::Echo, text.into()); }
-    pub fn warn(&mut self, text: impl Into<String>) { self.log_line(LogLevel::Warning, text.into()); }
-    pub fn error(&mut self, text: impl Into<String>) { self.log_line(LogLevel::Error, text.into()); }
+    pub fn print(&mut self, text: impl Into<String>) {
+        self.log_line(LogLevel::Info, text.into());
+    }
+    pub fn echo(&mut self, text: impl Into<String>) {
+        self.log_line(LogLevel::Echo, text.into());
+    }
+    pub fn warn(&mut self, text: impl Into<String>) {
+        self.log_line(LogLevel::Warning, text.into());
+    }
+    pub fn error(&mut self, text: impl Into<String>) {
+        self.log_line(LogLevel::Error, text.into());
+    }
 
     /// Developer-only output; suppressed unless `developer` is non-zero.
     pub fn developer(&mut self, text: impl Into<String>) {
-        if self.int("developer") > 0 { self.log_line(LogLevel::Developer, text.into()); }
+        if self.int("developer") > 0 {
+            self.log_line(LogLevel::Developer, text.into());
+        }
     }
 
     fn log_line(&mut self, level: LogLevel, text: String) {
@@ -428,7 +512,9 @@ impl Console {
             _ => log::info!("{text}"),
         }
         self.log.push_back(LogLine { level, text });
-        while self.log.len() > MAX_LOG_LINES { self.log.pop_front(); }
+        while self.log.len() > MAX_LOG_LINES {
+            self.log.pop_front();
+        }
     }
 
     /// Take everything the global logger has queued and put it in the
@@ -442,7 +528,9 @@ impl Console {
         let (lines, dropped) = relay.take();
         for line in lines {
             self.log.push_back(line);
-            while self.log.len() > MAX_LOG_LINES { self.log.pop_front(); }
+            while self.log.len() > MAX_LOG_LINES {
+                self.log.pop_front();
+            }
         }
         if dropped > 0 {
             self.log_line(
@@ -464,18 +552,30 @@ impl Console {
         self.requests.drain(..).collect()
     }
 
-    pub fn pending_requests(&self) -> usize { self.requests.len() }
+    pub fn pending_requests(&self) -> usize {
+        self.requests.len()
+    }
 
-    pub fn log(&self) -> impl Iterator<Item = &LogLine> { self.log.iter() }
-    pub fn log_len(&self) -> usize { self.log.len() }
-    pub fn clear_log(&mut self) { self.log.clear(); }
-    pub fn history(&self) -> &[String] { &self.history }
+    pub fn log(&self) -> impl Iterator<Item = &LogLine> {
+        self.log.iter()
+    }
+    pub fn log_len(&self) -> usize {
+        self.log.len()
+    }
+    pub fn clear_log(&mut self) {
+        self.log.clear();
+    }
+    pub fn history(&self) -> &[String] {
+        &self.history
+    }
 
     // ---- execution -------------------------------------------------------
 
     /// Queue text for execution on the next [`Console::run_buffered`].
     pub fn enqueue(&mut self, text: impl Into<String>) {
-        for cmd in split_commands(&text.into()) { self.buffer.push_back(cmd); }
+        for cmd in split_commands(&text.into()) {
+            self.buffer.push_back(cmd);
+        }
     }
 
     /// Queue text at the *front* of the buffer.
@@ -492,21 +592,27 @@ impl Console {
     pub fn run_buffered(&mut self) {
         self.waiting = false;
         while !self.waiting {
-            let Some(cmd) = self.buffer.pop_front() else { break };
+            let Some(cmd) = self.buffer.pop_front() else {
+                break;
+            };
             self.execute_single(&cmd);
         }
     }
 
     /// Execute text immediately, in full.
     pub fn execute(&mut self, text: &str) {
-        for cmd in split_commands(text) { self.execute_single(&cmd); }
+        for cmd in split_commands(text) {
+            self.execute_single(&cmd);
+        }
     }
 
     /// Execute a line the way user input arrives: recorded in history, and
     /// with cheat protection enforced.
     pub fn execute_user(&mut self, text: &str) {
         let trimmed = text.trim();
-        if trimmed.is_empty() { return; }
+        if trimmed.is_empty() {
+            return;
+        }
         if self.history.last().map(String::as_str) != Some(trimmed) {
             self.history.push(trimmed.to_string());
         }
@@ -516,14 +622,20 @@ impl Console {
 
     fn execute_single(&mut self, line: &str) {
         let argv = tokenize(line);
-        if argv.is_empty() { return; }
+        if argv.is_empty() {
+            return;
+        }
         let name = argv[0].clone();
-        let rest = line[line.find(&name).map_or(0, |i| i + name.len())..].trim().to_string();
+        let rest = line[line.find(&name).map_or(0, |i| i + name.len())..]
+            .trim()
+            .to_string();
         let args = Args { argv, rest };
 
         if let Some(cmd) = self.commands.get(&name).cloned() {
             if cmd.flags.contains(ConVarFlags::CHEAT) && !self.cheats_enabled() {
-                self.warn(format!("{name} is cheat-protected; set sv_cheats 1 to use it"));
+                self.warn(format!(
+                    "{name} is cheat-protected; set sv_cheats 1 to use it"
+                ));
                 return;
             }
             (cmd.func)(self, &args);
@@ -541,16 +653,24 @@ impl Console {
                 let (value, default, help) =
                     (cv.value.clone(), cv.default.clone(), cv.help.clone());
                 self.print(format!("\"{name}\" = \"{value}\" (default \"{default}\")"));
-                if !help.is_empty() { self.print(format!(" - {help}")); }
+                if !help.is_empty() {
+                    self.print(format!(" - {help}"));
+                }
                 return;
             }
             let cv = &self.cvars[&name];
             if cv.flags.contains(ConVarFlags::CHEAT) && !self.cheats_enabled() {
-                self.warn(format!("{name} is cheat-protected; set sv_cheats 1 to change it"));
+                self.warn(format!(
+                    "{name} is cheat-protected; set sv_cheats 1 to change it"
+                ));
                 return;
             }
             // Everything after the name, so `name "two words"` sets both words.
-            let value = if args.count() == 2 { args.argv[1].clone() } else { args.rest.clone() };
+            let value = if args.count() == 2 {
+                args.argv[1].clone()
+            } else {
+                args.rest.clone()
+            };
             self.set(&name, &value);
             return;
         }
@@ -566,150 +686,253 @@ impl Console {
     }
 
     fn register_builtins(&mut self) {
-        self.register_cvar("developer", "0", ConVarFlags::NONE, "Verbosity of developer output.");
+        self.register_cvar(
+            "developer",
+            "0",
+            ConVarFlags::NONE,
+            "Verbosity of developer output.",
+        );
 
-        self.register_command("echo", ConVarFlags::NONE, "Print text to the console.", |con, args| {
-            let text = args.argv[1..].join(" ");
-            con.echo(text);
-        });
+        self.register_command(
+            "echo",
+            ConVarFlags::NONE,
+            "Print text to the console.",
+            |con, args| {
+                let text = args.argv[1..].join(" ");
+                con.echo(text);
+            },
+        );
 
-        self.register_command("wait", ConVarFlags::NONE, "Defer the rest of the command buffer to the next frame.", |con, _| {
-            con.waiting = true;
-        });
+        self.register_command(
+            "wait",
+            ConVarFlags::NONE,
+            "Defer the rest of the command buffer to the next frame.",
+            |con, _| {
+                con.waiting = true;
+            },
+        );
 
-        self.register_command("clear", ConVarFlags::NONE, "Clear the console scrollback.", |con, _| {
-            con.clear_log();
-        });
+        self.register_command(
+            "clear",
+            ConVarFlags::NONE,
+            "Clear the console scrollback.",
+            |con, _| {
+                con.clear_log();
+            },
+        );
 
-        self.register_command("alias", ConVarFlags::NONE, "Define or list command aliases.", |con, args| {
-            if args.count() < 2 {
-                let list: Vec<String> = con.aliases.iter().map(|(k, v)| format!("{k} : {v}")).collect();
-                for line in list { con.print(line); }
-                return;
-            }
-            let name = args.argv[1].clone();
-            if args.count() == 2 { con.aliases.remove(&name); return; }
-            let body = args.argv[2..].join(" ");
-            con.aliases.insert(name, body);
-        });
-
-        self.register_command("toggle", ConVarFlags::NONE, "Flip a convar between 0 and non-zero.", |con, args| {
-            let Some(name) = args.get(1).map(str::to_string) else {
-                con.warn("usage: toggle <convar>");
-                return;
-            };
-            let v = con.bool(&name);
-            con.set_bool(&name, !v);
-        });
-
-        self.register_command("incrementvar", ConVarFlags::NONE, "incrementvar <convar> <min> <max> <delta>", |con, args| {
-            let (Some(name), Some(min), Some(max), Some(delta)) =
-                (args.get(1).map(str::to_string), args.float(2), args.float(3), args.float(4))
-            else {
-                con.warn("usage: incrementvar <convar> <min> <max> <delta>");
-                return;
-            };
-            let mut v = con.float(&name) + delta;
-            // Wrap rather than clamp, so a key bound to this cycles.
-            if v > max { v = min; }
-            if v < min { v = max; }
-            con.set_float(&name, v);
-        });
-
-        self.register_command("exec", ConVarFlags::NONE, "Run a config file.", |con, args| {
-            let Some(name) = args.get(1).map(str::to_string) else {
-                con.warn("usage: exec <file.cfg>");
-                return;
-            };
-            if con.exec_depth >= MAX_EXEC_DEPTH {
-                con.error(format!("exec: refusing to nest deeper than {MAX_EXEC_DEPTH} ({name})"));
-                return;
-            }
-            let Some(handler) = con.exec_handler.clone() else {
-                con.warn("exec: no filesystem is attached to this console");
-                return;
-            };
-            match handler(&name) {
-                Some(text) => {
-                    con.exec_depth += 1;
-                    con.execute(&text);
-                    con.exec_depth -= 1;
+        self.register_command(
+            "alias",
+            ConVarFlags::NONE,
+            "Define or list command aliases.",
+            |con, args| {
+                if args.count() < 2 {
+                    let list: Vec<String> = con
+                        .aliases
+                        .iter()
+                        .map(|(k, v)| format!("{k} : {v}"))
+                        .collect();
+                    for line in list {
+                        con.print(line);
+                    }
+                    return;
                 }
-                None => con.warn(format!("exec: '{name}' not found")),
-            }
-        });
-
-        self.register_command("find", ConVarFlags::NONE, "Search convars and commands by substring.", |con, args| {
-            let Some(needle) = args.get(1).map(str::to_lowercase) else {
-                con.warn("usage: find <substring>");
-                return;
-            };
-            let mut lines: Vec<String> = Vec::new();
-            for cv in con.cvars.values() {
-                if cv.flags.contains(ConVarFlags::HIDDEN) { continue; }
-                if cv.name.to_lowercase().contains(&needle) || cv.help.to_lowercase().contains(&needle) {
-                    lines.push(format!("{} = \"{}\" - {}", cv.name, cv.value, cv.help));
+                let name = args.argv[1].clone();
+                if args.count() == 2 {
+                    con.aliases.remove(&name);
+                    return;
                 }
-            }
-            for c in con.commands.values() {
-                if c.name.to_lowercase().contains(&needle) || c.help.to_lowercase().contains(&needle) {
-                    lines.push(format!("{} (command) - {}", c.name, c.help));
+                let body = args.argv[2..].join(" ");
+                con.aliases.insert(name, body);
+            },
+        );
+
+        self.register_command(
+            "toggle",
+            ConVarFlags::NONE,
+            "Flip a convar between 0 and non-zero.",
+            |con, args| {
+                let Some(name) = args.get(1).map(str::to_string) else {
+                    con.warn("usage: toggle <convar>");
+                    return;
+                };
+                let v = con.bool(&name);
+                con.set_bool(&name, !v);
+            },
+        );
+
+        self.register_command(
+            "incrementvar",
+            ConVarFlags::NONE,
+            "incrementvar <convar> <min> <max> <delta>",
+            |con, args| {
+                let (Some(name), Some(min), Some(max), Some(delta)) = (
+                    args.get(1).map(str::to_string),
+                    args.float(2),
+                    args.float(3),
+                    args.float(4),
+                ) else {
+                    con.warn("usage: incrementvar <convar> <min> <max> <delta>");
+                    return;
+                };
+                let mut v = con.float(&name) + delta;
+                // Wrap rather than clamp, so a key bound to this cycles.
+                if v > max {
+                    v = min;
                 }
-            }
-            lines.sort();
-            if lines.is_empty() { con.print(format!("no matches for '{needle}'")); }
-            for l in lines { con.print(l); }
-        });
+                if v < min {
+                    v = max;
+                }
+                con.set_float(&name, v);
+            },
+        );
 
-        self.register_command("cvarlist", ConVarFlags::NONE, "List every convar.", |con, _| {
-            let mut lines: Vec<String> = con
-                .cvars
-                .values()
-                .filter(|c| !c.flags.contains(ConVarFlags::HIDDEN))
-                .map(|c| {
-                    let flags = c.flags.describe();
-                    let suffix = if flags.is_empty() { String::new() } else { format!(" [{flags}]") };
-                    format!("{} = \"{}\"{suffix} - {}", c.name, c.value, c.help)
-                })
-                .collect();
-            lines.sort();
-            let n = lines.len();
-            for l in lines { con.print(l); }
-            con.print(format!("{n} convars"));
-        });
+        self.register_command(
+            "exec",
+            ConVarFlags::NONE,
+            "Run a config file.",
+            |con, args| {
+                let Some(name) = args.get(1).map(str::to_string) else {
+                    con.warn("usage: exec <file.cfg>");
+                    return;
+                };
+                if con.exec_depth >= MAX_EXEC_DEPTH {
+                    con.error(format!(
+                        "exec: refusing to nest deeper than {MAX_EXEC_DEPTH} ({name})"
+                    ));
+                    return;
+                }
+                let Some(handler) = con.exec_handler.clone() else {
+                    con.warn("exec: no filesystem is attached to this console");
+                    return;
+                };
+                match handler(&name) {
+                    Some(text) => {
+                        con.exec_depth += 1;
+                        con.execute(&text);
+                        con.exec_depth -= 1;
+                    }
+                    None => con.warn(format!("exec: '{name}' not found")),
+                }
+            },
+        );
 
-        self.register_command("cmdlist", ConVarFlags::NONE, "List every command.", |con, _| {
-            let mut lines: Vec<String> = con
-                .commands
-                .values()
-                .filter(|c| !c.flags.contains(ConVarFlags::HIDDEN))
-                .map(|c| {
-                    let flags = c.flags.describe();
-                    let suffix = if flags.is_empty() { String::new() } else { format!(" [{flags}]") };
-                    format!("{} (command){suffix} - {}", c.name, c.help)
-                })
-                .collect();
-            lines.sort();
-            let n = lines.len();
-            for l in lines { con.print(l); }
-            con.print(format!("{n} commands"));
-        });
+        self.register_command(
+            "find",
+            ConVarFlags::NONE,
+            "Search convars and commands by substring.",
+            |con, args| {
+                let Some(needle) = args.get(1).map(str::to_lowercase) else {
+                    con.warn("usage: find <substring>");
+                    return;
+                };
+                let mut lines: Vec<String> = Vec::new();
+                for cv in con.cvars.values() {
+                    if cv.flags.contains(ConVarFlags::HIDDEN) {
+                        continue;
+                    }
+                    if cv.name.to_lowercase().contains(&needle)
+                        || cv.help.to_lowercase().contains(&needle)
+                    {
+                        lines.push(format!("{} = \"{}\" - {}", cv.name, cv.value, cv.help));
+                    }
+                }
+                for c in con.commands.values() {
+                    if c.name.to_lowercase().contains(&needle)
+                        || c.help.to_lowercase().contains(&needle)
+                    {
+                        lines.push(format!("{} (command) - {}", c.name, c.help));
+                    }
+                }
+                lines.sort();
+                if lines.is_empty() {
+                    con.print(format!("no matches for '{needle}'"));
+                }
+                for l in lines {
+                    con.print(l);
+                }
+            },
+        );
 
-        self.register_command("help", ConVarFlags::NONE, "Show help for a convar or command.", |con, args| {
-            let Some(name) = args.get(1).map(str::to_string) else {
-                con.print("usage: help <name>. Try 'find <substring>' or 'cvarlist'.");
-                return;
-            };
-            if let Some(cv) = con.cvars.get(&name) {
-                let msg = format!("{} = \"{}\" (default \"{}\")\n  {}", cv.name, cv.value, cv.default, cv.help);
-                con.print(msg);
-            } else if let Some(c) = con.commands.get(&name) {
-                let msg = format!("{} (command)\n  {}", c.name, c.help);
-                con.print(msg);
-            } else {
-                con.warn(format!("no convar or command named '{name}'"));
-            }
-        });
+        self.register_command(
+            "cvarlist",
+            ConVarFlags::NONE,
+            "List every convar.",
+            |con, _| {
+                let mut lines: Vec<String> = con
+                    .cvars
+                    .values()
+                    .filter(|c| !c.flags.contains(ConVarFlags::HIDDEN))
+                    .map(|c| {
+                        let flags = c.flags.describe();
+                        let suffix = if flags.is_empty() {
+                            String::new()
+                        } else {
+                            format!(" [{flags}]")
+                        };
+                        format!("{} = \"{}\"{suffix} - {}", c.name, c.value, c.help)
+                    })
+                    .collect();
+                lines.sort();
+                let n = lines.len();
+                for l in lines {
+                    con.print(l);
+                }
+                con.print(format!("{n} convars"));
+            },
+        );
+
+        self.register_command(
+            "cmdlist",
+            ConVarFlags::NONE,
+            "List every command.",
+            |con, _| {
+                let mut lines: Vec<String> = con
+                    .commands
+                    .values()
+                    .filter(|c| !c.flags.contains(ConVarFlags::HIDDEN))
+                    .map(|c| {
+                        let flags = c.flags.describe();
+                        let suffix = if flags.is_empty() {
+                            String::new()
+                        } else {
+                            format!(" [{flags}]")
+                        };
+                        format!("{} (command){suffix} - {}", c.name, c.help)
+                    })
+                    .collect();
+                lines.sort();
+                let n = lines.len();
+                for l in lines {
+                    con.print(l);
+                }
+                con.print(format!("{n} commands"));
+            },
+        );
+
+        self.register_command(
+            "help",
+            ConVarFlags::NONE,
+            "Show help for a convar or command.",
+            |con, args| {
+                let Some(name) = args.get(1).map(str::to_string) else {
+                    con.print("usage: help <name>. Try 'find <substring>' or 'cvarlist'.");
+                    return;
+                };
+                if let Some(cv) = con.cvars.get(&name) {
+                    let msg = format!(
+                        "{} = \"{}\" (default \"{}\")\n  {}",
+                        cv.name, cv.value, cv.default, cv.help
+                    );
+                    con.print(msg);
+                } else if let Some(c) = con.commands.get(&name) {
+                    let msg = format!("{} (command)\n  {}", c.name, c.help);
+                    con.print(msg);
+                } else {
+                    con.warn(format!("no convar or command named '{name}'"));
+                }
+            },
+        );
     }
 }
 
@@ -719,7 +942,12 @@ mod tests {
 
     fn con() -> Console {
         let mut c = Console::new();
-        c.register_cvar("sv_cheats", "0", ConVarFlags::NOTIFY, "Allow cheat commands.");
+        c.register_cvar(
+            "sv_cheats",
+            "0",
+            ConVarFlags::NOTIFY,
+            "Allow cheat commands.",
+        );
         c.register_cvar("sv_gravity", "800", ConVarFlags::REPLICATED, "Gravity.");
         c
     }
@@ -754,7 +982,10 @@ mod tests {
         let mut c = con();
         c.register_cvar("sv_noclip", "0", ConVarFlags::CHEAT, "");
         c.execute("sv_noclip 1");
-        assert!(!c.bool("sv_noclip"), "cheat convar must not change with sv_cheats off");
+        assert!(
+            !c.bool("sv_noclip"),
+            "cheat convar must not change with sv_cheats off"
+        );
         c.execute("sv_cheats 1; sv_noclip 1");
         assert!(c.bool("sv_noclip"));
     }
@@ -771,7 +1002,14 @@ mod tests {
     #[test]
     fn ranges_clamp() {
         let mut c = Console::new();
-        c.register_cvar_ranged("volume", "0.5", Some(0.0), Some(1.0), ConVarFlags::ARCHIVE, "");
+        c.register_cvar_ranged(
+            "volume",
+            "0.5",
+            Some(0.0),
+            Some(1.0),
+            ConVarFlags::ARCHIVE,
+            "",
+        );
         c.execute("volume 5");
         assert_eq!(c.float("volume"), 1.0);
         c.execute("volume -3");
@@ -791,7 +1029,11 @@ mod tests {
         let mut c = con();
         c.enqueue("sv_gravity 100; wait; sv_gravity 200");
         c.run_buffered();
-        assert_eq!(c.float("sv_gravity"), 100.0, "the post-wait command must not have run yet");
+        assert_eq!(
+            c.float("sv_gravity"),
+            100.0,
+            "the post-wait command must not have run yet"
+        );
         c.run_buffered();
         assert_eq!(c.float("sv_gravity"), 200.0);
     }
@@ -802,7 +1044,9 @@ mod tests {
         let hits = Arc::new(AtomicU32::new(0));
         let h = hits.clone();
         let mut c = con();
-        c.on_change("sv_gravity", move |_, _, _| { h.fetch_add(1, Ordering::SeqCst); });
+        c.on_change("sv_gravity", move |_, _, _| {
+            h.fetch_add(1, Ordering::SeqCst);
+        });
         c.execute("sv_gravity 600");
         c.execute("sv_gravity 600"); // no-op, must not fire
         assert_eq!(hits.load(Ordering::SeqCst), 1);
@@ -814,7 +1058,9 @@ mod tests {
         let seen = Arc::new(Mutex::new(String::new()));
         let s = seen.clone();
         let mut c = con();
-        c.on_change("sv_gravity", move |_, _, old| { *s.lock().unwrap() = old.to_string(); });
+        c.on_change("sv_gravity", move |_, _, old| {
+            *s.lock().unwrap() = old.to_string();
+        });
         c.execute("sv_gravity 600");
         assert_eq!(&*seen.lock().unwrap(), "800");
     }
@@ -894,6 +1140,9 @@ mod tests {
         c.clear_log();
         c.execute("cvarlist");
         let cvars: String = c.log().map(|l| l.text.as_str()).collect();
-        assert!(!cvars.contains("phys_spawn"), "commands do not belong in cvarlist: {cvars}");
+        assert!(
+            !cvars.contains("phys_spawn"),
+            "commands do not belong in cvarlist: {cvars}"
+        );
     }
 }

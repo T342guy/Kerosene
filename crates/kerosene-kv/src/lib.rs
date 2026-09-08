@@ -67,7 +67,10 @@ pub enum KvError {
 
 impl KeyValues {
     pub fn new(name: impl Into<String>) -> Self {
-        Self { name: name.into(), entries: Vec::new() }
+        Self {
+            name: name.into(),
+            entries: Vec::new(),
+        }
     }
 
     /// Parse a document. The result is a synthetic root block named `""`
@@ -134,11 +137,15 @@ impl KeyValues {
         })
     }
 
-    pub fn contains_key(&self, key: &str) -> bool { self.get(key).is_some() }
+    pub fn contains_key(&self, key: &str) -> bool {
+        self.get(key).is_some()
+    }
 
     /// Parse a value into any supported type, defaulting when absent.
     pub fn get_or<T: value::FromKvValue>(&self, key: &str, default: T) -> T {
-        self.get(key).and_then(|v| T::from_kv(v).ok()).unwrap_or(default)
+        self.get(key)
+            .and_then(|v| T::from_kv(v).ok())
+            .unwrap_or(default)
     }
 
     /// Parse a value, erroring when absent or malformed.
@@ -180,7 +187,11 @@ impl KeyValues {
     }
 
     /// Append a pair holding any displayable value.
-    pub fn push_value(&mut self, key: impl Into<String>, value: impl value::ToKvValue) -> &mut Self {
+    pub fn push_value(
+        &mut self,
+        key: impl Into<String>,
+        value: impl value::ToKvValue,
+    ) -> &mut Self {
         self.entries.push(Entry::Pair(key.into(), value.to_kv()));
         self
     }
@@ -206,7 +217,8 @@ impl KeyValues {
     /// Remove every pair with this key; returns how many went.
     pub fn remove(&mut self, key: &str) -> usize {
         let before = self.entries.len();
-        self.entries.retain(|e| !matches!(e, Entry::Pair(k, _) if k == key));
+        self.entries
+            .retain(|e| !matches!(e, Entry::Pair(k, _) if k == key));
         before - self.entries.len()
     }
 
@@ -293,8 +305,15 @@ world
     fn duplicate_blocks_are_all_kept() {
         let kv = KeyValues::parse(SAMPLE).unwrap();
         let world = kv.block("world").unwrap();
-        let ids: Vec<_> = world.blocks("solid").map(|s| s.get("id").unwrap()).collect();
-        assert_eq!(ids, vec!["1", "2"], "a map format cannot afford to drop brushes");
+        let ids: Vec<_> = world
+            .blocks("solid")
+            .map(|s| s.get("id").unwrap())
+            .collect();
+        assert_eq!(
+            ids,
+            vec!["1", "2"],
+            "a map format cannot afford to drop brushes"
+        );
     }
 
     #[test]

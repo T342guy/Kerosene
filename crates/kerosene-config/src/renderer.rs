@@ -16,7 +16,9 @@ pub enum Renderer {
 }
 
 impl Default for Renderer {
-    fn default() -> Self { Renderer::Vulkan }
+    fn default() -> Self {
+        Renderer::Vulkan
+    }
 }
 
 impl Renderer {

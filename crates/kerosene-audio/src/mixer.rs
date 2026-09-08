@@ -11,8 +11,8 @@
 //! relative to the way you are facing. Sounds with no position are heard flat
 //! -- interface clicks, music, the player's own footsteps.
 
-use std::sync::Arc;
 use kerosene_math::{Basis, Vec3};
+use std::sync::Arc;
 
 use crate::Sound;
 
@@ -29,7 +29,10 @@ pub struct Listener {
 
 impl Default for Listener {
     fn default() -> Self {
-        Listener { position: Vec3::ZERO, basis: kerosene_math::Angles::ZERO.vectors() }
+        Listener {
+            position: Vec3::ZERO,
+            basis: kerosene_math::Angles::ZERO.vectors(),
+        }
     }
 }
 
@@ -69,7 +72,10 @@ impl Default for SoundParams {
 
 impl SoundParams {
     pub fn at(position: Vec3) -> SoundParams {
-        SoundParams { position: Some(position), ..Default::default() }
+        SoundParams {
+            position: Some(position),
+            ..Default::default()
+        }
     }
 
     pub fn looping(mut self) -> SoundParams {
@@ -134,8 +140,12 @@ impl Mixer {
         }
     }
 
-    pub fn output_rate(&self) -> u32 { self.output_rate }
-    pub fn voice_count(&self) -> usize { self.voices.len() }
+    pub fn output_rate(&self) -> u32 {
+        self.output_rate
+    }
+    pub fn voice_count(&self) -> usize {
+        self.voices.len()
+    }
     pub fn is_playing(&self, handle: SoundHandle) -> bool {
         self.voices.iter().any(|v| v.handle == handle)
     }
@@ -166,7 +176,9 @@ impl Mixer {
         self.voices.retain(|v| v.handle != handle);
     }
 
-    pub fn stop_all(&mut self) { self.voices.clear(); }
+    pub fn stop_all(&mut self) {
+        self.voices.clear();
+    }
 
     /// Move a playing sound, for something that is going somewhere.
     pub fn set_position(&mut self, handle: SoundHandle, position: Vec3) {
@@ -182,7 +194,9 @@ impl Mixer {
     pub fn mix(&mut self, out: &mut [f32]) {
         out.fill(0.0);
         let frames = out.len() / 2;
-        if frames == 0 { return }
+        if frames == 0 {
+            return;
+        }
 
         let master = self.volume.clamp(0.0, 1.0);
         let listener = self.listener;
@@ -200,19 +214,24 @@ impl Mixer {
             let source_rate = voice.sound.sample_rate.max(1) as f64;
             let step = (source_rate / rate) * voice.params.pitch.max(0.01) as f64;
             let total = voice.sound.frames();
-            if total == 0 { continue }
+            if total == 0 {
+                continue;
+            }
 
             for frame in 0..frames {
                 let position = voice.cursor;
                 if position >= total as f64 {
-                    if !voice.params.looping { break }
+                    if !voice.params.looping {
+                        break;
+                    }
                     voice.cursor = position % total as f64;
                 }
 
                 // Ramp once per frame rather than per block, so a fast-moving
                 // sound does not step.
                 for channel in 0..2 {
-                    voice.gain[channel] += (target[channel] - voice.gain[channel]) * RAMP / frames as f32;
+                    voice.gain[channel] +=
+                        (target[channel] - voice.gain[channel]) * RAMP / frames as f32;
                 }
 
                 let index = voice.cursor as usize;
@@ -237,9 +256,7 @@ impl Mixer {
 
         // Retire anything that ran off the end.
         let voices = &mut self.voices;
-        voices.retain(|v| {
-            v.params.looping || v.cursor < v.sound.frames() as f64
-        });
+        voices.retain(|v| v.params.looping || v.cursor < v.sound.frames() as f64);
 
         // Clipping rather than wrapping: a sum over 1.0 has to become loud,
         // not become a different waveform.
@@ -264,7 +281,9 @@ impl Mixer {
                 (ga[0] + ga[1]).total_cmp(&(gb[0] + gb[1]))
             })
             .map(|(i, _)| i);
-        if let Some(index) = quietest { self.voices.remove(index); }
+        if let Some(index) = quietest {
+            self.voices.remove(index);
+        }
     }
 }
 
@@ -281,7 +300,9 @@ pub fn gains_for(params: &SoundParams, listener: &Listener) -> [f32; 2] {
 
     let to_sound = position - listener.position;
     let distance = to_sound.length();
-    if distance >= params.max_distance { return [0.0, 0.0] }
+    if distance >= params.max_distance {
+        return [0.0, 0.0];
+    }
 
     // Inverse-distance falloff past a reference radius, inside which the
     // sound is at full volume. Without the radius, a sound at the listener's
@@ -303,7 +324,11 @@ pub fn gains_for(params: &SoundParams, listener: &Listener) -> [f32; 2] {
     // Constant-power panning: the two gains square-sum to one, so a sound
     // crossing in front keeps the same loudness rather than dipping in the
     // middle.
-    let direction = if distance > 1e-4 { to_sound / distance } else { Vec3::ZERO };
+    let direction = if distance > 1e-4 {
+        to_sound / distance
+    } else {
+        Vec3::ZERO
+    };
     let side = direction.dot(listener.basis.right).clamp(-1.0, 1.0);
     let angle = (side + 1.0) * 0.5 * std::f32::consts::FRAC_PI_2;
     [gain * angle.cos(), gain * angle.sin()]

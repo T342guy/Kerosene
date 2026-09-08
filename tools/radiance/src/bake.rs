@@ -18,9 +18,9 @@
 //!   surface bakes fully shadowed.
 
 use crate::lights::LightSet;
-use rayon::prelude::*;
 use kerosene_bsp::{Bsp, ColorRgbExp32, contents, surf};
 use kerosene_math::{Mat3, Vec3};
+use rayon::prelude::*;
 
 #[derive(Clone, Debug)]
 pub struct BakeOptions {
@@ -37,7 +37,12 @@ pub struct BakeOptions {
 
 impl Default for BakeOptions {
     fn default() -> Self {
-        BakeOptions { supersample: 2, bounces: 1, scale: 1.0, ambient_scale: 1.0 }
+        BakeOptions {
+            supersample: 2,
+            bounces: 1,
+            scale: 1.0,
+            ambient_scale: 1.0,
+        }
     }
 }
 
@@ -66,7 +71,11 @@ pub fn bake(bsp: &mut Bsp, lights: &LightSet, options: &BakeOptions) -> BakeStat
     for i in 0..bsp.faces.len() {
         let f = &bsp.faces[i];
         let (w, h) = (f.lightmap_size[0] as usize, f.lightmap_size[1] as usize);
-        let ti = bsp.texinfo.get(f.texinfo as usize).copied().unwrap_or_default();
+        let ti = bsp
+            .texinfo
+            .get(f.texinfo as usize)
+            .copied()
+            .unwrap_or_default();
         if w == 0 || h == 0 || ti.flags & (surf::NOLIGHT | surf::SKY | surf::NODRAW) != 0 {
             bsp.faces[i].lightmap_offset = -1;
             stats.faces_unlit += 1;
@@ -103,7 +112,9 @@ pub fn bake(bsp: &mut Bsp, lights: &LightSet, options: &BakeOptions) -> BakeStat
     // light into something that reads as an interior.
     for _ in 0..options.bounces {
         let patches = build_patches(bsp, &samples, &jobs);
-        if patches.is_empty() { break; }
+        if patches.is_empty() {
+            break;
+        }
         stats.bounce_patches = patches.len();
 
         let bounced: Vec<(usize, Vec<Vec3>)> = jobs
@@ -124,7 +135,10 @@ pub fn bake(bsp: &mut Bsp, lights: &LightSet, options: &BakeOptions) -> BakeStat
         .map(|c| ColorRgbExp32::from_linear(*c * options.scale))
         .collect();
 
-    stats.luxels_rescued = direct.iter().map(|(_, v)| v.iter().filter(|c| c.x < 0.0).count()).sum();
+    stats.luxels_rescued = direct
+        .iter()
+        .map(|(_, v)| v.iter().filter(|c| c.x < 0.0).count())
+        .sum();
     stats
 }
 
@@ -140,10 +154,18 @@ struct Patch {
 fn build_patches(bsp: &Bsp, samples: &[Vec3], jobs: &[(usize, usize, usize)]) -> Vec<Patch> {
     let mut out = Vec::new();
     for &(face_index, offset, count) in jobs {
-        if count == 0 { continue; }
+        if count == 0 {
+            continue;
+        }
         let face = &bsp.faces[face_index];
-        let average: Vec3 = samples[offset..offset + count].iter().copied().sum::<Vec3>() / count as f32;
-        if average.max_element() < 1.0 { continue; }
+        let average: Vec3 = samples[offset..offset + count]
+            .iter()
+            .copied()
+            .sum::<Vec3>()
+            / count as f32;
+        if average.max_element() < 1.0 {
+            continue;
+        }
 
         let reflectivity = bsp
             .texinfo
@@ -153,9 +175,13 @@ fn build_patches(bsp: &Bsp, samples: &[Vec3], jobs: &[(usize, usize, usize)]) ->
             .unwrap_or(Vec3::splat(0.5));
 
         let verts = bsp.face_vertices(face_index);
-        if verts.len() < 3 { continue; }
+        if verts.len() < 3 {
+            continue;
+        }
         let center = verts.iter().copied().sum::<Vec3>() / verts.len() as f32;
-        let Some(plane) = bsp.face_plane(face_index) else { continue };
+        let Some(plane) = bsp.face_plane(face_index) else {
+            continue;
+        };
 
         out.push(Patch {
             center,
@@ -176,18 +202,35 @@ fn light_face(
     patches: Option<&[Patch]>,
 ) -> Vec<Vec3> {
     let face = bsp.faces[face_index];
-    let (w, h) = (face.lightmap_size[0] as usize, face.lightmap_size[1] as usize);
-    let Some(ti) = bsp.texinfo.get(face.texinfo as usize).copied() else { return vec![Vec3::ZERO; w * h] };
-    let Some(plane) = bsp.face_plane(face_index) else { return vec![Vec3::ZERO; w * h] };
+    let (w, h) = (
+        face.lightmap_size[0] as usize,
+        face.lightmap_size[1] as usize,
+    );
+    let Some(ti) = bsp.texinfo.get(face.texinfo as usize).copied() else {
+        return vec![Vec3::ZERO; w * h];
+    };
+    let Some(plane) = bsp.face_plane(face_index) else {
+        return vec![Vec3::ZERO; w * h];
+    };
 
     let verts = bsp.face_vertices(face_index);
-    if verts.len() < 3 { return vec![Vec3::ZERO; w * h]; }
+    if verts.len() < 3 {
+        return vec![Vec3::ZERO; w * h];
+    }
     let face_center = verts.iter().copied().sum::<Vec3>() / verts.len() as f32;
 
     // Invert the world-to-luxel mapping. Two rows come from the lightmap axes
     // and the third from the face's own plane, since a luxel lies on it.
-    let l0 = Vec3::new(ti.lightmap_vecs[0][0], ti.lightmap_vecs[0][1], ti.lightmap_vecs[0][2]);
-    let l1 = Vec3::new(ti.lightmap_vecs[1][0], ti.lightmap_vecs[1][1], ti.lightmap_vecs[1][2]);
+    let l0 = Vec3::new(
+        ti.lightmap_vecs[0][0],
+        ti.lightmap_vecs[0][1],
+        ti.lightmap_vecs[0][2],
+    );
+    let l1 = Vec3::new(
+        ti.lightmap_vecs[1][0],
+        ti.lightmap_vecs[1][1],
+        ti.lightmap_vecs[1][2],
+    );
     let basis = Mat3::from_cols(
         Vec3::new(l0.x, l1.x, plane.normal.x),
         Vec3::new(l0.y, l1.y, plane.normal.y),
@@ -205,14 +248,29 @@ fn light_face(
     let (mut max_u, mut max_v) = (f32::NEG_INFINITY, f32::NEG_INFINITY);
     for &p in &verts {
         let (u, v) = ti.lightcoord(p);
-        min_u = min_u.min(u); max_u = max_u.max(u);
-        min_v = min_v.min(v); max_v = max_v.max(v);
+        min_u = min_u.min(u);
+        max_u = max_u.max(u);
+        min_v = min_v.min(v);
+        max_v = max_v.max(v);
     }
-    let step_u = if w > 1 { (max_u - min_u) / (w - 1) as f32 } else { 0.0 };
-    let step_v = if h > 1 { (max_v - min_v) / (h - 1) as f32 } else { 0.0 };
+    let step_u = if w > 1 {
+        (max_u - min_u) / (w - 1) as f32
+    } else {
+        0.0
+    };
+    let step_v = if h > 1 {
+        (max_v - min_v) / (h - 1) as f32
+    } else {
+        0.0
+    };
 
     let to_world = |u: f32, v: f32| -> Vec3 {
-        inverse * Vec3::new(u - ti.lightmap_vecs[0][3], v - ti.lightmap_vecs[1][3], plane.dist)
+        inverse
+            * Vec3::new(
+                u - ti.lightmap_vecs[0][3],
+                v - ti.lightmap_vecs[1][3],
+                plane.dist,
+            )
     };
 
     let ss = options.supersample.max(1) as usize;
@@ -227,13 +285,22 @@ fn light_face(
                 for sx in 0..ss {
                     // Jitter within the luxel's footprint so shadow edges get
                     // averaged instead of stair-stepping.
-                    let fx = if ss == 1 { 0.0 } else { (sx as f32 / (ss - 1) as f32) - 0.5 };
-                    let fy = if ss == 1 { 0.0 } else { (sy as f32 / (ss - 1) as f32) - 0.5 };
+                    let fx = if ss == 1 {
+                        0.0
+                    } else {
+                        (sx as f32 / (ss - 1) as f32) - 0.5
+                    };
+                    let fy = if ss == 1 {
+                        0.0
+                    } else {
+                        (sy as f32 / (ss - 1) as f32) - 0.5
+                    };
                     let u = min_u + (x as f32 + fx) * step_u;
                     let v = min_v + (y as f32 + fy) * step_v;
 
                     let world = to_world(u, v);
-                    let Some(sample_at) = rescue_sample(bsp, world, face_center, plane.normal) else {
+                    let Some(sample_at) = rescue_sample(bsp, world, face_center, plane.normal)
+                    else {
                         continue;
                     };
                     total += gather(bsp, sample_at, plane.normal, lights, options, patches);
@@ -262,12 +329,16 @@ fn light_face(
 /// that is genuinely on the surface.
 fn rescue_sample(bsp: &Bsp, world: Vec3, face_center: Vec3, normal: Vec3) -> Option<Vec3> {
     let lifted = world + normal * SURFACE_OFFSET;
-    if !bsp.point_is_solid(lifted) { return Some(lifted); }
+    if !bsp.point_is_solid(lifted) {
+        return Some(lifted);
+    }
 
     for step in 1..=4 {
         let t = step as f32 / 5.0;
         let pulled = world.lerp(face_center, t) + normal * SURFACE_OFFSET;
-        if !bsp.point_is_solid(pulled) { return Some(pulled); }
+        if !bsp.point_is_solid(pulled) {
+            return Some(pulled);
+        }
     }
     None
 }
@@ -284,11 +355,15 @@ fn gather(
     let mut total = lights.ambient * options.ambient_scale;
 
     for light in &lights.lights {
-        let Some((intensity, direction)) = light.sample(point) else { continue };
+        let Some((intensity, direction)) = light.sample(point) else {
+            continue;
+        };
 
         // Lambert: a surface edge-on to a light receives none of it.
         let lambert = normal.dot(direction);
-        if lambert <= 0.0 { continue; }
+        if lambert <= 0.0 {
+            continue;
+        }
 
         let target = light.shadow_target(point);
         let trace = bsp.trace_ray(point, target, contents::MASK_OPAQUE);
@@ -297,7 +372,9 @@ fn gather(
             // The sun only reaches surfaces with a clear path to the sky. A
             // ray that stops on anything else is in shadow; one that reaches
             // a sky surface has left the building.
-            if trace.hit() && trace.surface_flags & surf::SKY == 0 { continue; }
+            if trace.hit() && trace.surface_flags & surf::SKY == 0 {
+                continue;
+            }
         } else if trace.hit() {
             continue;
         }
@@ -319,20 +396,33 @@ fn gather_bounce(bsp: &Bsp, point: Vec3, normal: Vec3, patches: &[Patch]) -> Vec
     for patch in patches {
         let delta = patch.center - point;
         let dist_sq = delta.length_squared();
-        if dist_sq < 1.0 { continue; }
+        if dist_sq < 1.0 {
+            continue;
+        }
         let dist = dist_sq.sqrt();
         let dir = delta / dist;
 
         let cos_receiver = normal.dot(dir);
-        if cos_receiver <= 0.0 { continue; }
+        if cos_receiver <= 0.0 {
+            continue;
+        }
         let cos_emitter = patch.normal.dot(-dir);
-        if cos_emitter <= 0.0 { continue; }
+        if cos_emitter <= 0.0 {
+            continue;
+        }
 
         // Standard form factor between two differential patches.
         let form = cos_receiver * cos_emitter * patch.area / (std::f32::consts::PI * dist_sq);
-        if form < 1e-4 { continue; }
+        if form < 1e-4 {
+            continue;
+        }
 
-        if bsp.trace_ray(point, patch.center, contents::MASK_OPAQUE).hit() { continue; }
+        if bsp
+            .trace_ray(point, patch.center, contents::MASK_OPAQUE)
+            .hit()
+        {
+            continue;
+        }
         total += patch.radiance * form;
     }
 

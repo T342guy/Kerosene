@@ -77,7 +77,10 @@ impl NavGraph {
         let nodes: Vec<Node> = walk
             .faces
             .iter()
-            .map(|f| Node { center: centroid(&f.vertices), rule: f.rule })
+            .map(|f| Node {
+                center: centroid(&f.vertices),
+                rule: f.rule,
+            })
             .collect();
 
         let mut arcs: Vec<Vec<Arc>> = vec![Vec::new(); nodes.len()];
@@ -93,8 +96,16 @@ impl NavGraph {
                 };
                 let cost_ji = edge_cost(nodes[i], nodes[j], portal);
                 let cost_ij = edge_cost(nodes[j], nodes[i], portal);
-                arcs[i].push(Arc { to: j, portal, cost: cost_ij });
-                arcs[j].push(Arc { to: i, portal, cost: cost_ji });
+                arcs[i].push(Arc {
+                    to: j,
+                    portal,
+                    cost: cost_ij,
+                });
+                arcs[j].push(Arc {
+                    to: i,
+                    portal,
+                    cost: cost_ji,
+                });
             }
         }
 
@@ -102,10 +113,14 @@ impl NavGraph {
     }
 
     /// Number of nodes (faces) in the graph.
-    pub fn node_count(&self) -> usize { self.nodes.len() }
+    pub fn node_count(&self) -> usize {
+        self.nodes.len()
+    }
 
     /// Number of directed edges in the graph.
-    pub fn edge_count(&self) -> usize { self.arcs.iter().map(|a| a.len()).sum() }
+    pub fn edge_count(&self) -> usize {
+        self.arcs.iter().map(|a| a.len()).sum()
+    }
 
     /// The face index whose polygon contains a point, within `max_dist` of its
     /// plane — the node a path starts or ends at.
@@ -152,7 +167,9 @@ impl NavGraph {
         let mut waypoints = Vec::with_capacity(path.len() + 2);
         waypoints.push(start);
         for (i, &face) in path.iter().enumerate() {
-            if i + 1 == path.len() { break; }
+            if i + 1 == path.len() {
+                break;
+            }
             let next = path[i + 1];
             // Find the arc from `face` to `next` to recover its portal point.
             let portal = self.arcs[face]
@@ -183,10 +200,15 @@ impl NavGraph {
         let mut open = BinaryHeap::new();
 
         g_score[start_face] = 0.0;
-        open.push(HeapEntry { cost: heuristic(start, goal), face: start_face });
+        open.push(HeapEntry {
+            cost: heuristic(start, goal),
+            face: start_face,
+        });
 
         while let Some(HeapEntry { face, .. }) = open.pop() {
-            if face == goal_face { break; }
+            if face == goal_face {
+                break;
+            }
             for arc in &self.arcs[face] {
                 let tentative = g_score[face] + arc.cost;
                 if tentative < g_score[arc.to] {
@@ -210,18 +232,26 @@ struct HeapEntry {
 }
 
 impl PartialEq for HeapEntry {
-    fn eq(&self, other: &Self) -> bool { self.cost == other.cost }
+    fn eq(&self, other: &Self) -> bool {
+        self.cost == other.cost
+    }
 }
 impl Eq for HeapEntry {}
 impl PartialOrd for HeapEntry {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> { Some(self.cmp(other)) }
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
 }
 impl Ord for HeapEntry {
-    fn cmp(&self, other: &Self) -> Ordering { other.cost.total_cmp(&self.cost) }
+    fn cmp(&self, other: &Self) -> Ordering {
+        other.cost.total_cmp(&self.cost)
+    }
 }
 
 /// Straight-line distance between two points, as the admissible heuristic.
-fn heuristic(a: Vec3, b: Vec3) -> f32 { (b - a).length() }
+fn heuristic(a: Vec3, b: Vec3) -> f32 {
+    (b - a).length()
+}
 
 /// The cost of travelling `from_face` → `to_face` across `portal`.
 ///
@@ -232,8 +262,12 @@ fn heuristic(a: Vec3, b: Vec3) -> f32 { (b - a).length() }
 fn edge_cost(from: Node, to: Node, portal: Vec3) -> f32 {
     let base = (portal - from.center).length() + (to.center - portal).length();
     let mut cost = base;
-    if from.rule == WalkmapRule::Avoid { cost *= AVOID_COST; }
-    if to.rule == WalkmapRule::Avoid { cost *= AVOID_COST; }
+    if from.rule == WalkmapRule::Avoid {
+        cost *= AVOID_COST;
+    }
+    if to.rule == WalkmapRule::Avoid {
+        cost *= AVOID_COST;
+    }
     cost
 }
 
@@ -249,13 +283,19 @@ fn edge_cost(from: Node, to: Node, portal: Vec3) -> f32 {
 fn shared_edge_midpoint(a: &WalkFace, b: &WalkFace) -> Option<Vec3> {
     let mut shared = Vec::new();
     for &va in &a.vertices {
-        if b.vertices.iter().any(|&vb| (vb - va).length_squared() < MATCH_EPSILON * MATCH_EPSILON)
-            && !shared.iter().any(|&s: &Vec3| (s - va).length_squared() < MATCH_EPSILON * MATCH_EPSILON)
+        if b.vertices
+            .iter()
+            .any(|&vb| (vb - va).length_squared() < MATCH_EPSILON * MATCH_EPSILON)
+            && !shared
+                .iter()
+                .any(|&s: &Vec3| (s - va).length_squared() < MATCH_EPSILON * MATCH_EPSILON)
         {
             shared.push(va);
         }
     }
-    if shared.len() < 2 { return None; }
+    if shared.len() < 2 {
+        return None;
+    }
 
     // Two convex faces sharing two vertices share the edge between them.
     // The midpoint of that edge lies on both polygons, so it is always a safe
@@ -271,7 +311,9 @@ fn shared_edge_midpoint(a: &WalkFace, b: &WalkFace) -> Option<Vec3> {
 /// a node position needs.
 fn centroid(vertices: &[Vec3]) -> Vec3 {
     let mut sum = Vec3::ZERO;
-    for &v in vertices { sum += v; }
+    for &v in vertices {
+        sum += v;
+    }
     sum / vertices.len() as f32
 }
 
@@ -335,7 +377,12 @@ mod tests {
         let walk = two_floors();
         let graph = NavGraph::build(&walk);
         let path = graph
-            .find_path(&walk, Vec3::new(32.0, 32.0, 0.0), Vec3::new(96.0, 32.0, 0.0), crate::DEFAULT_STEP)
+            .find_path(
+                &walk,
+                Vec3::new(32.0, 32.0, 0.0),
+                Vec3::new(96.0, 32.0, 0.0),
+                crate::DEFAULT_STEP,
+            )
             .expect("the floors are connected");
         assert_eq!(path.len(), 3);
         assert!((path[0] - Vec3::new(32.0, 32.0, 0.0)).length() < 0.01);
@@ -349,7 +396,12 @@ mod tests {
         let walk = two_floors();
         let graph = NavGraph::build(&walk);
         let path = graph
-            .find_path(&walk, Vec3::new(8.0, 8.0, 0.0), Vec3::new(40.0, 40.0, 0.0), crate::DEFAULT_STEP)
+            .find_path(
+                &walk,
+                Vec3::new(8.0, 8.0, 0.0),
+                Vec3::new(40.0, 40.0, 0.0),
+                crate::DEFAULT_STEP,
+            )
             .expect("same face");
         assert_eq!(path.len(), 2);
     }
@@ -359,7 +411,16 @@ mod tests {
         let walk = two_floors();
         let graph = NavGraph::build(&walk);
         // The two floors are connected, but this goal is on neither.
-        assert!(graph.find_path(&walk, Vec3::new(32.0, 32.0, 0.0), Vec3::new(1000.0, 32.0, 0.0), crate::DEFAULT_STEP).is_none());
+        assert!(
+            graph
+                .find_path(
+                    &walk,
+                    Vec3::new(32.0, 32.0, 0.0),
+                    Vec3::new(1000.0, 32.0, 0.0),
+                    crate::DEFAULT_STEP
+                )
+                .is_none()
+        );
     }
 
     #[test]
@@ -371,7 +432,12 @@ mod tests {
         let walk = Walkmap { faces: vec![avoid] };
         let graph = NavGraph::build(&walk);
         let path = graph
-            .find_path(&walk, Vec3::new(8.0, 8.0, 0.0), Vec3::new(40.0, 40.0, 0.0), crate::DEFAULT_STEP)
+            .find_path(
+                &walk,
+                Vec3::new(8.0, 8.0, 0.0),
+                Vec3::new(40.0, 40.0, 0.0),
+                crate::DEFAULT_STEP,
+            )
             .expect("avoid is walkable");
         assert_eq!(path.len(), 2);
     }
@@ -387,8 +453,15 @@ mod tests {
             ],
         };
         let graph = NavGraph::build(&walk);
-        assert!(graph
-            .find_path(&walk, Vec3::new(32.0, 32.0, 0.0), Vec3::new(160.0, 32.0, 0.0), crate::DEFAULT_STEP)
-            .is_none());
+        assert!(
+            graph
+                .find_path(
+                    &walk,
+                    Vec3::new(32.0, 32.0, 0.0),
+                    Vec3::new(160.0, 32.0, 0.0),
+                    crate::DEFAULT_STEP
+                )
+                .is_none()
+        );
     }
 }

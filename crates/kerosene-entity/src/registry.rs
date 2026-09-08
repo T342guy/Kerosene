@@ -40,7 +40,13 @@ pub struct ClassDef {
 
 impl ClassDef {
     pub fn new(classname: &'static str) -> Self {
-        ClassDef { classname, spawn: None, think: None, inputs: Vec::new(), outputs: Vec::new() }
+        ClassDef {
+            classname,
+            spawn: None,
+            think: None,
+            inputs: Vec::new(),
+            outputs: Vec::new(),
+        }
     }
 
     pub fn on_spawn(mut self, f: SpawnHandler) -> Self {
@@ -83,7 +89,9 @@ pub struct ClassRegistry {
 }
 
 impl ClassRegistry {
-    pub fn new() -> Self { Self::default() }
+    pub fn new() -> Self {
+        Self::default()
+    }
 
     pub fn register(&mut self, def: ClassDef) -> &mut Self {
         self.classes.insert(def.classname.to_lowercase(), def);
@@ -109,7 +117,9 @@ impl ClassRegistry {
     }
 
     /// Outputs every entity may fire, in registration order.
-    pub fn common_outputs(&self) -> Vec<&'static str> { self.common_outputs.clone() }
+    pub fn common_outputs(&self) -> Vec<&'static str> {
+        self.common_outputs.clone()
+    }
 
     pub fn get(&self, classname: &str) -> Option<&ClassDef> {
         self.classes.get(&classname.to_lowercase())

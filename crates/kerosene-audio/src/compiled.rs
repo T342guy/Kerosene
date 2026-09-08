@@ -91,7 +91,9 @@ pub struct Loop {
 }
 
 impl Loop {
-    pub fn is_empty(&self) -> bool { self.end <= self.start }
+    pub fn is_empty(&self) -> bool {
+        self.end <= self.start
+    }
 }
 
 /// Everything a compiled sound knows about itself besides its samples.
@@ -109,7 +111,9 @@ pub struct Info {
 
 impl Info {
     pub fn duration(&self) -> f32 {
-        if self.sample_rate == 0 { return 0.0 }
+        if self.sample_rate == 0 {
+            return 0.0;
+        }
         self.frames as f32 / self.sample_rate as f32
     }
 
@@ -118,7 +122,9 @@ impl Info {
     /// Mono only. Panning a stereo source means applying one pan to a signal
     /// that already carries its own left and right, which is not a position
     /// and does not sound like one.
-    pub fn can_be_positioned(&self) -> bool { self.channels == 1 }
+    pub fn can_be_positioned(&self) -> bool {
+        self.channels == 1
+    }
 }
 
 /// Compile samples into the bytes of a `.keroaud`.
@@ -128,7 +134,11 @@ pub fn encode(sound: &Sound, encoding: Encoding, looping: Loop) -> Vec<u8> {
         .iter()
         .map(|&s| (s.clamp(-1.0, 1.0) * 32767.0).round() as i16)
         .collect();
-    let peak = sound.samples.iter().fold(0.0f32, |a, s| a.max(s.abs())).min(1.0);
+    let peak = sound
+        .samples
+        .iter()
+        .fold(0.0f32, |a, s| a.max(s.abs()))
+        .min(1.0);
 
     let mut out = Vec::with_capacity(HEADER_SIZE + samples.len() * 2);
     out.extend_from_slice(&MAGIC);
@@ -185,7 +195,11 @@ pub fn decode(bytes: &[u8]) -> Result<(Sound, Info), AudioError> {
     };
 
     Ok((
-        Sound { channels: info.channels, sample_rate: info.sample_rate, samples },
+        Sound {
+            channels: info.channels,
+            sample_rate: info.sample_rate,
+            samples,
+        },
         info,
     ))
 }
@@ -202,9 +216,12 @@ pub fn read_info(bytes: &[u8]) -> Result<Info, AudioError> {
         )));
     }
     if bytes[..4] != MAGIC {
-        return Err(AudioError::Malformed(format!("not a .{EXTENSION} file (bad magic)")));
+        return Err(AudioError::Malformed(format!(
+            "not a .{EXTENSION} file (bad magic)"
+        )));
     }
-    let u32_at = |at: usize| u32::from_le_bytes([bytes[at], bytes[at + 1], bytes[at + 2], bytes[at + 3]]);
+    let u32_at =
+        |at: usize| u32::from_le_bytes([bytes[at], bytes[at + 1], bytes[at + 2], bytes[at + 3]]);
     let u16_at = |at: usize| u16::from_le_bytes([bytes[at], bytes[at + 1]]);
 
     let version = u32_at(4);
@@ -216,7 +233,9 @@ pub fn read_info(bytes: &[u8]) -> Result<Info, AudioError> {
 
     let channels = u16_at(8);
     if channels == 0 || channels > 2 {
-        return Err(AudioError::Unsupported(format!("{channels} channels; mono and stereo only")));
+        return Err(AudioError::Unsupported(format!(
+            "{channels} channels; mono and stereo only"
+        )));
     }
     let encoding = Encoding::from_tag(u16_at(10))
         .ok_or_else(|| AudioError::Unsupported(format!("encoding {}", u16_at(10))))?;
@@ -242,7 +261,11 @@ pub fn read_info(bytes: &[u8]) -> Result<Info, AudioError> {
         sample_rate,
         frames,
         encoding,
-        peak: if peak.is_finite() { peak.clamp(0.0, 1.0) } else { 0.0 },
+        peak: if peak.is_finite() {
+            peak.clamp(0.0, 1.0)
+        } else {
+            0.0
+        },
         looping: Loop { start, end },
     })
 }

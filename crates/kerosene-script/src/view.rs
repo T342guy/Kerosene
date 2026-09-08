@@ -26,7 +26,11 @@ pub struct EntityView {
 
 impl EntityView {
     pub fn new(id: u64, classname: &str) -> EntityView {
-        EntityView { id, classname: classname.to_string(), ..Default::default() }
+        EntityView {
+            id,
+            classname: classname.to_string(),
+            ..Default::default()
+        }
     }
 
     pub fn with_name(mut self, name: &str) -> EntityView {
@@ -68,11 +72,15 @@ impl WorldView {
     /// Every entity with this name. Several may share one -- that is how a
     /// single output drives a group -- so this is a list, not an option.
     pub fn by_name<'a>(&'a self, name: &'a str) -> impl Iterator<Item = &'a EntityView> + 'a {
-        self.entities.iter().filter(move |e| e.targetname.eq_ignore_ascii_case(name))
+        self.entities
+            .iter()
+            .filter(move |e| e.targetname.eq_ignore_ascii_case(name))
     }
 
     pub fn by_class<'a>(&'a self, class: &'a str) -> impl Iterator<Item = &'a EntityView> + 'a {
-        self.entities.iter().filter(move |e| e.classname.eq_ignore_ascii_case(class))
+        self.entities
+            .iter()
+            .filter(move |e| e.classname.eq_ignore_ascii_case(class))
     }
 
     pub fn by_id(&self, id: u64) -> Option<&EntityView> {

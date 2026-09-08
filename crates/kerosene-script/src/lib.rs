@@ -36,10 +36,10 @@
 //! assert!(matches!(host.take_actions().as_slice(), [ScriptAction::FireInput { .. }]));
 //! ```
 
+use kerosene_math::Vec3;
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::rc::Rc;
-use kerosene_math::Vec3;
 
 mod bindings;
 mod view;
@@ -95,13 +95,21 @@ pub enum ScriptAction {
         delay: f32,
     },
     /// Set a keyvalue on an entity.
-    SetField { entity: u64, key: String, value: String },
+    SetField {
+        entity: u64,
+        key: String,
+        value: String,
+    },
     /// Move an entity.
     SetOrigin { entity: u64, origin: Vec3 },
     /// Remove an entity.
     Kill { entity: u64 },
     /// Play a sound, at a position or heard flat.
-    PlaySound { name: String, position: Option<Vec3>, volume: f32 },
+    PlaySound {
+        name: String,
+        position: Option<Vec3>,
+        volume: f32,
+    },
     /// Stop every sound.
     StopAllSounds,
 }
@@ -137,7 +145,9 @@ pub struct ScriptHost {
 }
 
 impl Default for ScriptHost {
-    fn default() -> Self { ScriptHost::new() }
+    fn default() -> Self {
+        ScriptHost::new()
+    }
 }
 
 impl ScriptHost {
@@ -179,7 +189,9 @@ impl ScriptHost {
     }
 
     /// Names of the files currently loaded.
-    pub fn loaded(&self) -> &[String] { &self.loaded }
+    pub fn loaded(&self) -> &[String] {
+        &self.loaded
+    }
 
     /// Whether a function of this name is defined.
     pub fn has_function(&self, name: &str) -> bool {
@@ -193,7 +205,10 @@ impl ScriptHost {
     /// both work, and requiring the unused parameter would be the kind of
     /// papercut that makes people stop writing scripts.
     pub fn function_arity(&self, name: &str) -> Option<usize> {
-        self.module.iter_functions().find(|f| f.name == name).map(|f| f.params.len())
+        self.module
+            .iter_functions()
+            .find(|f| f.name == name)
+            .map(|f| f.params.len())
     }
 
     /// Forget every loaded script and everything they defined.

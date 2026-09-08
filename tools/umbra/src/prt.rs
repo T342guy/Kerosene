@@ -15,8 +15,8 @@
 //! `b` carries the flipped plane -- a portal's plane always points the way it
 //! looks.
 
-use thiserror::Error;
 use kerosene_math::{Plane, Vec3, Winding};
+use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum PrtError {
@@ -56,15 +56,18 @@ impl PortalGraph {
         let mut lines = text.lines().enumerate();
 
         let (_, header) = lines.next().ok_or(PrtError::BadHeader)?;
-        if header.trim() != "VPRT1" { return Err(PrtError::BadHeader); }
+        if header.trim() != "VPRT1" {
+            return Err(PrtError::BadHeader);
+        }
 
-        let parse_usize = |lines: &mut std::iter::Enumerate<std::str::Lines>| -> Result<usize, PrtError> {
-            let (n, l) = lines.next().ok_or(PrtError::BadHeader)?;
-            l.trim().parse().map_err(|_| PrtError::Malformed {
-                line: n + 1,
-                detail: format!("expected a count, found {l:?}"),
-            })
-        };
+        let parse_usize =
+            |lines: &mut std::iter::Enumerate<std::str::Lines>| -> Result<usize, PrtError> {
+                let (n, l) = lines.next().ok_or(PrtError::BadHeader)?;
+                l.trim().parse().map_err(|_| PrtError::Malformed {
+                    line: n + 1,
+                    detail: format!("expected a count, found {l:?}"),
+                })
+            };
         let clusters = parse_usize(&mut lines)?;
         let expected = parse_usize(&mut lines)?;
 
@@ -73,10 +76,17 @@ impl PortalGraph {
 
         for (n, line) in lines {
             let line = line.trim();
-            if line.is_empty() { continue; }
+            if line.is_empty() {
+                continue;
+            }
             found += 1;
 
-            let head: Vec<&str> = line.split('(').next().unwrap_or("").split_whitespace().collect();
+            let head: Vec<&str> = line
+                .split('(')
+                .next()
+                .unwrap_or("")
+                .split_whitespace()
+                .collect();
             if head.len() != 3 {
                 return Err(PrtError::Malformed {
                     line: n + 1,
@@ -99,13 +109,18 @@ impl PortalGraph {
 
             let mut points = Vec::with_capacity(count);
             for group in line.split('(').skip(1) {
-                let Some(close) = group.find(')') else { continue };
+                let Some(close) = group.find(')') else {
+                    continue;
+                };
                 let nums: Vec<f32> = group[..close]
                     .split_whitespace()
                     .filter_map(|t| t.parse().ok())
                     .collect();
                 if nums.len() != 3 {
-                    return Err(PrtError::Malformed { line: n + 1, detail: "malformed point".into() });
+                    return Err(PrtError::Malformed {
+                        line: n + 1,
+                        detail: "malformed point".into(),
+                    });
                 }
                 points.push(Vec3::new(nums[0], nums[1], nums[2]));
             }
@@ -118,7 +133,10 @@ impl PortalGraph {
 
             let winding = Winding::new(points);
             let Some(plane) = winding.plane() else {
-                return Err(PrtError::Malformed { line: n + 1, detail: "degenerate portal".into() });
+                return Err(PrtError::Malformed {
+                    line: n + 1,
+                    detail: "degenerate portal".into(),
+                });
             };
 
             // The plane points toward cluster `a`, so looking into `b` means
@@ -136,10 +154,16 @@ impl PortalGraph {
             by_cluster[p.from_cluster].push(i);
         }
 
-        Ok(PortalGraph { clusters, portals, by_cluster })
+        Ok(PortalGraph {
+            clusters,
+            portals,
+            by_cluster,
+        })
     }
 
-    pub fn portal_count(&self) -> usize { self.portals.len() }
+    pub fn portal_count(&self) -> usize {
+        self.portals.len()
+    }
 }
 
 fn make(winding: Winding, plane: Plane, into_cluster: usize, from_cluster: usize) -> VisPortal {
@@ -149,7 +173,14 @@ fn make(winding: Winding, plane: Plane, into_cluster: usize, from_cluster: usize
         .iter()
         .map(|p| (*p - center).length())
         .fold(0.0f32, f32::max);
-    VisPortal { winding, plane, into_cluster, from_cluster, center, radius }
+    VisPortal {
+        winding,
+        plane,
+        into_cluster,
+        from_cluster,
+        center,
+        radius,
+    }
 }
 
 #[cfg(test)]
@@ -197,14 +228,20 @@ mod tests {
 
     #[test]
     fn malformed_files_are_rejected_with_a_line_number() {
-        assert!(matches!(PortalGraph::parse("nonsense"), Err(PrtError::BadHeader)));
+        assert!(matches!(
+            PortalGraph::parse("nonsense"),
+            Err(PrtError::BadHeader)
+        ));
         assert!(matches!(
             PortalGraph::parse("VPRT1\n2\n1\n4 0 1 (0 0 0)\n"),
             Err(PrtError::Malformed { line: 4, .. })
         ));
         assert!(matches!(
             PortalGraph::parse("VPRT1\n2\n5\n4 0 1 (0 0 0) (0 64 0) (0 64 64) (0 0 64)\n"),
-            Err(PrtError::CountMismatch { expected: 5, found: 1 })
+            Err(PrtError::CountMismatch {
+                expected: 5,
+                found: 1
+            })
         ));
         assert!(matches!(
             PortalGraph::parse("VPRT1\n2\n1\n4 0 9 (0 0 0) (0 64 0) (0 64 64) (0 0 64)\n"),

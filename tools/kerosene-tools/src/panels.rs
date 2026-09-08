@@ -36,18 +36,26 @@ impl Job {
     /// Start `kerosene-tools <subcommand> <args>` and capture its output.
     pub fn start(subcommand: &str, args: &[String]) -> Job {
         let (sender, receiver) = channel();
-        let exe = std::env::current_exe()
-            .unwrap_or_else(|_| PathBuf::from("kerosene-tools"));
+        let exe = std::env::current_exe().unwrap_or_else(|_| PathBuf::from("kerosene-tools"));
 
         let mut command = Command::new(exe);
-        command.arg(subcommand).args(args).stdout(Stdio::piped()).stderr(Stdio::piped());
+        command
+            .arg(subcommand)
+            .args(args)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
 
         let mut child = match command.spawn() {
             Ok(child) => child,
             Err(e) => {
                 let _ = sender.send(Line::Err(format!("could not run {subcommand}: {e}")));
                 let _ = sender.send(Line::Exit(None));
-                return Job { receiver, log: Vec::new(), finished: false, failed: true };
+                return Job {
+                    receiver,
+                    log: Vec::new(),
+                    finished: false,
+                    failed: true,
+                };
             }
         };
 
@@ -57,7 +65,9 @@ impl Job {
             let sender = sender.clone();
             std::thread::spawn(move || {
                 for line in BufReader::new(stdout).lines().map_while(Result::ok) {
-                    if sender.send(Line::Out(line)).is_err() { break; }
+                    if sender.send(Line::Out(line)).is_err() {
+                        break;
+                    }
                 }
             });
         }
@@ -65,7 +75,9 @@ impl Job {
             let sender = sender.clone();
             std::thread::spawn(move || {
                 for line in BufReader::new(stderr).lines().map_while(Result::ok) {
-                    if sender.send(Line::Err(line)).is_err() { break; }
+                    if sender.send(Line::Err(line)).is_err() {
+                        break;
+                    }
                 }
             });
         }
@@ -75,7 +87,12 @@ impl Job {
             let _ = sender.send(Line::Exit(code));
         });
 
-        Job { receiver, log: Vec::new(), finished: false, failed: false }
+        Job {
+            receiver,
+            log: Vec::new(),
+            finished: false,
+            failed: false,
+        }
     }
 
     /// Collect whatever the job has produced since the last call.
@@ -92,7 +109,9 @@ impl Job {
         }
     }
 
-    pub fn running(&self) -> bool { !self.finished }
+    pub fn running(&self) -> bool {
+        !self.finished
+    }
 }
 
 /// Draw a shared scrollable log, scrolled to the bottom as new lines arrive.
@@ -120,10 +139,17 @@ const STAGE_NAMES: [&str; 5] = ["textures", "sounds", "models", "maps", "pack"];
 
 impl BuildPanel {
     pub fn new(content_root: PathBuf) -> BuildPanel {
-        BuildPanel { content_root, stages: [true; 5], fast: false, job: None }
+        BuildPanel {
+            content_root,
+            stages: [true; 5],
+            fast: false,
+            job: None,
+        }
     }
 
-    pub fn running(&self) -> bool { self.job.as_ref().is_some_and(|j| j.running()) }
+    pub fn running(&self) -> bool {
+        self.job.as_ref().is_some_and(|j| j.running())
+    }
 
     pub fn ui(&mut self, ctx: &egui::Context) {
         egui::CentralPanel::default().show(ctx, |ui| {
@@ -140,12 +166,24 @@ impl BuildPanel {
             ui.checkbox(&mut self.fast, "fast (skip full visibility and lighting)");
 
             let busy = self.running();
-            let build = ui.add_enabled(!busy, egui::Button::new(if busy { "building..." } else { "build" }));
+            let build = ui.add_enabled(
+                !busy,
+                egui::Button::new(if busy { "building..." } else { "build" }),
+            );
             if build.clicked() {
-                let mut args = vec!["--content".to_string(), self.content_root.display().to_string()];
-                if self.fast { args.push("--fast".to_string()); }
-                let enabled: Vec<&str> =
-                    STAGE_NAMES.iter().zip(self.stages.iter()).filter(|(_, on)| **on).map(|(n, _)| *n).collect();
+                let mut args = vec![
+                    "--content".to_string(),
+                    self.content_root.display().to_string(),
+                ];
+                if self.fast {
+                    args.push("--fast".to_string());
+                }
+                let enabled: Vec<&str> = STAGE_NAMES
+                    .iter()
+                    .zip(self.stages.iter())
+                    .filter(|(_, on)| **on)
+                    .map(|(n, _)| *n)
+                    .collect();
                 if enabled.len() != STAGE_NAMES.len() {
                     for name in enabled {
                         args.push("--only".to_string());
@@ -182,10 +220,15 @@ pub struct ArchivePanel {
 
 impl ArchivePanel {
     pub fn new(content_root: PathBuf) -> ArchivePanel {
-        ArchivePanel { content_root, job: None }
+        ArchivePanel {
+            content_root,
+            job: None,
+        }
     }
 
-    pub fn running(&self) -> bool { self.job.as_ref().is_some_and(|j| j.running()) }
+    pub fn running(&self) -> bool {
+        self.job.as_ref().is_some_and(|j| j.running())
+    }
 
     pub fn ui(&mut self, ctx: &egui::Context) {
         egui::CentralPanel::default().show(ctx, |ui| {
@@ -214,9 +257,15 @@ impl ArchivePanel {
                     }
                     self.job = Some(Job::start("vault", &args));
                 } else if verify.clicked() {
-                    self.job = Some(Job::start("vault", &["verify".to_string(), archive.display().to_string()]));
+                    self.job = Some(Job::start(
+                        "vault",
+                        &["verify".to_string(), archive.display().to_string()],
+                    ));
                 } else if list.clicked() {
-                    self.job = Some(Job::start("vault", &["list".to_string(), archive.display().to_string()]));
+                    self.job = Some(Job::start(
+                        "vault",
+                        &["list".to_string(), archive.display().to_string()],
+                    ));
                 }
             });
 

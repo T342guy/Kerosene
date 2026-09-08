@@ -41,9 +41,15 @@ pub const PLAYER_WIDTH: f32 = 32.0;
 /// How fast a player runs on the flat.
 pub const PLAYER_SPEED: f32 = 320.0;
 
-pub fn metres(ku: f32) -> f32 { ku / VU_PER_METRE }
-pub fn from_metres(m: f32) -> f32 { m * VU_PER_METRE }
-pub fn feet(ku: f32) -> f32 { ku / VU_PER_FOOT }
+pub fn metres(ku: f32) -> f32 {
+    ku / VU_PER_METRE
+}
+pub fn from_metres(m: f32) -> f32 {
+    m * VU_PER_METRE
+}
+pub fn feet(ku: f32) -> f32 {
+    ku / VU_PER_FOOT
+}
 
 /// Format a distance with its unit and a metric equivalent.
 ///
@@ -80,7 +86,11 @@ pub fn volume(vu3: f32) -> String {
 }
 
 pub fn speed(vu_per_second: f32) -> String {
-    format!("{} ku/s ({:.1} m/s)", trim(vu_per_second), metres(vu_per_second))
+    format!(
+        "{} ku/s ({:.1} m/s)",
+        trim(vu_per_second),
+        metres(vu_per_second)
+    )
 }
 
 /// How tall something is in players, for judging a space.
@@ -136,7 +146,10 @@ mod tests {
 
     #[test]
     fn sizes_read_the_way_a_brush_is_measured() {
-        assert_eq!(size(64.0, 128.0, 16.0), "64 x 128 x 16 ku (1.63 x 3.25 x 0.41 m)");
+        assert_eq!(
+            size(64.0, 128.0, 16.0),
+            "64 x 128 x 16 ku (1.63 x 3.25 x 0.41 m)"
+        );
     }
 
     #[test]
