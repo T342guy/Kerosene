@@ -18,3 +18,7 @@ endfunction()
 kerosene_test(core
     SOURCES core_test.cpp
     DEPS kerosene::core)
+
+kerosene_test(math
+    SOURCES math_test.cpp
+    DEPS kerosene::math)
