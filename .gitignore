@@ -1,29 +1,40 @@
+# CMake build trees. Any directory whose name starts with `build` is one, so
+# `build-asan` and `build-clang` beside the default tree are covered too.
+/build*/
+compile_commands.json
+
+# The Rust tree on MASTER; kept here so a branch switch does not leave the
+# other version's artefacts looking like new files.
 /target
 
 # Build outputs, reproducible with scripts/build-content.sh from the sources
-# committed beside them (.keromap, .png, .obj, .keromat, .wav).
+# committed beside them (.kmap, .png, .obj, .kmat, .wav).
 #
-# The developer texture set under art/dev and art/tools is *not* here, even
-# though `alchemy dev-textures` writes it. Having a generator is a reason to
-# keep one, not a reason to leave the output out of the repository: a clone
-# has to work, and the generator being deterministic means a change to it
-# shows up as a reviewable diff rather than as nothing at all.
-*.kerotex
-*.keromdl
-*.keroaud
+# The developer texture set under content/art/dev and content/art/tools is
+# *not* here, even though `alchemy dev-textures` writes it. Having a generator
+# is a reason to keep one, not a reason to leave the output out of the
+# repository: a clone has to work, and the generator being deterministic means
+# a change to it shows up as a reviewable diff rather than as nothing at all.
+*.ktex
+*.kmdl
+*.kaud
 *.vault
-*.keroprt
-*.keroleak
-*.kerowalk
-*.keroconfig
-content/maps/*.kerobsp
+*.kprt
+*.kleak
+*.kwalk
+content/maps/*.kbsp
 
+# A user's own settings, written by the engine. The defaults it ships with are
+# committed; what someone changed on their machine is not.
+*.local.kcfg
 
-**/*.rs.bk
 .DS_Store
 
-# RustRover
+# IDE
 /.idea
+/.vs
+/.vscode
+/cmake-build-*/
 
 # Pi coding-agent session transcripts
 pi-session-*.html
