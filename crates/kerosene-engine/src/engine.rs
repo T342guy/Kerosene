@@ -413,7 +413,6 @@ impl Engine {
             sky_color,
         });
         self.spawn_player();
-        self.held_prop = None;
         self.time = 0.0;
         self.tick_count = 0;
         self.accumulator = 0.0;
@@ -481,6 +480,13 @@ impl Engine {
                 (Vec3::ZERO, Angles::ZERO)
             }
         };
+
+        // Dying is letting go. Without this the hold outlives its holder: the
+        // next tick steers the prop from wherever it was toward a hold point
+        // in front of the spawn, dragging it across the level.
+        if let Some(held) = self.held_prop.take() {
+            self.physics.launch_prop(held.id, Vec3::ZERO);
+        }
 
         let player = self.entities.spawn("player");
         self.entities.player = Some(player);

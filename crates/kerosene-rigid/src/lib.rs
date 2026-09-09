@@ -387,10 +387,24 @@ impl RigidWorld {
     /// change in spin into an angular impulse needs. Returns `None` for a body
     /// with no rotational inertia to speak of -- a static or kinematic one,
     /// whose inverse tensor is zero and cannot be inverted.
+    ///
+    /// The test for that has to be *relative*. A determinant is a volume, so
+    /// it scales as the cube of the tensor's own entries, and those entries
+    /// are `1/(mass * length^2)` -- tiny for anything real, because lengths
+    /// here are inches. An ordinary 32-inch wood crate weighs 322 kg and has
+    /// an inverse determinant around `6e-15`, so a fixed epsilon anywhere near
+    /// that throws away every prop in the level and only lets the smallest
+    /// ones through.
     pub fn world_inertia(&self, body: Body) -> Option<kerosene_math::Mat3> {
         let m = b3::body::body_get_world_inverse_rotational_inertia(&self.world, body.0);
         let inverse = kerosene_math::Mat3::from_cols(from_b3(m.cx), from_b3(m.cy), from_b3(m.cz));
-        if inverse.determinant().abs() < 1e-12 {
+        // The tensor's own scale: the largest entry it has. Zero means a body
+        // that genuinely does not rotate.
+        let scale = [inverse.x_axis, inverse.y_axis, inverse.z_axis]
+            .iter()
+            .flat_map(|c| [c.x, c.y, c.z])
+            .fold(0.0f32, |m, v| m.max(v.abs()));
+        if scale <= 0.0 || inverse.determinant().abs() < 1e-6 * scale * scale * scale {
             return None;
         }
         Some(inverse.inverse())
@@ -430,6 +444,25 @@ mod tests {
 
     fn crate_half_extent() -> Vec3 {
         Vec3::new(8.0, 8.0, 8.0)
+    }
+
+    #[test]
+    fn an_ordinary_prop_has_a_usable_inertia_tensor() {
+        // A crate the size of the shipped `props/cube`, at the default wood
+        // density. Nothing exotic: if this body's tensor cannot be recovered,
+        // no prop in any real level can be turned.
+        let mut world = RigidWorld::new();
+        let body = world.add_dynamic_box(Vec3::splat(16.0), Vec3::ZERO, Quat::IDENTITY);
+        let inertia = world.world_inertia(body);
+        assert!(
+            inertia.is_some(),
+            "mass {} prop has no recoverable inertia tensor",
+            world.mass(body)
+        );
+
+        // The other side of the same guard: a body that really does not turn.
+        let fixed = world.add_kinematic_box(Vec3::splat(16.0), Vec3::ZERO, Quat::IDENTITY);
+        assert!(world.world_inertia(fixed).is_none());
     }
 
     #[test]

@@ -577,10 +577,17 @@ impl PhysicsProps {
         // just short of them by their own hull trace and never quite overlaps.
         let reach = Aabb::new(player.min - Vec3::splat(2.0), player.max + Vec3::splat(2.0));
 
+        // Only props the player is heading *into*. Overlap alone is not
+        // enough: a shove is what the player's shoulder does to what is in
+        // front of it, not something every prop within arm's reach receives.
+        let centre = (player.min + player.max) * 0.5;
         let bodies: Vec<Body> = self
             .props
             .values()
-            .filter(|prop| reach.intersects(&prop_aabb(&self.rigid, prop)))
+            .filter(|prop| {
+                let box_ = prop_aabb(&self.rigid, prop);
+                reach.intersects(&box_) && ((box_.min + box_.max) * 0.5 - centre).dot(direction) > 0.0
+            })
             .map(|prop| prop.body)
             .collect();
 
@@ -699,8 +706,12 @@ fn prop_aabb(rigid: &RigidWorld, prop: &PropBody) -> Aabb {
 
 fn prop_material(e: &kerosene_entity::Entity, half_extent: Vec3) -> kerosene_rigid::BodyMaterial {
     let mass_kg = e.fields.f32("mass", -1.0);
-    let friction = e.fields.f32("friction", 0.8);
-    let restitution = e.fields.f32("elasticity", 0.1);
+    // Clamped, because these come from a designer typing into Chisel's object
+    // properties and the solver has no defence of its own. A restitution above
+    // 1 is a body that leaves every collision with more energy than it
+    // arrived with: it accelerates until the numbers stop meaning anything.
+    let friction = e.fields.f32("friction", 0.8).max(0.0);
+    let restitution = e.fields.f32("elasticity", 0.1).clamp(0.0, 1.0);
     let mut material = kerosene_rigid::BodyMaterial {
         density: kerosene_rigid::BodyMaterial::wood().density,
         friction,
@@ -864,6 +875,16 @@ mod tests {
         let slippery = prop_material(&e, half);
         assert_eq!(slippery.friction, 0.2);
         assert_eq!(slippery.restitution, 0.9);
+
+        // Values the solver cannot survive are clamped rather than obeyed. A
+        // restitution over 1 gains energy on every bounce, and a prop given
+        // one shakes itself apart.
+        e.fields.set("friction", kerosene_entity::Value::Float(-3.0));
+        e.fields
+            .set("elasticity", kerosene_entity::Value::Float(2.0));
+        let absurd = prop_material(&e, half);
+        assert_eq!(absurd.friction, 0.0);
+        assert_eq!(absurd.restitution, 1.0);
 
         // A set mass turns into the density that makes that total mass.
         e.fields.set("mass", kerosene_entity::Value::Float(64.0));

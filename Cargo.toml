@@ -104,3 +104,6 @@ opt-level = 2
 # editor that can be dragged around and one that cannot.
 [profile.dev.package.chisel]
 opt-level = 2
+
+[build]
+rustdocflags = ["--default-theme=ayu"]

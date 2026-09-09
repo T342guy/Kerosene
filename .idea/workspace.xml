@@ -26,6 +26,9 @@
       <package file="$PROJECT_DIR$/crates/kerosene-bsp">
         <feature name="default" enabled="true" />
       </package>
+      <package file="$PROJECT_DIR$/crates/kerosene-config">
+        <feature name="default" enabled="true" />
+      </package>
       <package file="$PROJECT_DIR$/crates/kerosene-console">
         <feature name="default" enabled="true" />
       </package>
@@ -53,10 +56,16 @@
       <package file="$PROJECT_DIR$/crates/kerosene-render">
         <feature name="default" enabled="true" />
       </package>
+      <package file="$PROJECT_DIR$/crates/kerosene-rigid">
+        <feature name="default" enabled="true" />
+      </package>
       <package file="$PROJECT_DIR$/apps/kerosene">
         <feature name="default" enabled="true" />
       </package>
       <package file="$PROJECT_DIR$/crates/kerosene-script">
+        <feature name="default" enabled="true" />
+      </package>
+      <package file="$PROJECT_DIR$/tools/kerosene-tools">
         <feature name="default" enabled="true" />
       </package>
       <package file="$PROJECT_DIR$/crates/kerosene-ui">
@@ -86,7 +95,14 @@
     </cargoProject>
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="be408a6b-e4f2-4fe8-9acd-c3a1e51c5f16" name="Changes" comment="" />
+    <list default="true" id="be408a6b-e4f2-4fe8-9acd-c3a1e51c5f16" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Cargo.toml" beforeDir="false" afterPath="$PROJECT_DIR$/Cargo.toml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/crates/kerosene-engine/src/engine.rs" beforeDir="false" afterPath="$PROJECT_DIR$/crates/kerosene-engine/src/engine.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/crates/kerosene-engine/src/physics.rs" beforeDir="false" afterPath="$PROJECT_DIR$/crates/kerosene-engine/src/physics.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/crates/kerosene-engine/tests/playthrough.rs" beforeDir="false" afterPath="$PROJECT_DIR$/crates/kerosene-engine/tests/playthrough.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/crates/kerosene-rigid/src/lib.rs" beforeDir="false" afterPath="$PROJECT_DIR$/crates/kerosene-rigid/src/lib.rs" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -101,61 +117,61 @@
   </component>
   <component name="NextEditCompletionFeaturesState">
     <decayedCancelled>
-      <entry key="MS100" value="1.0" />
-      <entry key="MS500" value="1.0" />
-      <entry key="S2" value="1.0000000000000018" />
-      <entry key="S5" value="1.0000029557882362" />
-      <entry key="S10" value="1.003437815872966" />
-      <entry key="S30" value="1.3802903549366774" />
-      <entry key="S60" value="2.233400956232078" />
-      <entry key="M2" value="3.2338437584644173" />
-      <entry key="M5" value="4.498665140359801" />
-      <entry key="M10" value="5.562042385069271" />
-      <entry key="M15" value="6.1462862243000576" />
-      <entry key="M30" value="6.930421139643813" />
-      <entry key="H1" value="7.422882187316736" />
-      <entry key="H2" value="7.699889948557698" />
-      <entry key="H4" value="7.846926205315881" />
-      <entry key="D1" value="7.974056818808162" />
-      <entry key="W1" value="7.996283124244363" />
+      <entry key="MS100" value="2.8164999985489717E-29" />
+      <entry key="MS500" value="7.671313501402635E-6" />
+      <entry key="S2" value="0.24442593159750522" />
+      <entry key="S5" value="1.9908442218681202" />
+      <entry key="S10" value="4.308243333394722" />
+      <entry key="S30" value="12.71989182512652" />
+      <entry key="S60" value="27.254072403076197" />
+      <entry key="M2" value="56.48116439943148" />
+      <entry key="M5" value="120.4762497096459" />
+      <entry key="M10" value="170.70499298767456" />
+      <entry key="M15" value="195.64821811492865" />
+      <entry key="M30" value="228.55734161651154" />
+      <entry key="H1" value="249.79637548683706" />
+      <entry key="H2" value="262.15810669360746" />
+      <entry key="H4" value="268.8758895242858" />
+      <entry key="D1" value="274.78271074558126" />
+      <entry key="W1" value="275.8253445993798" />
     </decayedCancelled>
     <decayedSelected>
-      <entry key="MS100" value="0.0" />
-      <entry key="MS500" value="0.0" />
-      <entry key="S2" value="0.0" />
-      <entry key="S5" value="0.0" />
-      <entry key="S10" value="0.0" />
-      <entry key="S30" value="0.0" />
-      <entry key="S60" value="0.0" />
-      <entry key="M2" value="0.0" />
-      <entry key="M5" value="0.0" />
-      <entry key="M10" value="0.0" />
-      <entry key="M15" value="0.0" />
-      <entry key="M30" value="0.0" />
-      <entry key="H1" value="0.0" />
-      <entry key="H2" value="0.0" />
-      <entry key="H4" value="0.0" />
-      <entry key="D1" value="0.0" />
-      <entry key="W1" value="0.0" />
+      <entry key="MS100" value="1.0" />
+      <entry key="MS500" value="1.0" />
+      <entry key="S2" value="1.0" />
+      <entry key="S5" value="1.0" />
+      <entry key="S10" value="1.0" />
+      <entry key="S30" value="1.0000000000526077" />
+      <entry key="S60" value="1.0000072531209288" />
+      <entry key="M2" value="1.0026931618831305" />
+      <entry key="M5" value="1.0937788674784752" />
+      <entry key="M10" value="1.3062333546145388" />
+      <entry key="M15" value="1.4543267707026797" />
+      <entry key="M30" value="1.674037662673739" />
+      <entry key="H1" value="1.8209979675210783" />
+      <entry key="H2" value="1.9060893816401734" />
+      <entry key="H4" value="1.9518872735992288" />
+      <entry key="D1" value="1.991815566138177" />
+      <entry key="W1" value="1.998826673141954" />
     </decayedSelected>
     <decayedShown>
-      <entry key="MS100" value="0.8827029962906549" />
-      <entry key="MS500" value="0.9753554615276419" />
-      <entry key="S2" value="0.9937810933225566" />
-      <entry key="S5" value="0.9975107260744136" />
-      <entry key="S10" value="1.0021846870141626" />
-      <entry key="S30" value="1.3796426105245732" />
-      <entry key="S60" value="2.2328155286270115" />
-      <entry key="M2" value="3.233322020767511" />
-      <entry key="M5" value="4.4976001006779605" />
-      <entry key="M10" value="5.560674547819026" />
-      <entry key="M15" value="6.145008517729495" />
-      <entry key="M30" value="6.929519545964633" />
-      <entry key="H1" value="7.422345523726243" />
-      <entry key="H2" value="7.69959704502434" />
-      <entry key="H4" value="7.846773179496454" />
-      <entry key="D1" value="7.9740303626680795" />
-      <entry key="W1" value="7.996279320964533" />
+      <entry key="MS100" value="3.0137684320960126E-6" />
+      <entry key="MS500" value="0.07867996891149832" />
+      <entry key="S2" value="0.7738329495484412" />
+      <entry key="S5" value="2.765688436075103" />
+      <entry key="S10" value="5.188159598367044" />
+      <entry key="S30" value="13.677657932437125" />
+      <entry key="S60" value="28.232192659829177" />
+      <entry key="M2" value="57.471876071392316" />
+      <entry key="M5" value="121.56329329221269" />
+      <entry key="M10" value="172.00618963978528" />
+      <entry key="M15" value="197.09829653105794" />
+      <entry key="M30" value="230.22841137607008" />
+      <entry key="H1" value="251.6155216408989" />
+      <entry key="H2" value="264.06314394101764" />
+      <entry key="H4" value="270.8272133800956" />
+      <entry key="D1" value="276.7744266365918" />
+      <entry key="W1" value="277.8241568835143" />
     </decayedShown>
   </component>
   <component name="ProjectColorInfo">{
@@ -167,30 +183,30 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "CidrDebugProfileConversion": "true",
-    "ModuleVcsDetector.initialDetectionPerformed": "true",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "RunOnceActivity.git.unshallow": "true",
-    "RunOnceActivity.rust.reset.selective.auto.import": "true",
-    "RunOnceActivity.typescript.service.memoryLimit.init": "true",
-    "codeWithMe.voiceChat.enabledByDefault": "false",
-    "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1": "true",
-    "git-widget-placeholder": "MASTER",
-    "junie.onboarding.icon.badge.shown": "true",
-    "last_opened_file_path": "/home/T342guy/Documents/GitHub/VoidEngine",
-    "node.js.detected.package.eslint": "true",
-    "node.js.detected.package.tslint": "true",
-    "node.js.selected.package.eslint": "(autodetect)",
-    "node.js.selected.package.tslint": "(autodetect)",
-    "nodejs_package_manager_path": "npm",
-    "org.rust.cargo.project.model.PROJECT_DISCOVERY": "true",
-    "org.rust.cargo.project.model.impl.CargoExternalSystemProjectAware.subscribe.first.balloon": "",
-    "org.rust.first.attach.projects": "true",
-    "to.speed.mode.migration.done": "true"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;CidrDebugProfileConversion&quot;: &quot;true&quot;,
+    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.rust.reset.selective.auto.import&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.typescript.service.memoryLimit.init&quot;: &quot;true&quot;,
+    &quot;codeWithMe.voiceChat.enabledByDefault&quot;: &quot;false&quot;,
+    &quot;com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;MASTER&quot;,
+    &quot;junie.onboarding.icon.badge.shown&quot;: &quot;true&quot;,
+    &quot;last_opened_file_path&quot;: &quot;/home/T342guy/Documents/GitHub/VoidEngine&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;org.rust.cargo.project.model.PROJECT_DISCOVERY&quot;: &quot;true&quot;,
+    &quot;org.rust.cargo.project.model.impl.CargoExternalSystemProjectAware.subscribe.first.balloon&quot;: &quot;&quot;,
+    &quot;org.rust.first.attach.projects&quot;: &quot;true&quot;,
+    &quot;to.speed.mode.migration.done&quot;: &quot;true&quot;
   }
-}]]></component>
+}</component>
   <component name="RunManager" selected="Cargo.build">
     <configuration name="Run alchemy" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
       <option name="command" value="run --package alchemy --bin alchemy" />

@@ -998,6 +998,43 @@ fn walking_into_a_light_prop_shoves_it_along() {
 }
 
 #[test]
+fn a_crate_behind_the_player_is_not_shoved_forward() {
+    // The shove picked props by overlap alone, with no test of where the prop
+    // was relative to the way the player was trying to go. A crate resting
+    // against the player's back got the same impulse as one they were walking
+    // into, and set off down the corridor ahead of nothing at all.
+    let (mut engine, dir) = physics_engine("push-behind", false);
+    let prop = light_prop_at(&mut engine, Vec3::new(167.0, 64.0, 16.0));
+
+    let idle = InputState::default();
+    engine.player.movement.origin = Vec3::new(200.0, 64.0, 8.0);
+    for _ in 0..(1.0 / TICK) as usize {
+        engine.player.movement.origin = Vec3::new(200.0, 64.0, 8.0);
+        engine.tick(TICK, &idle);
+    }
+    let settled = engine.entities.get(prop).expect("still alive").origin;
+
+    // The crate is behind them; walking forward leaves it where it is.
+    let forward = InputState {
+        forward: 1.0,
+        ..Default::default()
+    };
+    for _ in 0..(0.5 / TICK) as usize {
+        engine.tick(TICK, &forward);
+    }
+    let after = engine.entities.get(prop).expect("still alive").origin;
+
+    assert!(
+        (after.x - settled.x).abs() < 1.0,
+        "walking away from a crate behind the player moved it from x={} to x={}",
+        settled.x,
+        after.x
+    );
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
 fn the_use_key_puts_a_prop_down_where_a_throw_would_have_flung_it() {
     // Pick-up and throw were the same key, so there was no way to simply put
     // something down: every release was a launch. Use sets it down, attack
@@ -1276,9 +1313,12 @@ fn a_carried_prop_gives_way_when_it_meets_something_it_cannot_move() {
     // before the contact throws it out varies with how it happens to tumble.
     // What is not allowed is passing through. Placing the prop at the hold
     // point outright put this at 3; driving it by assigning a velocity, which
-    // overwrites what the contact solver decided, put it at 8.
+    // overwrites what the contact solver decided, put it at 8; impulses put it
+    // at 12. It reached 16.8 once the hold could actually turn the prop --
+    // `world_inertia` had been rejecting the tensor of every prop bigger than
+    // a footstool, so nothing was ever rotated and props went in corner-first.
     assert!(
-        closest > 12.0,
+        closest > 15.0,
         "the carried prop went through the obstacle: centres came within {closest} units"
     );
 
@@ -1415,6 +1455,33 @@ fn engine_with_a_carried_prop(
         engine.tick(TICK, &idle);
     }
     (engine, dir, prop)
+}
+
+#[test]
+fn dying_lets_go_of_what_the_player_was_carrying() {
+    // Respawning rebuilt the player but left `held_prop` set, so the hold
+    // outlived its holder: the next tick steered the crate from where it was
+    // toward a hold point in front of the spawn, dragging it across the map.
+    let (mut engine, dir, prop) = engine_with_a_carried_prop("death-drop");
+    let carried = engine.entities.get(prop).expect("still alive").origin;
+
+    engine.hurt_player(1000.0, "test");
+    assert_eq!(engine.held_prop(), None, "dying lets go");
+
+    let idle = InputState::default();
+    for _ in 0..(1.0 / TICK) as usize {
+        engine.tick(TICK, &idle);
+    }
+    let after = engine.entities.get(prop).expect("still alive").origin;
+
+    // It falls where it was dropped. What it must not do is follow the player
+    // to the spawn point, which is at the far end of the room.
+    assert!(
+        (after.x - carried.x).abs() < 32.0 && (after.y - carried.y).abs() < 32.0,
+        "the crate was carried to the respawn: {carried:?} -> {after:?}"
+    );
+
+    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// How far the carried prop is from where it is being held, tick by tick,
