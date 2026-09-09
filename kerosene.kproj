@@ -1,0 +1,11 @@
+// The project file: what content tree this is, and where.
+//
+// Every tool and the engine find the content tree the same way -- this file if
+// there is one, otherwise by climbing for a directory that looks like a content
+// root. Without it a fresh clone still works; with it, the guess is overruled.
+project
+{
+	"name"     "Kerosene"
+	"content"  "content"
+	"startmap" "kero_start"
+}

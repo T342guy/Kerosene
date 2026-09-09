@@ -1,0 +1,10 @@
+// A tools material. The compiler reads these properties, not the renderer:
+// a trigger brush is not drawn, does not block movement, and does not seal
+// the level against leaks.
+tool
+{
+	"$basetexture" "tools/trigger"
+	"%compilenodraw" "1"
+	"%compilenonsolid" "1"
+	"%compiletrigger" "1"
+}

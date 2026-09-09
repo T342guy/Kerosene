@@ -1,0 +1,5 @@
+tool
+{
+	"$basetexture" "tools/nodraw"
+	"%compilenodraw" "1"
+}
