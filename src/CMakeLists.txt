@@ -10,4 +10,11 @@ add_subdirectory(bsp)
 add_subdirectory(entity)
 add_subdirectory(game)
 add_subdirectory(engine)
+
+# The renderer is optional. Everything above it -- the compilers, the
+# simulation, the tests -- builds and runs without it, which is what the nogfx
+# preset exercises and what a CI machine with no GPU uses.
+if(KEROSENE_BUILD_RENDER)
+    add_subdirectory(render)
+endif()
 add_subdirectory(physics)

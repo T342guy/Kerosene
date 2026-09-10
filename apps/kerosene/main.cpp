@@ -12,6 +12,11 @@
 #include "engine/host.hpp"
 #include "kv/keyvalues.hpp"
 
+#if KEROSENE_HAS_RENDER
+#    include "render/renderer.hpp"
+#endif
+
+#include <algorithm>
 #include <chrono>
 #include <optional>
 #include <cstdio>
@@ -39,6 +44,8 @@ void print_usage() {
         "  --headless [ticks]   run the simulation with no display, for a\n"
         "                       dedicated server or a test. With a tick count,\n"
         "                       runs that many and exits.\n"
+        "  --width, --height    window size\n"
+        "  --frames <n>         draw this many frames and exit; a smoke test\n"
         "  --map <name>         load a map from the content tree\n"
         "  -h, --help           this message\n"
         "\n"
@@ -118,6 +125,75 @@ std::string resolve_map(const std::string& name) {
     return name;
 }
 
+#if KEROSENE_HAS_RENDER
+
+/// The windowed loop.
+///
+/// Note how little there is to it: poll, hand the input to the Host, draw what
+/// the Host says the view is. The renderer never touches the simulation, and
+/// the simulation does not know the renderer exists. That is the arrangement
+/// that makes the headless path above the same program rather than a
+/// second one.
+int run_windowed(kero::engine::Host& host, kero::i32 width, kero::i32 height,
+                 kero::i64 frame_limit) {
+    auto renderer = kero::render::Renderer::create("Kerosene", width, height);
+    if (!renderer) {
+        std::fprintf(stderr, "%s\n", renderer.error().c_str());
+        return 1;
+    }
+    if (auto uploaded = (*renderer)->set_level(host.level()); !uploaded) {
+        std::fprintf(stderr, "%s\n", uploaded.error().c_str());
+        return 1;
+    }
+
+    kero::math::Angles view = kero::math::Angles(0.0f, 0.0f, 0.0f);
+    auto previous = std::chrono::steady_clock::now();
+    kero::i64 frames = 0;
+
+    while (!host.quitting()) {
+        if (frame_limit >= 0 && frames >= frame_limit) {
+            break;
+        }
+        ++frames;
+        const kero::render::Input input = (*renderer)->poll();
+        if (input.quit) {
+            break;
+        }
+
+        view.yaw = kero::math::normalize_angle(view.yaw + input.look_yaw);
+        // Pitch is clamped rather than wrapped: rolling over the top is
+        // disorienting and every game that allows it regrets it. Positive is
+        // downward, which is the Quake convention this engine keeps.
+        view.pitch = std::clamp(view.pitch + input.look_pitch, -89.0f, 89.0f);
+
+        kero::engine::Command command;
+        command.move.forward = input.forward;
+        command.move.side = input.side;
+        command.move.jump = input.jump;
+        command.move.duck = input.duck;
+        command.move.view = view;
+
+        const auto now = std::chrono::steady_clock::now();
+        const auto elapsed = std::chrono::duration<float>(now - previous).count();
+        previous = now;
+
+        host.run_frame(command, elapsed);
+
+        const kero::engine::ViewState state = host.view();
+        (*renderer)->draw(host.level(), state.eye, state.angles, state.cluster);
+    }
+
+    KERO_INFO(host_log, "{} frames, {} ticks", frames, host.tick_count());
+
+    const kero::render::Stats& stats = (*renderer)->stats();
+    KERO_INFO(host_log, "last frame: {} leaves, {} faces, {} draws, {} triangles",
+              stats.leaves_visible, stats.faces_drawn, stats.draw_calls,
+              stats.triangles);
+    return 0;
+}
+
+#endif  // KEROSENE_HAS_RENDER
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -125,6 +201,9 @@ int main(int argc, char** argv) {
 
     bool headless = false;
     kero::i64 headless_ticks = -1;
+    kero::i32 width = 1280;
+    kero::i32 height = 720;
+    kero::i64 frame_limit = -1;
     std::string map;
 
     for (kero::usize i = 0; i < arguments.size(); ++i) {
@@ -143,6 +222,18 @@ int main(int argc, char** argv) {
         }
         if (argument == "--map" && i + 1 < arguments.size()) {
             map = arguments[++i];
+            continue;
+        }
+        if (argument == "--width" && i + 1 < arguments.size()) {
+            width = std::stoi(arguments[++i]);
+            continue;
+        }
+        if (argument == "--height" && i + 1 < arguments.size()) {
+            height = std::stoi(arguments[++i]);
+            continue;
+        }
+        if (argument == "--frames" && i + 1 < arguments.size()) {
+            frame_limit = std::stoll(arguments[++i]);
             continue;
         }
     }
@@ -205,11 +296,21 @@ int main(int argc, char** argv) {
     }
 
     if (!headless) {
+#if KEROSENE_HAS_RENDER
+        return run_windowed(host, width, height, frame_limit);
+#else
+        // Accepted and ignored in a build with no renderer, so a command line
+        // that works on one machine is not rejected on another.
+        (void)width;
+        (void)height;
+        (void)frame_limit;
         std::fputs(
-            "This build has no renderer yet -- run it with --headless.\n"
-            "The simulation is the same either way; only the display is missing.\n",
+            "This build has no renderer -- run it with --headless, or build with\n"
+            "KEROSENE_BUILD_RENDER=ON. The simulation is the same either way;\n"
+            "only the display is missing.\n",
             stderr);
         return 1;
+#endif
     }
 
     KERO_INFO(host_log, "headless: {} ticks at {:.0f} Hz",

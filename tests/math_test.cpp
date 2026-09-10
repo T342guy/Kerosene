@@ -4,6 +4,7 @@
 
 #include "math/aabb.hpp"
 #include "math/angles.hpp"
+#include "math/mat.hpp"
 #include "math/plane.hpp"
 #include "math/units.hpp"
 #include "math/vec.hpp"
@@ -440,4 +441,120 @@ TEST_CASE("angle normalisation takes the short way round") {
     CHECK(normalize_angle(180.0f) == doctest::Approx(-180.0f));
     CHECK(angle_difference(350.0f, 10.0f) == doctest::Approx(20.0f));
     CHECK(angle_difference(10.0f, 350.0f) == doctest::Approx(-20.0f));
+}
+
+
+TEST_CASE("matrix multiplication and identity") {
+    const Mat4 identity = Mat4::identity();
+    const Mat4 projection = Mat4::perspective(75.0f, 16.0f / 9.0f, 1.0f, 4096.0f);
+
+    const Mat4 product = projection * identity;
+    for (usize column = 0; column < 4; ++column) {
+        for (usize row = 0; row < 4; ++row) {
+            CHECK(product.m[column][row] == doctest::Approx(projection.m[column][row]));
+        }
+    }
+
+    const Vec4 point = identity * Vec4(1, 2, 3, 1);
+    CHECK(point.x == doctest::Approx(1.0f));
+    CHECK(point.z == doctest::Approx(3.0f));
+}
+
+TEST_CASE("the projection maps the view volume onto depth 0 to 1") {
+    const f32 near = 1.0f;
+    const f32 far = 1024.0f;
+    const Mat4 projection = Mat4::perspective(90.0f, 1.0f, near, far);
+
+    // A right-handed view space: the camera looks down -Z.
+    const Vec4 at_near = projection * Vec4(0, 0, -near, 1);
+    const Vec4 at_far = projection * Vec4(0, 0, -far, 1);
+
+    REQUIRE(at_near.w > 0.0f);
+    REQUIRE(at_far.w > 0.0f);
+    // Zero at the near plane and one at the far plane, which is what Vulkan,
+    // D3D12 and Metal all expect.
+    CHECK(at_near.z / at_near.w == doctest::Approx(0.0f).epsilon(1e-4));
+    CHECK(at_far.z / at_far.w == doctest::Approx(1.0f).epsilon(1e-4));
+
+    // At 90 degrees and square aspect, the edge of the volume is at 45 degrees.
+    const Vec4 edge = projection * Vec4(10, 0, -10, 1);
+    CHECK(edge.x / edge.w == doctest::Approx(1.0f).epsilon(1e-4));
+}
+
+TEST_CASE("the view matrix puts the world in front of the camera") {
+    // Standing at the origin looking east along +X, which is yaw 0.
+    const Mat4 view = Mat4::view_from_angles(Vec3(0, 0, 0), Angles(0, 0, 0));
+
+    // A point 100 ku ahead should land 100 ku down the camera's -Z.
+    const Vec4 ahead = view * Vec4(100, 0, 0, 1);
+    CHECK(ahead.z == doctest::Approx(-100.0f));
+    CHECK(ahead.x == doctest::Approx(0.0f).epsilon(1e-4));
+    CHECK(ahead.y == doctest::Approx(0.0f).epsilon(1e-4));
+
+    // A point behind lands on +Z.
+    CHECK((view * Vec4(-100, 0, 0, 1)).z == doctest::Approx(100.0f));
+
+    SUBCASE("up in the world is up on the screen") {
+        const Vec4 above = view * Vec4(100, 0, 50, 1);
+        CHECK(above.y == doctest::Approx(50.0f));
+    }
+
+    SUBCASE("moving the mouse right turns towards the world's right") {
+        // Yaw 0 faces +X; the camera's right is then -Y.
+        const Vec4 to_the_right = view * Vec4(100, -50, 0, 1);
+        CHECK(to_the_right.x == doctest::Approx(50.0f));
+    }
+
+    SUBCASE("the eye position is subtracted") {
+        const Mat4 moved = Mat4::view_from_angles(Vec3(100, 0, 0), Angles(0, 0, 0));
+        const Vec4 at_the_eye = moved * Vec4(100, 0, 0, 1);
+        CHECK(at_the_eye.x == doctest::Approx(0.0f).epsilon(1e-4));
+        CHECK(at_the_eye.z == doctest::Approx(0.0f).epsilon(1e-4));
+    }
+}
+
+TEST_CASE("the frustum keeps what is in view and discards what is not") {
+    const Mat4 projection = Mat4::perspective(75.0f, 16.0f / 9.0f, 1.0f, 4096.0f);
+    const Mat4 view = Mat4::view_from_angles(Vec3(0, 0, 0), Angles(0, 0, 0));
+    const Frustum frustum = Frustum::from_view_projection(projection * view);
+
+    SUBCASE("a box straight ahead is visible") {
+        CHECK(frustum.intersects(Aabb(Vec3(200, -32, -32), Vec3(264, 32, 32))));
+    }
+
+    SUBCASE("a box behind the camera is not") {
+        CHECK_FALSE(frustum.intersects(Aabb(Vec3(-264, -32, -32), Vec3(-200, 32, 32))));
+    }
+
+    SUBCASE("a box far off to the side is not") {
+        CHECK_FALSE(frustum.intersects(Aabb(Vec3(200, 2000, -32), Vec3(264, 2064, 32))));
+    }
+
+    SUBCASE("a box beyond the far plane is not") {
+        CHECK_FALSE(frustum.intersects(Aabb(Vec3(8000, -32, -32), Vec3(8064, 32, 32))));
+    }
+
+    SUBCASE("a box straddling the edge is kept") {
+        // Conservative on purpose: drawing something invisible costs
+        // microseconds, and not drawing something visible is a hole in the
+        // world.
+        CHECK(frustum.intersects(Aabb(Vec3(200, -4000, -32), Vec3(264, 0, 32))));
+    }
+
+    SUBCASE("a box containing the camera is visible") {
+        CHECK(frustum.intersects(Aabb(Vec3(-128, -128, -128), Vec3(128, 128, 128))));
+    }
+}
+
+TEST_CASE("turning the camera changes what the frustum keeps") {
+    const Mat4 projection = Mat4::perspective(75.0f, 16.0f / 9.0f, 1.0f, 4096.0f);
+    const Aabb east(Vec3(200, -32, -32), Vec3(264, 32, 32));
+
+    const Frustum looking_east = Frustum::from_view_projection(
+        projection * Mat4::view_from_angles(Vec3(0, 0, 0), Angles(0, 0, 0)));
+    const Frustum looking_west = Frustum::from_view_projection(
+        projection * Mat4::view_from_angles(Vec3(0, 0, 0), Angles(0, 180, 0)));
+
+    CHECK(looking_east.intersects(east));
+    CHECK_FALSE(looking_west.intersects(east));
 }

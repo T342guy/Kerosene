@@ -35,7 +35,7 @@ PACKAGES=(
     vulkan-headers vulkan-loader-devel mesa-libGL-devel mesa-libEGL-devel
 
     # Shader compilation, at build time -- the runtime never needs these.
-    glslang spirv-tools
+    glslang glslc spirv-tools
 
     # Audio backends.
     alsa-lib-devel pipewire-devel pulseaudio-libs-devel
@@ -49,7 +49,17 @@ fi
 
 if ! toolbox list --containers 2>/dev/null | grep -qw "$CONTAINER"; then
     echo "==> creating toolbox '$CONTAINER' from $IMAGE"
-    toolbox create --image "$IMAGE" --container "$CONTAINER"
+    # --assumeyes because the image download otherwise stops on a y/n prompt,
+    # which a script run from a build pipeline will never answer. Without it
+    # toolbox exits 0 having created nothing, and the failure only shows up as
+    # a missing compiler much later.
+    toolbox create --assumeyes --image "$IMAGE" --container "$CONTAINER"
+fi
+
+if ! toolbox list --containers 2>/dev/null | grep -qw "$CONTAINER"; then
+    echo "toolbox '$CONTAINER' was not created. Try running the create by hand:" >&2
+    echo "    toolbox create --image $IMAGE --container $CONTAINER" >&2
+    exit 1
 fi
 
 # Idempotent: dnf reports already-installed packages as nothing to do, so
