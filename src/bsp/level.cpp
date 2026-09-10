@@ -352,13 +352,27 @@ void Level::descend(SweepContext& context, i32 node, f32 start_fraction, f32 end
     f32 near_fraction = 0.0f;
     f32 far_fraction = 0.0f;
 
+    // The box straddles the plane while its centre is within `offset` of it, so
+    // each child has to be searched over the sub-range where that is true --
+    // and the two ranges overlap. The near child's range runs from the start
+    // until the box has fully left its side; the far child's begins as soon as
+    // the box first reaches into it.
+    //
+    // The two formulas swap when the sweep runs back-to-front. Using the same
+    // one in both directions is a subtle and expensive mistake: the far child
+    // gets an empty range, `descend` returns immediately on its start-fraction
+    // guard, and a whole subtree is silently skipped. It shows up as short
+    // sweeps missing geometry that long sweeps over the same ground catch,
+    // which reads as a physics bug rather than a trace bug.
     if (from < to) {
+        // Starting behind the plane: the near child is the back one.
         const f32 inverse = 1.0f / (from - to);
         near_child = 1;
         far_child = 0;
-        near_fraction = (from + offset + kSurfaceGap) * inverse;
-        far_fraction = (from - offset - kSurfaceGap) * inverse;
+        near_fraction = (from - offset - kSurfaceGap) * inverse;
+        far_fraction = (from + offset + kSurfaceGap) * inverse;
     } else if (from > to) {
+        // Starting in front: the near child is the front one.
         const f32 inverse = 1.0f / (from - to);
         near_fraction = (from + offset + kSurfaceGap) * inverse;
         far_fraction = (from - offset - kSurfaceGap) * inverse;

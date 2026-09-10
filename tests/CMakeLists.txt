@@ -65,3 +65,8 @@ kerosene_test(level
     SOURCES level_test.cpp
     DEPS kerosene::bsp kerosene::kv
     PROPERTIES FIXTURES_REQUIRED kerosene_content)
+
+kerosene_test(physics
+    SOURCES physics_test.cpp
+    DEPS kerosene::physics kerosene::console
+    PROPERTIES FIXTURES_REQUIRED kerosene_content)
