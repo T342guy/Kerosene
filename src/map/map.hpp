@@ -2,8 +2,10 @@
 #pragma once
 
 #include "kv/keyvalues.hpp"
+#include "math/aabb.hpp"
 #include "math/plane.hpp"
 #include "math/vec.hpp"
+#include "math/winding.hpp"
 
 #include <array>
 #include <expected>
@@ -79,6 +81,39 @@ struct Solid {
 
     [[nodiscard]] bool valid() const { return sides.size() >= 4; }
 };
+
+/// One face of a solid: the polygon a side bounds, and which side it came from.
+struct Face {
+    /// Index into the solid's `sides`.
+    usize side = 0;
+    math::Windingd winding;
+};
+
+/// The face polygons of a solid, derived from its planes.
+///
+/// A brush is stored as planes, so its faces have to be computed: each side's
+/// plane is clipped by every other side's half-space, and what survives is that
+/// side's polygon. Sides that bound nothing are simply absent from the result,
+/// which is ordinary rather than an error -- a designer who drags a face past
+/// the one opposite it produces one.
+///
+/// This lives here, in the map library, because everything that touches a brush
+/// needs it: the editor to draw and pick one, the tests to check a map is
+/// well-formed, and anything measuring a brush's size. Cleave keeps its own
+/// version, which is not duplication -- it works in double precision against a
+/// deduplicated plane set and reports *why* a brush failed, which is a
+/// different job with a different signature.
+[[nodiscard]] std::vector<Face> faces_of(const Solid& solid);
+
+/// The bounds of a solid, from its face polygons. Empty if it encloses nothing.
+[[nodiscard]] math::Aabbd bounds_of(const Solid& solid);
+
+/// Whether a solid's planes actually enclose a volume.
+///
+/// `Solid::valid()` only checks there are enough sides to *possibly* bound one.
+/// This one computes the answer, which costs more and is what the editor needs
+/// before it lets a drag be committed.
+[[nodiscard]] bool encloses_volume(const Solid& solid);
 
 /// One wire in the entity I/O graph: "when this happens to me, do that to them".
 ///

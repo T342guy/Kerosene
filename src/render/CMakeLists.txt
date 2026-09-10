@@ -4,7 +4,7 @@ include(Shaders)
 kerosene_library(render
     LAYER engine
     SOURCES renderer.cpp
-    PUBLIC_DEPS kerosene::bsp kerosene::math
+    PUBLIC_DEPS kerosene::asset kerosene::bsp kerosene::math
     PRIVATE_DEPS SDL3::SDL3)
 
 kerosene_add_shaders(kerosene_render

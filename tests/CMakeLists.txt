@@ -45,6 +45,10 @@ kerosene_test(math
     SOURCES math_test.cpp
     DEPS kerosene::math)
 
+kerosene_test(asset
+    SOURCES asset_test.cpp
+    DEPS kerosene::asset)
+
 kerosene_test(kv
     SOURCES kv_test.cpp
     DEPS kerosene::kv)

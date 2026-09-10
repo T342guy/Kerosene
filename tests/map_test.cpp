@@ -20,38 +20,6 @@ std::string sample_map_path() {
     return std::string(KEROSENE_SOURCE_DIR) + "/content/maps/kero_start.kmap";
 }
 
-/// Turns a brush's planes into its faces, the way Cleave will: start each side
-/// from a base winding and clip it by every other side's half-space.
-///
-/// Doing it here as well is deliberate. It is the check that the *stored* form
-/// -- three points per side, in a text file -- really does describe the solid
-/// that was intended, independently of any compiler code.
-std::vector<Windingd> faces_of(const Solid& solid) {
-    std::vector<Windingd> faces;
-    for (usize i = 0; i < solid.sides.size(); ++i) {
-        std::optional<Windingd> winding = Windingd::from_plane(solid.sides[i].plane);
-        for (usize j = 0; j < solid.sides.size() && winding; ++j) {
-            if (i != j) {
-                winding = winding->clipped(solid.sides[j].plane.flipped());
-            }
-        }
-        if (winding) {
-            faces.push_back(std::move(*winding));
-        }
-    }
-    return faces;
-}
-
-math::Aabbd bounds_of(const Solid& solid) {
-    math::Aabbd box;
-    for (const Windingd& face : faces_of(solid)) {
-        for (const Vec3d& point : face.points()) {
-            box.add(point);
-        }
-    }
-    return box;
-}
-
 }  // namespace
 
 TEST_CASE("the sample map loads") {
@@ -82,26 +50,21 @@ TEST_CASE("every brush in the sample map is a closed solid") {
 
     for (const Solid* solid : solids) {
         CAPTURE(solid->id);
-        const std::vector<Windingd> faces = faces_of(*solid);
+        const std::vector<Face> faces = faces_of(*solid);
 
         // Every side bounds the solid: none was clipped away by the others,
         // which is what happens when a plane is wound the wrong way round.
         REQUIRE(faces.size() == solid->sides.size());
 
-        for (const Windingd& face : faces) {
-            CHECK(face.valid());
+        for (const Face& face : faces) {
+            CHECK(face.winding.valid());
+            CHECK(face.side < solid->sides.size());
         }
 
         // A closed volume: the sum of (face area x distance from an interior
         // point) over all faces is three times the volume, and every face must
         // face away from that point. A brush turned inside out fails here.
-        math::Aabbd box;
-        for (const Windingd& face : faces) {
-            for (const Vec3d& point : face.points()) {
-                box.add(point);
-            }
-        }
-        const Vec3d interior = box.centre();
+        const Vec3d interior = bounds_of(*solid).centre();
         for (const Side& side : solid->sides) {
             CHECK(side.plane.distance_to(interior) < 0.0);
         }
@@ -337,5 +300,60 @@ world
 )KV", "m.kmap"));
         REQUIRE_FALSE(map);
         CHECK(map.error().message.find("uaxis") != std::string::npos);
+    }
+}
+
+
+TEST_CASE("faces_of derives a brush's polygons from its planes") {
+    auto map = load(sample_map_path());
+    REQUIRE(map);
+
+    // The first world brush is room A's floor: 288 x 288 x 16.
+    const Solid& floor = map->world.solids[0];
+    const std::vector<Face> faces = faces_of(floor);
+
+    REQUIRE(faces.size() == 6);
+    f64 total = 0.0;
+    for (const Face& face : faces) {
+        CHECK(face.side < floor.sides.size());
+        total += face.winding.area();
+        // Each polygon lies on the plane of the side it names.
+        for (const Vec3d& point : face.winding.points()) {
+            CHECK(floor.sides[face.side].plane.distance_to(point) ==
+                  doctest::Approx(0.0).epsilon(1e-6));
+        }
+    }
+    CHECK(total == doctest::Approx(2.0 * (288.0 * 288.0 + 288.0 * 16.0 + 288.0 * 16.0)));
+}
+
+TEST_CASE("a side that bounds nothing is absent rather than empty") {
+    auto map = load(sample_map_path());
+    REQUIRE(map);
+
+    // Drag the +X face behind the -X face. Ordinary to do by accident, and the
+    // right answer is that the brush encloses nothing at all.
+    Solid broken = map->world.solids[0];
+    broken.sides[2].plane.distance = -10000.0;
+
+    CHECK(faces_of(broken).empty());
+    CHECK_FALSE(encloses_volume(broken));
+    // Solid::valid() only counts sides, so it still passes -- which is exactly
+    // why encloses_volume exists.
+    CHECK(broken.valid());
+}
+
+TEST_CASE("bounds_of measures a brush") {
+    auto map = load(sample_map_path());
+    REQUIRE(map);
+
+    const math::Aabbd box = bounds_of(map->world.solids[0]);
+    CHECK(box.mins.x == doctest::Approx(-16.0));
+    CHECK(box.maxs.x == doctest::Approx(272.0));
+    CHECK(box.size().z == doctest::Approx(16.0));
+
+    SUBCASE("a brush that encloses nothing has empty bounds") {
+        Solid broken = map->world.solids[0];
+        broken.sides[2].plane.distance = -10000.0;
+        CHECK(bounds_of(broken).empty());
     }
 }

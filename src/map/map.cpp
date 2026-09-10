@@ -359,6 +359,52 @@ void Entity::set(std::string_view key, std::string_view value) {
     }
 }
 
+std::vector<Face> faces_of(const Solid& solid) {
+    std::vector<Face> faces;
+    faces.reserve(solid.sides.size());
+
+    for (usize i = 0; i < solid.sides.size(); ++i) {
+        // Start from a polygon certainly larger than the world and cut it down.
+        // Building the final polygon directly would mean computing
+        // intersections that may be near-parallel; clipping has no ordering to
+        // get wrong and no such intersection to compute.
+        std::optional<math::Windingd> winding =
+            math::Windingd::from_plane(solid.sides[i].plane);
+
+        for (usize j = 0; j < solid.sides.size() && winding; ++j) {
+            if (j != i) {
+                // Clipped to the *back* of the other side: a brush is the
+                // intersection of its sides' back half-spaces, because the
+                // normals face outward.
+                winding = winding->clipped(solid.sides[j].plane.flipped());
+            }
+        }
+
+        if (winding && winding->valid()) {
+            faces.push_back(Face{i, std::move(*winding)});
+        }
+    }
+
+    return faces;
+}
+
+math::Aabbd bounds_of(const Solid& solid) {
+    math::Aabbd box;
+    for (const Face& face : faces_of(solid)) {
+        for (const Vec3d& point : face.winding.points()) {
+            box.add(point);
+        }
+    }
+    return box;
+}
+
+bool encloses_volume(const Solid& solid) {
+    // Four bounding faces is the minimum for a closed volume -- a tetrahedron.
+    // Fewer sides may be *present* and still bound nothing, which is why this
+    // counts what survived rather than what was authored.
+    return faces_of(solid).size() >= 4;
+}
+
 usize Map::brush_count() const {
     usize count = world.solids.size();
     for (const Entity& entity : entities) {

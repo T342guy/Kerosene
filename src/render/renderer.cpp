@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
 #include "render/renderer.hpp"
 
+#include "asset/devtexture.hpp"
 #include "core/log.hpp"
 #include "math/units.hpp"
 
@@ -52,51 +53,6 @@ struct MaterialBatch {
     u32 first_face = 0;   ///< Into the sorted face list.
     u32 face_count = 0;
 };
-
-/// A placeholder texture, until Alchemy compiles real ones.
-///
-/// A checkerboard tinted by a hash of the material name, so every surface is
-/// visibly a *particular* material and the grid gives a sense of scale. It is
-/// deliberately not subtle: nobody should be able to mistake this for the
-/// finished look, and a level that reads clearly in developer textures reads
-/// clearly in any textures.
-constexpr u32 kDevTextureSize = 64;
-
-std::array<u8, kDevTextureSize * kDevTextureSize * 4> make_dev_texture(
-    std::string_view material) {
-    // A stable hash, so the same material is the same colour in every session
-    // and between machines. std::hash is neither.
-    u32 hash = 2166136261u;
-    for (char c : material) {
-        hash = (hash ^ static_cast<u8>(c)) * 16777619u;
-    }
-
-    const u8 base_r = static_cast<u8>(96 + (hash & 0x7Fu));
-    const u8 base_g = static_cast<u8>(96 + ((hash >> 8) & 0x7Fu));
-    const u8 base_b = static_cast<u8>(96 + ((hash >> 16) & 0x7Fu));
-
-    std::array<u8, kDevTextureSize * kDevTextureSize * 4> pixels{};
-    for (u32 y = 0; y < kDevTextureSize; ++y) {
-        for (u32 x = 0; x < kDevTextureSize; ++x) {
-            // A 16-pixel check, plus a one-pixel grid line, so the eye can
-            // measure a surface without a tape.
-            const bool check = ((x / 16) + (y / 16)) % 2 == 0;
-            const bool line = (x % 16 == 0) || (y % 16 == 0);
-
-            f32 scale = check ? 1.0f : 0.72f;
-            if (line) {
-                scale *= 0.55f;
-            }
-
-            const usize offset = (y * kDevTextureSize + x) * 4;
-            pixels[offset + 0] = static_cast<u8>(static_cast<f32>(base_r) * scale);
-            pixels[offset + 1] = static_cast<u8>(static_cast<f32>(base_g) * scale);
-            pixels[offset + 2] = static_cast<u8>(static_cast<f32>(base_b) * scale);
-            pixels[offset + 3] = 255;
-        }
-    }
-    return pixels;
-}
 
 }  // namespace
 
@@ -351,10 +307,10 @@ std::expected<void, std::string> Renderer::set_level(const bsp::Level& level) {
             // dot product per coordinate and no divide.
             vertex.uv[0] = (position.x * texinfo.u_axis[0] + position.y * texinfo.u_axis[1] +
                             position.z * texinfo.u_axis[2] + texinfo.u_axis[3]) /
-                           static_cast<f32>(kDevTextureSize);
+                           static_cast<f32>(asset::kDevTextureSize);
             vertex.uv[1] = (position.x * texinfo.v_axis[0] + position.y * texinfo.v_axis[1] +
                             position.z * texinfo.v_axis[2] + texinfo.v_axis[3]) /
-                           static_cast<f32>(kDevTextureSize);
+                           static_cast<f32>(asset::kDevTextureSize);
             vertex.normal[0] = normal.x;
             vertex.normal[1] = normal.y;
             vertex.normal[2] = normal.z;
@@ -450,22 +406,23 @@ std::expected<void, std::string> Renderer::set_level(const bsp::Level& level) {
 
     SDL_GPUTransferBufferCreateInfo texture_transfer_info{};
     texture_transfer_info.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
-    texture_transfer_info.size = kDevTextureSize * kDevTextureSize * 4;
+    texture_transfer_info.size = asset::kDevTextureSize * asset::kDevTextureSize * 4;
 
     for (u32 i = 0; i < level.texinfos().size(); ++i) {
         SDL_GPUTextureCreateInfo texture_info{};
         texture_info.type = SDL_GPU_TEXTURETYPE_2D;
         texture_info.format = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM;
         texture_info.usage = SDL_GPU_TEXTUREUSAGE_SAMPLER;
-        texture_info.width = kDevTextureSize;
-        texture_info.height = kDevTextureSize;
+        texture_info.width = asset::kDevTextureSize;
+        texture_info.height = asset::kDevTextureSize;
         texture_info.layer_count_or_depth = 1;
         texture_info.num_levels = 1;
         impl.textures[i] = SDL_CreateGPUTexture(impl.device, &texture_info);
 
         SDL_GPUTransferBuffer* texture_transfer =
             SDL_CreateGPUTransferBuffer(impl.device, &texture_transfer_info);
-        const auto pixels = make_dev_texture(level.material_of(level.texinfos()[i]));
+        const std::vector<u8> pixels =
+            asset::dev_texture(level.material_of(level.texinfos()[i]));
         void* texture_mapped =
             SDL_MapGPUTransferBuffer(impl.device, texture_transfer, false);
         std::memcpy(texture_mapped, pixels.data(), pixels.size());
@@ -475,8 +432,8 @@ std::expected<void, std::string> Renderer::set_level(const bsp::Level& level) {
         texture_source.transfer_buffer = texture_transfer;
         SDL_GPUTextureRegion region{};
         region.texture = impl.textures[i];
-        region.w = kDevTextureSize;
-        region.h = kDevTextureSize;
+        region.w = asset::kDevTextureSize;
+        region.h = asset::kDevTextureSize;
         region.d = 1;
         SDL_UploadToGPUTexture(copy, &texture_source, &region, false);
         SDL_ReleaseGPUTransferBuffer(impl.device, texture_transfer);
