@@ -70,3 +70,8 @@ kerosene_test(physics
     SOURCES physics_test.cpp
     DEPS kerosene::physics kerosene::console
     PROPERTIES FIXTURES_REQUIRED kerosene_content)
+
+kerosene_test(engine
+    SOURCES engine_test.cpp
+    DEPS kerosene::engine kerosene::game kerosene::console
+    PROPERTIES FIXTURES_REQUIRED kerosene_content)

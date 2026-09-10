@@ -155,6 +155,9 @@ i32 emit_node(Builder& builder, const World& world, Node& node) {
         for (const Brush& brush : node.brushes) {
             bsp::DiskBrush disk{};
             disk.contents = static_cast<u32>(brush.contents);
+            // The entity lump is written world-first, then the map's entities
+            // in order, which is exactly how World::build_world numbered them.
+            disk.entity = static_cast<u32>(brush.entity);
             disk.first_side = static_cast<u32>(builder.brush_sides_.size());
             for (const Side& side : brush.sides) {
                 bsp::DiskBrushSide disk_side{};

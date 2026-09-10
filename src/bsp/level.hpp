@@ -7,6 +7,7 @@
 #include "math/vec.hpp"
 
 #include <expected>
+#include <optional>
 #include <span>
 #include <string>
 #include <vector>
@@ -61,6 +62,14 @@ public:
     [[nodiscard]] std::span<const DiskLeaf> leaves() const { return leaves_; }
     [[nodiscard]] std::span<const DiskTexInfo> texinfos() const { return texinfos_; }
     [[nodiscard]] std::span<const DiskModel> models() const { return models_; }
+    [[nodiscard]] std::span<const DiskBrush> brushes() const { return brushes_; }
+
+    /// Which entity owns the brush a trace hit, or nothing when the trace hit
+    /// nothing.
+    [[nodiscard]] std::optional<u32> owner_of_brush(u32 brush) const {
+        return brush < brushes_.size() ? std::optional(brushes_[brush].entity)
+                                       : std::nullopt;
+    }
 
     /// The entity lump, as KeyValues text for the game code to parse.
     [[nodiscard]] std::string_view entities() const { return file_.entities(); }

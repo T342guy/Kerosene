@@ -56,8 +56,20 @@ enum class VarFlags : u32 {
 /// loops -- `sv_gravity` is read every tick for every mover.
 class ConVar {
 public:
+    /// Bounds applied on every set.
+    struct Range {
+        f32 minimum;
+        f32 maximum;
+    };
+
     ConVar(std::string_view name, std::string_view default_value, std::string_view help,
            VarFlags flags = VarFlags::None);
+
+    /// The same, with bounds. A separate constructor rather than a chained
+    /// call, because these are declared at namespace scope and a declaration
+    /// is not an expression you can call a method on.
+    ConVar(std::string_view name, std::string_view default_value, std::string_view help,
+           VarFlags flags, Range range);
 
     ConVar(const ConVar&) = delete;
     ConVar& operator=(const ConVar&) = delete;
@@ -83,8 +95,8 @@ public:
     void set(i32 value);
     void reset() { (void)set(default_); }
 
-    /// Optional bounds, applied on every set. Declared after construction so
-    /// the common case stays a one-liner.
+    /// Applies bounds after construction, for a var whose range is not known
+    /// until something else has been initialised.
     ConVar& with_range(f32 minimum, f32 maximum);
 
     /// Called after the value changes. The old value is passed because a

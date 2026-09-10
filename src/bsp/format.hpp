@@ -128,6 +128,12 @@ struct DiskBrush {
     u32 first_side;
     u32 side_count;
     u32 contents;
+    /// Which entity in the Entities lump owns this brush, by position: 0 is
+    /// worldspawn, and the rest follow in the order they appear. Without it a
+    /// trace can tell you that you are standing in *a* trigger but not *which*
+    /// one, which is the difference between a level whose wiring works and one
+    /// where every trigger fires at once.
+    u32 entity;
 };
 
 struct DiskBrushSide {
@@ -168,7 +174,7 @@ static_assert(sizeof(DiskVertex) == 12);
 static_assert(sizeof(DiskFace) == 32);
 static_assert(sizeof(DiskNode) == 44);
 static_assert(sizeof(DiskLeaf) == 52);
-static_assert(sizeof(DiskBrush) == 12);
+static_assert(sizeof(DiskBrush) == 16);
 static_assert(sizeof(DiskBrushSide) == 12);
 static_assert(sizeof(DiskTexInfo) == 44);
 static_assert(sizeof(DiskModel) == 48);

@@ -153,9 +153,9 @@ TEST_CASE("faces are reachable from the leaves and reference valid geometry") {
 TEST_CASE("a ray straight down finds the floor at the right distance") {
     const Level& level = sample();
 
-    // y = 48 keeps clear of the func_detail pillar, which occupies 96..160 on
-    // both horizontal axes. A ray started inside it would correctly report
-    // start-solid and measure nothing.
+    // Clear of the func_detail pillar, which stands at x 96..160, y 176..240.
+    // A ray started inside it would correctly report start-solid and measure
+    // nothing.
     const Trace trace =
         level.trace_ray(Vec3(64, 48, 64), Vec3(64, 48, -64), Contents::SolidMask);
 
@@ -236,15 +236,17 @@ TEST_CASE("the func_detail pillar is solid, even though it is not in the tree") 
     const Level& level = sample();
 
     // Kept out of the visibility tree, filed back into the leaves it touches.
-    // A trace has to find it, or a player walks through the scenery.
-    const Trace trace =
-        level.trace_ray(Vec3(64, 48, 64), Vec3(200, 200, 64), Contents::SolidMask);
-    CHECK(trace.hit());
-
+    // A trace has to find it, or a player walks through the scenery. The pillar
+    // stands at x 96..160, y 176..240 in room A.
     const Trace into_pillar =
-        level.trace_ray(Vec3(64, 128, 64), Vec3(200, 128, 64), Contents::SolidMask);
+        level.trace_ray(Vec3(64, 208, 64), Vec3(200, 208, 64), Contents::SolidMask);
     REQUIRE(into_pillar.hit());
     CHECK(into_pillar.end.x == doctest::Approx(96.0f).epsilon(0.01));
+
+    // And it does not block the route the player start actually faces.
+    const Trace along_the_route =
+        level.trace_ray(Vec3(64, 128, 32), Vec3(240, 128, 32), Contents::SolidMask);
+    CHECK_FALSE(along_the_route.hit());
 }
 
 TEST_CASE("a player box walks up the 8 ku step") {

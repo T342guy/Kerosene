@@ -35,9 +35,9 @@ include(Dependencies)
 add_subdirectory(src)
 add_subdirectory(tools)
 
-if(KEROSENE_BUILD_RENDER)
-    add_subdirectory(apps/kerosene)
-endif()
+# The runtime. It builds without a renderer -- that is the headless server, and
+# what a CI playthrough runs.
+add_subdirectory(apps/kerosene)
 
 if(KEROSENE_BUILD_TESTS)
     enable_testing()

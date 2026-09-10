@@ -71,6 +71,12 @@ ConVar::ConVar(std::string_view name, std::string_view default_value, std::strin
     reg.vars.push_back(this);
 }
 
+ConVar::ConVar(std::string_view name, std::string_view default_value,
+               std::string_view help, VarFlags flags, Range range)
+    : ConVar(name, default_value, help, flags) {
+    (void)with_range(range.minimum, range.maximum);
+}
+
 void ConVar::reparse() {
     number_ = parse_number(value_);
     integer_ = static_cast<i32>(number_);

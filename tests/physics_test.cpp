@@ -32,9 +32,9 @@ constexpr f32 kTick = 1.0f / 66.0f;
 /// Somewhere in room A with a clear run along +Y and no ceiling in the way.
 ///
 /// Room A's interior is 256 ku square and 128 ku tall, and the func_detail
-/// pillar occupies 96..160 on both horizontal axes. A player is 36 ku tall, so
-/// a start height above 92 puts their head in the ceiling -- which is a
-/// perfectly correct start-solid, and measures nothing.
+/// pillar stands at x 96..160, y 176..240. A player is 36 ku tall, so a start
+/// height above 92 puts their head in the ceiling -- which is a perfectly
+/// correct start-solid, and measures nothing.
 constexpr Vec3 kOpenFloor{64, 32, 8};
 constexpr Vec3 kOpenAir{460, 32, 64};  // Room B, clear in every direction.
 
@@ -115,7 +115,7 @@ TEST_CASE("diagonal movement is not faster than straight") {
     // scaling by max speed lets forward+strafe reach 1.41x the run speed.
     //
     // Kept short and started in the corner of the room, so neither run reaches
-    // the func_detail pillar. Clipping off a wall and re-accelerating is a real
+    // the func_detail pillar or a wall. Clipping off a wall and re-accelerating is a real
     // way to exceed the run speed and would mask the thing being measured. The
     // two runs are compared with each other, not with the maximum, so they need
     // not have converged.
