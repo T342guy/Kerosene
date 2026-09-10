@@ -94,6 +94,13 @@ public:
 
     [[nodiscard]] usize history_size() const { return edits_.size(); }
 
+    /// Bumped whenever the map changes, by an edit or by undo, redo or open.
+    ///
+    /// The viewport rebuilds its buffers when this moves. Comparing a counter
+    /// beats every alternative: a dirty flag has to be cleared by someone, and
+    /// diffing the map to find out what changed costs more than redrawing it.
+    [[nodiscard]] u64 revision() const { return revision_; }
+
     // --- Lookup ------------------------------------------------------------
 
     [[nodiscard]] const map::Solid* find_solid(i32 id) const;
@@ -135,6 +142,7 @@ private:
 
     Selection selection_;
     i32 next_id_ = 1;
+    u64 revision_ = 1;
 };
 
 // --- The edits ------------------------------------------------------------

@@ -277,7 +277,8 @@ int Shell::run(i64 frame_limit) {
                          ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoBringToFrontOnFocus |
                          ImGuiWindowFlags_NoNavFocus | ImGuiWindowFlags_NoSavedSettings |
                          ImGuiWindowFlags_NoDocking);
-        ImGui::DockSpace(ImGui::GetID("kerosene_dockspace"), ImVec2(0.0f, 0.0f),
+        dockspace_ = ImGui::GetID("kerosene_dockspace");
+        ImGui::DockSpace(dockspace_, ImVec2(0.0f, 0.0f),
                          ImGuiDockNodeFlags_PassthruCentralNode);
         ImGui::End();
         ImGui::PopStyleVar();

@@ -75,6 +75,7 @@ void Document::reset() {
     saved_position_ = 0;
     selection_.clear();
     next_id_ = 2;
+    ++revision_;
 }
 
 void Document::note_ids() {
@@ -120,6 +121,7 @@ bool Document::open(const std::string& path, std::string& error) {
     saved_position_ = 0;
     selection_.clear();
     note_ids();
+    ++revision_;
     return true;
 }
 
@@ -160,6 +162,7 @@ void Document::apply(std::unique_ptr<Edit> edit) {
     edit->apply(map_);
     edits_.push_back(std::move(edit));
     position_ = edits_.size();
+    ++revision_;
     prune_selection();
 }
 
@@ -177,6 +180,7 @@ bool Document::undo() {
     }
     --position_;
     edits_[position_]->revert(map_);
+    ++revision_;
     prune_selection();
     return true;
 }
@@ -187,6 +191,7 @@ bool Document::redo() {
     }
     edits_[position_]->apply(map_);
     ++position_;
+    ++revision_;
     prune_selection();
     return true;
 }

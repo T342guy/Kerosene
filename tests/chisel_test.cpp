@@ -3,6 +3,8 @@
 #include <doctest/doctest.h>
 
 #include "chisel/document.hpp"
+#include "chisel/viewport.hpp"
+#include "math/units.hpp"
 
 #include <array>
 
@@ -16,6 +18,8 @@
 using namespace kero;
 using namespace kero::chisel;
 using kero::map::Vec3d;
+using kero::math::Vec2;
+using kero::math::Vec3;
 
 namespace {
 
@@ -380,4 +384,237 @@ TEST_CASE("all_solids finds brushes on entities as well as the world") {
         }
     }
     CHECK(found_entity_brush);
+}
+
+// ---------------------------------------------------------------------------
+// Viewports and picking
+// ---------------------------------------------------------------------------
+
+TEST_CASE("an orthographic view maps screen pixels to world positions") {
+    Viewport view;
+    view.kind = ViewKind::Top;
+    view.width = 800.0f;
+    view.height = 600.0f;
+    view.zoom = 2.0f;  // Two pixels per kerosene unit.
+    view.centre = Vec3(100.0f, 200.0f, 0.0f);
+
+    SUBCASE("the middle of the view is where it is centred") {
+        const Vec3 middle = view.world_from_screen(Vec2(400.0f, 300.0f));
+        CHECK(middle.x == doctest::Approx(100.0f));
+        CHECK(middle.y == doctest::Approx(200.0f));
+    }
+
+    SUBCASE("right on screen is east; down on screen is south") {
+        // The top view reads like a map: north is up.
+        const Vec3 point = view.world_from_screen(Vec2(400.0f + 64.0f, 300.0f + 32.0f));
+        CHECK(point.x == doctest::Approx(100.0f + 32.0f));
+        CHECK(point.y == doctest::Approx(200.0f - 16.0f));
+    }
+
+    SUBCASE("screen and world round-trip") {
+        for (const Vec2 pixel : {Vec2(0.0f, 0.0f), Vec2(799.0f, 599.0f),
+                                 Vec2(123.0f, 456.0f)}) {
+            const Vec2 again = view.screen_from_world(view.world_from_screen(pixel));
+            CHECK(again.x == doctest::Approx(pixel.x));
+            CHECK(again.y == doctest::Approx(pixel.y));
+        }
+    }
+}
+
+TEST_CASE("each orthographic view looks down a different axis") {
+    CHECK(axes_of(ViewKind::Top).forward.z == doctest::Approx(-1.0f));
+    CHECK(axes_of(ViewKind::Front).forward.y == doctest::Approx(1.0f));
+    CHECK(axes_of(ViewKind::Side).forward.x == doctest::Approx(-1.0f));
+
+    // In every orthographic view, the two screen axes and the view axis are
+    // mutually perpendicular -- otherwise a drag in one pane would move a point
+    // along an axis that pane cannot show.
+    for (const ViewKind kind : {ViewKind::Top, ViewKind::Front, ViewKind::Side}) {
+        const ViewAxes axes = axes_of(kind);
+        CHECK(dot(axes.right, axes.up) == doctest::Approx(0.0f));
+        CHECK(dot(axes.right, axes.forward) == doctest::Approx(0.0f));
+        CHECK(dot(axes.up, axes.forward) == doctest::Approx(0.0f));
+    }
+
+    // Z is up in every view that can show it, which is what stops a level built
+    // in the front view coming out on its side.
+    CHECK(axes_of(ViewKind::Front).up.z == doctest::Approx(1.0f));
+    CHECK(axes_of(ViewKind::Side).up.z == doctest::Approx(1.0f));
+}
+
+TEST_CASE("zooming keeps the world point under the cursor still") {
+    Viewport view;
+    view.kind = ViewKind::Top;
+    view.width = 800.0f;
+    view.height = 600.0f;
+    view.zoom = 1.0f;
+
+    const Vec2 cursor(600.0f, 150.0f);
+    const Vec3 before = view.world_from_screen(cursor);
+
+    view.zoom_at(cursor, 2.0f);
+    const Vec3 after = view.world_from_screen(cursor);
+
+    // Without this you spend the whole time zooming and then panning back.
+    CHECK(after.x == doctest::Approx(before.x));
+    CHECK(after.y == doctest::Approx(before.y));
+    CHECK(view.zoom == doctest::Approx(2.0f));
+}
+
+TEST_CASE("framing a box fits it in the view") {
+    Viewport view;
+    view.kind = ViewKind::Top;
+    view.width = 800.0f;
+    view.height = 600.0f;
+
+    const math::Aabb room(Vec3(0, 0, 0), Vec3(256, 256, 128));
+    view.frame(room);
+
+    CHECK(view.centre.x == doctest::Approx(128.0f));
+    CHECK(view.centre.y == doctest::Approx(128.0f));
+
+    // Every corner is on screen.
+    for (const Vec3 corner : {Vec3(0, 0, 0), Vec3(256, 0, 0), Vec3(0, 256, 0),
+                              Vec3(256, 256, 0)}) {
+        const Vec2 pixel = view.screen_from_world(corner);
+        CHECK(pixel.x >= 0.0f);
+        CHECK(pixel.x <= view.width);
+        CHECK(pixel.y >= 0.0f);
+        CHECK(pixel.y <= view.height);
+    }
+}
+
+TEST_CASE("a ray picks the brush it passes through") {
+    Document document;
+    const map::Solid solid = box(document, {0, 0, 0}, {128, 128, 128});
+    document.apply(std::make_unique<AddSolid>(document.map().world.id, solid,
+                                              "Create brush"));
+
+    SUBCASE("straight down the middle, from above") {
+        const Ray ray{Vec3d(64, 64, 512), Vec3d(0, 0, -1)};
+        const Hit hit = pick_solid(solid, ray);
+
+        REQUIRE(hit.valid);
+        CHECK(hit.solid == solid.id);
+        CHECK(hit.distance == doctest::Approx(384.0));
+        CHECK(hit.point.z == doctest::Approx(128.0));
+        // Entered through the top, so that is the face to highlight.
+        CHECK(solid.sides[hit.face].plane.normal.z == doctest::Approx(1.0));
+    }
+
+    SUBCASE("from the side") {
+        const Ray ray{Vec3d(-512, 64, 64), Vec3d(1, 0, 0)};
+        const Hit hit = pick_solid(solid, ray);
+        REQUIRE(hit.valid);
+        CHECK(hit.point.x == doctest::Approx(0.0));
+        CHECK(solid.sides[hit.face].plane.normal.x == doctest::Approx(-1.0));
+    }
+
+    SUBCASE("a ray that misses") {
+        CHECK_FALSE(pick_solid(solid, Ray{Vec3d(512, 512, 512), Vec3d(0, 0, -1)}).valid);
+    }
+
+    SUBCASE("a ray pointing away from the brush") {
+        CHECK_FALSE(pick_solid(solid, Ray{Vec3d(64, 64, 512), Vec3d(0, 0, 1)}).valid);
+    }
+
+    SUBCASE("a ray parallel to a face and outside it") {
+        CHECK_FALSE(pick_solid(solid, Ray{Vec3d(64, 64, 256), Vec3d(1, 0, 0)}).valid);
+    }
+}
+
+TEST_CASE("picking takes the nearest brush, not the first one found") {
+    Document document;
+    const i32 world = document.map().world.id;
+
+    const map::Solid far_brush = box(document, {512, 0, 0}, {640, 128, 128});
+    const map::Solid near_brush = box(document, {0, 0, 0}, {128, 128, 128});
+    // Added far-first, so a search that took the first hit would get it wrong.
+    document.apply(std::make_unique<AddSolid>(world, far_brush, "Create brush"));
+    document.apply(std::make_unique<AddSolid>(world, near_brush, "Create brush"));
+
+    const Hit hit = pick(document, Ray{Vec3d(-512, 64, 64), Vec3d(1, 0, 0)});
+    REQUIRE(hit.valid);
+    CHECK(hit.solid == near_brush.id);
+}
+
+TEST_CASE("a viewport's pick ray finds what is under the cursor") {
+    Document document;
+    const map::Solid solid = box(document, {0, 0, 0}, {128, 128, 128});
+    document.apply(std::make_unique<AddSolid>(document.map().world.id, solid,
+                                              "Create brush"));
+
+    Viewport view;
+    view.width = 800.0f;
+    view.height = 600.0f;
+    view.zoom = 2.0f;
+    view.centre = Vec3(64.0f, 64.0f, 64.0f);
+
+    // The same brush, from every orthographic direction. An orthographic ray
+    // starts well outside the world so it enters the brush rather than
+    // beginning inside it.
+    for (const ViewKind kind : {ViewKind::Top, ViewKind::Front, ViewKind::Side}) {
+        view.kind = kind;
+        CAPTURE(name_of(kind));
+        const Hit hit = pick(document, view.ray_from_screen(Vec2(400.0f, 300.0f)));
+        REQUIRE(hit.valid);
+        CHECK(hit.solid == solid.id);
+    }
+
+    SUBCASE("and misses when the cursor is off the brush") {
+        view.kind = ViewKind::Top;
+        // 300 pixels right of centre at 2 px/ku is 150 ku east, past the brush.
+        CHECK_FALSE(pick(document, view.ray_from_screen(Vec2(700.0f, 300.0f))).valid);
+    }
+}
+
+TEST_CASE("point entities are picked as spheres, because they have no geometry") {
+    Document document;
+    const map::Entity start = point_entity(document, "info_player_start", {64, 64, 32});
+    document.apply(std::make_unique<AddEntity>(start, "Create entity"));
+
+    const Ray through{Vec3d(-512, 64, 32), Vec3d(1, 0, 0)};
+    CHECK(pick_entity(document, through, 16.0) == start.id);
+
+    // Outside the radius.
+    const Ray past{Vec3d(-512, 200, 32), Vec3d(1, 0, 0)};
+    CHECK_FALSE(pick_entity(document, past, 16.0).has_value());
+
+    // Behind the ray's origin.
+    const Ray away{Vec3d(-512, 64, 32), Vec3d(-1, 0, 0)};
+    CHECK_FALSE(pick_entity(document, away, 16.0).has_value());
+}
+
+TEST_CASE("a brush entity is picked by its brushes, not as a point") {
+    Document document;
+    std::string error;
+    REQUIRE(document.open(sample_path(), error));
+
+    // The sample level's func_detail and trigger both carry brushes; picking
+    // them as points would put a target in the middle of nowhere.
+    const Ray anywhere{Vec3d(-4096, 128, 64), Vec3d(1, 0, 0)};
+    if (const std::optional<i32> id = pick_entity(document, anywhere, 4096.0)) {
+        const map::Entity* entity = document.find_entity(*id);
+        REQUIRE(entity != nullptr);
+        CHECK_FALSE(entity->is_brush_entity());
+    }
+}
+
+TEST_CASE("the grid snaps to whole steps and leaves other values alone") {
+    CHECK(snap_to_grid(13.0, 4.0) == doctest::Approx(12.0));
+    CHECK(snap_to_grid(14.0, 4.0) == doctest::Approx(16.0));
+    CHECK(snap_to_grid(-13.0, 4.0) == doctest::Approx(-12.0));
+    CHECK(snap_to_grid(128.0, 4.0) == doctest::Approx(128.0));
+
+    // The default grid is 4 ku -- a stair riser at this unit scale.
+    CHECK(snap_to_grid(units::kGridDefault, units::kGridDefault) ==
+          doctest::Approx(units::kGridDefault));
+
+    // Grid off leaves the value untouched, for the times you mean 13.
+    CHECK(snap_to_grid(13.37, 0.0) == doctest::Approx(13.37));
+
+    const Vec3d snapped = snap_to_grid(Vec3d(13.0, -13.0, 130.0), 4.0);
+    CHECK(snapped.x == doctest::Approx(12.0));
+    CHECK(snapped.y == doctest::Approx(-12.0));
+    CHECK(snapped.z == doctest::Approx(132.0));
 }

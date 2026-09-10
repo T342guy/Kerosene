@@ -15,18 +15,33 @@ kerosene_library(chiseldoc
     LAYER tool
     SOURCES
         document.cpp
+        viewport.cpp
     PUBLIC_DEPS
         kerosene::map)
 
 if(KEROSENE_BUILD_RENDER)
+    # Only inside the guard: Shaders.cmake insists on a shader compiler, and the
+    # headless preset has neither one nor anything to use it for.
+    include(Shaders)
+
     kerosene_library(chisel
         LAYER tool
         SOURCES
             chisel_panel.cpp
+            viewport_render.cpp
         PUBLIC_DEPS
             kerosene::shell
             kerosene::toolcommon
             kerosene::chiseldoc
         PRIVATE_DEPS
-            kerosene::imgui)
+            kerosene::asset
+            kerosene::imgui
+            SDL3::SDL3)
+
+    kerosene_add_shaders(kerosene_chisel
+        SOURCES
+            shaders/chisel_line.vert
+            shaders/chisel_line.frag
+            shaders/chisel_solid.vert
+            shaders/chisel_solid.frag)
 endif()

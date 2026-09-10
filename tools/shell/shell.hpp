@@ -80,6 +80,14 @@ public:
     /// The swapchain's format, for a panel building its own pipelines.
     [[nodiscard]] u32 colour_format() const;
 
+    /// The dockspace every panel's windows dock into.
+    ///
+    /// Exposed so a panel can lay its own windows out the first time it is
+    /// opened. After that the arrangement comes from the ini file, because a
+    /// layout the user has moved and a layout the program insists on are not
+    /// the same thing.
+    [[nodiscard]] u32 dockspace() const { return dockspace_; }
+
     void request_quit() { quitting_ = true; }
     [[nodiscard]] bool quitting() const { return quitting_; }
 
@@ -97,6 +105,7 @@ private:
     std::unique_ptr<Impl> impl_;
     std::vector<std::unique_ptr<Panel>> panels_;
     usize active_ = 0;
+    u32 dockspace_ = 0;
     bool quitting_ = false;
     std::string status_;
 };
