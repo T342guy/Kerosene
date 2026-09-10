@@ -34,3 +34,7 @@ kerosene_test(kv
 kerosene_test(map
     SOURCES map_test.cpp
     DEPS kerosene::map)
+
+kerosene_test(cleave
+    SOURCES cleave_test.cpp
+    DEPS kerosene::cleave)
