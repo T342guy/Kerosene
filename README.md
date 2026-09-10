@@ -200,13 +200,14 @@ tools/
 apps/
   kerosene    the runtime
 content/      the sample level and its materials
-docs/         architecture, formats, building
+docs/         architecture, formats, building, chisel
 kerosene.kproj   the project file: what content tree this is, and where
 ```
 
 [`docs/architecture.md`](docs/architecture.md) is how the pieces fit,
 [`docs/formats.md`](docs/formats.md) the file formats, and
-[`docs/building.md`](docs/building.md) the build in more detail.
+[`docs/building.md`](docs/building.md) the build in more detail, and
+[`docs/chisel.md`](docs/chisel.md) the editor.
 
 ---
 
@@ -226,8 +227,12 @@ Known limits, stated plainly:
 - **No texture compiler.** Alchemy is not written, so materials render as
   procedural developer textures — a tinted grid per material. `.kmat` files are
   read for their material names only.
-- **No models, no audio, no editor.** Forge, Timbre and Chisel are named in the
-  toolset table and not implemented.
+- **No models, no audio.** Forge and Timbre are named in the toolset table and
+  not implemented.
+- **The editor is young.** Chisel draws, moves, resizes, textures and wires up a
+  level, and F9 puts you standing in it. There is no shape tool, no vertex
+  editing, no clipping tool and no displacements, so anything that is not made
+  of boxes has to be made of several boxes.
 - **No networking.** The engine is structured for a client/server split — the
   simulation runs without a display, which is the hard part — but the wire
   protocol and prediction are not written.

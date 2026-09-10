@@ -51,6 +51,14 @@ none of them. So do `tools/shell`, `tools/chisel` and `tools/build`, which are
 the toolset window — one application holding every tool, with each tool a Panel
 that knows nothing about the others.
 
+Chisel itself splits in two, and the split is where the tests are. Everything
+that is a decision about the map — the document, the undo stack, brush
+transforms, picking — is `kerosene::chiseldoc`, which depends on nothing but the
+map library and builds with no graphics headers at all. The panel, the viewports
+and the GPU path are `kerosene::chisel`, which needs a window. The UI is not unit
+tested; putting the decisions below it is what makes that an acceptable answer
+rather than an excuse. [`chisel.md`](chisel.md) covers the editor itself.
+
 The compile stages are libraries, not programs. `kerosene-tools` is a GUI
 application with no command line, so anything that wants to compile a map links
 `kerosene::cleave` and `kerosene::umbra` and calls them — which is what the
