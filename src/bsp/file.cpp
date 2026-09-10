@@ -60,7 +60,9 @@ std::string_view name_of(LumpId id) {
 std::expected<File, std::string> File::from_bytes(std::span<const std::byte> bytes,
                                                   std::string_view name) {
     if (bytes.size() < sizeof(Header)) {
-        return std::unexpected(std::format("{}: too short to be a .kbsp", name));
+        return std::unexpected(std::format(
+            "{}: too short to be a Kerosene .kbsp -- it is {} bytes and the header "
+            "alone is {}", name, bytes.size(), sizeof(Header)));
     }
 
     Header header{};

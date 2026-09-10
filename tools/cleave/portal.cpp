@@ -347,11 +347,22 @@ void Tree::fill_outside() {
 }
 
 usize Tree::place_detail_and_faces(const World& world) {
-    // Detail brushes were kept out of the tree so they could not carve the
-    // visibility structure. They still have to be collided with, so each one
-    // is filed under every open leaf it touches.
+    // Two kinds of brush were kept out of the tree and have to be filed back
+    // into the leaves they touch, or they would not exist in the compiled
+    // level at all:
+    //
+    //   * **Detail**, kept out so a cluttered room could not carve the
+    //     visibility structure. Still solid, so still collided with.
+    //   * **Non-sealing volumes** -- triggers, ladders, water. Not solid, so
+    //     the tree never partitioned space with them, but a trace that asks
+    //     about triggers has to be able to find one.
+    //
+    // Filed under every *open* leaf whose bounds they overlap. A trace only
+    // ever reaches a leaf it could occupy, so a brush listed in a leaf it
+    // merely touches costs one plane test and no wrong answers.
     for (const Brush& brush : world.brushes) {
-        if (!brush.detail) {
+        const bool in_tree = !brush.detail && any(brush.contents & bsp::Contents::SolidMask);
+        if (in_tree) {
             continue;
         }
         for (Node* leaf : leaves()) {
