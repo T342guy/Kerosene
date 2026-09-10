@@ -7,6 +7,7 @@
 #include "chisel/viewport_render.hpp"
 #include "common/project.hpp"
 #include "core/log.hpp"
+#include "bsp/surface.hpp"
 #include "map/map.hpp"
 #include "math/units.hpp"
 
@@ -14,10 +15,12 @@
 #include <imgui_internal.h>
 
 #include <algorithm>
+#include <ranges>
 #include <array>
 #include <cmath>
 #include <format>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace kero::chisel {
@@ -50,6 +53,15 @@ constexpr u32 kGripColour = 0xFFFFC050u;
 /// the engine process. When there is one, this becomes a query.
 constexpr std::array<const char*, 5> kEntityClasses{
     "info_player_start", "light", "logic_relay", "func_detail", "prop_static"};
+
+/// What a selected brush can be turned into.
+///
+/// "worldspawn" means the world itself, which is the absence of a brush entity
+/// rather than one more kind of it -- the compiler treats world brushes as the
+/// thing that seals the level, and everything else as furniture inside it.
+constexpr std::array<const char*, 5> kBrushClasses{"worldspawn", "func_detail",
+                                                   "func_door", "trigger_multiple",
+                                                   "func_brush"};
 constexpr f32 kFlySpeed = 320.0f;  ///< ku per second, about twice a run.
 
 /// Which tool the mouse is holding.
@@ -125,6 +137,14 @@ struct ChiselPanel::Impl {
     f32 grid = 4.0f;
     bool wireframe_grid = true;
 
+    /// The material browser: what the project has, what is typed in the search
+    /// box, and the previews the renderer has made so far.
+    std::vector<std::string> materials;
+    std::string material_filter;
+    std::string chosen_material = "dev/grid";
+    std::vector<std::string> wanted_previews;
+    std::unordered_map<std::string, SDL_GPUTexture*> previews;
+
     ToolKind tool = ToolKind::Select;
     usize entity_class = 0;
     f64 block_depth = 64.0;
@@ -145,7 +165,15 @@ struct ChiselPanel::Impl {
     /// brushes were and where they were let go.
     struct Drag {
         bool active = false;
-        ToolKind tool = ToolKind::Select;
+        /// The material browser: what the project has, what is typed in the search
+    /// box, and the previews the renderer has made so far.
+    std::vector<std::string> materials;
+    std::string material_filter;
+    std::string chosen_material = "dev/grid";
+    std::vector<std::string> wanted_previews;
+    std::unordered_map<std::string, SDL_GPUTexture*> previews;
+
+    ToolKind tool = ToolKind::Select;
         usize view = 0;
         Vec3d start;
         Vec3d current;
@@ -177,6 +205,13 @@ struct ChiselPanel::Impl {
     };
 
     void lay_out(u32 dockspace);
+    void draw_materials();
+    void draw_properties();
+    void paint(std::string_view material, bool whole_brush);
+    void tie_to(std::string_view classname);
+    [[nodiscard]] std::string selected_brush_class() const;
+    void replace_entity(const map::Entity& before, map::Entity after,
+                        std::string description);
     [[nodiscard]] Vec3d world_at(const Viewport& view, Vec2 cursor) const;
     [[nodiscard]] Vec3d drag_delta(const Viewport& view) const;
     void begin_drag(usize index, Vec2 cursor, bool additive);
@@ -224,6 +259,8 @@ void ChiselPanel::Impl::lay_out(u32 dockspace) {
                                                            nullptr, &lower_right);
 
     ImGui::DockBuilderDockWindow("Map", controls);
+    ImGui::DockBuilderDockWindow("Materials", controls);
+    ImGui::DockBuilderDockWindow("Properties", controls);
     ImGui::DockBuilderDockWindow(std::string(name_of(ViewKind::Top)).c_str(), upper_left);
     ImGui::DockBuilderDockWindow(std::string(name_of(ViewKind::Perspective)).c_str(),
                                  upper_right);
@@ -618,6 +655,357 @@ std::vector<ViewportRenderer::Line> ChiselPanel::Impl::overlay_for(usize index) 
 }
 
 // ---------------------------------------------------------------------------
+// Materials and properties
+// ---------------------------------------------------------------------------
+
+void ChiselPanel::Impl::paint(std::string_view material, bool whole_brush) {
+    const Selection& selection = document.selection();
+    if (selection.solids.empty()) {
+        status = "nothing to paint -- select a brush or a face first";
+        return;
+    }
+
+    // One face only when exactly one brush is selected and a face of it was
+    // picked. Painting "the face" of five brushes means nothing.
+    const std::optional<usize> side =
+        (!whole_brush && selection.solids.size() == 1) ? selection.face : std::nullopt;
+
+    auto compound = std::make_unique<Compound>(std::format("Paint {}", material));
+    for (const i32 id : selection.solids) {
+        const map::Solid* solid = document.find_solid(id);
+        const std::optional<i32> owner = document.owner_of(id);
+        if (solid == nullptr || !owner) {
+            continue;
+        }
+        map::Solid painted = with_material(*solid, side, material);
+        compound->add(std::make_unique<ReplaceSolid>(*owner, *solid, std::move(painted),
+                                                     "Paint brush"));
+    }
+    if (!compound->empty()) {
+        document.apply(std::move(compound));
+        status = std::format("painted {}", material);
+    }
+}
+
+std::string ChiselPanel::Impl::selected_brush_class() const {
+    std::string common;
+    for (const i32 id : document.selection().solids) {
+        const std::optional<i32> owner = document.owner_of(id);
+        if (!owner) {
+            continue;
+        }
+        const map::Entity* entity = document.find_entity(*owner);
+        const std::string name =
+            entity == nullptr ? std::string("worldspawn") : entity->classname;
+        if (common.empty()) {
+            common = name;
+        } else if (common != name) {
+            return {};  // A mixed selection has no one answer.
+        }
+    }
+    return common;
+}
+
+void ChiselPanel::Impl::tie_to(std::string_view classname) {
+    const Selection& selection = document.selection();
+    if (selection.solids.empty()) {
+        return;
+    }
+
+    std::vector<map::Solid> moving;
+    std::vector<i32> emptied;
+
+    auto compound = std::make_unique<Compound>(std::format("Tie to {}", classname));
+    for (const i32 id : selection.solids) {
+        const map::Solid* solid = document.find_solid(id);
+        const std::optional<i32> owner = document.owner_of(id);
+        if (solid == nullptr || !owner) {
+            continue;
+        }
+        moving.push_back(*solid);
+        compound->add(std::make_unique<RemoveSolid>(*owner, id, "Untie brush"));
+
+        // A brush entity with no brushes left is not an entity, it is a
+        // leftover. Work out which ones this empties before anything moves.
+        const map::Entity* entity = document.find_entity(*owner);
+        if (entity == nullptr || !entity->is_brush_entity()) {
+            continue;
+        }
+        const bool all_selected =
+            std::ranges::all_of(entity->solids, [&selection](const map::Solid& each) {
+                return selection.contains_solid(each.id);
+            });
+        if (all_selected && std::ranges::find(emptied, *owner) == emptied.end()) {
+            emptied.push_back(*owner);
+        }
+    }
+
+    for (const i32 id : emptied) {
+        compound->add(std::make_unique<RemoveEntity>(id, "Remove empty entity"));
+    }
+
+    std::vector<i32> now_selected;
+    if (classname == "worldspawn") {
+        for (map::Solid& solid : moving) {
+            now_selected.push_back(solid.id);
+            compound->add(std::make_unique<AddSolid>(document.map().world.id,
+                                                     std::move(solid), "Tie to world"));
+        }
+    } else {
+        map::Entity entity;
+        entity.id = document.allocate_id();
+        entity.classname = std::string(classname);
+        entity.set("classname", entity.classname);
+        entity.solids = std::move(moving);
+        for (const map::Solid& solid : entity.solids) {
+            now_selected.push_back(solid.id);
+        }
+        compound->add(std::make_unique<AddEntity>(std::move(entity),
+                                                  std::format("Tie to {}", classname)));
+    }
+
+    if (compound->empty()) {
+        return;
+    }
+    document.apply(std::move(compound));
+    document.selection().clear();
+    for (const i32 id : now_selected) {
+        document.selection().toggle_solid(id);
+    }
+    status = std::format("tied {} brush(es) to {}", now_selected.size(), classname);
+}
+
+void ChiselPanel::Impl::replace_entity(const map::Entity& before, map::Entity after,
+                                       std::string description) {
+    document.apply(std::make_unique<ReplaceEntity>(before, std::move(after),
+                                                   std::move(description)));
+}
+
+void ChiselPanel::Impl::draw_materials() {
+    if (!ImGui::Begin("Materials")) {
+        ImGui::End();
+        return;
+    }
+
+    if (materials.empty() && project) {
+        materials = project->materials();
+    }
+
+    ImGui::SetNextItemWidth(-1.0f);
+    char filter[128];
+    std::snprintf(filter, sizeof(filter), "%s", material_filter.c_str());
+    if (ImGui::InputTextWithHint("##filter", "search", filter, sizeof(filter))) {
+        material_filter = filter;
+    }
+
+    ImGui::TextDisabled("%s", chosen_material.c_str());
+    // What the compiler will make of it, from the compiler's own table, so the
+    // editor cannot come to disagree with what actually happens.
+    ImGui::TextWrapped("%s", std::string(bsp::describe_material(chosen_material)).c_str());
+
+    ImGui::BeginDisabled(document.selection().solids.empty());
+    if (ImGui::Button("Apply to face")) {
+        paint(chosen_material, false);
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Apply to brush")) {
+        paint(chosen_material, true);
+    }
+    ImGui::EndDisabled();
+
+    ImGui::Separator();
+
+    wanted_previews.clear();
+    if (ImGui::BeginChild("##materials")) {
+        const f32 size = 72.0f;
+        const f32 width = std::max(ImGui::GetContentRegionAvail().x, size);
+        const auto per_row = static_cast<usize>(std::max(1.0f, width / (size + 8.0f)));
+
+        usize shown = 0;
+        for (const std::string& material : materials) {
+            if (!material_filter.empty() &&
+                material.find(material_filter) == std::string::npos) {
+                continue;
+            }
+            wanted_previews.push_back(material);
+
+            if (shown % per_row != 0) {
+                ImGui::SameLine();
+            }
+            ++shown;
+
+            ImGui::BeginGroup();
+            ImGui::PushID(material.c_str());
+            const auto found = previews.find(material);
+            const bool clicked =
+                found != previews.end() && found->second != nullptr
+                    ? ImGui::ImageButton("##preview", texture_id(found->second),
+                                         ImVec2(size, size))
+                    : ImGui::Button("##preview", ImVec2(size + 8.0f, size + 8.0f));
+            if (clicked) {
+                chosen_material = material;
+            }
+            if (ImGui::IsItemHovered()) {
+                ImGui::SetTooltip("%s\n%s", material.c_str(),
+                                  std::string(bsp::describe_material(material)).c_str());
+            }
+            ImGui::PopID();
+            ImGui::EndGroup();
+        }
+
+        if (shown == 0) {
+            ImGui::TextDisabled(materials.empty() ? "no content tree found"
+                                                  : "nothing matches");
+        }
+    }
+    ImGui::EndChild();
+
+    ImGui::End();
+}
+
+void ChiselPanel::Impl::draw_properties() {
+    if (!ImGui::Begin("Properties")) {
+        ImGui::End();
+        return;
+    }
+
+    const Selection& selection = document.selection();
+
+    if (!selection.solids.empty()) {
+        const std::string current = selected_brush_class();
+        ImGui::TextDisabled("%zu brush(es) selected", selection.solids.size());
+        if (ImGui::BeginCombo("Type", current.empty() ? "(mixed)" : current.c_str())) {
+            for (const char* choice : kBrushClasses) {
+                if (ImGui::Selectable(choice, current == choice)) {
+                    tie_to(choice);
+                }
+            }
+            ImGui::EndCombo();
+        }
+        if (selection.face && selection.solids.size() == 1) {
+            if (const map::Solid* solid = document.find_solid(selection.solids.front());
+                solid != nullptr && *selection.face < solid->sides.size()) {
+                const map::Side& side = solid->sides[*selection.face];
+                ImGui::Text("face: %s", side.material.c_str());
+                ImGui::TextWrapped(
+                    "%s", std::string(bsp::describe_material(side.material)).c_str());
+            }
+        }
+        ImGui::Separator();
+    }
+
+    if (selection.entities.size() != 1) {
+        ImGui::TextWrapped(
+            selection.entities.empty()
+                ? "Select one entity to edit its keys and its wiring."
+                : "Several entities selected. Editing keys works on one at a time.");
+        ImGui::End();
+        return;
+    }
+
+    const map::Entity* entity = document.find_entity(selection.entities.front());
+    if (entity == nullptr) {
+        ImGui::TextDisabled("that entity is gone");
+        ImGui::End();
+        return;
+    }
+
+    ImGui::Text("%s", entity->classname.c_str());
+    ImGui::TextDisabled("id %d", entity->id);
+    ImGui::Separator();
+
+    // Every key as written, including ones this build does not implement. There
+    // is no class schema to consult -- entity classes register themselves in
+    // the engine process, not here -- so rather than guess at a widget per key,
+    // every key is text and the ones the editor is sure about get help. The
+    // rule that matters is that nothing is dropped: a key the editor does not
+    // understand survives a load, an edit and a save.
+    if (ImGui::BeginTable("##keys", 2,
+                          ImGuiTableFlags_SizingStretchProp | ImGuiTableFlags_BordersInnerV)) {
+        ImGui::TableSetupColumn("key", ImGuiTableColumnFlags_WidthFixed, 120.0f);
+        ImGui::TableSetupColumn("value");
+
+        for (usize i = 0; i < entity->properties.size(); ++i) {
+            const kv::Pair& pair = entity->properties[i];
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+            ImGui::TextUnformatted(pair.key.c_str());
+            ImGui::TableNextColumn();
+
+            ImGui::PushID(static_cast<int>(i));
+            char value[256];
+            std::snprintf(value, sizeof(value), "%s", pair.value.c_str());
+            ImGui::SetNextItemWidth(-1.0f);
+            if (ImGui::InputText("##value", value, sizeof(value),
+                                 ImGuiInputTextFlags_EnterReturnsTrue)) {
+                map::Entity edited = *entity;
+                edited.properties[i].value = value;
+                if (pair.key == "classname") {
+                    edited.classname = value;
+                }
+                replace_entity(*entity, std::move(edited),
+                               std::format("Set {}", pair.key));
+            }
+            ImGui::PopID();
+        }
+        ImGui::EndTable();
+    }
+
+    ImGui::Separator();
+    ImGui::TextUnformatted("Outputs");
+
+    // Grouped by event, so a sequence reads as "when this happens: do that,
+    // then that" rather than as a flat list sorted by nothing in particular.
+    std::string previous;
+    for (usize i = 0; i < entity->connections.size(); ++i) {
+        const map::Connection& wire = entity->connections[i];
+        if (wire.output != previous) {
+            previous = wire.output;
+            ImGui::TextDisabled("%s", wire.output.c_str());
+        }
+
+        ImGui::PushID(static_cast<int>(i));
+        ImGui::Bullet();
+        ImGui::SameLine();
+        ImGui::Text("%s -> %s", wire.target.c_str(), wire.input.c_str());
+        if (!wire.parameter.empty()) {
+            ImGui::SameLine();
+            ImGui::TextDisabled("(%s)", wire.parameter.c_str());
+        }
+        if (wire.delay > 0.0f) {
+            ImGui::SameLine();
+            ImGui::TextDisabled("after %.2gs", static_cast<double>(wire.delay));
+        }
+        if (wire.times_to_fire >= 0) {
+            ImGui::SameLine();
+            ImGui::TextDisabled("x%d", wire.times_to_fire);
+        }
+        ImGui::SameLine();
+        if (ImGui::SmallButton("x")) {
+            map::Entity edited = *entity;
+            edited.connections.erase(edited.connections.begin() +
+                                     static_cast<isize>(i));
+            replace_entity(*entity, std::move(edited), "Remove output");
+            ImGui::PopID();
+            break;
+        }
+        ImGui::PopID();
+    }
+
+    if (entity->connections.empty()) {
+        ImGui::TextDisabled("nothing wired up");
+    }
+
+    if (ImGui::Button("Add output")) {
+        map::Entity edited = *entity;
+        edited.connections.push_back(map::Connection{"OnTrigger", "", "Trigger", "", 0.0f, -1});
+        replace_entity(*entity, std::move(edited), "Add output");
+    }
+
+    ImGui::End();
+}
+
+// ---------------------------------------------------------------------------
 // The panel
 // ---------------------------------------------------------------------------
 
@@ -644,11 +1032,6 @@ bool ChiselPanel::can_close() { return !impl_->document.dirty(); }
 
 void ChiselPanel::draw_file_menu(shell::Shell&) {
     Impl& impl = *impl_;
-
-    if (!impl.looked_for_project) {
-        impl.project = tools::find_project();
-        impl.looked_for_project = true;
-    }
 
     if (ImGui::BeginMenu("Open map")) {
         if (impl.project) {
@@ -684,6 +1067,12 @@ void ChiselPanel::draw(shell::Shell& shell) {
 
     if (!impl.laid_out) {
         impl.lay_out(shell.dockspace());
+    }
+    if (!impl.looked_for_project) {
+        // Once, and remembered even when it fails -- climbing the tree every
+        // frame to keep not finding a project is a poor use of a disk.
+        impl.project = tools::find_project();
+        impl.looked_for_project = true;
     }
 
     if (ImGui::Begin("Map")) {
@@ -777,6 +1166,9 @@ void ChiselPanel::draw(shell::Shell& shell) {
     }
     ImGui::End();
 
+    impl.draw_materials();
+    impl.draw_properties();
+
     for (usize i = 0; i < kViews.size(); ++i) {
         Viewport& view = impl.views[i];
         if (!ImGui::Begin(std::string(name_of(view.kind)).c_str())) {
@@ -856,6 +1248,15 @@ void ChiselPanel::render(shell::Shell& shell, SDL_GPUCommandBuffer* command) {
             return;
         }
         impl.renderer = std::move(*created);
+    }
+
+    // The browser asked for these while drawing; they are ready for the frame
+    // after this one, which is the same one-frame trade the viewports make.
+    for (const std::string& material : impl.wanted_previews) {
+        if (!impl.previews.contains(material)) {
+            impl.previews.emplace(material,
+                                  impl.renderer->material_texture(command, material));
+        }
     }
 
     for (usize i = 0; i < kViews.size(); ++i) {

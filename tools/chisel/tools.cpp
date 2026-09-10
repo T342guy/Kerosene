@@ -156,6 +156,32 @@ map::Solid resize(const map::Solid& solid, const math::Aabbd& from,
     return scaled;
 }
 
+map::Solid with_material(const map::Solid& solid, std::optional<usize> side,
+                        std::string_view material) {
+    map::Solid painted = solid;
+    for (usize i = 0; i < painted.sides.size(); ++i) {
+        if (side && *side != i) {
+            continue;
+        }
+        map::Side& face = painted.sides[i];
+        if (face.material == material) {
+            continue;
+        }
+        face.material = std::string(material);
+
+        // Only realign a face whose axes are not already sensible for it. A
+        // face somebody has shifted or rotated by hand keeps that work.
+        const TextureAxes axes = default_texture_axes(face.plane.normal);
+        const bool aligned = face.uaxis.axis == axes.u.axis && face.vaxis.axis == axes.v.axis;
+        if (!aligned && face.uaxis.shift == 0.0 && face.vaxis.shift == 0.0 &&
+            face.rotation == 0.0) {
+            face.uaxis.axis = axes.u.axis;
+            face.vaxis.axis = axes.v.axis;
+        }
+    }
+    return painted;
+}
+
 math::Aabbd selection_bounds(const Document& document) {
     math::Aabbd bounds;
     for (const i32 id : document.selection().solids) {

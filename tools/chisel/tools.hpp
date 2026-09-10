@@ -7,6 +7,7 @@
 #include "math/aabb.hpp"
 
 #include <array>
+#include <optional>
 #include <string_view>
 
 /// The geometry behind the editing tools.
@@ -54,6 +55,15 @@ struct TextureAxes {
 /// and the reason the axes are stored against the plane in the first place.
 [[nodiscard]] map::Solid resize(const map::Solid& solid, const math::Aabbd& from,
                                 const math::Aabbd& to);
+
+/// A copy of a solid with a material on one side, or on every side.
+///
+/// The texture axes come with it when the face's plane faces a different way
+/// than the material was last aligned for -- a material dragged onto a wall
+/// should be upright on that wall, not carrying the floor's alignment across.
+[[nodiscard]] map::Solid with_material(const map::Solid& solid,
+                                       std::optional<usize> side,
+                                       std::string_view material);
 
 /// The bounds of everything selected. Empty when nothing is.
 [[nodiscard]] math::Aabbd selection_bounds(const Document& document);

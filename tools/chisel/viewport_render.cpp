@@ -662,6 +662,11 @@ std::expected<std::unique_ptr<ViewportRenderer>, std::string> ViewportRenderer::
     return std::unique_ptr<ViewportRenderer>(new ViewportRenderer(std::move(impl)));
 }
 
+SDL_GPUTexture* ViewportRenderer::material_texture(SDL_GPUCommandBuffer* command,
+                                                   const std::string& material) {
+    return impl_->texture_for(command, material);
+}
+
 SDL_GPUTexture* ViewportRenderer::draw(SDL_GPUCommandBuffer* command, usize index,
                                        const Viewport& view, const Document& document,
                                        const std::vector<Line>& overlay) {

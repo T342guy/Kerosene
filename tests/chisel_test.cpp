@@ -802,3 +802,102 @@ TEST_CASE("a drawn room compiles as a brush, moved or resized") {
     CHECK(encloses_volume(resize(
         floor, bounds, snap_bounds(math::Aabbd(Vec3d(0, 0, 0), Vec3d(0.1, 4, 4)), 4.0))));
 }
+
+TEST_CASE("a material lands on one face or on all of them") {
+    Document document;
+    const map::Solid box =
+        make_box(math::Aabbd(Vec3d(0, 0, 0), Vec3d(64, 64, 64)), document, "dev/grid");
+
+    const map::Solid one = with_material(box, 0, "dev/orange");
+    CHECK(one.sides[0].material == "dev/orange");
+    for (usize i = 1; i < one.sides.size(); ++i) {
+        CHECK(one.sides[i].material == "dev/grid");
+    }
+
+    const map::Solid all = with_material(box, std::nullopt, "tools/nodraw");
+    for (const map::Side& side : all.sides) {
+        CHECK(side.material == "tools/nodraw");
+    }
+
+    // The geometry is untouched: painting a brush is not moving one.
+    CHECK(map::bounds_of(all).maxs.x == doctest::Approx(64.0));
+    for (usize i = 0; i < box.sides.size(); ++i) {
+        CHECK(all.sides[i].plane_points == box.sides[i].plane_points);
+    }
+}
+
+TEST_CASE("painting keeps alignment somebody did by hand") {
+    Document document;
+    map::Solid box =
+        make_box(math::Aabbd(Vec3d(0, 0, 0), Vec3d(64, 64, 64)), document, "dev/grid");
+
+    // A face aligned by hand: a shift is work, and repainting must not undo it.
+    box.sides[0].uaxis.axis = Vec3d(0, 0, 1);
+    box.sides[0].uaxis.shift = 16.0;
+
+    const map::Solid painted = with_material(box, 0, "dev/orange");
+    CHECK(painted.sides[0].uaxis.axis == Vec3d(0, 0, 1));
+    CHECK(painted.sides[0].uaxis.shift == doctest::Approx(16.0));
+}
+
+TEST_CASE("the sample level's wiring survives being edited around") {
+    Document document;
+    std::string error;
+    REQUIRE(document.open(sample_path(), error));
+
+    // The trigger fires the relay. This is the one wire in the sample level,
+    // and the editor showing it is the whole point of the I/O panel.
+    const map::Entity* trigger = nullptr;
+    for (const map::Entity& entity : document.map().entities) {
+        if (!entity.connections.empty()) {
+            trigger = &entity;
+        }
+    }
+    REQUIRE(trigger != nullptr);
+    CHECK(trigger->connections.front().output == "OnStartTouch");
+    CHECK(trigger->connections.front().target == "corridor_relay");
+    CHECK(trigger->connections.front().input == "Trigger");
+
+    // Adding a wire and taking it away again leaves the entity as it was --
+    // which is what makes the panel safe to poke at.
+    map::Entity edited = *trigger;
+    const i32 id = trigger->id;
+    edited.connections.push_back(map::Connection{"OnEndTouch", "corridor_relay",
+                                                 "CancelPending", "", 0.5f, 1});
+    document.apply(std::make_unique<ReplaceEntity>(*trigger, edited, "Add output"));
+
+    const map::Entity* after = document.find_entity(id);
+    REQUIRE(after != nullptr);
+    CHECK(after->connections.size() == 2);
+    CHECK(after->connections.back().delay == doctest::Approx(0.5f));
+
+    REQUIRE(document.undo());
+    const map::Entity* restored = document.find_entity(id);
+    REQUIRE(restored != nullptr);
+    CHECK(restored->connections.size() == 1);
+}
+
+TEST_CASE("a key the editor has never heard of is not the editor's to delete") {
+    Document document;
+    std::string error;
+    REQUIRE(document.open(sample_path(), error));
+
+    const map::Entity& world = document.map().world;
+    // "message" and "skyname" are worldspawn keys nothing in the editor knows
+    // about. They are still written back, because the editor stores every key
+    // as it was read rather than the ones it understands.
+    CHECK_FALSE(world.get("skyname").empty());
+    CHECK_FALSE(world.get("message").empty());
+
+    const std::filesystem::path out =
+        std::filesystem::temp_directory_path() / "kerosene_keys.kmap";
+    REQUIRE(document.save_as(out.string(), error));
+
+    Document reopened;
+    REQUIRE(reopened.open(out.string(), error));
+    CHECK(reopened.map().world.get("skyname") == world.get("skyname"));
+    CHECK(reopened.map().world.get("message") == world.get("message"));
+
+    std::error_code code;
+    std::filesystem::remove(out, code);
+}

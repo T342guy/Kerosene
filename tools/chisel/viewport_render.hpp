@@ -49,6 +49,15 @@ public:
                                        const Viewport& view, const Document& document,
                                        const std::vector<Line>& overlay);
 
+    /// A material's texture, created on demand and owned by the renderer.
+    ///
+    /// The same generator the engine uses, so a surface looks the same in the
+    /// browser, in the viewport and in the game. Needs a command buffer because
+    /// creating one uploads it, which is why the material browser asks for its
+    /// previews a frame before it shows them.
+    [[nodiscard]] SDL_GPUTexture* material_texture(SDL_GPUCommandBuffer* command,
+                                                   const std::string& material);
+
     /// How many triangles and lines the last frame drew, for the status bar.
     struct Stats {
         usize triangles = 0;

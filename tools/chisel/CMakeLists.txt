@@ -36,6 +36,7 @@ if(KEROSENE_BUILD_RENDER)
             kerosene::chiseldoc
         PRIVATE_DEPS
             kerosene::asset
+            kerosene::bsp
             kerosene::imgui
             SDL3::SDL3)
 
