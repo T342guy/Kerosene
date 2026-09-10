@@ -45,6 +45,10 @@ kerosene_test(content
     DEPS kerosene::cleave kerosene::umbra
     PROPERTIES FIXTURES_SETUP kerosene_content)
 
+kerosene_test(chisel
+    SOURCES chisel_test.cpp
+    DEPS kerosene::chiseldoc)
+
 kerosene_test(asset
     SOURCES asset_test.cpp
     DEPS kerosene::asset)

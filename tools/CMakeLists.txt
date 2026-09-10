@@ -11,10 +11,10 @@
 add_subdirectory(common)
 add_subdirectory(cleave)
 add_subdirectory(umbra)
+add_subdirectory(chisel)
 
 if(KEROSENE_BUILD_RENDER)
     add_subdirectory(shell)
-    add_subdirectory(chisel)
     add_subdirectory(build)
 
     # One application holding every tool. The tools stay separate -- each is a
