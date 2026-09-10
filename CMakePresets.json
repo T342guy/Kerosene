@@ -39,8 +39,10 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "CMAKE_CXX_FLAGS": "-fsanitize=address -fno-omit-frame-pointer",
-        "CMAKE_EXE_LINKER_FLAGS": "-fsanitize=address"
-      }
+        "CMAKE_EXE_LINKER_FLAGS": "-fsanitize=address",
+        "KEROSENE_BUILD_RENDER": "OFF"
+      },
+      "description": "Sanitizes the compilers and the simulation, where the pointer and float bugs live. The renderer is left out because building SDL from source under a sanitizer costs minutes for little return -- add -DKEROSENE_BUILD_RENDER=ON when the renderer is what you are chasing."
     },
     {
       "name": "ubsan",
@@ -49,8 +51,10 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "CMAKE_CXX_FLAGS": "-fsanitize=undefined -fno-sanitize-recover=undefined -fno-omit-frame-pointer",
-        "CMAKE_EXE_LINKER_FLAGS": "-fsanitize=undefined"
-      }
+        "CMAKE_EXE_LINKER_FLAGS": "-fsanitize=undefined",
+        "KEROSENE_BUILD_RENDER": "OFF"
+      },
+      "description": "Sanitizes the compilers and the simulation, where the pointer and float bugs live. The renderer is left out because building SDL from source under a sanitizer costs minutes for little return -- add -DKEROSENE_BUILD_RENDER=ON when the renderer is what you are chasing."
     },
     {
       "name": "tsan",
