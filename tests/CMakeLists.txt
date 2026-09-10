@@ -24,18 +24,13 @@ function(kerosene_test name)
 endfunction()
 
 # The level tests read a compiled .kbsp, which is a build product rather than
-# something committed. This runs the toolset over the sample content first, as a
-# CTest fixture, so `ctest` works from a fresh clone instead of failing with a
-# missing file and leaving the reader to guess which step was skipped.
-add_test(NAME content_build
-    COMMAND kerosene-tools cleave "${PROJECT_SOURCE_DIR}/content/maps/kero_start.kmap")
-set_tests_properties(content_build PROPERTIES FIXTURES_SETUP kerosene_content)
-
-add_test(NAME content_vis
-    COMMAND kerosene-tools umbra "${PROJECT_SOURCE_DIR}/content/maps/kero_start.kbsp")
-set_tests_properties(content_vis PROPERTIES
-    FIXTURES_SETUP kerosene_content
-    DEPENDS content_build)
+# something committed. test_content compiles it, in-process, against the
+# compiler libraries -- so a fresh clone runs green with no arguments, and the
+# whole suite still works with no graphics headers and no GPU.
+#
+# It is a real test as well as a fixture: it asserts the sample level compiles
+# clean and is sealed, which is what makes every suite measured against it
+# meaningful.
 
 kerosene_test(core
     SOURCES core_test.cpp
@@ -44,6 +39,11 @@ kerosene_test(core
 kerosene_test(math
     SOURCES math_test.cpp
     DEPS kerosene::math)
+
+kerosene_test(content
+    SOURCES content_test.cpp
+    DEPS kerosene::cleave kerosene::umbra
+    PROPERTIES FIXTURES_SETUP kerosene_content)
 
 kerosene_test(asset
     SOURCES asset_test.cpp

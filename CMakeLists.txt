@@ -14,6 +14,12 @@ if(PROJECT_IS_TOP_LEVEL)
     set(CMAKE_CXX_EXTENSIONS OFF)
     set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+    # Kerosene uses classic headers, not C++20 modules -- GCC's and CMake's
+    # module support is not stable enough to bet a codebase on. Saying so turns
+    # off the dependency scan CMake otherwise runs over every translation unit
+    # looking for imports that are not there.
+    set(CMAKE_CXX_SCAN_FOR_MODULES OFF)
+
     # Everything lands in one place, so running a tool from the build tree does
     # not mean knowing which subdirectory produced it.
     set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")

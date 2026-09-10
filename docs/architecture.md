@@ -47,7 +47,14 @@ Dependency order, bottom up. Nothing depends on anything below it in this list.
 | `render` | the SDL_GPU renderer |
 
 `tools/cleave` and `tools/umbra` sit above all of them and are reachable from
-none of them.
+none of them. So do `tools/shell`, `tools/chisel` and `tools/build`, which are
+the toolset window — one application holding every tool, with each tool a Panel
+that knows nothing about the others.
+
+The compile stages are libraries, not programs. `kerosene-tools` is a GUI
+application with no command line, so anything that wants to compile a map links
+`kerosene::cleave` and `kerosene::umbra` and calls them — which is what the
+Build panel does, what Chisel's F9 does, and what the test fixture does.
 
 ### Two of these are worth explaining
 

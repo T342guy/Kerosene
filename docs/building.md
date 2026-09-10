@@ -100,9 +100,18 @@ one — so obeying it means writing code that is less portable, not more correct
 
 ## Building the content
 
-```sh
-./scripts/build-content.sh
-```
+Maps are committed as sources; the engine loads only compiled `.kbsp`. Two ways
+to get one:
 
-This runs `cleave` and then `umbra` over every `.kmap` under `content/maps`.
-Maps are committed as sources; the engine loads only compiled `.kbsp`.
+- **`kerosene-tools`**, Build panel, *Build all maps* — or F9 in Chisel, which
+  compiles and launches the engine standing in the level.
+- **`ctest`**, which compiles the sample content in-process as a fixture. That
+  path needs no GPU, which is how CI gets a level to test against.
+
+There is no command-line compiler. `kerosene-tools` is a GUI application, and
+the stages are libraries rather than subcommands — so anything that wants to
+compile a map links `kerosene::cleave` and `kerosene::umbra`, as the test
+fixture in `tests/content_test.cpp` does in about twenty lines.
+
+The consequence worth knowing: compiled content comes from a machine that can
+open a window. A dedicated server is shipped content, not given sources.

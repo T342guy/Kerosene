@@ -35,4 +35,40 @@ if(KEROSENE_BUILD_RENDER)
         GIT_SHALLOW    TRUE
         SYSTEM)
     FetchContent_MakeAvailable(SDL3)
+
+    # Dear ImGui, for the toolset window.
+    #
+    # Immediate mode is the right shape for a tool: a properties panel that
+    # rebuilds itself from the document every frame cannot show stale state,
+    # which is most of what goes wrong in an editor's UI. It looks like a tool
+    # rather than a product, which for an editor is the right way round.
+    #
+    # The docking branch, because a four-viewport editor wants real dockable
+    # panes. ImGui ships no CMakeLists of its own, so the target is built here
+    # from its sources plus the two backends -- which is also why it is a
+    # handful of files rather than a build system to configure.
+    FetchContent_Declare(imgui
+        GIT_REPOSITORY https://github.com/ocornut/imgui.git
+        GIT_TAG        v1.92.9b-docking
+        GIT_SHALLOW    TRUE
+        SYSTEM)
+    FetchContent_MakeAvailable(imgui)
+
+    add_library(kerosene_imgui STATIC
+        "${imgui_SOURCE_DIR}/imgui.cpp"
+        "${imgui_SOURCE_DIR}/imgui_draw.cpp"
+        "${imgui_SOURCE_DIR}/imgui_tables.cpp"
+        "${imgui_SOURCE_DIR}/imgui_widgets.cpp"
+        "${imgui_SOURCE_DIR}/imgui_demo.cpp"
+        "${imgui_SOURCE_DIR}/backends/imgui_impl_sdl3.cpp"
+        "${imgui_SOURCE_DIR}/backends/imgui_impl_sdlgpu3.cpp")
+    add_library(kerosene::imgui ALIAS kerosene_imgui)
+
+    # SYSTEM, so ImGui's own warnings are not this project's problem. The
+    # warning set here is deliberately strict and tuned for geometry code; a
+    # vendored dependency should not have to satisfy it.
+    target_include_directories(kerosene_imgui SYSTEM PUBLIC
+        "${imgui_SOURCE_DIR}"
+        "${imgui_SOURCE_DIR}/backends")
+    target_link_libraries(kerosene_imgui PUBLIC SDL3::SDL3)
 endif()

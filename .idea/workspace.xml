@@ -4,7 +4,7 @@
     <option name="autoReloadType" value="ALL" />
   </component>
   <component name="BackendCodeEditorMiscSettings">
-    <option name="/Default/Environment/Hierarchy/GeneratedFilesCacheKey/Timestamp/@EntryValue" value="4" type="long" />
+    <option name="/Default/Environment/Hierarchy/GeneratedFilesCacheKey/Timestamp/@EntryValue" value="15" type="long" />
     <option name="/Default/Housekeeping/FeatureSuggestion/FeatureSuggestionManager/DisabledSuggesters/=SwitchToGoToActionSuggester/@EntryIndexedValue" value="true" type="bool" />
   </component>
   <component name="CMakeProjectFlavorService">
@@ -107,7 +107,11 @@
     </cargoProject>
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="be408a6b-e4f2-4fe8-9acd-c3a1e51c5f16" name="Changes" comment="" />
+    <list default="true" id="be408a6b-e4f2-4fe8-9acd-c3a1e51c5f16" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/cmake/Dependencies.cmake" beforeDir="false" afterPath="$PROJECT_DIR$/cmake/Dependencies.cmake" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tools/common/CMakeLists.txt" beforeDir="false" afterPath="$PROJECT_DIR$/tools/common/CMakeLists.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tools/kerosene-tools.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/tools/kerosene-tools.cpp" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />

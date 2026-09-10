@@ -47,24 +47,27 @@ See [`src/math/units.hpp`](src/math/units.hpp).
 
 ## The tools
 
-One executable, `kerosene-tools`, with a subcommand per stage. Each reads and
-writes files, so you can stop after any of them, run them from a Makefile, or
-parallelise them across a build farm.
+One application, `kerosene-tools`. Open it and you get one window holding every
+tool, switched with a rail down the left edge. None of it is the engine.
+
+The stages themselves stay separate libraries that read and write files, so you
+can stop after any of them, replace one, or call one from something else. What
+they no longer have is a command line of their own.
 
 | Tool | Does | Source analogue |
 |---|---|---|
+| **Chisel** | The world editor. Four viewports, brush editing, entity I/O wiring, compile-and-run. | Hammer |
 | **Cleave** | `.kmap` → `.kbsp`. CSG, the BSP tree, portals, leak detection. | `vbsp` |
 | **Umbra** | The PVS — which parts of a level can see which. | `vvis` |
 | Radiance | Bakes static lighting into lightmaps. | `vrad` |
 | Alchemy | Compiles textures and authors materials. | VTFEdit / `vtex` |
 | Forge | Compiles source meshes into engine models. | `studiomdl` |
 | Vault | Packs a content tree into one archive. | `vpk` |
-| Chisel | The world editor. | Hammer |
 | Kiln | Runs the whole pipeline over a project. | the batch file everyone writes |
 
-Cleave and Umbra are implemented. The rest are named here because the shape of
-the toolset is a design decision, not a wish list — see
-[Status](#status) for what actually exists.
+Chisel, Cleave and Umbra are implemented, and the Build panel does what Kiln
+would. The rest are named here because the shape of the toolset is a design
+decision, not a wish list — see [Status](#status) for what actually exists.
 
 ---
 
@@ -94,14 +97,16 @@ what a CI machine with no GPU runs.
 ### Compiling and running the sample level
 
 ```sh
-./scripts/build-content.sh            # cleave + umbra over content/maps
+./build/debug/bin/kerosene-tools      # Build panel -> Build all maps
 ./build/debug/bin/kerosene +map kero_start
 ```
 
 **The map compile is not optional.** Maps are committed as sources — `.kmap`
-text you can read and diff — and the engine loads only compiled `.kbsp`. Skip
-the script and the engine will tell you which map has never been compiled and
-what to run.
+text you can read and diff — and the engine loads only compiled `.kbsp`. The
+engine will tell you which map has never been compiled.
+
+`ctest` also compiles the sample content, in-process, as a fixture — so a fresh
+clone has a playable level after running the tests, with no GPU involved.
 
 No display? The engine runs headless, which is what a dedicated server is rather
 than a testing mode bolted on the side:
@@ -110,18 +115,18 @@ than a testing mode bolted on the side:
 ./build/nogfx/bin/kerosene --headless 400 +map kero_start
 ```
 
-### Compiling a map by hand
+### The stages
 
-The stages are separate on purpose.
+Cleave and Umbra run from the Build panel, or from Chisel with F9, or from
+anything that links them. An unvised map still loads and plays; it just draws
+everything. That is deliberate — you should be able to walk a level thirty
+seconds after drawing it — and **Fast** in the Build panel skips the expensive
+pass while a layout is still moving.
 
-```sh
-kerosene-tools cleave content/maps/kero_start.kmap   # -> .kbsp and .kprt
-kerosene-tools umbra  content/maps/kero_start.kbsp   # -> adds visibility
-```
-
-An unvised map still loads and plays; it just draws everything. That is
-deliberate — you should be able to walk a level thirty seconds after drawing it.
-`umbra --fast` skips the expensive pass while a layout is still moving.
+The trade this makes, stated plainly: **compiled content has to come from a
+machine that can open a window.** A dedicated server is shipped content, not
+given sources, which is how games work — but it is worth knowing rather than
+discovering.
 
 ---
 

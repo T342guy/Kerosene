@@ -1,17 +1,29 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
 #
 # The toolset. Separate from the engine on purpose -- see the layering check in
-# cmake/KeroseneTargets.cmake -- and each stage stays a subcommand so it can be
-# scripted, run on a build server, or replaced.
+# cmake/KeroseneTargets.cmake.
+#
+# The compile stages are libraries, so they build and are tested with no
+# graphics headers at all; the tests link them directly and compile the sample
+# content in-process. Only the window needs a GPU, and only the window is
+# conditional.
 
 add_subdirectory(common)
 add_subdirectory(cleave)
 add_subdirectory(umbra)
 
-# One binary carrying every stage. The stages stay separate subcommands, so
-# each is still scriptable and replaceable; what they share is the argument
-# parsing, the content-tree lookup and the log, which is worth not writing
-# eight times.
-kerosene_executable(kerosene-tools
-    SOURCES kerosene-tools.cpp
-    DEPS kerosene::cleave kerosene::umbra kerosene::toolcommon)
+if(KEROSENE_BUILD_RENDER)
+    add_subdirectory(shell)
+    add_subdirectory(chisel)
+    add_subdirectory(build)
+
+    # One application holding every tool. The tools stay separate -- each is a
+    # Panel that knows nothing about the others -- so this is a place to put
+    # them rather than something they are written against.
+    kerosene_executable(kerosene-tools
+        SOURCES kerosene-tools.cpp
+        DEPS
+            kerosene::shell
+            kerosene::chisel
+            kerosene::buildpanel)
+endif()
