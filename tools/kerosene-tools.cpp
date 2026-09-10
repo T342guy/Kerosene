@@ -13,6 +13,7 @@
 
 #include "cleave/cleave.hpp"
 #include "common/cli.hpp"
+#include "umbra/umbra.hpp"
 #include "core/log.hpp"
 
 #include <cstdio>
@@ -31,6 +32,7 @@ void print_usage() {
         "\n"
         "Stages:\n"
         "  cleave <map.kmap>    CSG, BSP, portals, leak detection  -> .kbsp\n"
+        "  umbra  <map.kbsp>    the potentially visible set         -> +vis\n"
         "\n"
         "Common options:\n"
         "  --fast               skip the expensive passes; for a layout still moving\n"
@@ -44,7 +46,7 @@ void print_usage() {
         "  --split-cost <n>     how much a brush split costs the split heuristic\n"
         "  --balance-cost <n>   how much an unbalanced division costs it\n"
         "\n"
-        "Not yet implemented: umbra (visibility), radiance (lighting),\n"
+        "Not yet implemented: radiance (lighting),\n"
         "alchemy (textures), forge (models), timbre (sound), vault (archives),\n"
         "kiln (whole-project builds), chisel (the editor).\n",
         stdout);
@@ -126,6 +128,41 @@ int run_cleave(kero::tools::Args& args) {
     return 0;
 }
 
+int run_umbra(kero::tools::Args& args) {
+    kero::umbra::Options options;
+    options.fast = args.flag("fast");
+
+    const std::vector<std::string> files = args.positional();
+    if (files.empty()) {
+        std::fputs("umbra: no map given. Try: kerosene-tools umbra map.kbsp\n", stderr);
+        return 2;
+    }
+    if (const std::vector<std::string> left = args.unconsumed(); !left.empty()) {
+        for (const std::string& flag : left) {
+            std::fprintf(stderr, "umbra: unknown option '%s'\n", flag.c_str());
+        }
+        return 2;
+    }
+
+    const auto stats = kero::umbra::run(files.front(), options);
+    if (!stats) {
+        KERO_ERROR(log, "{}", stats.error());
+        return 1;
+    }
+
+    std::fprintf(stdout,
+                 "\n"
+                 "  clusters          %zu\n"
+                 "  portals           %zu\n"
+                 "  visible (base)    %.1f per cluster\n"
+                 "  visible (flowed)  %.1f per cluster\n"
+                 "  visibility lump   %zu bytes\n"
+                 "  took              %.2fs\n",
+                 stats->clusters, stats->portals, stats->average_base,
+                 stats->average_visible, stats->visibility_bytes, stats->seconds);
+    return 0;
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -148,6 +185,9 @@ int main(int argc, char** argv) {
 
     if (args.command() == "cleave") {
         return run_cleave(args);
+    }
+    if (args.command() == "umbra") {
+        return run_umbra(args);
     }
 
     std::fprintf(stderr, "unknown stage '%s'\n\n", std::string(args.command()).c_str());

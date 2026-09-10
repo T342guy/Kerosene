@@ -75,4 +75,11 @@ struct Failure {
 /// Writes the leak path as a `.kleak` file: a polyline a designer can load.
 [[nodiscard]] bool write_leak_file(const std::string& path, const std::vector<Vec3d>& points);
 
+/// Serialises the portal graph as `.kprt`.
+///
+/// Text, and deliberately so. It is small, it is the input to a stage someone
+/// might want to replace, and a visibility bug is far easier to chase when you
+/// can read the portals in an editor than when you cannot.
+[[nodiscard]] std::string serialise_portals(const Tree& tree, usize cluster_count);
+
 }  // namespace kero::cleave

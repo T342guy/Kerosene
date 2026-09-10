@@ -130,6 +130,12 @@ public:
     [[nodiscard]] const std::vector<Vec3d>& leak_path() const { return leak_path_; }
     [[nodiscard]] const std::string& leak_entity() const { return leak_entity_; }
 
+    /// The portal graph. Cleave writes it to .kprt so Umbra can run as a
+    /// separate stage rather than as a phase of this one.
+    [[nodiscard]] const std::vector<std::unique_ptr<Portal>>& portals() const {
+        return portals_;
+    }
+
     [[nodiscard]] Node* root() { return root_.get(); }
     [[nodiscard]] const Node* root() const { return root_.get(); }
     [[nodiscard]] const TreeStats& stats() const { return stats_; }

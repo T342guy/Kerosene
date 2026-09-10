@@ -2,5 +2,6 @@
 kerosene_library(bsp
     LAYER engine
     SOURCES
+        file.cpp
         surface.cpp
     PUBLIC_DEPS kerosene::kv kerosene::math)

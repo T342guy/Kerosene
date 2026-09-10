@@ -38,3 +38,7 @@ kerosene_test(map
 kerosene_test(cleave
     SOURCES cleave_test.cpp
     DEPS kerosene::cleave)
+
+kerosene_test(umbra
+    SOURCES umbra_test.cpp
+    DEPS kerosene::umbra)

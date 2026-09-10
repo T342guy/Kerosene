@@ -3,6 +3,7 @@
 
 #include "core/log.hpp"
 
+#include <algorithm>
 #include <chrono>
 #include <filesystem>
 #include <format>
@@ -12,6 +13,14 @@ namespace kero::cleave {
 namespace {
 
 KERO_LOG_CATEGORY(log, "cleave");
+
+}  // namespace
+
+/// The first line of a .kprt, so a file that is not one is rejected rather than
+/// misread.
+constexpr std::string_view kPortalMagic = "KPRT1";
+
+namespace {
 
 /// Assigns a cluster number to every open leaf.
 ///
@@ -108,6 +117,35 @@ std::expected<Stats, Failure> compile(const map::Map& map, const Options& option
     return stats;
 }
 
+std::string serialise_portals(const Tree& tree, usize cluster_count) {
+    std::string out = std::format("{}\n{}\n", kPortalMagic, cluster_count);
+
+    std::string body;
+    usize count = 0;
+    for (const std::unique_ptr<Portal>& portal : tree.portals()) {
+        // Only portals between two open leaves matter: a portal onto solid is
+        // not something you can see through.
+        if (portal->front == nullptr || portal->back == nullptr) {
+            continue;
+        }
+        if (portal->front->cluster < 0 || portal->back->cluster < 0) {
+            continue;
+        }
+
+        body += std::format("{} {} {}", portal->winding.size(), portal->front->cluster,
+                            portal->back->cluster);
+        for (const Vec3d& point : portal->winding.points()) {
+            body += std::format(" ({:.9g} {:.9g} {:.9g})", point.x, point.y, point.z);
+        }
+        body += '\n';
+        ++count;
+    }
+
+    out += std::format("{}\n", count);
+    out += body;
+    return out;
+}
+
 bool write_leak_file(const std::string& path, const std::vector<Vec3d>& points) {
     std::ofstream file(path, std::ios::trunc);
     if (!file) {
@@ -166,6 +204,32 @@ std::expected<Stats, Failure> run(const std::string& map_path, const Options& op
                static_cast<std::streamsize>(bytes.size()));
     if (!file) {
         return std::unexpected(Failure{std::format("writing {} failed", output)});
+    }
+
+    // The portal file, so Umbra can run as its own stage. Written beside the
+    // .kbsp and read by exactly one thing, which is what makes that stage
+    // replaceable.
+    if (!options.no_portals) {
+        usize clusters = 0;
+        for (const std::unique_ptr<Portal>& portal : tree.portals()) {
+            if (portal->front != nullptr) {
+                clusters = std::max(clusters, static_cast<usize>(portal->front->cluster + 1));
+            }
+            if (portal->back != nullptr) {
+                clusters = std::max(clusters, static_cast<usize>(portal->back->cluster + 1));
+            }
+        }
+
+        const std::string portal_path = replace_extension(map_path, ".kprt");
+        std::ofstream portal_file(portal_path, std::ios::trunc);
+        const std::string text = serialise_portals(tree, clusters);
+        portal_file << text;
+        if (portal_file) {
+            KERO_INFO(log, "wrote {}", portal_path);
+        } else {
+            KERO_WARN(log, "could not write {}; umbra will have nothing to read",
+                      portal_path);
+        }
     }
 
     KERO_INFO(log, "wrote {}", output);

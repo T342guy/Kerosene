@@ -6,6 +6,7 @@
 
 add_subdirectory(common)
 add_subdirectory(cleave)
+add_subdirectory(umbra)
 
 # One binary carrying every stage. The stages stay separate subcommands, so
 # each is still scriptable and replaceable; what they share is the argument
@@ -13,4 +14,4 @@ add_subdirectory(cleave)
 # eight times.
 kerosene_executable(kerosene-tools
     SOURCES kerosene-tools.cpp
-    DEPS kerosene::cleave kerosene::toolcommon)
+    DEPS kerosene::cleave kerosene::umbra kerosene::toolcommon)

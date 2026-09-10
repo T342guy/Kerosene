@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
+#include "bsp/file.hpp"
 #include "bsp/format.hpp"
 #include "cleave/cleave.hpp"
 #include "core/log.hpp"
@@ -113,28 +114,6 @@ private:
     std::unordered_map<Key, u32, KeyHash> vertex_lookup_;
     std::unordered_map<std::string, u32> material_offsets_;
 };
-
-void write_lump(std::vector<std::byte>& out, bsp::Header& header, bsp::LumpId id,
-                const void* data, usize bytes) {
-    // Lumps start on a four-byte boundary, so a reader can point a struct at
-    // one rather than copying it out.
-    while (out.size() % 4 != 0) {
-        out.push_back(std::byte{0});
-    }
-
-    bsp::Lump& lump = header.lumps[static_cast<usize>(id)];
-    lump.offset = static_cast<u32>(out.size());
-    lump.length = static_cast<u32>(bytes);
-
-    const auto* bytes_in = static_cast<const std::byte*>(data);
-    out.insert(out.end(), bytes_in, bytes_in + bytes);
-}
-
-template <typename T>
-void write_lump(std::vector<std::byte>& out, bsp::Header& header, bsp::LumpId id,
-                const std::vector<T>& values) {
-    write_lump(out, header, id, values.data(), values.size() * sizeof(T));
-}
 
 /// Emits the tree depth-first, returning the child encoding: a node index when
 /// non-negative, and -(leaf + 1) for a leaf.
@@ -298,29 +277,31 @@ std::vector<std::byte> serialise(const map::Map& map, const World& world, Tree& 
         side.plane = ((side.plane / 2) << 1) | (side.plane & 1u);
     }
 
-    bsp::Header header;
-    std::vector<std::byte> out(sizeof(bsp::Header));
+    bsp::File file;
+    file.set_lump(bsp::LumpId::Entities,
+                  std::vector<std::byte>(
+                      reinterpret_cast<const std::byte*>(entity_text.data()),
+                      reinterpret_cast<const std::byte*>(entity_text.data() +
+                                                         entity_text.size())));
+    file.set_lump(bsp::LumpId::Planes, planes);
+    file.set_lump(bsp::LumpId::Vertices, builder.vertices_);
+    file.set_lump(bsp::LumpId::FaceVertices, builder.face_vertices_);
+    file.set_lump(bsp::LumpId::Faces, builder.faces_);
+    file.set_lump(bsp::LumpId::Nodes, builder.nodes_);
+    file.set_lump(bsp::LumpId::Leaves, builder.leaves_);
+    file.set_lump(bsp::LumpId::LeafFaces, builder.leaf_faces_);
+    file.set_lump(bsp::LumpId::LeafBrushes, builder.leaf_brushes_);
+    file.set_lump(bsp::LumpId::Brushes, builder.brushes_);
+    file.set_lump(bsp::LumpId::BrushSides, builder.brush_sides_);
+    file.set_lump(bsp::LumpId::TexInfo, builder.texinfo_);
+    file.set_lump(bsp::LumpId::Materials, builder.material_text_);
+    file.set_lump(bsp::LumpId::Models, builder.models_);
+    // Visibility and Lighting are left empty for Umbra and Radiance. Empty
+    // means "everything is visible" and "fullbright", which is exactly what an
+    // uncompiled level should look like -- you should be able to walk a level
+    // thirty seconds after drawing it.
 
-    write_lump(out, header, bsp::LumpId::Entities, entity_text.data(), entity_text.size());
-    write_lump(out, header, bsp::LumpId::Planes, planes);
-    write_lump(out, header, bsp::LumpId::Vertices, builder.vertices_);
-    write_lump(out, header, bsp::LumpId::FaceVertices, builder.face_vertices_);
-    write_lump(out, header, bsp::LumpId::Faces, builder.faces_);
-    write_lump(out, header, bsp::LumpId::Nodes, builder.nodes_);
-    write_lump(out, header, bsp::LumpId::Leaves, builder.leaves_);
-    write_lump(out, header, bsp::LumpId::LeafFaces, builder.leaf_faces_);
-    write_lump(out, header, bsp::LumpId::LeafBrushes, builder.leaf_brushes_);
-    write_lump(out, header, bsp::LumpId::Brushes, builder.brushes_);
-    write_lump(out, header, bsp::LumpId::BrushSides, builder.brush_sides_);
-    write_lump(out, header, bsp::LumpId::TexInfo, builder.texinfo_);
-    write_lump(out, header, bsp::LumpId::Materials, builder.material_text_);
-    // Umbra and Radiance fill these in; empty means "everything visible" and
-    // "fullbright", which is exactly what an uncompiled level should look like.
-    write_lump(out, header, bsp::LumpId::Visibility, nullptr, 0);
-    write_lump(out, header, bsp::LumpId::Lighting, nullptr, 0);
-    write_lump(out, header, bsp::LumpId::Models, builder.models_);
-
-    std::memcpy(out.data(), &header, sizeof(header));
+    const std::vector<std::byte> out = file.to_bytes();
 
     // Overwritten with what actually reached the file: welding vertices and
     // dropping the flipped half of each plane pair both change the counts, and
