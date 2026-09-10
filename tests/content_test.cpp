@@ -169,3 +169,80 @@ TEST_CASE("a room drawn the way the editor draws one compiles sealed") {
         std::filesystem::remove(bsp, code);
     }
 }
+
+TEST_CASE("an unsealed room leaks, and says where") {
+    // The other half of the loop: a room with a wall missing does not compile,
+    // and what Chisel draws in the viewports is the polyline Cleave leaves
+    // behind. A leak you can only be told about is a leak you have to find.
+    using namespace kero::chisel;
+    using kero::math::Aabbd;
+    using kero::map::Vec3d;
+
+    chisel::Document document;
+
+    const f64 inner = 256.0;
+    const f64 thickness = 16.0;
+    const f64 top = 128.0;
+
+    const auto shell = [&](const Aabbd& bounds) {
+        map::Solid solid = make_box(bounds, document, "dev/grid");
+        REQUIRE(map::encloses_volume(solid));
+        document.apply(std::make_unique<AddSolid>(document.map().world.id,
+                                                  std::move(solid), "Draw block"));
+    };
+
+    shell(Aabbd(Vec3d(-thickness, -thickness, -thickness),
+                Vec3d(inner + thickness, inner + thickness, 0)));
+    shell(Aabbd(Vec3d(-thickness, -thickness, top),
+                Vec3d(inner + thickness, inner + thickness, top + thickness)));
+    shell(Aabbd(Vec3d(-thickness, -thickness, 0), Vec3d(0, inner + thickness, top)));
+    shell(Aabbd(Vec3d(inner, -thickness, 0),
+                Vec3d(inner + thickness, inner + thickness, top)));
+    shell(Aabbd(Vec3d(0, -thickness, 0), Vec3d(inner, 0, top)));
+    // The north wall is simply not drawn.
+
+    map::Entity start;
+    start.id = document.allocate_id();
+    start.classname = "info_player_start";
+    start.set("classname", "info_player_start");
+    start.set("origin", "128 128 40");
+    document.apply(std::make_unique<AddEntity>(std::move(start), "Place entity"));
+
+    const std::filesystem::path path =
+        std::filesystem::temp_directory_path() / "kerosene_chisel_leak.kmap";
+    std::string error;
+    REQUIRE_MESSAGE(document.save_as(path.string(), error), error);
+
+    cleave::Options options;
+    options.allow_leaks = true;  // As the editor runs it: report, do not refuse.
+    const auto compiled = cleave::run(path.string(), options);
+    if (!compiled) {
+        FAIL("cleave failed on the unsealed room: ", compiled.error().message);
+    }
+
+    CHECK(compiled->leaked);
+    CHECK(compiled->leak_entity.find("info_player_start") != std::string::npos);
+    REQUIRE_FALSE(compiled->leak_path_file.empty());
+
+    const std::vector<kero::math::Vec3d> leak =
+        load_leak_path(compiled->leak_path_file);
+    CHECK(leak.size() >= 2);
+
+    // It runs from inside the room out through the missing wall, which is what
+    // makes it a line worth following. The points are portal centres rather
+    // than the entity's own position, so the first is inside rather than on it.
+    CHECK(leak.front().y <= inner);
+    CHECK(leak.front().z > 0.0);
+    CHECK(leak.back().y > inner);
+
+    // Nothing to draw once the level is sealed: Cleave removes a stale file.
+    CHECK(load_leak_path((std::filesystem::temp_directory_path() / "nope.kleak").string())
+              .empty());
+
+    std::error_code code;
+    std::filesystem::remove(path, code);
+    std::filesystem::remove(compiled->leak_path_file, code);
+    std::filesystem::path bsp = path;
+    bsp.replace_extension(".kbsp");
+    std::filesystem::remove(bsp, code);
+}

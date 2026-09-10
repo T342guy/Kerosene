@@ -33,6 +33,7 @@ if(KEROSENE_BUILD_RENDER)
         PUBLIC_DEPS
             kerosene::shell
             kerosene::toolcommon
+            kerosene::buildpanel
             kerosene::chiseldoc
         PRIVATE_DEPS
             kerosene::asset

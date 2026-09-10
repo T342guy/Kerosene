@@ -8,7 +8,9 @@
 
 #include <array>
 #include <optional>
+#include <string>
 #include <string_view>
+#include <vector>
 
 /// The geometry behind the editing tools.
 ///
@@ -17,6 +19,14 @@
 /// on top of these; putting the arithmetic here is what makes the interesting
 /// half of an editor testable without a window.
 namespace kero::chisel {
+
+/// The polyline in a `.kleak` file: the path from the entity that leaked out to
+/// the hole it escaped through.
+///
+/// Empty when there is no such file, which is the ordinary case and not an
+/// error -- Cleave deletes a stale one whenever a level compiles clean, so the
+/// editor simply stops drawing it.
+[[nodiscard]] std::vector<Vec3d> load_leak_path(const std::string& path);
 
 /// The default texture axes for a plane.
 ///

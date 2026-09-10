@@ -11,11 +11,18 @@
 add_subdirectory(common)
 add_subdirectory(cleave)
 add_subdirectory(umbra)
-add_subdirectory(chisel)
 
+# The shell and the build panel come before Chisel: Chisel's windowed half links
+# both -- it runs the compile stages itself, so F9 and the Build panel cannot
+# come to disagree about what a compile is.
 if(KEROSENE_BUILD_RENDER)
     add_subdirectory(shell)
     add_subdirectory(build)
+endif()
+
+add_subdirectory(chisel)
+
+if(KEROSENE_BUILD_RENDER)
 
     # One application holding every tool. The tools stay separate -- each is a
     # Panel that knows nothing about the others -- so this is a place to put

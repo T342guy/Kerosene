@@ -8,8 +8,11 @@
 #include "common/project.hpp"
 #include "core/log.hpp"
 #include "bsp/surface.hpp"
+#include "build/builder.hpp"
 #include "map/map.hpp"
 #include "math/units.hpp"
+
+#include <SDL3/SDL_process.h>
 
 #include <imgui.h>
 #include <imgui_internal.h>
@@ -45,6 +48,10 @@ constexpr f32 kGripPixels = 7.0f;
 /// until the button comes up, so what moves under the cursor is an overlay.
 constexpr u32 kPreviewColour = 0xFF60D0FFu;
 constexpr u32 kGripColour = 0xFFFFC050u;
+
+/// The leak path: the one thing in the editor that has to be seen from across
+/// the room, because it is drawn precisely when the level will not compile.
+constexpr u32 kLeakColour = 0xFF3030FFu;
 
 /// The point-entity classes the Entity tool offers.
 ///
@@ -145,6 +152,21 @@ struct ChiselPanel::Impl {
     std::vector<std::string> wanted_previews;
     std::unordered_map<std::string, SDL_GPUTexture*> previews;
 
+    /// Compiling and running, from inside the editor.
+    ///
+    /// Chisel keeps its own builder rather than sharing the Build panel's, and
+    /// the reason is the clicking: an error names a brush, and the only place
+    /// where selecting that brush means anything is here, next to the
+    /// viewports. The Build panel stays what it is -- the whole project, with
+    /// no launch -- and both go through the same `build::Builder`, so there is
+    /// one answer to what a compile is.
+    build::Builder builder;
+    build::Builder::Options build_options;
+    bool launch_when_built = false;
+    bool was_building = false;
+    std::vector<Vec3d> leak;
+    bool follow_tail = true;
+
     ToolKind tool = ToolKind::Select;
     usize entity_class = 0;
     f64 block_depth = 64.0;
@@ -206,6 +228,11 @@ struct ChiselPanel::Impl {
 
     void lay_out(u32 dockspace);
     void draw_materials();
+    void draw_build();
+    void compile(bool then_run);
+    void finish_build();
+    void launch();
+    void select_brush(i32 id);
     void draw_properties();
     void paint(std::string_view material, bool whole_brush);
     void tie_to(std::string_view classname);
@@ -223,6 +250,7 @@ struct ChiselPanel::Impl {
     [[nodiscard]] std::vector<ViewportRenderer::Line> overlay_for(usize index) const;
     void handle_input(Viewport& view, const Pane& pane);
     void frame_all();
+    void frame_all_selection();
 };
 
 ChiselPanel::ChiselPanel() : impl_(std::make_unique<Impl>()) { impl_->frame_all(); }
@@ -261,6 +289,7 @@ void ChiselPanel::Impl::lay_out(u32 dockspace) {
     ImGui::DockBuilderDockWindow("Map", controls);
     ImGui::DockBuilderDockWindow("Materials", controls);
     ImGui::DockBuilderDockWindow("Properties", controls);
+    ImGui::DockBuilderDockWindow("Compile", controls);
     ImGui::DockBuilderDockWindow(std::string(name_of(ViewKind::Top)).c_str(), upper_left);
     ImGui::DockBuilderDockWindow(std::string(name_of(ViewKind::Perspective)).c_str(),
                                  upper_right);
@@ -332,6 +361,22 @@ void ChiselPanel::Impl::handle_input(Viewport& view, const Pane& pane) {
     }
     if (pane.wheel != 0.0f) {
         view.eye += forward * (pane.wheel * 32.0f);
+    }
+}
+
+void ChiselPanel::Impl::frame_all_selection() {
+    const math::Aabbd bounds = selection_bounds(document);
+    if (bounds.empty()) {
+        return;
+    }
+    math::Aabb box;
+    box.add(Vec3(static_cast<f32>(bounds.mins.x), static_cast<f32>(bounds.mins.y),
+                 static_cast<f32>(bounds.mins.z)));
+    box.add(Vec3(static_cast<f32>(bounds.maxs.x), static_cast<f32>(bounds.maxs.y),
+                 static_cast<f32>(bounds.maxs.z)));
+    box.expand(64.0f);  // Room around it, so it is not filling the pane edge to edge.
+    for (Viewport& view : views) {
+        view.frame(box);
     }
 }
 
@@ -622,6 +667,16 @@ std::vector<ViewportRenderer::Line> ChiselPanel::Impl::overlay_for(usize index) 
     for (const map::Solid& solid : drag.preview) {
         append_solid_edges(overlay, solid, kPreviewColour);
     }
+    for (usize i = 1; i < leak.size(); ++i) {
+        const Vec3d& from = leak[i - 1];
+        const Vec3d& to = leak[i];
+        overlay.push_back(ViewportRenderer::Line{
+            Vec3(static_cast<f32>(from.x), static_cast<f32>(from.y),
+                 static_cast<f32>(from.z)),
+            Vec3(static_cast<f32>(to.x), static_cast<f32>(to.y), static_cast<f32>(to.z)),
+            kLeakColour});
+    }
+
     if (drag.active && drag.tool == ToolKind::Block && !drag.block.empty()) {
         append_box_edges(overlay, drag.block, kPreviewColour);
     }
@@ -1006,6 +1061,181 @@ void ChiselPanel::Impl::draw_properties() {
 }
 
 // ---------------------------------------------------------------------------
+// Compile and run
+// ---------------------------------------------------------------------------
+
+void ChiselPanel::Impl::select_brush(i32 id) {
+    if (document.find_solid(id) == nullptr) {
+        status = std::format("brush {} is not in this map any more", id);
+        return;
+    }
+    document.selection().clear();
+    document.selection().toggle_solid(id);
+    frame_all_selection();
+}
+
+void ChiselPanel::Impl::compile(bool then_run) {
+    if (!loaded || !document.has_path()) {
+        status = "save the map before compiling it";
+        return;
+    }
+    if (builder.running()) {
+        return;
+    }
+
+    // Compiled from the file, so what runs is what is on disk. Anything else
+    // would let the engine show a level that exists nowhere.
+    if (document.dirty()) {
+        std::string error;
+        if (!document.save(error)) {
+            status = error;
+            KERO_ERROR(log, "{}", error);
+            return;
+        }
+    }
+
+    leak.clear();
+    launch_when_built = then_run;
+    builder.clear();
+    builder.start({std::filesystem::path(document.path())}, build_options);
+    was_building = true;
+    status = then_run ? "compiling, then running" : "compiling";
+}
+
+void ChiselPanel::Impl::finish_build() {
+    // The leak path is read whether or not a launch was asked for: a level that
+    // will not seal is the thing you most need to see, and drawing it is the
+    // difference between "it leaks" and "it leaks *there*".
+    const std::string file = builder.leak_file();
+    if (builder.leaked() && !file.empty()) {
+        leak = load_leak_path(file);
+        status = std::format("leak: {} points from the entity to the hole", leak.size());
+    }
+
+    if (!launch_when_built) {
+        return;
+    }
+    launch_when_built = false;
+    if (builder.succeeded()) {
+        launch();
+    } else {
+        status = "not running it: the compile did not succeed";
+    }
+}
+
+void ChiselPanel::Impl::launch() {
+    std::filesystem::path binary = tools::executable_directory() / "kerosene";
+    std::error_code code;
+    if (!std::filesystem::exists(binary, code)) {
+        status = std::format("no engine binary beside the toolset ({})", binary.string());
+        KERO_ERROR(log, "{}", status);
+        return;
+    }
+
+    std::filesystem::path bsp(document.path());
+    bsp.replace_extension(".kbsp");
+
+    const std::string binary_text = binary.string();
+    const std::string map_text = bsp.string();
+    const std::array<const char*, 4> arguments{binary_text.c_str(), "+map",
+                                               map_text.c_str(), nullptr};
+
+    // Detached: closing the game must not close the editor, and the editor must
+    // not sit waiting on it either.
+    SDL_Process* process = SDL_CreateProcess(arguments.data(), false);
+    if (process == nullptr) {
+        status = std::format("could not start the engine: {}", SDL_GetError());
+        KERO_ERROR(log, "{}", status);
+        return;
+    }
+    SDL_DestroyProcess(process);
+    status = std::format("running {}", bsp.filename().string());
+    KERO_INFO(log, "{}", status);
+}
+
+void ChiselPanel::Impl::draw_build() {
+    if (!ImGui::Begin("Compile")) {
+        ImGui::End();
+        return;
+    }
+
+    const bool busy = builder.running();
+
+    ImGui::BeginDisabled(busy || !document.has_path());
+    if (ImGui::Button("Compile")) {
+        compile(false);
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Compile and run (F9)")) {
+        compile(true);
+    }
+    ImGui::EndDisabled();
+
+    ImGui::Checkbox("Fast", &build_options.fast);
+    ImGui::SameLine();
+    ImGui::Checkbox("Geometry only", &build_options.no_visibility);
+
+    if (busy) {
+        ImGui::ProgressBar(builder.progress(), ImVec2(-1.0f, 0.0f));
+    }
+    if (!leak.empty()) {
+        ImGui::TextColored(ImVec4(1.0f, 0.42f, 0.38f, 1.0f),
+                           "leaking -- the red line runs to the hole");
+        ImGui::SameLine();
+        if (ImGui::SmallButton("hide")) {
+            leak.clear();
+        }
+    }
+
+    ImGui::Separator();
+
+    if (ImGui::BeginChild("##log")) {
+        for (const build::Line& line : builder.log()) {
+            ImVec4 colour = ImGui::GetStyleColorVec4(ImGuiCol_Text);
+            switch (line.kind) {
+                case build::Line::Kind::Error:
+                    colour = ImVec4(1.00f, 0.42f, 0.38f, 1.0f);
+                    break;
+                case build::Line::Kind::Warning:
+                    colour = ImVec4(1.00f, 0.80f, 0.35f, 1.0f);
+                    break;
+                case build::Line::Kind::Heading:
+                    colour = ImVec4(0.62f, 0.80f, 1.00f, 1.0f);
+                    break;
+                case build::Line::Kind::Info:
+                    break;
+            }
+
+            ImGui::PushStyleColor(ImGuiCol_Text, colour);
+            if (line.brush_id != 0) {
+                // The reason to run the compiler from inside the editor: click
+                // the complaint and be looking at the brush it is about.
+                ImGui::PushID(line.brush_id);
+                if (ImGui::Selectable(line.text.c_str())) {
+                    select_brush(line.brush_id);
+                }
+                ImGui::PopID();
+            } else {
+                ImGui::TextUnformatted(line.text.c_str());
+            }
+            ImGui::PopStyleColor();
+        }
+        if (busy && follow_tail) {
+            ImGui::SetScrollHereY(1.0f);
+        }
+        if (ImGui::IsWindowHovered() && ImGui::GetIO().MouseWheel != 0.0f) {
+            follow_tail = ImGui::GetScrollY() >= ImGui::GetScrollMaxY() - 1.0f;
+        }
+        if (!busy) {
+            follow_tail = true;
+        }
+    }
+    ImGui::EndChild();
+
+    ImGui::End();
+}
+
+// ---------------------------------------------------------------------------
 // The panel
 // ---------------------------------------------------------------------------
 
@@ -1168,6 +1398,15 @@ void ChiselPanel::draw(shell::Shell& shell) {
 
     impl.draw_materials();
     impl.draw_properties();
+    impl.draw_build();
+
+    // The worker is done when it says so; the results are picked up here, on
+    // the thread that owns the document, on the frame the build finishes.
+    const bool building = impl.builder.running();
+    if (impl.was_building && !building) {
+        impl.finish_build();
+    }
+    impl.was_building = building;
 
     for (usize i = 0; i < kViews.size(); ++i) {
         Viewport& view = impl.views[i];
@@ -1222,6 +1461,12 @@ void ChiselPanel::draw(shell::Shell& shell) {
         }
         if (ImGui::IsKeyPressed(ImGuiKey_Delete)) {
             impl.delete_selection();
+        }
+        if (ImGui::IsKeyPressed(ImGuiKey_F9)) {
+            impl.compile(true);
+        }
+        if (ImGui::IsKeyPressed(ImGuiKey_F8)) {
+            impl.compile(false);
         }
         if (ImGui::IsKeyPressed(ImGuiKey_Escape)) {
             impl.document.selection().clear();

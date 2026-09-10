@@ -3,6 +3,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <fstream>
+#include <sstream>
 
 namespace kero::chisel {
 
@@ -45,6 +47,28 @@ struct Facing {
 }
 
 }  // namespace
+
+std::vector<Vec3d> load_leak_path(const std::string& path) {
+    std::vector<Vec3d> points;
+
+    std::ifstream file(path);
+    if (!file) {
+        return points;
+    }
+
+    std::string line;
+    while (std::getline(file, line)) {
+        if (line.starts_with("//") || line.empty()) {
+            continue;
+        }
+        std::istringstream fields(line);
+        Vec3d point;
+        if (fields >> point.x >> point.y >> point.z) {
+            points.push_back(point);
+        }
+    }
+    return points;
+}
 
 TextureAxes default_texture_axes(const Vec3d& normal, f64 scale) {
     const Facing facing = facing_of(normal);
