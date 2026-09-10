@@ -147,6 +147,28 @@ private:
 
 // --- The edits ------------------------------------------------------------
 
+/// Several edits that undo as one.
+///
+/// A drag that moves five brushes is one thing the user did, and pressing undo
+/// once should put all five back. Applied in order and reverted in reverse, so
+/// edits that depend on each other still compose.
+class Compound : public Edit {
+public:
+    explicit Compound(std::string description) : description_(std::move(description)) {}
+
+    void add(std::unique_ptr<Edit> edit);
+    [[nodiscard]] bool empty() const { return edits_.empty(); }
+    [[nodiscard]] usize size() const { return edits_.size(); }
+
+    void apply(map::Map& map) override;
+    void revert(map::Map& map) override;
+    [[nodiscard]] std::string_view describe() const override { return description_; }
+
+private:
+    std::vector<std::unique_ptr<Edit>> edits_;
+    std::string description_;
+};
+
 /// Adds a brush to an entity, or to the world.
 class AddSolid : public Edit {
 public:

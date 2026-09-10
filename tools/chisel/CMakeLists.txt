@@ -15,6 +15,7 @@ kerosene_library(chiseldoc
     LAYER tool
     SOURCES
         document.cpp
+        tools.cpp
         viewport.cpp
     PUBLIC_DEPS
         kerosene::map)

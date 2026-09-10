@@ -279,6 +279,26 @@ void Document::prune_selection() {
 // The edits
 // ---------------------------------------------------------------------------
 
+void Compound::add(std::unique_ptr<Edit> edit) {
+    if (edit != nullptr) {
+        edits_.push_back(std::move(edit));
+    }
+}
+
+void Compound::apply(map::Map& map) {
+    for (const std::unique_ptr<Edit>& edit : edits_) {
+        edit->apply(map);
+    }
+}
+
+void Compound::revert(map::Map& map) {
+    // Backwards: a remove-then-add pair only comes apart in the order it went
+    // together.
+    for (auto it = edits_.rbegin(); it != edits_.rend(); ++it) {
+        (*it)->revert(map);
+    }
+}
+
 AddSolid::AddSolid(i32 owner, map::Solid solid, std::string description)
     : owner_(owner), solid_(std::move(solid)), description_(std::move(description)) {}
 

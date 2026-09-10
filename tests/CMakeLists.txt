@@ -42,7 +42,7 @@ kerosene_test(math
 
 kerosene_test(content
     SOURCES content_test.cpp
-    DEPS kerosene::cleave kerosene::umbra
+    DEPS kerosene::cleave kerosene::umbra kerosene::chiseldoc
     PROPERTIES FIXTURES_SETUP kerosene_content)
 
 kerosene_test(chisel

@@ -3,6 +3,7 @@
 #include <doctest/doctest.h>
 
 #include "chisel/document.hpp"
+#include "chisel/tools.hpp"
 #include "chisel/viewport.hpp"
 #include "math/units.hpp"
 
@@ -617,4 +618,187 @@ TEST_CASE("the grid snaps to whole steps and leaves other values alone") {
     CHECK(snapped.x == doctest::Approx(12.0));
     CHECK(snapped.y == doctest::Approx(-12.0));
     CHECK(snapped.z == doctest::Approx(132.0));
+}
+
+// ---------------------------------------------------------------------------
+// The editing tools
+// ---------------------------------------------------------------------------
+
+TEST_CASE("a box brush has six outward-facing sides") {
+    Document document;
+    const math::Aabbd bounds(Vec3d(0, 0, 0), Vec3d(64, 128, 32));
+    const map::Solid box = make_box(bounds, document, "dev/grid");
+
+    REQUIRE(box.sides.size() == 6);
+    CHECK(box.valid());
+    CHECK(encloses_volume(box));
+
+    // Every plane faces away from the middle. A brush with one plane the wrong
+    // way round encloses nothing, and finds out about it three stages later.
+    const Vec3d centre = bounds.centre();
+    for (const map::Side& side : box.sides) {
+        CHECK(side.plane.distance_to(centre) < 0.0);
+    }
+
+    const math::Aabbd measured = map::bounds_of(box);
+    CHECK(measured.mins.x == doctest::Approx(0.0));
+    CHECK(measured.maxs.y == doctest::Approx(128.0));
+    CHECK(measured.maxs.z == doctest::Approx(32.0));
+
+    // Ids come from the document's one pool: the brush and its six sides.
+    std::set<i32> ids{box.id};
+    for (const map::Side& side : box.sides) {
+        ids.insert(side.id);
+    }
+    CHECK(ids.size() == 7);
+}
+
+TEST_CASE("a box with no volume is not a brush") {
+    Document document;
+    CHECK_FALSE(make_box(math::Aabbd(Vec3d(0, 0, 0), Vec3d(0, 64, 64)), document,
+                         "dev/grid")
+                    .valid());
+    CHECK_FALSE(make_box(math::Aabbd(), document, "dev/grid").valid());
+}
+
+TEST_CASE("the base axes texture a wall upright and a floor north-up") {
+    const TextureAxes floor = default_texture_axes(Vec3d(0, 0, 1));
+    CHECK(floor.u.axis.x == doctest::Approx(1.0));
+    CHECK(floor.v.axis.y == doctest::Approx(-1.0));
+
+    const TextureAxes wall = default_texture_axes(Vec3d(1, 0, 0));
+    CHECK(wall.u.axis.y == doctest::Approx(1.0));
+    CHECK(wall.v.axis.z == doctest::Approx(-1.0));
+
+    // A very slightly tilted face gets the same axes as the flat one it is
+    // nearly parallel to, which is the point of a table.
+    const TextureAxes tilted = default_texture_axes(Vec3d(0.02, 0, 0.99).normalized());
+    CHECK(tilted.u.axis == floor.u.axis);
+}
+
+TEST_CASE("moving a brush moves its planes and keeps it a brush") {
+    Document document;
+    const map::Solid box =
+        make_box(math::Aabbd(Vec3d(0, 0, 0), Vec3d(64, 64, 64)), document, "dev/grid");
+    const map::Solid moved = translate(box, Vec3d(128, -32, 8));
+
+    const math::Aabbd bounds = map::bounds_of(moved);
+    CHECK(bounds.mins.x == doctest::Approx(128.0));
+    CHECK(bounds.mins.y == doctest::Approx(-32.0));
+    CHECK(bounds.maxs.z == doctest::Approx(72.0));
+    CHECK(encloses_volume(moved));
+
+    // Normals are unchanged by a translation; only the distances move.
+    for (usize i = 0; i < box.sides.size(); ++i) {
+        CHECK(moved.sides[i].plane.normal.x == doctest::Approx(box.sides[i].plane.normal.x));
+        CHECK(moved.sides[i].plane.normal.z == doctest::Approx(box.sides[i].plane.normal.z));
+    }
+}
+
+TEST_CASE("resizing maps one box onto another and leaves the texture alone") {
+    Document document;
+    const math::Aabbd from(Vec3d(0, 0, 0), Vec3d(64, 64, 64));
+    const map::Solid box = make_box(from, document, "dev/grid");
+
+    const math::Aabbd to(Vec3d(0, 0, 0), Vec3d(256, 64, 64));
+    const map::Solid wider = resize(box, from, to);
+
+    const math::Aabbd bounds = map::bounds_of(wider);
+    CHECK(bounds.maxs.x == doctest::Approx(256.0));
+    CHECK(bounds.maxs.y == doctest::Approx(64.0));
+    CHECK(encloses_volume(wider));
+
+    // The axes are world-space projections, so a wall that grows shows more
+    // texture rather than the same texture stretched.
+    for (usize i = 0; i < box.sides.size(); ++i) {
+        CHECK(wider.sides[i].uaxis.scale == doctest::Approx(box.sides[i].uaxis.scale));
+        CHECK(wider.sides[i].uaxis.axis == box.sides[i].uaxis.axis);
+    }
+}
+
+TEST_CASE("a grip drags only the sides it holds") {
+    const math::Aabbd bounds(Vec3d(0, 0, 0), Vec3d(64, 64, 64));
+    const ViewAxes axes = axes_of(ViewKind::Top);  // X right, Y up.
+
+    // The right edge grip moves +X and nothing else.
+    const math::Aabbd east = drag_grip(bounds, axes, Grip{1, 0}, Vec3d(32, 32, 32));
+    CHECK(east.maxs.x == doctest::Approx(96.0));
+    CHECK(east.mins.x == doctest::Approx(0.0));
+    CHECK(east.maxs.y == doctest::Approx(64.0));
+    CHECK(east.maxs.z == doctest::Approx(64.0));
+
+    // A corner grip moves two.
+    const math::Aabbd corner = drag_grip(bounds, axes, Grip{-1, -1}, Vec3d(-16, -16, 0));
+    CHECK(corner.mins.x == doctest::Approx(-16.0));
+    CHECK(corner.mins.y == doctest::Approx(-16.0));
+    CHECK(corner.maxs.x == doctest::Approx(64.0));
+
+    CHECK(grips().size() == 8);
+    for (const Grip& grip : grips()) {
+        CHECK_FALSE(grip == Grip{0, 0});  // The middle is a move, not a resize.
+    }
+}
+
+TEST_CASE("a grip cannot be dragged past the side opposite it") {
+    const math::Aabbd bounds(Vec3d(0, 0, 0), Vec3d(64, 64, 64));
+    const ViewAxes axes = axes_of(ViewKind::Top);
+
+    const math::Aabbd crushed = drag_grip(bounds, axes, Grip{1, 0}, Vec3d(-4096, 0, 0));
+    CHECK(crushed.maxs.x >= crushed.mins.x);
+    CHECK(crushed.maxs.x == doctest::Approx(0.0));
+}
+
+TEST_CASE("grips sit on the corners and edges of the selection") {
+    const math::Aabbd bounds(Vec3d(0, 0, 0), Vec3d(64, 128, 32));
+    const ViewAxes axes = axes_of(ViewKind::Top);
+
+    const Vec3d north_east = grip_position(bounds, axes, Grip{1, 1});
+    CHECK(north_east.x == doctest::Approx(64.0));
+    CHECK(north_east.y == doctest::Approx(128.0));
+
+    const Vec3d west_edge = grip_position(bounds, axes, Grip{-1, 0});
+    CHECK(west_edge.x == doctest::Approx(0.0));
+    CHECK(west_edge.y == doctest::Approx(64.0));  // Halfway up the edge.
+}
+
+TEST_CASE("snapping a box never collapses it") {
+    const math::Aabbd sliver(Vec3d(0.5, 0, 0), Vec3d(1.0, 64, 64));
+    const math::Aabbd snapped = snap_bounds(sliver, 4.0);
+    CHECK(snapped.maxs.x > snapped.mins.x);
+    CHECK(snapped.maxs.x - snapped.mins.x == doctest::Approx(4.0));
+
+    CHECK(snap_bounds(sliver, 0.0).mins.x == doctest::Approx(0.5));
+}
+
+TEST_CASE("the selection's bounds cover its brushes and entities") {
+    Document document;
+    std::string error;
+    REQUIRE(document.open(sample_path(), error));
+
+    CHECK(selection_bounds(document).empty());
+
+    const std::vector<Document::SolidRef> solids = document.all_solids();
+    REQUIRE_FALSE(solids.empty());
+    document.selection().toggle_solid(solids.front().solid->id);
+
+    const math::Aabbd one = selection_bounds(document);
+    CHECK_FALSE(one.empty());
+
+    const math::Aabbd expected = map::bounds_of(*solids.front().solid);
+    CHECK(one.mins.x == doctest::Approx(expected.mins.x));
+    CHECK(one.maxs.z == doctest::Approx(expected.maxs.z));
+}
+
+TEST_CASE("a drawn room compiles as a brush, moved or resized") {
+    Document document;
+    const math::Aabbd bounds(Vec3d(-128, -128, -16), Vec3d(128, 128, 0));
+    const map::Solid floor = make_box(bounds, document, "dev/floor");
+    REQUIRE(encloses_volume(floor));
+
+    // Every stage a drag can leave a brush in still has to be a brush.
+    CHECK(encloses_volume(translate(floor, Vec3d(1024, -2048, 96))));
+    CHECK(encloses_volume(
+        resize(floor, bounds, math::Aabbd(Vec3d(-128, -128, -16), Vec3d(4, 128, 0)))));
+    CHECK(encloses_volume(resize(
+        floor, bounds, snap_bounds(math::Aabbd(Vec3d(0, 0, 0), Vec3d(0.1, 4, 4)), 4.0))));
 }

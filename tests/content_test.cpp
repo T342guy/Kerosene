@@ -2,10 +2,13 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
 
+#include "chisel/document.hpp"
+#include "chisel/tools.hpp"
 #include "cleave/cleave.hpp"
 #include "umbra/umbra.hpp"
 
 #include <algorithm>
+#include <cstdio>
 #include <filesystem>
 #include <string>
 #include <vector>
@@ -86,5 +89,83 @@ TEST_CASE("the committed content compiles") {
         // Every cluster sees at least itself, so the average can never be below
         // one; a level where it were would have a broken PVS.
         CHECK(vis->average_visible >= 1.0);
+    }
+}
+
+TEST_CASE("a room drawn the way the editor draws one compiles sealed") {
+    // The editor's own primitives, end to end: six boxes make a sealed room,
+    // a seventh is moved and resized into it, and the result goes through the
+    // compiler. This is the loop Chisel exists for, minus the mouse.
+    using namespace kero::chisel;
+    using kero::math::Aabbd;
+    using kero::map::Vec3d;
+
+    chisel::Document document;
+
+    const f64 inner = 256.0;
+    const f64 thickness = 16.0;
+    const Aabbd room(Vec3d(0, 0, 0), Vec3d(inner, inner, 128.0));
+
+    const auto shell = [&](const Aabbd& bounds) {
+        map::Solid solid = make_box(bounds, document, "dev/grid");
+        REQUIRE(map::encloses_volume(solid));
+        document.apply(std::make_unique<AddSolid>(document.map().world.id,
+                                                  std::move(solid), "Draw block"));
+    };
+
+    shell(Aabbd(Vec3d(-thickness, -thickness, -thickness),
+                Vec3d(inner + thickness, inner + thickness, 0)));               // Floor.
+    shell(Aabbd(Vec3d(-thickness, -thickness, room.maxs.z),
+                Vec3d(inner + thickness, inner + thickness,
+                      room.maxs.z + thickness)));                                // Ceiling.
+    shell(Aabbd(Vec3d(-thickness, -thickness, 0), Vec3d(0, inner + thickness,
+                                                        room.maxs.z)));          // West.
+    shell(Aabbd(Vec3d(inner, -thickness, 0),
+                Vec3d(inner + thickness, inner + thickness, room.maxs.z)));      // East.
+    shell(Aabbd(Vec3d(0, -thickness, 0), Vec3d(inner, 0, room.maxs.z)));         // South.
+    shell(Aabbd(Vec3d(0, inner, 0), Vec3d(inner, inner + thickness, room.maxs.z)));
+
+    // A pillar, drawn somewhere convenient and then dragged into place -- the
+    // two operations every Select drag is made of.
+    const Aabbd drawn(Vec3d(0, 0, 0), Vec3d(32, 32, 128));
+    map::Solid pillar = make_box(drawn, document, "dev/grid");
+    REQUIRE(pillar.valid());
+    pillar = translate(pillar, Vec3d(96, 96, 0));
+    pillar = resize(pillar, map::bounds_of(pillar),
+                    Aabbd(Vec3d(96, 96, 0), Vec3d(160, 160, 128)));
+    REQUIRE(map::encloses_volume(pillar));
+    document.apply(std::make_unique<AddSolid>(document.map().world.id, std::move(pillar),
+                                              "Draw block"));
+
+    map::Entity start;
+    start.id = document.allocate_id();
+    start.classname = "info_player_start";
+    start.set("classname", "info_player_start");
+    // Clear of the pillar, which fills 96..160 on both horizontal axes.
+    start.set("origin", "48 48 40");
+    document.apply(std::make_unique<AddEntity>(std::move(start), "Place entity"));
+
+    const std::filesystem::path path =
+        std::filesystem::temp_directory_path() / "kerosene_chisel_room.kmap";
+    std::string error;
+    REQUIRE_MESSAGE(document.save_as(path.string(), error), error);
+
+    const auto compiled = cleave::run(path.string(), cleave::Options{});
+    if (!compiled) {
+        FAIL("cleave failed on the drawn room: ", compiled.error().message);
+    }
+    CHECK(compiled->problems.empty());
+    CHECK(compiled->faces > 0);
+    CHECK_MESSAGE(!compiled->leaked, "the drawn room leaks from ",
+                  compiled->leak_entity);
+
+    std::filesystem::path bsp = path;
+    bsp.replace_extension(".kbsp");
+    // Left behind when it failed, because the map is the only useful evidence
+    // and regenerating it by hand is not something anyone should have to do.
+    std::error_code code;
+    if (compiled->faces > 0 && !compiled->leaked) {
+        std::filesystem::remove(path, code);
+        std::filesystem::remove(bsp, code);
     }
 }
