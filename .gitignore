@@ -9,13 +9,12 @@
 # has to work, and the generator being deterministic means a change to it
 # shows up as a reviewable diff rather than as nothing at all.
 *.kerotex
-*.keromdl
 *.keroaud
 *.vault
 *.keroprt
 *.keroleak
 *.kerowalk
-*.keroconfig
+*.kconfig
 content/maps/*.kerobsp
 
 
