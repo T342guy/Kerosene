@@ -33,13 +33,13 @@ mod tests;
 pub use renderer::Renderer;
 
 /// The file's name, wherever the content root is.
-pub const FILENAME: &str = "engineconf.keroconfig";
+pub const FILENAME: &str = "engine.kconfig";
 
 /// The window size a config defaults to, in pixels.
 pub const DEFAULT_WIDTH: u32 = 1280;
 pub const DEFAULT_HEIGHT: u32 = 720;
 
-/// What `engineconf.keroconfig` says, with every field defaulted.
+/// What `engine.kconfig` says, with every field defaulted.
 #[derive(Clone, Debug, PartialEq)]
 pub struct EngineConf {
     pub renderer: Renderer,
@@ -108,16 +108,13 @@ impl EngineConf {
             .filter(|s| !s.is_empty())
         {
             None => Renderer::default(),
-            Some(name) => match Renderer::from_name(name) {
-                Some(renderer) => renderer,
-                None => {
-                    log::warn!(
-                        "unknown renderer {name:?}; using {}",
+            Some(name) => Renderer::from_name(name).unwrap_or_else(|| {
+                log::warn!(
+                        "Invalid rendering method name {name:?}; using default: {}",
                         Renderer::default().label()
                     );
-                    Renderer::default()
-                }
-            },
+                Renderer::default()
+            }),
         };
 
         EngineConf {
@@ -138,8 +135,6 @@ impl EngineConf {
 
         format!(
             "// Kerosene engine configuration.\n\
-             // Written the first time a program needed it; every key below is\n\
-             // optional and falls back to its default when absent or wrong.\n\
              {}\n",
             kv.to_text()
         )

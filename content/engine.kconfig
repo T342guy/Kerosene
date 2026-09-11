@@ -1,0 +1,9 @@
+// Kerosene engine configuration.
+engineconf
+{
+	"renderer" "vulkan"
+	"width" "1280"
+	"height" "720"
+	"vsync" "1"
+}
+
