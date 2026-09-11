@@ -68,7 +68,7 @@ struct App {
     since_report: f32,
     console_ui: ConsoleUi,
     /// Uploaded `.keromdl` models, keyed by the name an entity refers to them by.
-    model_cache: HashMap<String, GpuModel>,
+    model_cache: HashMap<String, Option<GpuModel>>,
 }
 
 /// Start the engine with a window.
@@ -450,23 +450,17 @@ impl App {
         }
         gfx.renderer.update_models(&gfx.queue, &poses);
 
-        // Upload any prop model we have not seen yet, once.
+        // Upload any prop model we have not seen yet, once. A failed load is
+        // cached as `None` so the warning is not repeated every frame.
         for name in props.iter().map(|(_, n)| n) {
             if self.model_cache.contains_key(name) {
                 continue;
             }
-            match load_model(
-                &gfx.device,
-                &gfx.queue,
-                &gfx.renderer,
-                &self.engine.vfs,
-                name,
-            ) {
-                Some(model) => {
-                    self.model_cache.insert(name.clone(), model);
-                }
-                None => self.engine.console.warn(format!("missing model: {name}")),
+            let model = load_model(&gfx.device, &gfx.queue, &gfx.renderer, &self.engine.vfs, name);
+            if model.is_none() {
+                self.engine.console.warn(format!("missing model: {name}"));
             }
+            self.model_cache.insert(name.clone(), model);
         }
 
         // Physics debug overlay: the prop boxes, when `phys_debug` is on.
@@ -579,7 +573,7 @@ impl App {
 
                 // Physics props, at the pose in their model slot.
                 for (slot, name) in &props {
-                    if let Some(model) = self.model_cache.get(name) {
+                    if let Some(model) = self.model_cache.get(name).and_then(Option::as_ref) {
                         let drawn = gfx.renderer.draw_studio_model(
                             &mut pass,
                             &map.frame_bind_group,
