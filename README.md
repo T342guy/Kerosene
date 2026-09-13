@@ -16,6 +16,8 @@ scriptable and replaceable, while one binary carries them all.
 
 ```
    art/*.png ──alchemy──► materials/*.kerotex + *.keromat ─────────────┐
+   textures/<name>/ ─alchemy─► a whole set: colour, normals, roughness,┤
+                               emissive, occlusion + the material      │
    art/*.obj ──forge────► models/*.keromdl ────────────────────────────┤
    sound/*.{wav,flac,mp3} ──timbre──► sound/*.keroaud ─────────────────┤
    maps/*.keromap ─cleave─► *.kerobsp ─umbra─► +vis ─radiance─► +light ┤
@@ -239,7 +241,7 @@ removing it would change the game.
 crates/
   kerosene-math       vectors, planes, convex windings with exact clipping
   kerosene-kv         KeyValues, the text format .keromap and materials use
-  kerosene-config     engineconf.keroconfig — the settings every program shares
+  kerosene-config     engine.kconfig — the settings every program shares
   kerosene-console    convars, concommands, the command buffer
   kerosene-vfs        layered search paths and the .vault archive format
   kerosene-asset      .kerotex textures, .keromat materials, .keromdl models

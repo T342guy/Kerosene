@@ -29,6 +29,72 @@ pub struct WorldVertex {
     pub uv: [f32; 2],
     /// Lightmap atlas coordinates, normalised.
     pub lightmap_uv: [f32; 2],
+    /// Tangent, with the bitangent's sign in `w`.
+    ///
+    /// The basis a normal map's directions are expressed in. Brush geometry
+    /// gets it for nothing: `texinfo` already stores the world-space direction
+    /// u increases along, which *is* the tangent, so it is read rather than
+    /// derived. A mesh format that had to guess would have to guess from the
+    /// triangles, and disagree with the texture projection wherever the two
+    /// were not already in step.
+    pub tangent: [f32; 4],
+}
+
+/// The tangent basis a face's normal map is read in.
+///
+/// Taken from the texture projection rather than from the triangles: `texinfo`
+/// already says which world direction u runs along, and that is the definition
+/// of the tangent. Deriving it from the geometry instead would produce a basis
+/// that agreed with the projection only by coincidence, and a normal map that
+/// lit from the wrong side wherever it did not.
+///
+/// The tangent is orthogonalised against the surface normal -- Gram-Schmidt,
+/// so it lies in the face's plane even where the projection is skewed -- and
+/// `w` records whether the bitangent is the left- or right-handed cross
+/// product, which is what a mirrored texture projection flips.
+fn face_tangent(ti: &kerosene_bsp::TexInfo, normal: Vec3) -> [f32; 4] {
+    let u = Vec3::new(
+        ti.texture_vecs[0][0],
+        ti.texture_vecs[0][1],
+        ti.texture_vecs[0][2],
+    );
+    let v = Vec3::new(
+        ti.texture_vecs[1][0],
+        ti.texture_vecs[1][1],
+        ti.texture_vecs[1][2],
+    );
+
+    // A degenerate projection has no direction to offer. Fall back to any
+    // vector in the plane: a flat normal map reads the same in every basis,
+    // and a face with no usable projection has bigger problems than its bumps.
+    let tangent = u - normal * normal.dot(u);
+    let tangent = if tangent.length_squared() > 1e-12 {
+        tangent.normalize()
+    } else {
+        any_perpendicular(normal)
+    };
+
+    // Right-handed unless the projection is mirrored, which is the case the
+    // sign exists for: without it, text on a mirrored wall lights inside out.
+    let sign = if normal.cross(tangent).dot(v) < 0.0 {
+        -1.0
+    } else {
+        1.0
+    };
+    [tangent.x, tangent.y, tangent.z, sign]
+}
+
+/// Any unit vector at right angles to `n`.
+fn any_perpendicular(n: Vec3) -> Vec3 {
+    // Cross with whichever axis `n` is least aligned to, so the result is
+    // never the zero vector.
+    let axis = if n.x.abs() < 0.9 { Vec3::X } else { Vec3::Y };
+    let out = n.cross(axis);
+    if out.length_squared() > 1e-12 {
+        out.normalize()
+    } else {
+        Vec3::X
+    }
 }
 
 /// One face's triangles.
@@ -206,6 +272,7 @@ impl WorldMesh {
 
         let (tex_w, tex_h) = (texdata.width.max(1) as f32, texdata.height.max(1) as f32);
         let rect = atlas.rects.get(face_index).copied().flatten();
+        let tangent = face_tangent(ti, plane.normal);
 
         // Luxel coordinates are relative to the face's own grid origin.
         let (mut min_u, mut min_v) = (f32::INFINITY, f32::INFINITY);
@@ -246,6 +313,7 @@ impl WorldMesh {
                 normal: plane.normal.to_array(),
                 uv: [tu / tex_w, tv / tex_h],
                 lightmap_uv,
+                tangent,
             });
         }
 

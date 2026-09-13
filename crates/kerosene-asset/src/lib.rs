@@ -14,16 +14,24 @@
 //! | Material| `.keromat`   | VMT                | Alchemy  |
 //! | Model   | `.keromdl`   | MDL                | Forge    |
 //!
+//! Textures have two source forms. A loose image under `art/` compiles to one
+//! `.kerotex`, which is all a tool texture or a skybox needs. A *folder* under
+//! `textures/` compiles to a whole set -- colour, normals, roughness, emissive
+//! and occlusion -- plus the material that binds them together; see
+//! [`textureset`].
+//!
 //! [`alchemy`]: https://github.com/t342guy/kerosene
 //! [`forge`]: https://github.com/t342guy/kerosene
 
 pub mod material;
 pub mod model;
 pub mod texture;
+pub mod textureset;
 
 pub use material::{Material, MaterialError, Shader, SurfaceProperty};
 pub use model::{Bone, Mesh, Model, ModelError, Vertex};
 pub use texture::{Mip, PixelFormat, Texture, TextureError, TextureFlags};
+pub use textureset::{MapKind, TextureSet};
 
 /// Canonical extensions, so tools and the VFS agree on them in one place.
 pub mod ext {

@@ -205,3 +205,44 @@ fn a_blank_game_key_counts_as_absent() {
 
     assert_eq!(Project::read(&path).unwrap().game, None);
 }
+
+#[test]
+fn a_project_with_no_dir_keys_wants_the_standard_tree() {
+    let dir = scratch("no-dir-keys");
+    let path = dir.join("p.keroproj");
+    std::fs::write(&path, "project { \"name\" \"x\" }").unwrap();
+
+    assert_eq!(Project::read(&path).unwrap().dirs, None);
+}
+
+#[test]
+fn repeated_dir_keys_become_the_tree_to_create() {
+    let dir = scratch("dir-keys");
+    let path = dir.join("p.keroproj");
+    std::fs::write(
+        &path,
+        "project { \"dir\" \"maps\" \"dir\" \"materials\" \"dir\" \"levels\" }",
+    )
+    .unwrap();
+
+    assert_eq!(
+        Project::read(&path).unwrap().dirs,
+        Some(vec![
+            "maps".to_string(),
+            "materials".to_string(),
+            "levels".to_string()
+        ])
+    );
+}
+
+#[test]
+fn a_blank_dir_key_is_dropped_rather_than_creating_the_root_again() {
+    let dir = scratch("blank-dir-key");
+    let path = dir.join("p.keroproj");
+    std::fs::write(&path, "project { \"dir\" \"  \" \"dir\" \"maps\" }").unwrap();
+
+    assert_eq!(
+        Project::read(&path).unwrap().dirs,
+        Some(vec!["maps".to_string()])
+    );
+}

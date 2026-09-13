@@ -95,9 +95,24 @@ impl TextureFlags {
     pub const TRANSLUCENT: TextureFlags = TextureFlags(1 << 3);
     /// Interface art: never mipmapped, always clamped.
     pub const UI: TextureFlags = TextureFlags(1 << 4);
+    /// Linear data rather than colour: roughness, ambient occlusion, and
+    /// anything else whose texels are measurements instead of something to
+    /// look at. Uploaded without an sRGB transfer, for the same reason a
+    /// normal map is -- a gamma-mangled roughness value is not a roughness
+    /// value.
+    pub const DATA: TextureFlags = TextureFlags(1 << 5);
 
     pub fn contains(self, other: TextureFlags) -> bool {
         self.0 & other.0 == other.0
+    }
+
+    /// Whether these texels are colour, and so want an sRGB transfer on the
+    /// way to the GPU.
+    ///
+    /// The question every upload has to answer, asked in one place so the
+    /// renderer and the tools cannot answer it differently.
+    pub fn is_color(self) -> bool {
+        !self.contains(TextureFlags::NORMAL_MAP) && !self.contains(TextureFlags::DATA)
     }
 }
 

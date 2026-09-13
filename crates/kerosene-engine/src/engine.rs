@@ -1256,6 +1256,21 @@ fn register_cvars(console: &mut Console) {
     );
     console.register_cvar("r_fullbright", "0", ConVarFlags::CHEAT, "Ignore lightmaps.");
     console.register_cvar("r_lightmap", "1", ConVarFlags::CHEAT, "Apply lightmaps.");
+    // Scales, not switches: 0 turns the effect off, 1 is as authored, and
+    // anything above exaggerates it. Seeing what a normal map is doing is
+    // most of why you would type this.
+    console.register_cvar(
+        "r_bumpmap",
+        "1",
+        ConVarFlags::CHEAT,
+        "How far normal maps tilt a surface. 0 flattens them.",
+    );
+    console.register_cvar(
+        "r_specular",
+        "1",
+        ConVarFlags::CHEAT,
+        "Specular highlight level. 0 removes highlights.",
+    );
     console.register_cvar(
         "r_novis",
         "0",

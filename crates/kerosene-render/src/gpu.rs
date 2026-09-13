@@ -13,7 +13,7 @@ use crate::camera::Camera;
 use crate::lightmap::{ATLAS_SIZE, LightmapAtlas};
 use crate::mesh::{WorldMesh, WorldVertex};
 use bytemuck::{Pod, Zeroable};
-use kerosene_asset::{Material, Model, Shader, Texture};
+use kerosene_asset::{MapKind, Material, Model, Shader, Texture};
 use kerosene_bsp::surf;
 use kerosene_math::{Mat4, Pose, Vec3};
 use kerosene_vfs::Vfs;
@@ -49,6 +49,17 @@ pub struct CameraUniform {
     /// `[exposure, time, lightmaps_enabled, fullbright]`.
     pub params: [f32; 4],
     pub sky_color: [f32; 4],
+    /// `[bumpmap_scale, specular_scale, 0, 0]`.
+    ///
+    /// The material half of the debug toggles. They live on the per-frame
+    /// uniform rather than on the per-material one because they are global and
+    /// change at the console: putting them beside `present` would mean
+    /// rewriting every material's buffer to answer `r_bumpmap 0`, and the
+    /// shader has to read both uniforms anyway.
+    ///
+    /// Scales rather than flags, so `r_bumpmap 2` exaggerates a normal map to
+    /// see what it is doing -- the reason to reach for the convar at all.
+    pub render: [f32; 4],
 }
 
 impl CameraUniform {
@@ -58,6 +69,7 @@ impl CameraUniform {
             position: camera.position.extend(1.0).to_array(),
             params: [exposure, time, 1.0, 0.0],
             sky_color: [1.0, 1.0, 1.0, 1.0],
+            render: [1.0, 1.0, 0.0, 0.0],
         }
     }
 
@@ -69,6 +81,14 @@ impl CameraUniform {
     }
     pub fn set_sky_color(&mut self, c: Vec3) {
         self.sky_color = c.extend(1.0).to_array();
+    }
+    /// How far normal maps are allowed to tilt a surface. 0 flattens them.
+    pub fn set_bumpmap(&mut self, scale: f32) {
+        self.render[0] = scale.max(0.0);
+    }
+    /// Overall specular level. 0 removes every highlight.
+    pub fn set_specular(&mut self, scale: f32) {
+        self.render[1] = scale.max(0.0);
     }
 }
 
@@ -123,6 +143,62 @@ impl From<Pose> for ModelUniform {
     fn from(pose: Pose) -> Self {
         ModelUniform {
             transform: pose.to_mat4().to_cols_array_2d(),
+        }
+    }
+}
+
+// ---- materials --------------------------------------------------------------
+
+/// The maps a material is made of, in binding order.
+///
+/// The renderer's copy of [`kerosene_asset::MapKind`]: the same five, in the
+/// same order, because the shader indexes them by position. A test holds the
+/// two lists against each other, so adding a kind on one side and forgetting
+/// the other fails the build rather than binding roughness where the emissive
+/// map should be.
+pub const MAP_KINDS: [MapKind; MAP_COUNT] = [
+    MapKind::Base,
+    MapKind::Normal,
+    MapKind::Roughness,
+    MapKind::Emissive,
+    MapKind::Ao,
+];
+
+/// How many texture bindings a material has.
+pub const MAP_COUNT: usize = 5;
+
+/// The first binding the material textures occupy; 0 and 1 are the sampler and
+/// the presence uniform.
+pub const MAP_BINDING_BASE: u32 = 2;
+
+/// Which of a material's maps are real, and how strongly they act.
+///
+/// The alternative to shader variants: rather than compiling a pipeline per
+/// combination of maps present, every material binds all five slots -- the
+/// absent ones getting a 1x1 neutral texture -- and this says which of them
+/// carry anything. A branch on a uniform is uniform across the draw, so it
+/// costs about what a constant would.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Pod, Zeroable)]
+pub struct MaterialUniform {
+    /// Bit `n` set means [`MAP_KINDS`]`[n]` is a real texture.
+    pub present: u32,
+    /// How much the emissive map adds. 1.0 unless a material says otherwise.
+    pub emissive_strength: f32,
+    /// How far the normal map is allowed to tilt the surface. 1.0 is as
+    /// authored; 0 flattens it, which is what `r_bumpmap 0` sets.
+    pub normal_strength: f32,
+    /// Overall specular level, scaled by `r_specular`.
+    pub specular_strength: f32,
+}
+
+impl Default for MaterialUniform {
+    fn default() -> Self {
+        MaterialUniform {
+            present: 0,
+            emissive_strength: 1.0,
+            normal_strength: 1.0,
+            specular_strength: 1.0,
         }
     }
 }
@@ -209,26 +285,51 @@ impl Renderer {
             ],
         });
 
+        // A material is five textures, one sampler and a word saying which of
+        // the five are real.
+        //
+        // The presence word is why there is one pipeline rather than thirty-two.
+        // The alternative -- a shader variant per combination of maps -- means
+        // compiling pipelines for combinations no material in the game uses,
+        // and a stall the first time one turns up that was not predicted.
+        // Branching on a uniform costs a coherent branch per draw, which on
+        // any GPU built this century is close to nothing, because every
+        // fragment in a draw takes the same side of it.
+        let mut material_entries = vec![
+            wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 1,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: wgpu::BufferSize::new(
+                        std::mem::size_of::<MaterialUniform>() as u64
+                    ),
+                },
+                count: None,
+            },
+        ];
+        for slot in 0..MAP_COUNT {
+            material_entries.push(wgpu::BindGroupLayoutEntry {
+                binding: MAP_BINDING_BASE + slot as u32,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Texture {
+                    sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                    view_dimension: wgpu::TextureViewDimension::D2,
+                    multisampled: false,
+                },
+                count: None,
+            });
+        }
         let material_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("material"),
-            entries: &[
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Texture {
-                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                        view_dimension: wgpu::TextureViewDimension::D2,
-                        multisampled: false,
-                    },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                    count: None,
-                },
-            ],
+            entries: &material_entries,
         });
 
         let model_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -302,6 +403,11 @@ impl Renderer {
                     offset: 32,
                     shader_location: 3,
                     format: wgpu::VertexFormat::Float32x2,
+                },
+                wgpu::VertexAttribute {
+                    offset: 40,
+                    shader_location: 4,
+                    format: wgpu::VertexFormat::Float32x4,
                 },
             ],
         };
@@ -833,6 +939,8 @@ pub struct MapResources {
     pub missing_materials: Vec<String>,
     /// Keeps every uploaded texture alive alongside its bind group.
     _textures: Vec<wgpu::Texture>,
+    /// And the per-material presence uniforms, for the same reason.
+    _buffers: Vec<wgpu::Buffer>,
 }
 
 impl MapResources {
@@ -875,38 +983,37 @@ impl MapResources {
         let fallback = fallback_texture(device, queue);
         let fallback_view = fallback.create_view(&wgpu::TextureViewDescriptor::default());
 
+        // Neutral stand-ins for the maps a material does not have. A missing
+        // normal map is a flat surface, not an error: most materials have
+        // none, and the checkerboard is reserved for the one map whose
+        // absence really is a mistake -- the colour.
+        let neutrals = NeutralMaps::new(device, queue);
+
         let mut material_bind_groups = Vec::with_capacity(mesh.materials.len());
         let mut missing_materials = Vec::new();
         let mut textures = vec![lightmap, fallback];
+        let mut buffers = Vec::with_capacity(mesh.materials.len());
 
         for name in &mesh.materials {
-            let loaded = load_material_texture(device, queue, vfs, name);
-            let view = match loaded {
-                Some(texture) => {
-                    let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-                    textures.push(texture);
-                    view
-                }
-                None => {
-                    missing_materials.push(name.clone());
-                    fallback_view.clone()
-                }
-            };
-            material_bind_groups.push(Some(device.create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some(name),
-                layout: &renderer.material_layout,
-                entries: &[
-                    wgpu::BindGroupEntry {
-                        binding: 0,
-                        resource: wgpu::BindingResource::TextureView(&view),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 1,
-                        resource: wgpu::BindingResource::Sampler(&renderer.sampler),
-                    },
-                ],
-            })));
+            let loaded = load_material_maps(device, queue, vfs, name);
+            if loaded.is_none() {
+                missing_materials.push(name.clone());
+            }
+            let loaded = loaded.unwrap_or_default();
+
+            let (group, buffer) = loaded.bind_group(
+                device,
+                renderer,
+                name,
+                &neutrals,
+                &fallback_view,
+                &mut textures,
+            );
+            material_bind_groups.push(Some(group));
+            buffers.push(buffer);
         }
+
+        textures.extend(neutrals.into_textures());
 
         MapResources {
             vertices,
@@ -915,17 +1022,151 @@ impl MapResources {
             material_bind_groups,
             missing_materials,
             _textures: textures,
+            _buffers: buffers,
         }
     }
 }
 
-/// Load a material and its base texture through the VFS.
-fn load_material_texture(
+/// The 1x1 textures that stand in for maps a material does not have.
+///
+/// One set per map load rather than one per material: every material without a
+/// normal map can point at the same flat blue pixel, and a map with four
+/// hundred materials would otherwise make four hundred copies of it.
+struct NeutralMaps {
+    textures: Vec<wgpu::Texture>,
+    views: Vec<wgpu::TextureView>,
+}
+
+impl NeutralMaps {
+    fn new(device: &wgpu::Device, queue: &wgpu::Queue) -> NeutralMaps {
+        let mut textures = Vec::with_capacity(MAP_COUNT);
+        let mut views = Vec::with_capacity(MAP_COUNT);
+        for kind in MAP_KINDS {
+            // What each map means when it is absent: white light through the
+            // colour, a normal pointing straight out, fully rough (the
+            // lightmap is diffuse, so a surface with nothing said about it
+            // should not shine), nothing emitted, nothing occluded.
+            let texel: [u8; 4] = match kind {
+                MapKind::Base => [255, 255, 255, 255],
+                MapKind::Normal => [128, 128, 255, 255],
+                MapKind::Roughness => [255, 255, 255, 255],
+                MapKind::Emissive => [0, 0, 0, 255],
+                MapKind::Ao => [255, 255, 255, 255],
+            };
+            let texture = upload_rgba_format(
+                device,
+                queue,
+                "neutral map",
+                1,
+                1,
+                &texel,
+                // Neutral texels are the same number in either encoding, so
+                // the format only has to match the binding, not the value.
+                wgpu::TextureFormat::Rgba8Unorm,
+            );
+            views.push(texture.create_view(&wgpu::TextureViewDescriptor::default()));
+            textures.push(texture);
+        }
+        NeutralMaps { textures, views }
+    }
+
+    fn into_textures(self) -> Vec<wgpu::Texture> {
+        self.textures
+    }
+}
+
+/// A material's maps, as far as they loaded.
+#[derive(Default)]
+struct LoadedMaps {
+    /// One slot per [`MAP_KINDS`] entry; `None` where the material named no
+    /// such map, or named one that would not load.
+    maps: [Option<wgpu::Texture>; MAP_COUNT],
+    /// Whether the base colour loaded. False means the checkerboard, and a
+    /// line in the console.
+    has_base: bool,
+}
+
+impl LoadedMaps {
+    /// Build the bind group for these maps, filling the gaps with neutrals.
+    ///
+    /// Takes `textures` to push into: every uploaded texture has to outlive
+    /// the bind group that points at it, and the map's resource list is where
+    /// they are kept alive.
+    fn bind_group(
+        self,
+        device: &wgpu::Device,
+        renderer: &Renderer,
+        label: &str,
+        neutrals: &NeutralMaps,
+        fallback_view: &wgpu::TextureView,
+        textures: &mut Vec<wgpu::Texture>,
+    ) -> (wgpu::BindGroup, wgpu::Buffer) {
+        let mut present = 0u32;
+        let mut views = Vec::with_capacity(MAP_COUNT);
+
+        for (slot, texture) in self.maps.into_iter().enumerate() {
+            match texture {
+                Some(texture) => {
+                    present |= 1 << slot;
+                    views.push(texture.create_view(&wgpu::TextureViewDescriptor::default()));
+                    textures.push(texture);
+                }
+                // The colour is the one map whose absence is worth shouting
+                // about, so it gets the checkerboard rather than white.
+                None if slot == 0 && !self.has_base => views.push(fallback_view.clone()),
+                None => views.push(neutrals.views[slot].clone()),
+            }
+        }
+
+        let uniform = MaterialUniform {
+            present,
+            ..Default::default()
+        };
+        let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some(label),
+            contents: bytemuck::bytes_of(&uniform),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+
+        let mut entries = vec![
+            wgpu::BindGroupEntry {
+                binding: 0,
+                resource: wgpu::BindingResource::Sampler(&renderer.sampler),
+            },
+            wgpu::BindGroupEntry {
+                binding: 1,
+                resource: buffer.as_entire_binding(),
+            },
+        ];
+        for (slot, view) in views.iter().enumerate() {
+            entries.push(wgpu::BindGroupEntry {
+                binding: MAP_BINDING_BASE + slot as u32,
+                resource: wgpu::BindingResource::TextureView(view),
+            });
+        }
+
+        let group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some(label),
+            layout: &renderer.material_layout,
+            entries: &entries,
+        });
+        (group, buffer)
+    }
+}
+
+/// Load a material and every map it names, through the VFS.
+///
+/// `None` means the material itself would not load -- no file, or not
+/// parseable -- which is the case the checkerboard exists for. A material that
+/// loads but whose bump map is missing is not that case: it comes back with
+/// the maps it does have, and the surface renders without bumps rather than
+/// rendering as an error.
+fn load_material_maps(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     vfs: &Vfs,
     name: &str,
-) -> Option<wgpu::Texture> {
+) -> Option<LoadedMaps> {
     let material_path = kerosene_asset::material_path(name);
     let text = vfs.read_string(&material_path).ok()?;
     let material = Material::parse(&text).ok()?;
@@ -934,21 +1175,78 @@ fn load_material_texture(
     // exactly the same way.
     let _ = matches!(material.shader, Shader::Sky);
 
-    let texture_name = material.base_texture().unwrap_or(name);
-    let bytes = vfs.read(&kerosene_asset::texture_path(texture_name)).ok()?;
+    let mut loaded = LoadedMaps::default();
+    for (slot, kind) in MAP_KINDS.into_iter().enumerate() {
+        // The base colour falls back to the material's own name, which is the
+        // convention a material with no `$basetexture` has always relied on.
+        let texture_name = match kind {
+            MapKind::Base => Some(material.base_texture().unwrap_or(name)),
+            MapKind::Normal => material.bump_map(),
+            MapKind::Roughness => material.roughness_map(),
+            MapKind::Emissive => material.emissive_map(),
+            MapKind::Ao => material.ao_map(),
+        };
+        let Some(texture_name) = texture_name.filter(|n| !n.is_empty()) else {
+            continue;
+        };
+
+        match load_texture(device, queue, vfs, texture_name) {
+            Some(texture) => {
+                loaded.maps[slot] = Some(texture);
+                if kind == MapKind::Base {
+                    loaded.has_base = true;
+                }
+            }
+            // Named but absent: worth a line, because somebody wrote the key
+            // and it is not doing anything.
+            None => log::warn!(
+                "material {name}: {} names {texture_name}, which would not load",
+                kind.material_param()
+            ),
+        }
+    }
+
+    Some(loaded)
+}
+
+/// Read one compiled texture and put it on the GPU.
+///
+/// The texture's own flags decide how: a normal map or a roughness map holds
+/// measurements rather than colour, and sampling it through an sRGB transfer
+/// would bend every value in it. That intent was recorded at compile time
+/// precisely so this decision did not have to be made from the filename.
+fn load_texture(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    vfs: &Vfs,
+    name: &str,
+) -> Option<wgpu::Texture> {
+    let bytes = vfs.read(&kerosene_asset::texture_path(name)).ok()?;
     let texture = Texture::from_bytes(&bytes).ok()?;
     let pixels = texture.mip_as_rgba8(0)?;
 
-    Some(upload_rgba(
+    let format = if texture.flags.is_color() {
+        wgpu::TextureFormat::Rgba8UnormSrgb
+    } else {
+        wgpu::TextureFormat::Rgba8Unorm
+    };
+
+    Some(upload_rgba_format(
         device,
         queue,
         name,
         texture.width(),
         texture.height(),
         &pixels,
+        format,
     ))
 }
 
+/// Upload RGBA8 texels as linear data.
+///
+/// For everything that is not material art: the lightmap atlas, which already
+/// holds light values rather than colours, and the missing-texture
+/// checkerboard, which only has to be visible.
 fn upload_rgba(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
@@ -956,6 +1254,28 @@ fn upload_rgba(
     width: u32,
     height: u32,
     pixels: &[u8],
+) -> wgpu::Texture {
+    upload_rgba_format(
+        device,
+        queue,
+        label,
+        width,
+        height,
+        pixels,
+        wgpu::TextureFormat::Rgba8Unorm,
+    )
+}
+
+/// Upload RGBA8 texels in a chosen format.
+#[allow(clippy::too_many_arguments)]
+fn upload_rgba_format(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    label: &str,
+    width: u32,
+    height: u32,
+    pixels: &[u8],
+    format: wgpu::TextureFormat,
 ) -> wgpu::Texture {
     let size = wgpu::Extent3d {
         width,
@@ -968,7 +1288,7 @@ fn upload_rgba(
         mip_level_count: 1,
         sample_count: 1,
         dimension: wgpu::TextureDimension::D2,
-        format: wgpu::TextureFormat::Rgba8Unorm,
+        format,
         usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
         view_formats: &[],
     });
@@ -1019,6 +1339,7 @@ pub struct GpuModel {
     material_bind_groups: Vec<Option<wgpu::BindGroup>>,
     /// Keeps every uploaded texture alive alongside its bind group.
     _textures: Vec<wgpu::Texture>,
+    _buffers: Vec<wgpu::Buffer>,
     /// The model's compiled bounds, for culling and hull fitting.
     pub bounds: kerosene_math::Aabb,
 }
@@ -1060,7 +1381,9 @@ pub fn load_model(
 
     let fallback = fallback_texture(device, queue);
     let fallback_view = fallback.create_view(&wgpu::TextureViewDescriptor::default());
+    let neutrals = NeutralMaps::new(device, queue);
     let mut textures = vec![fallback];
+    let mut buffers = Vec::new();
 
     let mut name_to_group: HashMap<String, u32> = HashMap::new();
     let mut material_bind_groups: Vec<Option<wgpu::BindGroup>> = Vec::new();
@@ -1071,28 +1394,22 @@ pub fn load_model(
         let material_index = match name_to_group.get(&material_name) {
             Some(&idx) => idx,
             None => {
-                let view = match load_material_texture(device, queue, vfs, &material_name) {
-                    Some(texture) => {
-                        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-                        textures.push(texture);
-                        view
-                    }
-                    None => fallback_view.clone(),
-                };
-                let group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-                    label: Some(&material_name),
-                    layout: &renderer.material_layout,
-                    entries: &[
-                        wgpu::BindGroupEntry {
-                            binding: 0,
-                            resource: wgpu::BindingResource::TextureView(&view),
-                        },
-                        wgpu::BindGroupEntry {
-                            binding: 1,
-                            resource: wgpu::BindingResource::Sampler(&renderer.sampler),
-                        },
-                    ],
-                });
+                // Props share the world's material group, so they load the
+                // same five maps -- even though `fs_model` samples only the
+                // colour so far. Binding a layout the pipeline declares but
+                // the data does not fill is not an option: it is a validation
+                // error, not a blank surface.
+                let loaded = load_material_maps(device, queue, vfs, &material_name)
+                    .unwrap_or_default();
+                let (group, buffer) = loaded.bind_group(
+                    device,
+                    renderer,
+                    &material_name,
+                    &neutrals,
+                    &fallback_view,
+                    &mut textures,
+                );
+                buffers.push(buffer);
                 let idx = material_bind_groups.len() as u32;
                 material_bind_groups.push(Some(group));
                 name_to_group.insert(material_name, idx);
@@ -1103,12 +1420,15 @@ pub fn load_model(
         meshes.push((mesh.first_index, mesh.index_count, material_index));
     }
 
+    textures.extend(neutrals.into_textures());
+
     Some(GpuModel {
         vertex_buffer,
         index_buffer,
         meshes,
         material_bind_groups,
         _textures: textures,
+        _buffers: buffers,
         bounds: model.bounds,
     })
 }
@@ -1204,19 +1524,62 @@ mod tests {
         // produces a picture that is subtly, inexplicably wrong.
         assert_eq!(
             std::mem::size_of::<super::CameraUniform>(),
-            64 + 16 + 16 + 16
+            64 + 16 + 16 + 16 + 16
         );
     }
 
     #[test]
     fn the_vertex_layout_matches_the_mesh_vertex() {
         use crate::mesh::WorldVertex;
-        assert_eq!(std::mem::size_of::<WorldVertex>(), 40);
+        assert_eq!(std::mem::size_of::<WorldVertex>(), 56);
         // The attribute offsets in `Renderer::new` assume this layout.
         assert_eq!(std::mem::offset_of!(WorldVertex, position), 0);
         assert_eq!(std::mem::offset_of!(WorldVertex, normal), 12);
         assert_eq!(std::mem::offset_of!(WorldVertex, uv), 24);
         assert_eq!(std::mem::offset_of!(WorldVertex, lightmap_uv), 32);
+        assert_eq!(std::mem::offset_of!(WorldVertex, tangent), 40);
+    }
+
+    #[test]
+    fn the_material_uniform_matches_what_the_shader_declares() {
+        // Both shaders declare this struct; getting it wrong here binds
+        // `normal_strength` where `present` should be and turns every map off
+        // at once, or on at once, depending on the float.
+        assert_eq!(std::mem::size_of::<super::MaterialUniform>(), 16);
+        assert_eq!(std::mem::offset_of!(super::MaterialUniform, present), 0);
+        assert_eq!(
+            std::mem::offset_of!(super::MaterialUniform, emissive_strength),
+            4
+        );
+        assert_eq!(
+            std::mem::offset_of!(super::MaterialUniform, normal_strength),
+            8
+        );
+        assert_eq!(
+            std::mem::offset_of!(super::MaterialUniform, specular_strength),
+            12
+        );
+    }
+
+    #[test]
+    fn the_renderers_map_order_matches_the_asset_crates() {
+        // The shader indexes maps by bit position, so these two lists being
+        // in different orders would bind roughness where the emissive map
+        // should be -- and look like an art bug, not a code one.
+        assert_eq!(super::MAP_COUNT, kerosene_asset::MapKind::ALL.len());
+        assert_eq!(super::MAP_KINDS, kerosene_asset::MapKind::ALL);
+    }
+
+    #[test]
+    fn a_material_with_no_maps_turns_every_optional_path_off() {
+        // The regression that matters most: an albedo-only material -- which
+        // is every material written before texture sets existed -- must take
+        // none of the new branches.
+        let uniform = super::MaterialUniform::default();
+        assert_eq!(uniform.present, 0);
+        for slot in 0..super::MAP_COUNT {
+            assert_eq!(uniform.present & (1 << slot), 0);
+        }
     }
 
     #[test]

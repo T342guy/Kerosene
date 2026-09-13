@@ -170,6 +170,73 @@ fn climb(from: &Path) -> Option<PathBuf> {
     None
 }
 
+// ---- making a content tree --------------------------------------------------
+
+/// The directories a content tree always has.
+///
+/// Every one of them is somewhere a tool writes or reads by convention:
+/// `maps` and `materials` are what [`is_content_root`] looks for, `art` and
+/// `textures` are the two texture sources, and the rest are where Forge,
+/// Timbre and the script loader expect to find their inputs.
+///
+/// They exist as a list rather than as seven `create_dir_all` calls spread
+/// across the tools because a directory a tool forgot to make is a tool that
+/// looks broken on a fresh project, and that is exactly the class of problem
+/// the content-root search was written to end.
+pub const CONTENT_DIRS: &[&str] = &[
+    "maps",
+    "materials",
+    "art",
+    "textures",
+    "models",
+    "sound",
+    "scripts",
+];
+
+/// Create any of a content tree's directories that are missing.
+///
+/// Returns the ones it made, so a caller can say what it did rather than
+/// making a project appear out of nowhere.
+///
+/// Never fails the caller: a read-only install is a warning, not a reason to
+/// refuse to start, for the same reason [`kerosene_config::EngineConf`]'s
+/// loader writes its defaults and shrugs when it cannot. The engine has to
+/// work on a fresh clone and on a locked-down one alike.
+///
+/// `dirs` is what the project asked for, when it asked for anything --
+/// see [`Project::dirs`]. A project that says nothing gets [`CONTENT_DIRS`],
+/// which is every project that exists today.
+pub fn scaffold(root: &Path, dirs: Option<&[String]>) -> Vec<String> {
+    let wanted: Vec<String> = match dirs {
+        Some(named) => named.to_vec(),
+        None => CONTENT_DIRS.iter().map(|d| d.to_string()).collect(),
+    };
+
+    let mut made = Vec::new();
+    for name in wanted {
+        // A project's own list is text somebody typed, so it does not get to
+        // name a directory outside the tree.
+        let name = name.trim().trim_matches('/');
+        if name.is_empty() || name.contains("..") {
+            log::warn!("ignoring content directory {name:?}: it must be a name inside the tree");
+            continue;
+        }
+        let path = root.join(name);
+        if path.is_dir() {
+            continue;
+        }
+        match std::fs::create_dir_all(&path) {
+            Ok(()) => made.push(name.to_string()),
+            Err(e) => log::warn!("could not create {} ({e})", path.display()),
+        }
+    }
+
+    if !made.is_empty() {
+        log::info!("created content directories: {}", made.join(", "));
+    }
+    made
+}
+
 /// What to tell the user about the content root, in one line.
 pub fn describe(found: &Option<Found>) -> String {
     match found {

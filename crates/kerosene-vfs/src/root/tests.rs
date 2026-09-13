@@ -279,3 +279,75 @@ fn a_map_sitting_in_its_own_content_tree_is_not_claimed_by_a_project_elsewhere()
 
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+// ---- scaffolding ------------------------------------------------------------
+
+#[test]
+fn scaffolding_an_empty_directory_makes_a_content_tree() {
+    let dir = scratch("scaffold-empty");
+
+    let made = scaffold(&dir, None);
+    assert_eq!(made.len(), CONTENT_DIRS.len());
+    for name in CONTENT_DIRS {
+        assert!(dir.join(name).is_dir(), "{name} should have been created");
+    }
+    // And the result is a tree the search recognises, which is the point:
+    // a directory that has been scaffolded is a directory the tools can find.
+    assert!(is_content_root(&dir));
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn scaffolding_a_finished_tree_changes_nothing() {
+    let dir = scratch("scaffold-again");
+    scaffold(&dir, None);
+
+    assert!(scaffold(&dir, None).is_empty());
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn scaffolding_fills_in_only_what_is_missing() {
+    // The common case: an existing project that predates a new directory.
+    let dir = scratch("scaffold-partial");
+    std::fs::create_dir_all(dir.join("maps")).unwrap();
+    std::fs::create_dir_all(dir.join("materials")).unwrap();
+
+    let made = scaffold(&dir, None);
+    assert!(!made.contains(&"maps".to_string()));
+    assert!(made.contains(&"textures".to_string()));
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_project_can_name_its_own_directories() {
+    let dir = scratch("scaffold-custom");
+    let dirs = vec!["maps".to_string(), "materials".to_string()];
+
+    let made = scaffold(&dir, Some(&dirs));
+    assert_eq!(made, dirs);
+    assert!(dir.join("maps").is_dir());
+    assert!(
+        !dir.join("textures").exists(),
+        "a project that named its directories should get those and no others"
+    );
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_project_cannot_scaffold_its_way_out_of_its_own_tree() {
+    // The list is text somebody typed into a file. It does not get to create
+    // directories beside the project, or anywhere else above it.
+    let dir = scratch("scaffold-escape");
+    let dirs = vec!["../escaped".to_string(), "".to_string(), "maps".to_string()];
+
+    let made = scaffold(&dir, Some(&dirs));
+    assert_eq!(made, vec!["maps".to_string()]);
+    assert!(!dir.parent().unwrap().join("escaped").exists());
+
+    let _ = std::fs::remove_dir_all(&dir);
+}

@@ -57,6 +57,13 @@ fn main() -> Result<()> {
         match found {
             Some(found) => {
                 log::info!("{}", kerosene_vfs::root::describe(&Some(found.clone())));
+                // A tree that is missing a directory is a tree where some tool
+                // is about to look broken. Make the ones that are not there,
+                // taking the project's word for the layout when it gives one.
+                kerosene_vfs::root::scaffold(
+                    &found.root,
+                    found.project.as_ref().and_then(|p| p.dirs.as_deref()),
+                );
                 // A project that names a start map is answering the question
                 // `kerosene` with no arguments is otherwise stuck on: a game
                 // launched from a shortcut has nobody to type `+map` for it.

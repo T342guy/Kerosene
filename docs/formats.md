@@ -9,6 +9,7 @@
 | `.kerowalk` | NPC walkmap | binary | Cleave | (Source has no equivalent) |
 | `.kerotex` | Texture | binary | Alchemy | `.vtf` |
 | `.keromat` | Material | text (KeyValues) | Alchemy, by hand | `.vmt` |
+| `texture.kconfig` | Texture set definition | text (KeyValues) | Alchemy, by hand | (no equivalent) |
 | `.keromdl` | Model | binary | Forge | `.mdl` |
 | `.kerodef` | Entity class definitions | text (KeyValues) | the game, by hand | `.fgd` |
 | `.keroscript` | Level script | text (Rhai) | by hand | `.nut` (VScript) |
@@ -182,9 +183,12 @@ every run, and doing them *well* is not something to redo per launch.
 ```
 lit
 {
-    "$basetexture" "dev/grid"
-    "$bumpmap"     "dev/grid_normal"
-    "$surfaceprop" "concrete"
+    "$basetexture"   "dev/grid"
+    "$bumpmap"       "dev/grid_normal"
+    "$roughness"     "dev/grid_rough"
+    "$selfillummask" "dev/grid_emissive"
+    "$ao"            "dev/grid_ao"
+    "$surfaceprop"   "concrete"
 }
 ```
 
@@ -196,6 +200,20 @@ Geometry references *materials*, never textures, so retexturing a level or
 making every metal surface reflective is one file change. Unknown parameters
 round-trip rather than being dropped: a game will invent keys the engine has
 never heard of.
+
+The five texture parameters above are the ones the renderer samples. Every one
+but `$basetexture` is optional and absent by default, and a material that names
+none of them renders exactly as it would have before they existed — the shader
+branches on a per-material word saying which are real, so there is one pipeline
+rather than a variant per combination.
+
+| Parameter | What it does |
+|---|---|
+| `$basetexture` | The colour. Sampled through an sRGB view. |
+| `$bumpmap` | Tangent-space normals. The basis comes from the face's texture projection, so it agrees with the UVs by construction. |
+| `$roughness` | Red channel, 0 mirror to 1 matte. Drives a specular highlight; with no map the surface is fully rough and gets none. |
+| `$selfillummask` | What the surface emits regardless of light reaching it. Added before tone-mapping, so it blooms like a lit highlight. |
+| `$ao` | Baked occlusion, multiplied into the lighting. Darkens what the surface shadows itself, which the lightmap's luxels are far too coarse to see. |
 
 `$surfaceprop` is the physical type the surface is made of — `concrete`,
 `metal`, `wood`, and so on. It has one runtime consumer today: a trace that
@@ -224,6 +242,71 @@ convention the GPU renderer culls by, and the opposite of `.keromap` faces,
 which are clockwise. Forge takes an OBJ's winding as-is (the axis remap
 preserves handedness), so the OBJ must already be counter-clockwise: a face
 wound the other way compiles and collides fine but renders inside out.
+
+## `texture.kconfig` — texture sets
+
+A single PNG is not a surface. A surface is a colour, the bumps in it, how rough
+it is, what it glows with and where it self-shadows — five images that belong
+together and are useless apart. So a texture can also be a **folder**, under
+`content/textures/`:
+
+```text
+content/textures/Walltextures/variant1/
+    basecolor.png
+    normal.png
+    roughness.png
+    emissive.png
+    ao.png
+    texture.kconfig      (optional)
+```
+
+It **names itself from where it sits**: `Walltextures/variant1` compiles to
+`Walltextures_variant1`, and each map takes a suffix — `_normal`, `_rough`,
+`_emissive`, `_ao`. The path is already unique and already describes the thing,
+so restating it in a file would only be a second answer that can disagree with
+the first. Alchemy writes the matching `.keromat` wiring up whichever maps are
+there, once, and never overwrites one afterwards.
+
+Filenames are matched generously (`albedo`, `diffuse`, `col`; `nrm`, `bump`;
+`rough`; `glow`, `selfillum`; `occlusion`) because those names come out of
+whatever tool baked them, and rejecting `albedo.png` because the engine wanted
+`basecolor.png` would be a rule that exists only to be tripped over. A folder
+with no base colour is not a set: the other maps modulate a colour, and with
+nothing to modulate they would compile into a material that draws the
+missing-texture checkerboard.
+
+`texture.kconfig` is how you overrule any of that. Every key is optional — the
+point of the folder convention is that the common case needs no file at all:
+
+```text
+texture
+{
+    "name"        "brick_red"     // instead of the folder-derived name
+    "normal"      "weird_bumps.png"  // an image discovery would not find
+    "shader"      "lit"
+    "surfaceprop" "brick"
+    "clamp"       "0"
+    "point"       "0"
+    "translucent" "0"
+}
+```
+
+A key naming a file that is not there costs that one map, not the texture; a
+config that does not parse costs the config, not the folder. Losing a whole
+surface to a stray brace would be a poor trade.
+
+To make one without editing anything by hand:
+
+```
+kerosene-tools alchemy new-texture Walls/brick     --basecolor brick.png --normal brick_n.png --surfaceprop brick
+```
+
+The images are *copied* in under their canonical stems, so the artist's
+originals stay where they are and the content tree stays self-contained.
+
+The loose `art/*.png` tree is unchanged and still compiles one image to one
+texture — right for a tool texture or a skybox, which have nothing to be a set
+with.
 
 ## The developer texture set
 
@@ -293,6 +376,37 @@ Within any one place searched, a project file beats an inferred root even one
 found closer down: a stated answer that loses to a guess is not an answer.
 Between places, nearness still decides. The full order is in
 [tools.md](tools.md#chisel--the-world-editor).
+
+### The content tree is created, not required
+
+The directories under `content/` — `maps`, `materials`, `art`, `textures`,
+`models`, `sound`, `scripts` — are made on first run by whatever starts first,
+the engine or the toolset, and any that are missing are filled in. A tree with
+one of them absent does not announce itself; it looks like whichever tool went
+looking for it being broken, which is the same class of problem the content-root
+search was written to end.
+
+`kerosene-tools init [dir]` does it deliberately, writing a `.keroproj` and the
+tree beside it. It is safe to run on an existing project: the project file is
+left exactly as it is, and only missing directories are created.
+
+A project that wants a different layout says so, with repeated `dir` keys, and
+is believed — the same bargain as `content`:
+
+```
+project
+{
+    "content" "content"
+    "dir"     "maps"
+    "dir"     "materials"
+    "dir"     "levels"
+}
+```
+
+A project with no `dir` key gets the standard set, which is every project
+written so far. A `dir` naming a path outside the tree is ignored with a
+warning: the list is text somebody typed, and it does not get to create
+directories beside the project.
 
 ## `.kerodef` — entity class definitions
 

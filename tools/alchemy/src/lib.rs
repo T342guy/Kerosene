@@ -21,7 +21,9 @@ pub use cli::run;
 
 use anyhow::{Context, Result, bail};
 use kerosene_asset::texture::PixelFormat;
-use kerosene_asset::{Material, Shader, Texture, TextureFlags, material::MaterialError};
+use kerosene_asset::{
+    MapKind, Material, Shader, Texture, TextureFlags, TextureSet, ext, material::MaterialError,
+};
 use std::path::{Path, PathBuf};
 
 pub fn build_flags(normal: bool, clamp: bool, point: bool, ui: bool) -> TextureFlags {
@@ -228,6 +230,201 @@ pub fn batch(dir: &Path, out_root: &Path, make_materials: bool) -> Result<Batch>
     Ok(report)
 }
 
+// ---- texture sets -----------------------------------------------------------
+
+/// What compiling one set did.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SetReport {
+    /// Maps compiled into a `.kerotex`.
+    pub compiled: usize,
+    /// Maps whose `.kerotex` was already newer than the source.
+    pub skipped: usize,
+    /// Whether a material was written (as opposed to one already existing).
+    pub material: bool,
+}
+
+/// Compile every map in a texture set, and write its material.
+///
+/// Each map carries its own flags -- a normal map is not colour, roughness is
+/// not colour and is not a normal map either -- so they cannot share one
+/// compile the way a directory of loose images can. The set already knows
+/// which is which, which is the whole reason it is a set rather than five
+/// files and a naming convention.
+pub fn compile_set(set: &TextureSet, out_root: &Path) -> Result<SetReport> {
+    let mut report = SetReport::default();
+
+    for (kind, source) in &set.maps {
+        let out = out_root.join(format!("{}.{}", set.texture_name(*kind), ext::TEXTURE));
+        if is_up_to_date(source, &out) {
+            report.skipped += 1;
+            continue;
+        }
+        // Only the base map may be translucent. An alpha channel on a
+        // roughness map is a packing artefact, not transparency, and treating
+        // it as transparency would make the surface it describes vanish.
+        let force_opaque = *kind != MapKind::Base;
+        compile_image(source, &out, set.flags_for(*kind), force_opaque)
+            .with_context(|| format!("compiling the {kind:?} map of {}", set.name))?;
+        report.compiled += 1;
+    }
+
+    report.material = write_set_material(set, out_root)?;
+    Ok(report)
+}
+
+/// Write a set's `.keromat`, unless one is already there.
+///
+/// Returns whether it wrote anything. The same rule the loose-image batch
+/// follows: a material is *authored* -- somebody chose the surface property
+/// and the shader -- and regenerating it on every build is how an afternoon's
+/// work disappears. Delete the file to get a fresh one.
+pub fn write_set_material(set: &TextureSet, out_root: &Path) -> Result<bool> {
+    let path = out_root.join(format!("{}.{}", set.name, ext::MATERIAL));
+    if path.exists() {
+        return Ok(false);
+    }
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    std::fs::write(&path, set.to_material().to_text())
+        .with_context(|| format!("writing {}", path.display()))?;
+    Ok(true)
+}
+
+/// Compile every texture set under `dir`.
+///
+/// A directory that is not there is not an error: `textures/` is optional, and
+/// a project that has not made one yet should build, not fail.
+pub fn batch_sets(dir: &Path, out_root: &Path) -> Result<Batch> {
+    let mut report = Batch::default();
+    if !dir.is_dir() {
+        return Ok(report);
+    }
+
+    for set in kerosene_asset::textureset::walk(dir) {
+        let one = compile_set(&set, out_root)?;
+        report.compiled += one.compiled;
+        report.skipped += one.skipped;
+        if one.material {
+            report.materials += 1;
+        } else {
+            report.kept += 1;
+        }
+    }
+    Ok(report)
+}
+
+/// Start a new texture set: make the folder, copy the images in, write the
+/// config.
+///
+/// This is the deliberate way to add a texture. The alternative the engine has
+/// always had -- drop a PNG under `art/` and hope the `_normal` suffix rule
+/// guesses right -- works, but it has nowhere to say a surface is brick, or
+/// that it clamps, and no way to hand somebody four maps at once and have them
+/// end up as one surface.
+///
+/// Images are *copied*, not moved or linked: the artist's original stays where
+/// it is. The copy is the source of record from then on, which is what makes
+/// the content tree self-contained enough to hand to somebody else.
+#[allow(clippy::too_many_arguments)]
+pub fn new_texture(
+    name: &str,
+    content: &Path,
+    basecolor: &Path,
+    normal: Option<&Path>,
+    roughness: Option<&Path>,
+    emissive: Option<&Path>,
+    ao: Option<&Path>,
+    shader: &str,
+    surfaceprop: &str,
+    build: bool,
+) -> Result<()> {
+    let shader = Shader::from_name(shader)
+        .with_context(|| format!("unknown shader '{shader}'; try lit, unlit, sky, water or ui"))?;
+
+    let textures = content.join("textures");
+    // The name doubles as the path, so `Walls/brick` makes two directories and
+    // is called `Walls_brick` -- the same answer a plain directory walk would
+    // reach, which is the point.
+    let dir = textures.join(name.replace('\\', "/").trim_matches('/'));
+    if dir.exists() {
+        bail!(
+            "{} already exists; delete it or pick another name",
+            dir.display()
+        );
+    }
+
+    let sources = [
+        (MapKind::Base, Some(basecolor)),
+        (MapKind::Normal, normal),
+        (MapKind::Roughness, roughness),
+        (MapKind::Emissive, emissive),
+        (MapKind::Ao, ao),
+    ];
+
+    // Check every source before creating anything, so a typo in the last
+    // argument does not leave a half-made texture behind.
+    for (kind, source) in sources.iter().filter_map(|(k, s)| s.map(|s| (k, s))) {
+        if !source.is_file() {
+            bail!("the {kind:?} map {} is not a file", source.display());
+        }
+        if !kerosene_asset::textureset::has_image_extension(source) {
+            bail!(
+                "{} is not an image alchemy can read (png, jpg, jpeg, tga)",
+                source.display()
+            );
+        }
+    }
+
+    std::fs::create_dir_all(&dir).with_context(|| format!("creating {}", dir.display()))?;
+
+    let mut maps = std::collections::BTreeMap::new();
+    for (kind, source) in sources.iter().filter_map(|(k, s)| s.map(|s| (*k, s))) {
+        // Canonical stem, whatever the original was called: the folder should
+        // read the same no matter which tool baked its maps.
+        let extension = source
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("png")
+            .to_lowercase();
+        let stem = kind.aliases()[0];
+        let out = dir.join(format!("{stem}.{extension}"));
+        std::fs::copy(source, &out)
+            .with_context(|| format!("copying {} to {}", source.display(), out.display()))?;
+        maps.insert(kind, out);
+    }
+
+    let set = TextureSet {
+        name: TextureSet::name_from_path(&dir, &textures),
+        directory: dir.clone(),
+        maps,
+        shader,
+        surface_prop: surfaceprop.to_string(),
+        clamp: false,
+        point: false,
+        translucent: false,
+    };
+
+    let config = dir.join(kerosene_asset::textureset::CONFIG_FILENAME);
+    std::fs::write(&config, set.to_config())
+        .with_context(|| format!("writing {}", config.display()))?;
+
+    println!("alchemy: created {} ({})", dir.display(), set.name);
+    for kind in MapKind::ALL {
+        if set.maps.contains_key(&kind) {
+            println!("  {:?} -> {}", kind, set.texture_name(kind));
+        }
+    }
+
+    if build {
+        let report = compile_set(&set, &content.join("materials"))?;
+        println!("  compiled {} textures", report.compiled);
+    } else {
+        println!("  run `alchemy build` to compile it");
+    }
+    Ok(())
+}
+
 /// Whether `out` was written after `source` last changed.
 ///
 /// A missing or unreadable timestamp counts as out of date. Recompiling
@@ -254,33 +451,38 @@ pub struct Build {
     pub dev_materials: devtex::Written,
     /// What compiling the art tree did.
     pub textures: Batch,
+    /// What compiling the `textures/` folder sets did.
+    pub sets: Batch,
 }
 
 impl Build {
     /// Whether anything on disk changed.
     pub fn did_anything(self) -> bool {
-        self.dev_art.changed > 0 || self.dev_materials.changed > 0 || self.textures.did_anything()
+        self.dev_art.changed > 0
+            || self.dev_materials.changed > 0
+            || self.textures.did_anything()
+            || self.sets.did_anything()
     }
 }
 
 impl std::fmt::Display for Build {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let compiled = self.textures.compiled + self.sets.compiled;
+        let skipped = self.textures.skipped + self.sets.skipped;
+        let materials = self.textures.materials + self.sets.materials;
+
         if !self.did_anything() {
-            return write!(
-                f,
-                "textures already built ({} up to date)",
-                self.textures.skipped
-            );
+            return write!(f, "textures already built ({skipped} up to date)");
         }
-        write!(f, "built {} textures", self.textures.compiled)?;
-        if self.textures.skipped > 0 {
-            write!(f, ", {} up to date", self.textures.skipped)?;
+        write!(f, "built {compiled} textures")?;
+        if skipped > 0 {
+            write!(f, ", {skipped} up to date")?;
         }
         if self.dev_art.changed > 0 {
             write!(f, ", {} developer images", self.dev_art.changed)?;
         }
-        if self.textures.materials > 0 {
-            write!(f, ", {} new materials", self.textures.materials)?;
+        if materials > 0 {
+            write!(f, ", {materials} new materials")?;
         }
         Ok(())
     }
@@ -288,8 +490,8 @@ impl std::fmt::Display for Build {
 
 /// Build every texture a content tree needs, from its own sources.
 ///
-/// The developer set is generated first, so the batch compile below picks it
-/// up in the same pass; its materials are written by the generator rather than
+/// Three passes over two source trees. The developer set is generated first,
+/// so the batch compile below picks it up in the same pass; its materials are written by the generator rather than
 /// inferred, because it knows a sky is not lit and a tool texture is not
 /// shaded, and nothing can work that out from a PNG.
 ///
@@ -307,8 +509,12 @@ pub fn build_textures(content_root: &Path) -> Result<Build> {
         dev_art: devtex::write_all(&art)?,
         dev_materials: devtex::write_materials(&materials)?,
         textures: Batch::default(),
+        sets: Batch::default(),
     };
     build.textures = batch(&art, &materials, true)?;
+    // Sets last, so a set may deliberately shadow a loose image of the same
+    // name: the folder is the more specific statement of the two.
+    build.sets = batch_sets(&content_root.join("textures"), &materials)?;
     Ok(build)
 }
 

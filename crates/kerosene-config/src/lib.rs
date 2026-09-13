@@ -3,7 +3,7 @@
 //!
 //! A game has settings that are nobody's map and nobody's project: which
 //! renderer to use, how big the window is, whether it syncs to the display.
-//! They live in one file, `engineconf.keroconfig`, at the top of the content
+//! They live in one file, `engine.kconfig`, at the top of the content
 //! tree, and they always exist: the first program to look for the file and
 //! not find it writes one with the defaults in it.
 //!

@@ -68,6 +68,17 @@ impl Toolset {
         log::info!("{}", kerosene_vfs::root::describe(&found));
         let root = found.as_ref().map(|f| f.root.clone()).unwrap_or_default();
 
+        // Make any content directory that is missing before a tool goes
+        // looking for it. Chisel scans `materials/` and Timbre needs `sound/`;
+        // either one absent is a tool that opens empty and says nothing about
+        // why.
+        if let Some(found) = &found {
+            kerosene_vfs::root::scaffold(
+                &found.root,
+                found.project.as_ref().and_then(|p| p.dirs.as_deref()),
+            );
+        }
+
         // The editor opens on the found tree, or a starter room when there is
         // no content at all -- same behaviour as the standalone editor had.
         let mut editor = ChiselApp::new(root.clone());

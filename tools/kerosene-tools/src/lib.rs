@@ -10,6 +10,7 @@
 //! game ship as just the runtime and an archive; the toolset is a developer's
 //! tool, never a player's.
 
+pub mod init;
 pub mod panels;
 pub mod toolset;
 
@@ -17,6 +18,7 @@ pub use toolset::{Launch, Tab, Toolset, run_gui};
 
 /// The headless subcommands, in the order help prints them.
 pub const SUBCOMMANDS: &[(&str, &str)] = &[
+    ("init", "start a project: a .keroproj and the tree beside it"),
     ("cleave", "compile a .keromap into a .kerobsp"),
     ("umbra", "compute the PVS for a compiled map"),
     ("radiance", "bake static lighting into a compiled map"),
@@ -30,6 +32,7 @@ pub const SUBCOMMANDS: &[(&str, &str)] = &[
 /// Run one headless stage: `kerosene-tools <subcommand> <args...>`.
 pub fn run_subcommand(name: &str, args: Vec<String>) -> anyhow::Result<()> {
     match name {
+        "init" => init::run(args),
         "cleave" => cleave::run(args),
         "umbra" => umbra::run(args),
         "radiance" => radiance::run(args),

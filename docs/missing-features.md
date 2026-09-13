@@ -22,6 +22,13 @@ for completeness.
 - **Chisel 3D view.** Software-rasterised, with correct occlusion but no
   lighting or shadow preview.
 - **Texture block compression.** `.kerotex` is uncompressed; no BCn.
+- **Mipmaps at runtime.** `.kerotex` stores a full mip chain and the upload
+  path takes only level 0, so the sampler's anisotropy setting does nothing and
+  tiled surfaces shimmer at distance.
+- **Texture dimensions in the BSP.** Cleave writes `texdata.width`/`height` as
+  a hardcoded 512 and nothing corrects them, so world UVs are scaled as if
+  every texture were 512 across. The dev textures are 256, so brush texturing
+  is off by 2x against the scale a `.keromap` states.
 - **Audio.** Stereo only. Falloff and panning exist; occlusion, reverb, and
   doppler do not.
 
@@ -34,9 +41,13 @@ for completeness.
   single `mat_exposure` convar.
 - **Anti-aliasing.** `multisampled: false` in the GPU setup; no MSAA/TAA/FXAA.
 - **PBR material model.** Materials are a small closed set
-  (`lit`/`unlit`/`sky`/`water`/`ui`) with `$basetexture` and `$bumpmap`. No
-  metallic/roughness/specular, no emissive maps, no parallax, no per-material
-  shader customization.
+  (`lit`/`unlit`/`sky`/`water`/`ui`). They carry colour, normal, roughness,
+  emissive and occlusion maps, and the renderer samples all five — but the
+  specular term is a Blinn-Phong lobe steered by roughness rather than a real
+  microfacet BRDF, and there is no metalness map, no parallax, and no
+  per-material shader customization. Because diffuse lighting is baked and
+  direction-free, a world surface's highlight is a guess from the view angle
+  rather than from any light that still exists at draw time.
 - **Level of detail.** No LOD for models or geometry.
 - **Decals / projected textures.** None.
 - **Particles / VFX.** None.

@@ -4,7 +4,7 @@ The engine has settings that belong to no single map and no single project:
 which renderer to use, how big the window is, whether it syncs to the display.
 They live in one file at the top of the content tree:
 
-    engineconf.keroconfig
+    engine.kconfig
 
 The file **always exists**. The first program to look for it and not find it
 writes one with the defaults in it, so a fresh clone runs before anyone has

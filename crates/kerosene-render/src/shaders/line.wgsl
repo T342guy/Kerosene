@@ -9,6 +9,8 @@ struct Camera {
     position: vec4<f32>,
     params: vec4<f32>,
     sky_color: vec4<f32>,
+    // x: normal-map scale (r_bumpmap), y: specular scale (r_specular)
+    render: vec4<f32>,
 };
 
 @group(0) @binding(0) var<uniform> camera: Camera;

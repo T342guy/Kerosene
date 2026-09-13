@@ -12,6 +12,33 @@ output.
 
 ---
 
+## init — starting a project
+
+```sh
+kerosene-tools init [dir] [--name "My Mod"] [--content content]
+```
+
+Writes a `.keroproj` and creates the content tree beside it: `maps`,
+`materials`, `art`, `textures`, `models`, `sound`, `scripts`. Without a
+`--name` the directory's own name is used, and the project file is named after
+it.
+
+It is safe to run on a directory that is already a project. The project file is
+the one thing here somebody is expected to have edited, so an existing one is
+left exactly as it is, and only missing directories are created — which makes
+this the way to fill in a directory the engine has started using since the tree
+was made.
+
+A project may name its own directories instead; see
+[formats.md](formats.md#the-content-tree-is-created-not-required).
+
+Nothing *requires* this command: the engine and the toolset both create the
+tree on their own the first time they find a content root. It exists so that
+starting a project is a thing you do, rather than a thing you discover you
+should have done.
+
+---
+
 ## Chisel — the world editor
 
 A tab in the toolset window, and openable straight to a map:
@@ -449,15 +476,33 @@ broken renderer — so Radiance says so.
 kerosene-tools alchemy compile art/grid.png -o materials/dev/grid.kerotex [--normal] [--clamp] [--ui]
 kerosene-tools alchemy material dev/grid --basetexture dev/grid --shader lit
 kerosene-tools alchemy batch art -o materials --make-materials
+kerosene-tools alchemy new-texture Walls/brick --basecolor b.png --normal b_n.png
+kerosene-tools alchemy texture-set content/textures/Walls/brick
 kerosene-tools alchemy build content
 kerosene-tools alchemy info materials/dev/grid.kerotex
 ```
 
 Compiles PNG/JPEG/TGA into `.kerotex` and authors `.keromat` materials.
 
+`new-texture` is the deliberate way to add one. It makes a folder under
+`content/textures/`, copies the images in under canonical names, and writes the
+`texture.kconfig` that documents what the set can say — as against the older
+route of dropping a PNG under `art/` and relying on a filename suffix to be
+guessed correctly. The folder is a *texture set*: colour, normals, roughness,
+emissive and occlusion compiled together, plus the material binding them. See
+[formats.md](formats.md) for the folder layout and the config keys.
+
+`texture-set` compiles one such folder by hand. It derives the set's name the
+same way a full build does — by climbing to the `textures/` directory above it
+— so a set compiled either way ends up called the same thing. Pass `--root` to
+say otherwise.
+
 `build` is the whole texture half of a content build for one project: the
 developer set is generated into `art/`, then everything under `art/` is
-compiled into `materials/`. It is one command because three callers need
+compiled into `materials/`, then every texture set under `textures/` is. Sets
+go last, so a set may deliberately shadow a loose image of the same name: the
+folder is the more specific statement of the two. A project with no `textures/`
+directory builds as it always did. It is one command because three callers need
 exactly it -- this tool, `scripts/build-content.sh`, and Chisel on the way to
 opening its window -- and three callers with three ideas of what "build the
 textures" meant is how the editor came to open with no textures in it while the

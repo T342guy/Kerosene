@@ -30,6 +30,7 @@ timbre = { path = "../timbre" }
 kerosene-ui.workspace = true
 kerosene-vfs.workspace = true
 egui.workspace = true
+clap.workspace = true
 anyhow.workspace = true
 log.workspace = true
 env_logger.workspace = true

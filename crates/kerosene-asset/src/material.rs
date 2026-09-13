@@ -9,9 +9,12 @@
 //! ```text
 //! lit
 //! {
-//!     "$basetexture"  "dev/grid"
-//!     "$bumpmap"      "dev/grid_normal"
-//!     "$surfaceprop"  "concrete"
+//!     "$basetexture"    "dev/grid"
+//!     "$bumpmap"        "dev/grid_normal"
+//!     "$roughness"      "dev/grid_rough"
+//!     "$selfillummask"  "dev/grid_emissive"
+//!     "$ao"             "dev/grid_ao"
+//!     "$surfaceprop"    "concrete"
 //! }
 //! ```
 //!
@@ -148,6 +151,25 @@ impl Material {
         self.get("$bumpmap")
     }
 
+    /// Microfacet roughness map, read from the red channel.
+    pub fn roughness_map(&self) -> Option<&str> {
+        self.get("$roughness")
+    }
+
+    /// What the surface emits on its own, independent of any light reaching
+    /// it.
+    ///
+    /// `$selfillummask` rather than `$emissive`: it is the key Source uses,
+    /// and the one the packer already knew about.
+    pub fn emissive_map(&self) -> Option<&str> {
+        self.get("$selfillummask")
+    }
+
+    /// Baked ambient occlusion, darkening what the surface shadows itself.
+    pub fn ao_map(&self) -> Option<&str> {
+        self.get("$ao")
+    }
+
     /// Every texture this material references, for content packing.
     ///
     /// Vault uses this to work out what a map actually needs: walking the
@@ -163,6 +185,8 @@ impl Material {
                     *k,
                     "$basetexture"
                         | "$bumpmap"
+                        | "$roughness"
+                        | "$ao"
                         | "$detail"
                         | "$selfillummask"
                         | "$envmapmask"

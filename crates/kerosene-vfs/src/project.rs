@@ -17,6 +17,11 @@
 //!     "content"  "content"
 //!     "startmap" "mm_intro"
 //!     "game"     "my-mod"
+//!
+//!     // The tree to create, if the standard one is not wanted. Repeat the
+//!     // key rather than separating with commas.
+//!     "dir"      "maps"
+//!     "dir"      "materials"
 //! }
 //! ```
 //!
@@ -51,6 +56,17 @@ pub struct Project {
     /// runtime instead. Naming a package is what turns a content tree into a
     /// game somebody can be handed.
     pub game: Option<String>,
+    /// The directories the content tree is made of, when the project says.
+    ///
+    /// The tree is created on first run from [`root::CONTENT_DIRS`], which is
+    /// the layout every tool assumes. This is how a project that wants a
+    /// different one says so and has it believed -- the same bargain as
+    /// `content`: inference is a guess, and this is the way to overrule it.
+    ///
+    /// `None`, which is every project written so far, means the defaults.
+    ///
+    /// [`root::CONTENT_DIRS`]: crate::root::CONTENT_DIRS
+    pub dirs: Option<Vec<String>>,
 }
 
 impl Project {
@@ -107,6 +123,18 @@ impl Project {
                 .map(str::trim)
                 .filter(|g| !g.is_empty())
                 .map(str::to_string),
+            // Repeated `dir` keys rather than one comma-separated value: the
+            // format has `get_all` for exactly this, and a list somebody has
+            // to punctuate correctly is a list somebody will punctuate wrong.
+            dirs: {
+                let named: Vec<String> = block
+                    .get_all("dir")
+                    .map(str::trim)
+                    .filter(|d| !d.is_empty())
+                    .map(str::to_string)
+                    .collect();
+                (!named.is_empty()).then_some(named)
+            },
         })
     }
 

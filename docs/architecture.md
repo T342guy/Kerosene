@@ -39,7 +39,7 @@ about everything. The tools sit off to the side, depending on the format crates
 but never on the engine.
 
 `kerosene-config` is not on the diagram because it sits to the side of all of
-it: a small crate on top of `kerosene-kv` that reads `engineconf.keroconfig`,
+it: a small crate on top of `kerosene-kv` that reads `engine.kconfig`,
 the settings every program shares (which renderer, how big the window). The
 game, Chisel, and the tool windows all ask it the same question, so the
 renderer is chosen once in a file rather than once per program.

@@ -1617,6 +1617,7 @@ dependencies = [
  "alchemy",
  "anyhow",
  "chisel",
+ "clap",
  "cleave",
  "egui",
  "env_logger",

@@ -412,6 +412,8 @@ impl App {
         );
         uniform.set_lightmaps(self.engine.console.bool("r_lightmap"));
         uniform.set_fullbright(self.engine.console.bool("r_fullbright"));
+        uniform.set_bumpmap(self.engine.console.float("r_bumpmap"));
+        uniform.set_specular(self.engine.console.float("r_specular"));
         if let Some(level) = &self.engine.level {
             uniform.set_sky_color(level.sky_color);
         }

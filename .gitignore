@@ -14,8 +14,14 @@
 *.keroprt
 *.keroleak
 *.kerowalk
-*.kconfig
 content/maps/*.kerobsp
+
+# Config files are *authored*, not generated, so they are committed. The one
+# exception is the engine config, which the first program to miss it writes
+# with the defaults in it -- but even that is kept, so a clone runs with the
+# settings the project actually chose rather than whatever the defaults are
+# this week. `texture.kconfig` is a texture set's own definition and losing it
+# silently would lose the artist's work with no error to show for it.
 
 
 **/*.rs.bk

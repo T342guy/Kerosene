@@ -40,6 +40,7 @@ fn the_archive_is_named_after_the_project_and_lives_in_the_content_tree() {
             content: PathBuf::from("/game/content"),
             start_map: None,
             game: None,
+            dirs: None,
         }),
         ..Settings::default()
     };
