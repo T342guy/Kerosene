@@ -114,7 +114,9 @@ the mainstream engines is not replay-stable across machines, and people build
 elaborate workarounds. Kerosene gets it as a consequence of how it is built.
 
 **Leans on:** determinism, the solver, iteration speed.
-**Needs:** save/load for ghosts, and a HUD.
+**Needs:** demo recording -- which is also how the determinism claim gets
+*proven*, since nothing replays a session today -- plus save/load for ghosts,
+and a HUD.
 
 ### 4. Competitive multiplayer with a mod scene
 
@@ -126,6 +128,12 @@ that can write its own tools makes a game outlive its studio.
 **Leans on:** replaceable compilers, open formats, the headless simulation.
 **Needs:** the whole of the networking section. Furthest out -- but the
 headless split means the architecture is already pointed the right way.
+
+The mod-scene half does not have to wait for the networking half. A map is a
+`.vault`, the VFS already mounts archives as layers, and Steam Workshop is an
+upload from Chisel and a subscription in-game. That is a weekend against the
+Steamworks SDK, not a networking stack, and it is the first place the
+open-formats thesis pays out where a player can see it.
 
 ### 5. Horror
 
@@ -160,11 +168,19 @@ shipped a game with this":
 2. **Networking.** The headless simulation is the hard architectural half, and
    it is done. Without a wire protocol, though, the comparison to Source stops
    being true in the way that mattered most to Source.
-3. **Windows.** Audio is ALSA-only, so most of the people who would want this
-   cannot run it.
+3. **Windows.** Nothing has built it there. wgpu, winit and cpal all do
+   Windows, so this is almost certainly untested rather than broken -- but
+   there is no CI to say so, and most of the people who would want this
+   cannot run it until something does.
+
+Two more are smaller than those and gate the *feel* rather than the
+possibility: the view is not interpolated between ticks (`host.rs` pins
+`alpha = 1.0`), and there is no game UI layer, so there is no menu, no
+options screen and no HUD to put a game behind. Both are on the order of
+days, and both are in the way of every genre above.
 
 Everything else on that sheet -- PBR, post-processing, decals, particles, LOD
--- makes games *prettier*. These three make games *possible*.
+-- makes games *prettier*. These make games *possible*.
 
 ## The honest summary
 

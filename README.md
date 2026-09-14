@@ -293,13 +293,19 @@ Known limits, stated plainly:
   wire protocol and prediction are not written.
 - **No skeletal animation.** `.keromdl` carries bones and per-vertex weights, and
   Forge preserves them, but nothing animates them yet.
+- **The view is not interpolated between ticks.** The hooks exist; the
+  fraction is pinned to 1.0. On a display faster than the tick rate the
+  camera steps.
+- **No CI, and no Windows or macOS build has been tried.** The dependencies
+  are all cross-platform, so this is untested rather than known-broken.
+- **No game UI, no save/load, no demo recording.** The developer console is
+  the only overlay; nothing serialises game state; nothing records a session.
 - **Chisel's 3D view is software-rasterised, not GPU-rendered.** Occlusion is
   correct — it has a real depth buffer — and it draws materials, mipped and
   perspective-correct. There is no lighting and there are no shadows, and it
   reads the *compiled* textures, so the content has to be built first. The
   compiled map in the engine is one keystroke away.
-- **No block compression for textures.** `.kerotex` is uncompressed. A bad BC
-  encoder is worse than none.
+- **No block compression for textures.** `.kerotex` is uncompressed.
 - **Sound is stereo, and does not know about walls.** Falloff and panning are
   there; occlusion, reverb and doppler are not, so a sound through a wall is
   as loud as one in the room.
