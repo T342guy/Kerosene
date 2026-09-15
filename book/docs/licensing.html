@@ -1,0 +1,557 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Licensing - Kerosene game engine docs</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../favicon-de23e50b.svg">
+        <link rel="shortcut icon" href="../favicon-8114d1fc.png">
+        <link rel="stylesheet" href="../css/variables-8adf115d.css">
+        <link rel="stylesheet" href="../css/general-e96d0476.css">
+        <link rel="stylesheet" href="../css/chrome-d279d366.css">
+        <link rel="stylesheet" href="../css/print-9e4910d8.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../fonts/fonts-9644e21d.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="mdbook-highlight-css" href="../highlight-493f70e1.css">
+        <link rel="stylesheet" id="mdbook-tomorrow-night-css" href="../tomorrow-night-4c0ae647.css">
+        <link rel="stylesheet" id="mdbook-ayu-highlight-css" href="../ayu-highlight-3fdfc3ac.css">
+
+        <!-- Custom theme stylesheets -->
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "../";
+            const default_light_theme = "light";
+            const default_dark_theme = "navy";
+            window.path_to_searchindex_js = "../searchindex-7de34f39.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../toc-b0b5977e.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="mdbook-body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="mdbook-sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../toc.html"></iframe>
+            </noscript>
+            <div id="mdbook-sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="mdbook-page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="mdbook-menu-bar-hover-placeholder"></div>
+                <div id="mdbook-menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="mdbook-sidebar-toggle" class="icon-button" for="mdbook-sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="mdbook-sidebar">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M0 96C0 78.3 14.3 64 32 64H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32C14.3 128 0 113.7 0 96zM0 256c0-17.7 14.3-32 32-32H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32c-17.7 0-32-14.3-32-32zM448 416c0 17.7-14.3 32-32 32H32c-17.7 0-32-14.3-32-32s14.3-32 32-32H416c17.7 0 32 14.3 32 32z"/></svg></span>
+                        </label>
+                        <button id="mdbook-theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="mdbook-theme-list">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M371.3 367.1c27.3-3.9 51.9-19.4 67.2-42.9L600.2 74.1c12.6-19.5 9.4-45.3-7.6-61.2S549.7-4.4 531.1 9.6L294.4 187.2c-24 18-38.2 46.1-38.4 76.1L371.3 367.1zm-19.6 25.4l-116-104.4C175.9 290.3 128 339.6 128 400c0 3.9 .2 7.8 .6 11.6c1.8 17.5-10.2 36.4-27.8 36.4H96c-17.7 0-32 14.3-32 32s14.3 32 32 32H240c61.9 0 112-50.1 112-112c0-2.5-.1-5-.2-7.5z"/></svg></span>
+                        </button>
+                        <ul id="mdbook-theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-ayu">Ayu</button></li>
+                        </ul>
+                        <button id="mdbook-search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="mdbook-searchbar">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.2-76.8 40-122.7 40C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208zM208 352c79.5 0 144-64.5 144-144s-64.5-144-144-144S64 128.5 64 208s64.5 144 144 144z"/></svg></span>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">Kerosene game engine docs</h1>
+
+                    <div class="right-buttons">
+                        <a href="../print.html" title="Print this book" aria-label="Print this book">
+                            <span class=fa-svg id="print-button"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M128 0C92.7 0 64 28.7 64 64v96h64V64H354.7L384 93.3V160h64V93.3c0-17-6.7-33.3-18.7-45.3L400 18.7C388 6.7 371.7 0 354.7 0H128zM384 352v32 64H128V384 368 352H384zm64 32h32c17.7 0 32-14.3 32-32V256c0-35.3-28.7-64-64-64H64c-35.3 0-64 28.7-64 64v96c0 17.7 14.3 32 32 32H64v64c0 35.3 28.7 64 64 64H384c35.3 0 64-28.7 64-64V384zm-16-88c-13.3 0-24-10.7-24-24s10.7-24 24-24s24 10.7 24 24s-10.7 24-24 24z"/></svg></span>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="mdbook-search-wrapper" class="hidden">
+                    <form id="mdbook-searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="mdbook-searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="mdbook-searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <span class=fa-svg id="fa-spin"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M304 48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zm0 416c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM48 304c26.5 0 48-21.5 48-48s-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48zm464-48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM142.9 437c18.7-18.7 18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zm0-294.2c18.7-18.7 18.7-49.1 0-67.9S93.7 56.2 75 75s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zM369.1 437c18.7 18.7 49.1 18.7 67.9 0s18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9z"/></svg></span>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="mdbook-searchresults-outer" class="searchresults-outer hidden">
+                        <div id="mdbook-searchresults-header" class="searchresults-header"></div>
+                        <ul id="mdbook-searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('mdbook-sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('mdbook-sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#mdbook-sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="mdbook-content" class="content">
+                    <main>
+                        <h1 id="licensing"><a class="header" href="#licensing">Licensing</a></h1>
+<p>Kerosene is <strong>dual-licensed</strong> under <strong>LGPL-3.0-or-later OR MPL-2.0</strong>. Both
+full texts ship in the repository — <code>LICENSE-LGPL-3.0</code> and <code>LICENSE-MPL-2.0</code>
+— <code>Cargo.toml</code> declares <code>license = "LGPL-3.0-or-later OR MPL-2.0"</code>, and every
+source file carries the matching
+<code>SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0</code> line.</p>
+<p>The “OR” is a real choice, not a stack of conditions. A recipient uses the
+code under one licence or the other, whichever fits what they are doing, and
+does not have to satisfy both at once. <code>NOTICE</code> states the two paths on one
+page; this document explains the reasoning and then does the dependency audit.</p>
+<p>I am not a lawyer and none of this is legal advice. It is an accurate inventory
+plus the reasoning behind the choice, so that you or an actual lawyer can move
+quickly.</p>
+<h2 id="what-the-two-licences-mean-here"><a class="header" href="#what-the-two-licences-mean-here">What the two licences mean here</a></h2>
+<p><strong>MPL-2.0 is weak, file-level copyleft.</strong> The one phrase that matters:</p>
+<ul>
+<li><strong>A “file” is the unit of copyleft, not the program.</strong> Modify an MPL file
+and distribute it, and you must make <em>that file’s</em> source available under
+MPL-2.0. Files you write yourself — your game code, your levels, your
+scripts — carry whatever terms you like, even when they sit in the same
+directory, the same crate, or the same binary as MPL-2.0 code.</li>
+<li><strong>There is no “linking” stage.</strong> MPL-2.0 does not care how MPL and non-MPL
+code are combined; the obligations stay in the MPL files and reach nothing
+beyond them.</li>
+<li><strong>Your game is yours.</strong> Game code, assets, levels, shaders, scripts — all
+yours, under whatever terms you like, shipped any way you like, closed
+source or otherwise.</li>
+<li><strong>Changing Kerosene itself</strong> means distributing those changed files under
+MPL-2.0 too. The obligation is confined to the files you actually change.</li>
+<li><strong>The tools work the same way.</strong> Chisel, Cleave, Umbra, Radiance, Alchemy,
+Timbre, Forge, Vault and Kiln are all under the same terms.</li>
+</ul>
+<p><strong>LGPL-3.0-or-later is copyleft on the engine as a whole.</strong> It is the
+stronger of the two:</p>
+<ul>
+<li><strong>The “Library” is Kerosene</strong> — the engine crates and the tools. If you
+modify it and distribute your version, the modified engine must be released
+under the LGPL.</li>
+<li><strong>Code you write <em>against</em> the engine is not the engine.</strong> The LGPL does
+not demand that your game be open source; it demands that the library part
+stay replaceable. Rust links statically by default, so LGPL-3.0 §4 means
+shipping the engine as a replaceable shared library, or shipping your
+object files so the game can be relinked — real but ordinary work.</li>
+<li><strong>Stronger guarantee, more ceremony.</strong> That relinking requirement is the
+entire cost of the LGPL arm, and the entire reason the MPL arm exists.</li>
+</ul>
+<h2 id="why-two-licences-and-not-one"><a class="header" href="#why-two-licences-and-not-one">Why two licences and not one</a></h2>
+<p>Kerosene began under LGPL-3.0-or-later. The LGPL’s mechanism assumes a user
+can swap the library inside a program for their own build, and Rust’s
+default static linking makes that a chore for anyone shipping a closed-source
+game: either C-ABI plumbing or an object-file distribution step that <code>cargo</code>
+does not do for you. None of it bites at development time, but the moment a
+binary leaves the door it demands work.</p>
+<p>MPL-2.0 has no linking stage, so none of that applies — but its copyleft is
+<em>weaker</em>: it does not require a <em>modified engine</em> to be released as a whole,
+only the modified files. Each licence, alone, is a trade-off:</p>
+<ul>
+<li>MPL-2.0 — simplest possible shipping story, weakest copyleft.</li>
+<li>LGPL-3.0 — strongest guarantee that a modified engine stays open, most
+shipping ceremony.</li>
+</ul>
+<p>Rather than pick one trade-off for everyone, the project offers both. The
+recipient chooses the arm that fits: a closed-source game takes MPL-2.0 and
+ships with nothing more than a notice; someone who wants the strong guarantee
+that forks of the engine stay open takes the LGPL.</p>
+<p>Compatibility is worth one sentence: MPL-2.0 §3.3 says you may combine MPL
+code with code under a “Secondary License” from the GPL, LGPL or AGPL
+families and convey the larger work under that licence, and LGPL-3.0 is
+itself GPL-compatible. Neither arm walls this project off from the copyleft
+world, and neither arm imports the other’s obligations.</p>
+<h2 id="third-party-dependencies"><a class="header" href="#third-party-dependencies">Third-party dependencies</a></h2>
+<p>325 distinct crates in the workspace dependency graph (normal edges, all
+targets). Two facts matter more than any list:</p>
+<ul>
+<li><strong>Neither arm of the licence forces a hard line around copyleft.</strong> Under
+the MPL arm, a file-level-copyleft dependency is the same licence the
+project itself ships under. Under the LGPL arm, the strong copyleft applies
+to the engine <em>you</em> distribute, and a compatible copyleft dependency is
+ordinary rather than something to quarantine.</li>
+<li><strong>No GPL crate appears at any depth, and no LGPL or AGPL crate either.</strong>
+The strongest whole-work copyleft licences are absent from the dependency
+tree. Nothing requires a game built on this to adopt a copyleft of its own.</li>
+</ul>
+<p>The only copyleft-licensed dependencies are themselves MPL-2.0:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Reaches</th><th>Ships in a game</th></tr>
+</thead>
+<tbody>
+<tr><td><code>smartstring</code> (MPL-2.0+), via <code>rhai</code></td><td>the engine</td></tr>
+<tr><td>Symphonia, six crates (MPL-2.0)</td><td><code>timbre</code> only</td></tr>
+</tbody>
+</table>
+</div>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Licence</th><th>Crates</th></tr>
+</thead>
+<tbody>
+<tr><td><code>MIT OR Apache-2.0</code> (and orderings/spellings of it)</td><td>442</td></tr>
+<tr><td><code>MIT</code></td><td>55</td></tr>
+<tr><td><code>Unicode-3.0</code></td><td>36</td></tr>
+<tr><td><code>Zlib OR Apache-2.0 OR MIT</code> (either order)</td><td>34</td></tr>
+<tr><td><code>Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT</code></td><td>12</td></tr>
+<tr><td><code>Unlicense OR MIT</code></td><td>10</td></tr>
+<tr><td><code>Apache-2.0</code> (only)</td><td>10</td></tr>
+<tr><td><code>ISC</code></td><td>5</td></tr>
+<tr><td><code>(MIT OR Apache-2.0) AND Unicode-3.0</code></td><td>4</td></tr>
+<tr><td><code>BSD-2-Clause</code> / <code>BSD-3-Clause</code> / <code>BSD-* OR ...</code></td><td>9</td></tr>
+<tr><td><code>Zlib</code>, <code>CC0-1.0</code>, <code>0BSD OR MIT OR Apache-2.0</code>, <code>Apache-2.0 AND MIT</code></td><td>4</td></tr>
+<tr><td><code>(MIT OR Apache-2.0) AND OFL-1.1 AND Ubuntu-font-1.0</code></td><td>1</td></tr>
+<tr><td><code>MPL-2.0</code> / <code>MPL-2.0+</code></td><td>7</td></tr>
+</tbody>
+</table>
+</div>
+<p>(Counts are per dependency <em>edge</em>, so a crate pulled in by several others is
+counted more than once. Regenerate them with the command below; the table is a
+snapshot and the command is the truth.)</p>
+<p>Regenerate with:</p>
+<pre><code>cargo tree --workspace --edges normal --prefix none --format '{p}|{l}'
+</code></pre>
+<p>The MPL-2.0 rows above are <code>smartstring</code> and Symphonia’s six crates. They are
+dependencies that share one arm of the project’s own licence.</p>
+<p><code>box3d-rust</code> (MIT) sits in the plain-<code>MIT</code> bucket and backs <code>kerosene-rigid</code>,
+the rigid-body simulation. It is a pure-Rust port of Erin Catto’s Box3D with
+no dependencies of its own and no build script, chosen over a Jolt FFI wrapper
+specifically so the tree never has to vendor a C++ physics library, carry
+bindgen output, or require a C++ toolchain to link it.</p>
+<h3 id="the-two-mpl-20-dependencies"><a class="header" href="#the-two-mpl-20-dependencies">The two MPL-2.0 dependencies</a></h3>
+<p><strong>What MPL-2.0 asks</strong>, first, because it is also one arm of the project’s own
+licence: file-level copyleft. A shipped, <em>unmodified</em> binary carrying MPL-2.0
+code owes a notice — the licence text and a statement of where the MPL source
+lives. Modified MPL <em>files</em> must be released as source under MPL-2.0. It
+reaches nothing else.</p>
+<h4 id="smartstring-which-the-engine-does-link"><a class="header" href="#smartstring-which-the-engine-does-link"><code>smartstring</code>, which the engine does link</a></h4>
+<pre><code>smartstring 1.0.1 (MPL-2.0+)
+└── rhai
+    └── kerosene-script → kerosene-engine
+</code></pre>
+<p>Scripting pulls it in, so it is inside <code>kerosene</code> and inside every game built
+on it. A shipped game therefore carries MPL-2.0 code, and the obligation that
+travels with it is the notice — the same shape as the OFL and Ubuntu font
+obligations that egui brings, and satisfied the same way. <code>kiln --ship</code> writes
+that notice into the distribution’s <code>README.txt</code>, so a build made with it is
+compliant without anyone remembering to be.</p>
+<h4 id="symphonia-which-only-a-build-tool-links"><a class="header" href="#symphonia-which-only-a-build-tool-links">Symphonia, which only a build tool links</a></h4>
+<pre><code>symphonia  symphonia-core  symphonia-common
+symphonia-metadata  symphonia-bundle-flac  symphonia-bundle-mp3
+</code></pre>
+<p>All MPL-2.0, all reached only by <code>timbre</code>, which reads FLAC and MP3 sources.
+<code>kerosene-audio</code> decodes what a <em>player’s</em> machine loads and is hand-written
+for that reason; Timbre is a compiler that runs on the machine making the
+content, and <code>kiln --ship</code> refuses to put a tool in a distribution at all. So
+no game ever ships these, and no game developer inherits anything from them.
+Alchemy made the same call first, pulling in <code>image</code> for PNG and JPEG while
+the engine reads only <code>.kerotex</code>.</p>
+<p>Admitting them was a choice with poor alternatives. There is no maintained,
+permissively licensed, pure-Rust MP3 decoder: the options were Symphonia, a C
+library through bindings — which would put a C++ toolchain in the build and
+wreck the cross-compilation story <code>kiln --ship</code> depends on — or writing an MP3
+decoder by hand, which is several thousand lines of solved problem. FLAC alone
+could have used <code>claxon</code> (Apache-2.0); MP3 forced it.</p>
+<h3 id="the-four-that-actually-matter"><a class="header" href="#the-four-that-actually-matter">The four that actually matter</a></h3>
+<p><strong>Apache-2.0-only crates.</strong></p>
+<pre><code>winit  cpal  ab_glyph  ab_glyph_rasterizer
+owned_ttf_parser  spirv  codespan-reporting  gethostname
+</code></pre>
+<p>Apache-2.0 is compatible with both arms of the licence. Under the LGPL arm it
+decided the <em>version</em> once — Apache-2.0 cannot be bundled under GPL-2.0, but
+it can under GPL-3.0 and LGPL-3.0 — and under the MPL arm it is a note rather
+than a decision. The list is kept here because it is still the set of crates
+whose “Apache-2.0 only” status is worth knowing if anyone ever forks with
+different terms in mind.</p>
+<p><strong>Bundled fonts — <code>epaint_default_fonts</code>.</strong> egui ships default typefaces
+under the SIL Open Font Licence 1.1 and the Ubuntu Font Licence 1.0. Those
+travel inside any binary linking egui, which here means Chisel and the
+engine’s debug overlay. Both licences permit redistribution; both require
+their notices to be preserved, and OFL forbids selling the fonts on their
+own and imposes a Reserved Font Name rule if you <em>modify</em> a font. Shipping
+them unmodified inside an application is exactly the intended case. If you
+publish binaries, ship the font licences alongside them.</p>
+<p><strong><code>hexf-parse</code> is CC0-1.0.</strong> A public-domain dedication, so it imposes
+nothing — but some corporate policies flag CC0 because it explicitly does
+<em>not</em> grant patent rights. Irrelevant for a hobby or open-source release;
+worth knowing if this ever goes near a company’s legal review.</p>
+<p><strong><code>dpi</code> is <code>Apache-2.0 AND MIT</code></strong> — conjunctive, not a choice. Both sets of
+terms apply. Both are permissive, so this changes nothing practical.</p>
+<h2 id="content-in-this-repository"><a class="header" href="#content-in-this-repository">Content in this repository</a></h2>
+<p>Everything under <code>content/</code> was made for this project:</p>
+<ul>
+<li><code>content/art/**.png</code> — flat-colour and procedural developer textures
+(256x256 and 128x128), authored here. No metadata, no third-party source.</li>
+<li><code>content/art/props/crate.obj</code> — hand-written vertex list.</li>
+<li><code>content/maps/kero_start.keromap</code> — emitted by
+<code>crates/kerosene-map/examples/sample_map.rs</code>, i.e. generated by code in this
+repository.</li>
+<li><code>content/materials/**.keromat</code> — hand-written KeyValues.</li>
+</ul>
+<p>Nothing was extracted from, decompiled from, or converted out of any game.
+Every compiled artefact (<code>.kerobsp</code>, <code>.kerotex</code>, <code>.keromdl</code>, <code>.keroprt</code>,
+<code>.vault</code>) is a build output, reproducible with <code>scripts/build-content.sh</code>,
+and is not committed.</p>
+<h2 id="provenance-of-the-algorithms"><a class="header" href="#provenance-of-the-algorithms">Provenance of the algorithms</a></h2>
+<p>This is the part worth being honest about, because it is the only place the
+question has any teeth.</p>
+<p>Kerosene implements techniques that are decades of published graphics
+research: BSP trees for solid geometry and draw order (Fuchs/Kedem/Naylor
+1980; Naylor/Amanatides/Thibault 1990), portal-based PVS precomputation
+(Teller’s 1992 dissertation), radiosity lightmapping (Goral et al. 1984),
+Sutherland–Hodgman clipping (1974), Gribb–Hartmann frustum extraction. None
+of that is anyone’s property.</p>
+<p>id Software’s Quake tools are a famous <em>implementation</em> of several of them,
+released under GPL-2.0, and Valve’s Source engine descends from that lineage.
+Some modules here follow that implementation’s structure closely enough that
+a reader would recognise it:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Module</th><th>Follows</th></tr>
+</thead>
+<tbody>
+<tr><td><code>kerosene-math::winding::Winding::split</code></td><td><code>ClipWindingEpsilon</code></td></tr>
+<tr><td><code>cleave::tree::select_split</code></td><td><code>SelectSplitSide</code>’s scoring</td></tr>
+<tr><td><code>umbra::flow::clip_to_separators</code></td><td><code>ClipToSeperators</code></td></tr>
+<tr><td><code>kerosene-physics::movement</code></td><td>Source’s <code>gamemovement</code> solver</td></tr>
+<tr><td><code>kerosene-map::texture</code> base axes</td><td>Quake’s <code>baseaxis</code> table</td></tr>
+</tbody>
+</table>
+</div>
+<p>All of it was written from scratch in Rust, against descriptions of the
+algorithms rather than by transcription; the naming, types, error handling,
+data layout and tests are this project’s own. US copyright does not extend to
+“any idea, procedure, process, system, method of operation” regardless of how
+it is described in a work (17 U.S.C. §102(b)), and the constants that <em>are</em>
+copied — an epsilon of <code>0.1</code>, an air-speed cap of 30, a table of six axis
+vectors — are facts about a behaviour being deliberately matched, not
+creative expression.</p>
+<p>That is the reasoning. It is not a guarantee, and the honest framing is:
+following the structure of GPL-2.0 source is lower risk than copying it and
+higher risk than never having read it. Every place it happens is named in a
+source comment and in the table above, so nothing is hidden.</p>
+<p><strong>The choice of licence does not change this</strong>, and it is worth being explicit
+about why, since picking a licence might look like an answer to it. It isn’t.
+A licence governs what <em>this</em> project grants downstream; it cannot clear
+anything upstream. Neither arm’s GPL compatibility is about <em>combining</em> code
+going forward, not about taking code <em>out of</em> a GPL-2.0 work — GPL-2.0 code
+could not be moved under either arm in any case, because the GPL does not
+permit relicensing its code to another licence without the author’s
+permission. What actually lowers the risk is what the project already does:
+ship no Valve or id content, define formats theirs cannot read, and state
+provenance plainly.</p>
+<h2 id="names-and-trademarks"><a class="header" href="#names-and-trademarks">Names and trademarks</a></h2>
+<p>“Valve”, “Source”, “Hammer”, “Quake” and the rest appear throughout the docs
+and comments. That use is <em>nominative</em> — naming someone else’s product in
+order to say what a thing here is analogous to. It is the same use as “works
+like Photoshop”. It is not branding: nothing in this project is named after a
+Valve product, no Valve mark appears in a binary’s name, icon or UI chrome,
+and <code>NOTICE</code> disclaims affiliation explicitly.</p>
+<p>The file formats were renamed for exactly this reason. <code>.vmap</code>, <code>.vmat</code>,
+<code>.vmdl</code> and <code>.vtex</code> — the extensions this project originally used — are
+Source 2’s real extensions, and <code>.lin</code> is the leak pointfile Hammer loads.
+They are now <code>.keromap</code>, <code>.keromat</code>, <code>.keromdl</code>, <code>.kerotex</code> and <code>.keroleak</code>,
+and the two binary magics that named Valve formats (<code>VTEX</code>, <code>VMDL</code>) are now
+<code>KRTX</code> and <code>KRMD</code>.</p>
+<p><strong>The engine’s own name changed once too</strong>, for a plainer reason: it was
+VoidEngine until August 2026, and an unrelated engine built on id Tech 6
+already had that name. Nothing was shared with it and nothing needed
+clearing; the collision was simply a collision. The extensions moved with the
+name — <code>.voidmap</code> became <code>.keromap</code>, and the magics <code>VOID</code>, <code>VOTX</code>, <code>VOMD</code>
+and <code>VOAU</code> became <code>KROS</code>, <code>KRTX</code>, <code>KRMD</code> and <code>KRAU</code> — so a file written by
+either version says which it came from.</p>
+<h2 id="consequences-of-the-choice-in-one-place"><a class="header" href="#consequences-of-the-choice-in-one-place">Consequences of the choice, in one place</a></h2>
+<p><strong>For contributors.</strong> Patches to Kerosene’s own files are offered under the
+same dual terms — <code>LGPL-3.0-or-later OR MPL-2.0</code>. Nothing else is needed;
+there is no CLA, and the SPDX line in every file records it.</p>
+<p><strong>For someone forking the engine.</strong> Under the MPL arm, publish the files you
+change under MPL-2.0. Under the LGPL arm, publish the modified engine under
+the LGPL. Either way you are free to fork — but the project’s preference is
+that you contribute the change back as a pull request and use the updated
+engine, so the fix exists once rather than once per fork.</p>
+<p><strong>For someone shipping a game.</strong> Your game is yours under either arm. Under
+MPL-2.0 you owe the notice and a pointer to the source, and nothing resembles
+a relinking clause. Under the LGPL you may keep your game code closed, but you
+must keep the engine replaceable (a shared library, or object files for
+relinking). Most people take the MPL arm for exactly that reason.</p>
+<p><strong>For someone shipping the tools.</strong> Chisel and the compilers are under the
+same dual terms. Under MPL-2.0, distribute the corresponding source for any
+MPL files you modify. Under the LGPL, distribute modified tools under the
+LGPL. An unmodified tool ships with the notice and a pointer to the source.</p>
+<p><strong>Fonts, again, because it catches people.</strong> Any binary linking egui — Chisel,
+Timbre, and the engine’s debug overlay — carries OFL-1.1 and Ubuntu-Font-1.0
+typefaces inside it. Both licences are satisfied by shipping their notices
+alongside the binary. Neither conflicts with either arm, because the fonts are
+data travelling with the program rather than part of it.</p>
+<p><strong>And <code>smartstring</code>, for the same reason.</strong> It is MPL-2.0 and it is inside the
+engine, so a shipped game carries it and owes its notice. <code>kiln --ship</code> writes
+that too.</p>
+<p><strong>What the licences do not do.</strong> They do not make the provenance question
+above go away, in either direction. Copyleft — weak or strong — is a statement
+about what <em>you</em> grant downstream; it is not a clearance of anything upstream.
+What actually keeps this project clean is what it already does: ship no Valve
+or id content, define formats theirs cannot read, and name every module that
+follows the structure of published work.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../docs/formats.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
+                            </a>
+
+                            <a rel="next prefetch" href="../docs/missing-features.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../docs/formats.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
+                    </a>
+
+                    <a rel="next prefetch" href="../docs/missing-features.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
+                    </a>
+            </nav>
+
+        </div>
+
+        <template id=fa-eye><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M288 32c-80.8 0-145.5 36.8-192.6 80.6C48.6 156 17.3 208 2.5 243.7c-3.3 7.9-3.3 16.7 0 24.6C17.3 304 48.6 356 95.4 399.4C142.5 443.2 207.2 480 288 480s145.5-36.8 192.6-80.6c46.8-43.5 78.1-95.4 93-131.1c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C433.5 68.8 368.8 32 288 32zM432 256c0 79.5-64.5 144-144 144s-144-64.5-144-144s64.5-144 144-144s144 64.5 144 144zM288 192c0 35.3-28.7 64-64 64c-11.5 0-22.3-3-31.6-8.4c-.2 2.8-.4 5.5-.4 8.4c0 53 43 96 96 96s96-43 96-96s-43-96-96-96c-2.8 0-5.6 .1-8.4 .4c5.3 9.3 8.4 20.1 8.4 31.6z"/></svg></span></template>
+        <template id=fa-eye-slash><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M38.8 5.1C28.4-3.1 13.3-1.2 5.1 9.2S-1.2 34.7 9.2 42.9l592 464c10.4 8.2 25.5 6.3 33.7-4.1s6.3-25.5-4.1-33.7L525.6 386.7c39.6-40.6 66.4-86.1 79.9-118.4c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C465.5 68.8 400.8 32 320 32c-68.2 0-125 26.3-169.3 60.8L38.8 5.1zM223.1 149.5C248.6 126.2 282.7 112 320 112c79.5 0 144 64.5 144 144c0 24.9-6.3 48.3-17.4 68.7L408 294.5c5.2-11.8 8-24.8 8-38.5c0-53-43-96-96-96c-2.8 0-5.6 .1-8.4 .4c5.3 9.3 8.4 20.1 8.4 31.6c0 10.2-2.4 19.8-6.6 28.3l-90.3-70.8zm223.1 298L373 389.9c-16.4 6.5-34.3 10.1-53 10.1c-79.5 0-144-64.5-144-144c0-6.9 .5-13.6 1.4-20.2L83.1 161.5C60.3 191.2 44 220.8 34.5 243.7c-3.3 7.9-3.3 16.7 0 24.6c14.9 35.7 46.2 87.7 93 131.1C174.5 443.2 239.2 480 320 480c47.8 0 89.9-12.9 126.2-32.5z"/></svg></span></template>
+        <template id=fa-copy><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M502.6 70.63l-61.25-61.25C435.4 3.371 427.2 0 418.7 0H255.1c-35.35 0-64 28.66-64 64l.0195 256C192 355.4 220.7 384 256 384h192c35.2 0 64-28.8 64-64V93.25C512 84.77 508.6 76.63 502.6 70.63zM464 320c0 8.836-7.164 16-16 16H255.1c-8.838 0-16-7.164-16-16L239.1 64.13c0-8.836 7.164-16 16-16h128L384 96c0 17.67 14.33 32 32 32h47.1V320zM272 448c0 8.836-7.164 16-16 16H63.1c-8.838 0-16-7.164-16-16L47.98 192.1c0-8.836 7.164-16 16-16H160V128H63.99c-35.35 0-64 28.65-64 64l.0098 256C.002 483.3 28.66 512 64 512h192c35.2 0 64-28.8 64-64v-32h-47.1L272 448z"/></svg></span></template>
+        <template id=fa-play><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M73 39c-14.8-9.1-33.4-9.4-48.5-.9S0 62.6 0 80V432c0 17.4 9.4 33.4 24.5 41.9s33.7 8.1 48.5-.9L361 297c14.3-8.7 23-24.2 23-41s-8.7-32.2-23-41L73 39z"/></svg></span></template>
+        <template id=fa-clock-rotate-left><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M75 75L41 41C25.9 25.9 0 36.6 0 57.9V168c0 13.3 10.7 24 24 24H134.1c21.4 0 32.1-25.9 17-41l-30.8-30.8C155 85.5 203 64 256 64c106 0 192 86 192 192s-86 192-192 192c-40.8 0-78.6-12.7-109.7-34.4c-14.5-10.1-34.4-6.6-44.6 7.9s-6.6 34.4 7.9 44.6C151.2 495 201.7 512 256 512c141.4 0 256-114.6 256-256S397.4 0 256 0C185.3 0 121.3 28.7 75 75zm181 53c-13.3 0-24 10.7-24 24V256c0 6.4 2.5 12.5 7 17l72 72c9.4 9.4 24.6 9.4 33.9 0s9.4-24.6 0-33.9l-65-65V152c0-13.3-10.7-24-24-24z"/></svg></span></template>
+
+        <!-- Livereload script (if served using the cli tool) -->
+        <script>
+            const wsProtocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsAddress = wsProtocol + "//" + location.host + "/" + "__livereload";
+            const socket = new WebSocket(wsAddress);
+            socket.onmessage = function (event) {
+                if (event.data === "reload") {
+                    socket.close();
+                    location.reload();
+                }
+            };
+
+            window.onbeforeunload = function() {
+                socket.close();
+            }
+        </script>
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="../elasticlunr-ef4e11c1.min.js"></script>
+        <script src="../mark-09e88c2c.min.js"></script>
+        <script src="../searcher-09f2665d.js"></script>
+
+        <script src="../clipboard-1626706a.min.js"></script>
+        <script src="../highlight-abc7f01d.js"></script>
+        <script src="../book-609e4cb8.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="../mermaid-28fca7ae.min.js"></script>
+        <script src="../mermaid-init-53b67c53.js"></script>
+
+
+
+    </div>
+    </body>
+</html>

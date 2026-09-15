@@ -1,0 +1,894 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Tools - Kerosene game engine docs</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../favicon-de23e50b.svg">
+        <link rel="shortcut icon" href="../favicon-8114d1fc.png">
+        <link rel="stylesheet" href="../css/variables-8adf115d.css">
+        <link rel="stylesheet" href="../css/general-e96d0476.css">
+        <link rel="stylesheet" href="../css/chrome-d279d366.css">
+        <link rel="stylesheet" href="../css/print-9e4910d8.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../fonts/fonts-9644e21d.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="mdbook-highlight-css" href="../highlight-493f70e1.css">
+        <link rel="stylesheet" id="mdbook-tomorrow-night-css" href="../tomorrow-night-4c0ae647.css">
+        <link rel="stylesheet" id="mdbook-ayu-highlight-css" href="../ayu-highlight-3fdfc3ac.css">
+
+        <!-- Custom theme stylesheets -->
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "../";
+            const default_light_theme = "light";
+            const default_dark_theme = "navy";
+            window.path_to_searchindex_js = "../searchindex-7de34f39.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../toc-b0b5977e.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="mdbook-body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="mdbook-sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../toc.html"></iframe>
+            </noscript>
+            <div id="mdbook-sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="mdbook-page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="mdbook-menu-bar-hover-placeholder"></div>
+                <div id="mdbook-menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="mdbook-sidebar-toggle" class="icon-button" for="mdbook-sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="mdbook-sidebar">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M0 96C0 78.3 14.3 64 32 64H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32C14.3 128 0 113.7 0 96zM0 256c0-17.7 14.3-32 32-32H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32c-17.7 0-32-14.3-32-32zM448 416c0 17.7-14.3 32-32 32H32c-17.7 0-32-14.3-32-32s14.3-32 32-32H416c17.7 0 32 14.3 32 32z"/></svg></span>
+                        </label>
+                        <button id="mdbook-theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="mdbook-theme-list">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M371.3 367.1c27.3-3.9 51.9-19.4 67.2-42.9L600.2 74.1c12.6-19.5 9.4-45.3-7.6-61.2S549.7-4.4 531.1 9.6L294.4 187.2c-24 18-38.2 46.1-38.4 76.1L371.3 367.1zm-19.6 25.4l-116-104.4C175.9 290.3 128 339.6 128 400c0 3.9 .2 7.8 .6 11.6c1.8 17.5-10.2 36.4-27.8 36.4H96c-17.7 0-32 14.3-32 32s14.3 32 32 32H240c61.9 0 112-50.1 112-112c0-2.5-.1-5-.2-7.5z"/></svg></span>
+                        </button>
+                        <ul id="mdbook-theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-ayu">Ayu</button></li>
+                        </ul>
+                        <button id="mdbook-search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="mdbook-searchbar">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.2-76.8 40-122.7 40C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208zM208 352c79.5 0 144-64.5 144-144s-64.5-144-144-144S64 128.5 64 208s64.5 144 144 144z"/></svg></span>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">Kerosene game engine docs</h1>
+
+                    <div class="right-buttons">
+                        <a href="../print.html" title="Print this book" aria-label="Print this book">
+                            <span class=fa-svg id="print-button"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M128 0C92.7 0 64 28.7 64 64v96h64V64H354.7L384 93.3V160h64V93.3c0-17-6.7-33.3-18.7-45.3L400 18.7C388 6.7 371.7 0 354.7 0H128zM384 352v32 64H128V384 368 352H384zm64 32h32c17.7 0 32-14.3 32-32V256c0-35.3-28.7-64-64-64H64c-35.3 0-64 28.7-64 64v96c0 17.7 14.3 32 32 32H64v64c0 35.3 28.7 64 64 64H384c35.3 0 64-28.7 64-64V384zm-16-88c-13.3 0-24-10.7-24-24s10.7-24 24-24s24 10.7 24 24s-10.7 24-24 24z"/></svg></span>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="mdbook-search-wrapper" class="hidden">
+                    <form id="mdbook-searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="mdbook-searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="mdbook-searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <span class=fa-svg id="fa-spin"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M304 48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zm0 416c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM48 304c26.5 0 48-21.5 48-48s-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48zm464-48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM142.9 437c18.7-18.7 18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zm0-294.2c18.7-18.7 18.7-49.1 0-67.9S93.7 56.2 75 75s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zM369.1 437c18.7 18.7 49.1 18.7 67.9 0s18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9z"/></svg></span>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="mdbook-searchresults-outer" class="searchresults-outer hidden">
+                        <div id="mdbook-searchresults-header" class="searchresults-header"></div>
+                        <ul id="mdbook-searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('mdbook-sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('mdbook-sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#mdbook-sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="mdbook-content" class="content">
+                    <main>
+                        <h1 id="tool-reference"><a class="header" href="#tool-reference">Tool reference</a></h1>
+<p>One application, <code>kerosene-tools</code>. Open it with no arguments and you get one
+window holding every tool: the world editor, the sound editor, a build panel
+and an archive panel, switched with a rail down the left edge. None of it is
+the engine, and none of it depends on it.</p>
+<p>The same stages also run headless, as subcommands, so a script or build server
+can drive them without a screen: <code>kerosene-tools cleave map.keromap</code>, and so
+on. Each subcommand is the program it used to be, unchanged in argument and
+output.</p>
+<hr>
+<h2 id="init--starting-a-project"><a class="header" href="#init--starting-a-project">init — starting a project</a></h2>
+<pre><code class="language-sh">kerosene-tools init [dir] [--name "My Mod"] [--content content]
+</code></pre>
+<p>Writes a <code>.keroproj</code> and creates the content tree beside it: <code>maps</code>,
+<code>materials</code>, <code>art</code>, <code>textures</code>, <code>models</code>, <code>sound</code>, <code>scripts</code>. Without a
+<code>--name</code> the directory’s own name is used, and the project file is named after
+it.</p>
+<p>It is safe to run on a directory that is already a project. The project file is
+the one thing here somebody is expected to have edited, so an existing one is
+left exactly as it is, and only missing directories are created — which makes
+this the way to fill in a directory the engine has started using since the tree
+was made.</p>
+<p>A project may name its own directories instead; see
+<a href="formats.html#the-content-tree-is-created-not-required">formats.md</a>.</p>
+<p>Nothing <em>requires</em> this command: the engine and the toolset both create the
+tree on their own the first time they find a content root. It exists so that
+starting a project is a thing you do, rather than a thing you discover you
+should have done.</p>
+<hr>
+<h2 id="chisel--the-world-editor"><a class="header" href="#chisel--the-world-editor">Chisel — the world editor</a></h2>
+<p>A tab in the toolset window, and openable straight to a map:</p>
+<pre><code class="language-sh">kerosene-tools                 # the toolset window, editor tab first
+kerosene-tools chisel [map.keromap] [--content &lt;dir&gt;]
+</code></pre>
+<p><strong>Finding the content.</strong> Chisel needs the content root – the tree holding
+<code>maps/</code>, <code>materials/</code> and the <code>.kerodef</code> class definitions – to show entity
+classes and materials at all. The search lives in <code>kerosene-vfs</code> and every tool
+and the engine share it, so they cannot disagree about which tree is in use.</p>
+<p>The reliable way to settle it is a <strong>project file</strong>: a <code>.keroproj</code> at the top
+of a project naming its content directory. See <a href="formats.html#keroproj">formats</a>.
+Without one, the tree is inferred, which works and is why a fresh clone needs
+no setup – but inference is a guess, and a project file is how you overrule
+it. Three places are searched, nearest first: the tree the map lives in, the
+working directory, and the directory the executable is in. In each of them a
+project file wins over a guess, even a guess found closer down; between them,
+nearness decides. So a map sitting in a content tree of its own is not claimed
+by a project on the far side of the disk.</p>
+<p>Failing a project file, each place is searched like this: <code>--content</code> if given,
+then beside the map being opened, then the working directory, then beside its
+own executable, climbing up to six levels from each looking for a directory
+holding <code>kerosene.kerodef</code> (or, failing that, both <code>maps/</code> and <code>materials/</code>).
+Opening a map from anywhere in a project therefore just works, and the map’s
+own tree wins over the working directory on purpose – editing another
+project’s map should not show this project’s entities.</p>
+<p>The status bar says what it found: <code>20 classes, 41 materials</code> when the content
+is there, <code>no entity classes</code> in red when it is not, and <code>n materials unbuilt</code>
+in amber when a material has no texture behind it. If the first is red, nothing
+in the editor will look right, and <code>kerosene-tools chisel --help</code> lists the search order.
+<code>cargo run -p chisel --example diagnose</code> prints the same thing without opening
+a window – discovery, classes, materials, which materials have no texture, and
+which maps have never been compiled – which is the fastest way to answer “why
+does Chisel show no entities”. It changes nothing unless given <code>--build</code>.</p>
+<p><strong>Textures are built on the way in.</strong> Before the editor finishes loading it
+runs the same texture build Alchemy’s <code>build</code> command does: the developer set
+is regenerated, then every image under <code>art/</code> is compiled into <code>materials/</code>.
+Anything already compiled is skipped, so the cost after the first run is a
+directory walk. It happens <em>before</em> the materials are scanned, because scanning
+first and building second is an editor with no textures in it and no way to
+tell. <code>--no-build</code> turns it off; <code>F9</code> does it again before compiling the map,
+so a texture added during a session is compiled before the map that uses it.</p>
+<p><strong>Files.</strong> <code>ctrl-S</code> saves. A map that has never been saved is asked for a name
+first rather than being written to <code>untitled.keromap</code> somewhere – the name is
+what <code>kerosene +map &lt;name&gt;</code> loads, so an editor that picks one for you is an editor
+whose output you have to go looking for. <code>ctrl-shift-S</code> and <code>file → save as…</code>
+ask for a name outright. A bare name means a map in this project: typing
+<code>arena</code> writes <code>&lt;content&gt;/maps/arena.keromap</code>. An absolute path is taken as
+given.</p>
+<p><code>file → rename…</code> moves the map <em>and</em> the artefacts compiled from it – the
+<code>.kerobsp</code>, <code>.keroprt</code> and <code>.keroleak</code>. Leaving a <code>.kerobsp</code> behind under the
+old name is worse than clutter: the game still loads it, so a renamed map
+appears to work under a name that no longer exists and to be missing under the
+one that does. Renaming onto a map that already exists is refused.</p>
+<p><code>file → open</code> lists the maps in the project. Anything that would throw away
+unsaved changes asks first, and offers to save. The title bar and the status
+bar both name the file, with a <code>*</code> when there are unsaved changes; a map with
+no file yet says <code>not saved</code> rather than showing an invented one.</p>
+<p>Four panes, each showing whichever view you point it at: 3D, or any of the six
+flat views – top, bottom, front, back, left and right. Hammer’s layout,
+because brush geometry is axis-aligned far more often than not and an
+orthographic view along an axis is the only way to place a vertex exactly
+without typing numbers. Click a pane’s label to change what it shows; drag the
+bars between the panes to resize them.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Key</th><th></th></tr>
+</thead>
+<tbody>
+<tr><td><code>1</code> <code>2</code> <code>3</code> <code>4</code> <code>5</code></td><td>select, block, entity, texture, shape tool</td></tr>
+<tr><td><code>M</code></td><td>the asset browser</td></tr>
+<tr><td><code>[</code> <code>]</code></td><td>finer / coarser grid</td></tr>
+<tr><td><code>Ctrl+Z</code> / <code>Ctrl+Shift+Z</code></td><td>undo / redo</td></tr>
+<tr><td><code>Ctrl+S</code></td><td>save (asks for a name the first time)</td></tr>
+<tr><td><code>Ctrl+Shift+S</code></td><td>save as</td></tr>
+<tr><td><code>Delete</code></td><td>delete selection</td></tr>
+<tr><td><code>Escape</code></td><td>clear selection, cancel a drag</td></tr>
+<tr><td><code>F9</code></td><td>compile (fast) and run</td></tr>
+<tr><td><strong>In a 3D pane</strong></td><td></td></tr>
+<tr><td><code>W</code> <code>A</code> <code>S</code> <code>D</code></td><td>fly forward, left, back, right</td></tr>
+<tr><td><code>Q</code> <code>E</code></td><td>fly straight down and up, whichever way you are looking</td></tr>
+<tr><td><code>Shift</code> / <code>Alt</code></td><td>fly 2.5x faster / 4x slower</td></tr>
+<tr><td><code>Ctrl</code>+scroll</td><td>set the fly speed</td></tr>
+<tr><td>Right-drag</td><td>look around</td></tr>
+<tr><td>Middle-drag</td><td>slide the camera sideways and up</td></tr>
+<tr><td><strong>In a 2D pane</strong></td><td></td></tr>
+<tr><td>Middle-drag</td><td>pan</td></tr>
+<tr><td>Scroll</td><td>zoom about the pointer</td></tr>
+<tr><td>Shift-click</td><td>add to or remove from the selection</td></tr>
+<tr><td>Drag a grip</td><td>resize the selection</td></tr>
+</tbody>
+</table>
+</div>
+<p>Keys only reach the pane the pointer is over, and none of them fire while a
+property field has the keyboard – naming an entity <code>wasd_door</code> should not fly
+the camera across the level.</p>
+<p><strong>Seeing what things are.</strong> Point entities are drawn as what they are: a lamp
+for a light, a figure for the player start, a speaker for a sound, a diamond
+for logic, a crate for a prop. A room full of identical squares tells you where
+things are and not what they are, and the label beside each one was a wall of
+text you had to read to navigate. The label now shows the entity’s <em>name</em> when
+it has one, which is what the wiring refers to and what you are actually
+looking for. The 3D pane marks them in the same colours.</p>
+<p>Shapes are drawn rather than loaded from files: an icon set is a set of things
+to ship, scale, theme and keep in step with the class list, and a dozen lines
+of geometry is none of those. Classes are matched by prefix, so a game that
+adds <code>light_dynamic</code> gets the right icon without anything here changing.</p>
+<p><strong>The asset browser</strong> (<code>M</code>, or <code>view → browse materials...</code>) is a resizable
+window with names, folders and a search that matches words in any order — so
+<code>wood crate</code> and <code>crate wood</code> both find <code>props/crate_wood</code>. Materials show
+what each one does on hover, read from Cleave’s table; models show a rendered
+preview, because a name is not a shape and <code>crate_wood</code> tells you nothing
+about whether it is the crate you want.</p>
+<p>The old picker was a two-column strip of unlabelled 48-pixel swatches in a
+120-point panel, which is a keyhole rather than a browser. Worse, every swatch
+was drawn from a mip two from the end of the chain — a 2x2 image for a
+256-pixel texture — so every material in the list was the same grey smudge and
+the only way to tell two apart was to hover both. Swatches are now built from
+the smallest mip that is still bigger than the swatch, and a checkerboard
+looks like a checkerboard.</p>
+<p><strong>Resizing.</strong> Something selected in a 2D pane wears eight grips: four corners
+and four edge midpoints. Drag a corner to scale both axes at once, an edge to
+scale one; the opposite grip holds still, so the selection grows away from
+where you are pulling rather than wandering across the level. The axis the
+pane cannot see is left alone. Dragging a grip past the far side stops at one
+grid square instead of turning the brush inside out — an inverted brush is not
+a small brush, it is a hole in the world that compiles cleanly. The preview
+shows the shape it will become and its new size while you drag. The texture
+stays put in world space rather than stretching, so making a wall twice as
+wide tiles the bricks twice instead of drawing bricks twice the size.</p>
+<p><strong>Shapes that are not boxes.</strong> A brush is a convex solid and no convex solid
+is curved, so an archway cannot be one brush. It is several, arranged to read
+as a curve — which is miserable to do by hand and is why people give up on
+curves. The <strong>shape</strong> tool (<code>5</code>) generates them: drag a box in a 2D pane the
+way you would with the block tool, and it fills it.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Shape</th><th></th></tr>
+</thead>
+<tbody>
+<tr><td>wedge</td><td>A ramp: a box with one top edge pulled down to the floor. One brush.</td></tr>
+<tr><td>cylinder</td><td>A pillar or a pipe. One brush however many sides — a convex polygon swept along a line is still convex.</td></tr>
+<tr><td>cone</td><td>A spike or a pyramid. One brush.</td></tr>
+<tr><td>arch</td><td>A doorway, a tunnel mouth, a round window: a fan of brushes, one per segment.</td></tr>
+<tr><td>stairs</td><td>Solid steps, one brush each. Solid rather than hollow, because a player falls through thin treads when a physics tick lands between two of them.</td></tr>
+</tbody>
+</table>
+</div>
+<p>The pane you draw in decides which way the shape stands: a cylinder drawn from
+above is a pillar, the same drag in the front view is a pipe lying across the
+room. Sides, arc and wall thickness are on the left, and only the ones the
+chosen shape uses are shown. The preview draws the actual shape and the number
+of brushes it will cost, not the box it is being fitted into. A whole arch is
+one undo step.</p>
+<p><code>cargo run -p chisel --example shape_sheet -- shapes.png</code> renders every shape
+in both orientations. Geometry has a way of being valid and still wrong; a
+test can say the brushes are solid, only a picture can say they are an arch.</p>
+<p><strong>Brush properties.</strong> A brush’s <strong>type</strong> is a setting on it, at the top of its
+panel: world geometry, <code>func_detail</code>, <code>func_door</code>, <code>trigger_multiple</code>, and so
+on. Choose one and its settings appear underneath, in the same panel, with
+nothing to press first. There is no “tie to entity” step — that was a mode
+change to reach settings that were never anywhere else, and it left
+<code>func_detail</code>, which is a wall and has nothing to configure, looking exactly as
+configurable as a door.</p>
+<p>Changing the type is one operation and one undo step, and it keeps the name and
+the wiring: dropping a <code>targetname</code> would silently break every output pointing
+at it.</p>
+<p><strong>A trigger textures itself.</strong> Pick a <code>trigger_*</code> type and its brushes become
+<code>tools/trigger</code>, so it is invisible and compiles as a region. Forgetting to do
+that by hand compiles a solid block where a doorway was meant to be, and the
+map looks broken in a way that has nothing to do with triggers. A door keeps
+whatever it was textured with, because only a designer knows which door.</p>
+<p>The panel also says what the brushes will <strong>compile as</strong>, read from Cleave’s own
+material table rather than a copy of it, so the editor and the compiler cannot
+disagree. It is where tool textures stop being paint: <code>tools/clip</code> says “blocks
+players only; bullets and sight pass through”. Two rules that surprise everybody
+are called out on the spot:</p>
+<ul>
+<li><strong>One tool face changes the whole brush.</strong> Solid is the absence of anything
+more specific, so a single <code>tools/clip</code> face on an otherwise ordinary box
+stops the box being a wall.</li>
+<li><strong>A misspelt tool material is not an error.</strong> <code>tools/clipp</code> compiles as
+ordinary world geometry, which is how a doorway gets walled off by a typo
+nobody sees. The panel says so in red.</li>
+</ul>
+<p><strong>Where a door goes.</strong> Select a brush entity that moves and the 2D panes draw
+its travel: an arrow along <code>movedir</code>, an outline where it ends up, and a label
+saying how far and which way. The distance comes from <code>kerosene_game</code>’s own
+formula, so the picture and the door agree by construction rather than by
+luck. Anything with <code>angles</code> gets a facing arrow the same way.</p>
+<p><strong>Building a level.</strong> Draw brushes with the block tool in a 2D view; they snap
+to the grid, outward, so a brush is never smaller than the rubber band. Pick a
+material from the left panel — picking one with something selected applies it.
+Place entities with the entity tool. Give brushes a type in the right panel to
+make them a door or a trigger. Wire outputs to inputs in the same panel.</p>
+<p><strong>Wiring, as a sequence.</strong> A <code>.keromap</code> stores wiring as a flat list of
+connections, which is the right thing to store and the wrong thing to show:
+what a designer is building is <em>when this happens, do these things, in this
+order</em>, and a column of rows with delays in them makes the order something you
+reconstruct in your head. The panel groups them by event instead. Under
+<code>OnStartTouch</code> you get <code>do Open on gate</code>, then <code>then Trigger on siren</code>, in the
+order they will actually fire, and <code>+ then</code> adds another step after the last
+one — with a delay, because two actions at the same instant fire in whatever
+order the file happens to hold.</p>
+<p><strong>Alternatives need an entity that can choose.</strong> Every other class fires a
+list; firing one of two lists depending on something is a decision, and a
+decision cannot be faked in the editor. That is what <code>logic_branch</code> is for: it
+remembers a yes or no and fires <code>OnTrue</code> or <code>OnFalse</code>, never both. When one
+side of a pair is wired and the other is not, the panel says so — an <code>OnTrue</code>
+with nothing on <code>OnFalse</code> does nothing half the time, which is a bug you find
+by playing rather than by reading.</p>
+<p>Dragging a selection shows a ghost of it at the destination, in every pane at
+once including the 3D one, with the offset written out in kerosene units. The
+rubber band a drag sweeps out is not where anything ends up, so it is not what
+gets drawn.</p>
+<p>Clicking a brush that belongs to an entity selects the entity, not the brush:
+that is what a designer means by “the door”.</p>
+<p><strong>Entity properties.</strong> The inspector is driven by the game’s class definitions
+– the <code>.kerodef</code> files Chisel finds under the content root. For a selected
+entity it lists <em>every</em> key its class reads, whether or not the entity has been
+given a value for one, with the type, the game’s default and a line of help.
+Keys are edited with a widget suited to what they hold: a colour picker for a
+light’s colour, checkboxes for a spawnflag field, a menu of the map’s entity
+names when wiring an output. A key the definitions do not describe is still
+shown – that is how a typo becomes visible rather than silent.</p>
+<p>Without a <code>.kerodef</code> the inspector can only show the keys an entity already
+carries, which for a freshly placed entity is none. Chisel says so in the
+status bar rather than looking like a game with no settings.</p>
+<p><strong>The 3D pane</strong> is rasterised in software with a depth buffer, so what hides
+what is decided per pixel, and it draws the materials themselves –
+perspective-correct, mipped, with a face tinted rather than painted over when
+it is selected so you can still see what it is wearing. <code>view</code> switches
+between <em>textured</em>, <em>flat colour</em> (each material’s average, when a texture is
+too busy to read shape through), <em>shaded only</em> (untextured grey, for hunting
+a brush in the wrong place) and <em>walkmap</em> – which colours each face by its
+walkmap rule (green to go, red to stay away) without touching the texture, so
+you can read where NPCs may go without compiling. Lighting is not previewed;
+compiling and running the map is one keystroke away.</p>
+<p>Tool <strong>volumes</strong> are drawn see-through, as they are in Hammer, because that is
+what they are: a trigger is a region, not a wall, and one drawn solid hides the
+room it is sitting in. <code>tools/nodraw</code> and the other solid tool materials are
+the exception – those <em>are</em> walls, just ones nobody sees, so they stay opaque.
+A volume does not claim the depth buffer either, so two overlapping ones both
+show and neither erases what is behind it.</p>
+<p>It reads the <strong>compiled</strong> <code>.kerotex</code>, through the same VFS the engine uses, so
+what it shows is what the engine will draw – including from inside a <code>.vault</code>
+archive. The consequence is worth stating plainly: <strong>the content has to be
+built</strong>. A material Alchemy has not compiled yet shows as a flat colour derived
+from its name, so it is a wrong colour rather than a black hole, and <code>view → reload textures</code> picks up a rebuild without restarting.</p>
+<p><strong>Materials</strong> are picked from a grid of what they actually look like, with a
+filter box. A list of names is only usable by someone who already knows what
+every name looks like, which is nobody on their first level.</p>
+<p><strong>Face editing.</strong> With the texture tool, clicking a face in the 3D pane selects
+it (shift adds, ctrl picks its material up), and the inspector becomes a face
+editor: scale, shift, rotation, fit, align to world or to the face itself,
+justify to an edge or the middle, the lightmap scale, and the face’s <strong>walkmap
+rule</strong> – <code>allow</code>, <code>deny</code>, <code>avoid</code> or <code>always</code> – which decides whether the
+compiler puts that face in the NPC walkmap. Everything acts on the whole
+selection as one undo step, and a value the selected faces disagree about
+shows as <code>--</code> rather than as one of them.</p>
+<p>The texture tool has two settings, chosen in the toolbar: <em>what</em> it selects
+– <strong>single face</strong> or <strong>whole brush</strong> (a brush entity is selected whole, as
+the door) – and <em>when</em> it applies, cycled with <code>T</code>: <strong>select only</strong>, <strong>apply
+on double-click</strong> (the default) or <strong>always apply</strong>. Shift always just
+selects, in every combination. The face editor only applies when a face is
+selected, so it simply has nothing to show for a whole-brush selection.</p>
+<p><strong>Compiling.</strong> <code>map → compile</code> opens a window with the settings and three
+buttons: <em>compile</em> runs exactly what the window is showing, while <em>fast</em> and
+<em>full</em> apply a quality preset and leave every other choice alone. That
+distinction matters – “build even if the map leaks” is not something a quality
+preset gets to forget.</p>
+<p>A compile starts by running Alchemy over <code>content/art</code>, so a texture added or
+changed since the last build is compiled before the map that uses it, and the
+editor’s own texture cache is reloaded when the compile finishes – a new
+texture shows up in the pane without a restart. Uncheck <em>build materials</em> to
+skip that stage when the art has not moved.</p>
+<p>When a map is not sealed, Cleave writes a <code>.keroleak</code> trace beside it and
+Chisel loads it and draws the route out in red, through every pane. Follow the
+line to the wall it goes through. <code>map → clear the leak trace</code> puts it away.</p>
+<p>Chisel runs the compilers by re-invoking the same executable with the
+compiler’s name as a subcommand, so they are always present. <code>map → check tools are installed</code> still says which pieces it found, including the engine
+runtime it launches after a compile.</p>
+<p><strong>Developer textures.</strong> <code>kerosene-tools alchemy dev-textures</code> writes the standard set, and
+<code>scripts/build-content.sh</code> runs it: <code>dev/</code> measurement checkerboards where one
+cell is 16 ku at the default texture scale, and the full <code>tools/</code> set –
+<code>nodraw</code>, <code>clip</code>, <code>playerclip</code>, <code>trigger</code>, <code>hint</code>, <code>skip</code>, <code>skybox</code> and the
+rest – each a flat colour with its own name written across it. The compiler
+already understood every one of those; until now none of them had a texture, so
+picking one in the editor showed nothing.</p>
+<p><strong>Units.</strong> Distances are kerosene units (<code>ku</code>); one is an inch. A player is 72 ku
+tall and runs at 320 ku/s, which is the scale a room is judged against. The
+status bar carries the unit on every number, with metres and a player-height
+comparison on hover.</p>
+<hr>
+<h2 id="cleave--the-bsp-compiler"><a class="header" href="#cleave--the-bsp-compiler">Cleave — the BSP compiler</a></h2>
+<pre><code class="language-sh">kerosene-tools cleave map.keromap [-o out.kerobsp] [--ignore-leaks] [--no-fill] [--dry-run] [-v]
+</code></pre>
+<p><code>.keromap</code> → <code>.kerobsp</code> plus a <code>.keroprt</code> portal graph for Umbra, and a
+<code>.kerowalk</code> NPC walkmap built from the world’s flat walkable faces. The
+walkmap is written every compile – the compiler already has the final face
+polygons, so the designer does not run a separate step to get one.</p>
+<p>Reports every brush and entity problem in one pass rather than stopping at the
+first, because a designer would rather fix five brushes in one cycle than five.</p>
+<p><strong>Leaks.</strong> If the flood fill escapes to the void, the map is not sealed and
+Cleave refuses to build it — visibility would be nearly useless and the compile
+would take far longer. <code>--ignore-leaks</code> builds it anyway and writes a <code>.keroleak</code>
+trace naming the route out, which is the only practical way to find a one-unit
+gap in a large map.</p>
+<p>A compile that seals the map <strong>deletes</strong> any <code>.keroleak</code> left beside it by an
+earlier one. A stale trace is worse than none: Chisel loads whatever is on
+disk, so a map that leaked once would go on reporting a leak through every
+successful compile after it.</p>
+<h3 id="tool-materials"><a class="header" href="#tool-materials">Tool materials</a></h3>
+<p>Compile-time intent is expressed with the texture applied to a face, as in
+Source. Everything under <code>tools/</code> is a tool material.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Material</th><th>Effect</th></tr>
+</thead>
+<tbody>
+<tr><td><code>tools/nodraw</code></td><td>Solid, never drawn. The workhorse.</td></tr>
+<tr><td><code>tools/clip</code></td><td>Blocks players; invisible; bullets and sight pass through</td></tr>
+<tr><td><code>tools/npcclip</code></td><td>Blocks AI only</td></tr>
+<tr><td><code>tools/trigger</code></td><td>Not solid, but traces find it</td></tr>
+<tr><td><code>tools/skybox</code></td><td>Draws as sky; where sunlight enters the world</td></tr>
+<tr><td><code>tools/hint</code></td><td>Forces a BSP split along its plane, then vanishes</td></tr>
+<tr><td><code>tools/skip</code></td><td>Does nothing — what a hint brush’s other faces wear</td></tr>
+<tr><td><code>tools/blocklight</code></td><td>Casts a shadow without being solid</td></tr>
+<tr><td><code>tools/grate</code></td><td>Blocks movement and bullets; you can see through it</td></tr>
+<tr><td><code>tools/water</code></td><td>Water</td></tr>
+</tbody>
+</table>
+</div>
+<p>An entity’s classname overrides its brushes’ materials: a <code>trigger_multiple</code> is
+a trigger whatever its faces are textured with, and a <code>func_detail</code> is detail.</p>
+<p><strong>Detail brushes</strong> stay out of the world tree. A handrail modelled from thirty
+brushes would otherwise carve the room into thirty slivers, each of which the
+visibility compile then has to consider. This is the single biggest lever a
+designer has over compile time.</p>
+<hr>
+<h2 id="umbra--the-visibility-compiler"><a class="header" href="#umbra--the-visibility-compiler">Umbra — the visibility compiler</a></h2>
+<pre><code class="language-sh">kerosene-tools umbra map.kerobsp [--portals map.keroprt] [--fast] [--dry-run]
+</code></pre>
+<p>Computes which clusters can see which, and writes the PVS back into the map.</p>
+<p>Reports “clusters visible per cluster” — the single best predictor of frame
+rate in a BSP engine. Lower is better.</p>
+<p><code>--fast</code> stops after the base estimate: much quicker, leaves far too much
+visible, and exactly what you want while a layout is still moving.</p>
+<hr>
+<h2 id="radiance--the-lighting-compiler"><a class="header" href="#radiance--the-lighting-compiler">Radiance — the lighting compiler</a></h2>
+<pre><code class="language-sh">kerosene-tools radiance map.kerobsp [--samples 1-8] [--bounces 0-8] [--scale N]
+                  [--ambient-scale N] [--fast] [--dry-run]
+</code></pre>
+<p>Bakes static lighting from the map’s own light entities.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Entity</th><th></th></tr>
+</thead>
+<tbody>
+<tr><td><code>light</code></td><td>A point light. <code>_light</code> is <code>"r g b brightness"</code>.</td></tr>
+<tr><td><code>light_spot</code></td><td>A cone. <code>_cone</code>, <code>_inner_cone</code>, <code>_exponent</code>, <code>pitch</code>.</td></tr>
+<tr><td><code>light_environment</code></td><td>The sun and the sky. <code>_light</code> is the sun, <code>_ambient</code> the fill.</td></tr>
+</tbody>
+</table>
+</div>
+<p>Brightness reads directly at 100 inches with the default quadratic falloff, so
+a <code>_light</code> of <code>"255 255 255 200"</code> delivers 200 units of light at normal room
+distance.</p>
+<p><code>pitch</code> on a light entity is <strong>upward-positive</strong>, so a lamp shining at the
+floor is <code>pitch -90</code>.</p>
+<p><code>--samples</code> softens shadow edges at quadratic cost. <code>--bounces 1</code> is what turns
+a room lit by a single lamp from a hard pool of light into something that reads
+as an interior.</p>
+<p>A map with no lights compiles fine and is then pitch black, which looks like a
+broken renderer — so Radiance says so.</p>
+<hr>
+<h2 id="alchemy--textures-and-materials"><a class="header" href="#alchemy--textures-and-materials">Alchemy — textures and materials</a></h2>
+<pre><code class="language-sh">kerosene-tools alchemy compile art/grid.png -o materials/dev/grid.kerotex [--normal] [--clamp] [--ui]
+kerosene-tools alchemy material dev/grid --basetexture dev/grid --shader lit
+kerosene-tools alchemy batch art -o materials --make-materials
+kerosene-tools alchemy new-texture Walls/brick --basecolor b.png --normal b_n.png
+kerosene-tools alchemy texture-set content/textures/Walls/brick
+kerosene-tools alchemy build content
+kerosene-tools alchemy info materials/dev/grid.kerotex
+</code></pre>
+<p>Compiles PNG/JPEG/TGA into <code>.kerotex</code> and authors <code>.keromat</code> materials.</p>
+<p><code>new-texture</code> is the deliberate way to add one. It makes a folder under
+<code>content/textures/</code>, copies the images in under canonical names, and writes the
+<code>texture.kconfig</code> that documents what the set can say — as against the older
+route of dropping a PNG under <code>art/</code> and relying on a filename suffix to be
+guessed correctly. The folder is a <em>texture set</em>: colour, normals, roughness,
+emissive and occlusion compiled together, plus the material binding them. See
+<a href="formats.html">formats.md</a> for the folder layout and the config keys.</p>
+<p><code>texture-set</code> compiles one such folder by hand. It derives the set’s name the
+same way a full build does — by climbing to the <code>textures/</code> directory above it
+— so a set compiled either way ends up called the same thing. Pass <code>--root</code> to
+say otherwise.</p>
+<p><code>build</code> is the whole texture half of a content build for one project: the
+developer set is generated into <code>art/</code>, then everything under <code>art/</code> is
+compiled into <code>materials/</code>, then every texture set under <code>textures/</code> is. Sets
+go last, so a set may deliberately shadow a loose image of the same name: the
+folder is the more specific statement of the two. A project with no <code>textures/</code>
+directory builds as it always did. It is one command because three callers need
+exactly it – this tool, <code>scripts/build-content.sh</code>, and Chisel on the way to
+opening its window – and three callers with three ideas of what “build the
+textures” meant is how the editor came to open with no textures in it while the
+build script insisted everything was fine. Alchemy is a library as well as a
+command so the editor can call it rather than shell out to a sibling binary
+that may not be on the path.</p>
+<p><code>batch</code> and <code>build</code> skip an image whose <code>.kerotex</code> is already newer than it, so
+a build with nothing to do costs a directory walk.</p>
+<p>Alpha is dropped when an image does not use it, which saves a quarter of the
+memory. In <code>batch</code> mode, a file ending <code>_normal</code> or <code>_n</code> is taken to be a
+normal map — the convention beats a flag, because batch compiles run
+unattended.</p>
+<hr>
+<h2 id="forge--the-model-compiler"><a class="header" href="#forge--the-model-compiler">Forge — the model compiler</a></h2>
+<pre><code class="language-sh">kerosene-tools forge compile art/crate.obj -o models/props/crate.keromdl
+                            [--scale-metres] [--z-up] [--scale N]
+                            [--material old=new] [--recompute-normals]
+kerosene-tools forge info models/props/crate.keromdl
+</code></pre>
+<p>OBJ → <code>.keromdl</code>, splitting by material and welding vertices.</p>
+<p>Two conversions happen on the way in, and getting either wrong produces a model
+that is subtly rotated or a hundred times too small. OBJ is Y-up with -Z
+forward; Kerosene is Z-up with +X forward. And modelling packages usually
+work in metres — <code>--scale-metres</code> converts.</p>
+<p>Winding is taken from the OBJ as-is (the axis remap preserves handedness), so
+export your faces counter-clockwise from the front: <code>.keromdl</code> stores them
+that way, and a face wound the other way renders inside out. <code>--recompute-normals</code>
+rebuilds normals from the winding and ignores any in the source, but it does
+not repair a source that was wound backwards to begin with.</p>
+<p>Welding is by the full corner tuple, not by position: two faces meeting at a
+hard edge legitimately share a position while needing different normals, and
+merging them rounds off every corner of the model.</p>
+<hr>
+<h2 id="kiln--building-a-project"><a class="header" href="#kiln--building-a-project">Kiln — building a project</a></h2>
+<p>The build panel in the toolset window, and also a headless stage:</p>
+<pre><code class="language-sh">kerosene-tools kiln                              # build everything, from here
+kerosene-tools kiln --content path/to/content    # or from there
+kerosene-tools kiln --only maps --fast           # just relight, quickly
+kerosene-tools kiln --only textures              # after adding art
+kerosene-tools kiln --dry-run                    # say what would run
+kerosene-tools kiln --tools                      # which pieces can be found
+</code></pre>
+<p>Runs the whole content pipeline over a project: the texture build, then models
+through Forge, then every map through Cleave, Umbra and Radiance, then the
+pack into a <code>.vault</code>.</p>
+<p>It is a program rather than a shell script for one reason, and it is the
+reason that matters: <strong>a script is not shipped</strong>. Install the tools, or copy
+them somewhere, and the thing that knows how to <em>use</em> them stays behind in a
+git checkout — so the first thing anyone does with a fresh copy of the
+toolchain is discover the build step is missing. Kiln is part of the one
+toolset executable, so it needs no shell.</p>
+<p>The compilers are stages of the same toolset and Kiln drives them by
+re-invoking the executable with the stage’s name as a subcommand, exactly as
+Chisel does. You can still run any stage by hand or from a build server. Only
+the texture build is a library call, because Chisel makes the same one and the
+two must not be able to disagree.</p>
+<p>Sources decide what gets built: every <code>.obj</code> under <code>art/</code> becomes a
+<code>.keromdl</code> at the matching path under <code>models/</code>, and every <code>.keromap</code> under
+<code>maps/</code> becomes a <code>.kerobsp</code>. Nothing has a list to keep up to date.</p>
+<p>A map that leaks still compiles, and is reported at the end rather than
+stopping the build — finding out on the first of forty maps that the run is
+over is not a service. The archive is named after the project and written
+inside the content tree, which is where the engine looks for it.</p>
+<p><code>scripts/build-content.sh</code> in this repository is a thin wrapper: it builds the
+toolset from source and regenerates the sample map from the code that defines
+it, then calls Kiln. Neither of those two belongs in a shipped tool.</p>
+<hr>
+<h2 id="vault--content-archives"><a class="header" href="#vault--content-archives">Vault — content archives</a></h2>
+<p>The archive panel in the toolset window, and also a headless stage:</p>
+<pre><code class="language-sh">kerosene-tools vault pack content -o content/kerosene_content.vault [--ext kerotex] [--exclude tmp]
+kerosene-tools vault list content/kerosene_content.vault [--long]
+kerosene-tools vault verify content/kerosene_content.vault
+kerosene-tools vault unpack content/kerosene_content.vault -o extracted
+</code></pre>
+<p>The archive belongs <em>inside</em> the content tree, which is where a shipped game
+keeps its archives and where the engine looks without being told. Writing it
+into the tree it packs is safe: <code>.vault</code> is never one of the extensions packed.</p>
+<p>Packs a content tree into one archive. Every entry carries a CRC, checked on
+read and by <code>verify</code>.</p>
+<p>Loose files still shadow packed ones when both are mounted, so a developer can
+drop a file next to a shipped archive without repacking.</p>
+<hr>
+<h2 id="kerosene--the-runtime"><a class="header" href="#kerosene--the-runtime">kerosene — the runtime</a></h2>
+<pre><code class="language-sh">kerosene [+command ...] [--content &lt;dir&gt;] [--vault &lt;file&gt;] [--headless &lt;ticks&gt;]
+</code></pre>
+<p>Arguments beginning with <code>+</code> are console commands, so any convar is settable
+from the command line with no flag needing to exist for it:</p>
+<pre><code class="language-sh">kerosene +map kero_start
+kerosene +map kero_start +sv_gravity 200 +developer 1
+kerosene --headless 640 +map kero_start
+kerosene --content path/to/content --vault extra.vault +map kero_start
+</code></pre>
+<p><code>--headless</code> runs the simulation with no window at all — which is what a
+dedicated server is, not a testing mode bolted on the side.</p>
+<p>With no <code>--content</code>, the engine finds the content tree the way every tool does
+(see Chisel, above) and says which one it took. With no <code>--vault</code>, every
+<code>.vault</code> in that tree is mounted, in name order, so a packed install runs
+without being told about its own archives. Loose files still win over packed
+ones, which is what makes dropping a file beside a shipped archive work.</p>
+<p>A map that will not load says why rather than saying “not found in any search
+path”. The usual reason is that it has never been compiled — the <code>.keromap</code> is
+right there and nothing turned it into a <code>.kerobsp</code> — so that is what it says,
+along with the command to run and the list of paths it searched.</p>
+<h3 id="the-console"><a class="header" href="#the-console">The console</a></h3>
+<p><code>`</code> opens it, <code>`</code> or escape closes it, and <code>toggleconsole</code> does the
+same from a binding or the command line. Those two keys are read by the host
+before anything else sees them and are never passed on — a way out that the
+thing you are trying to leave can capture is not a way out, and handling them
+any later meant the console’s own text field swallowed them. The same mistake
+put the backtick that opened it <em>into</em> the prompt, so every command typed
+afterwards began with a character that made it unknown.</p>
+<p>While it is open the console takes the keyboard completely and releases the
+mouse: a console you cannot type an <code>n</code> into without walking forward is not a
+console. Tab completes the command word and cycles the candidates, up and down
+walk history, page up and down scroll without disturbing what you are typing.</p>
+<p>It introduces itself the first time it opens, because an empty box with a
+blinking cursor reads as “this accepts nothing”:</p>
+<pre><code>Kerosene console -- 52 commands and convars. `find &lt;text&gt;` searches them,
+`help &lt;name&gt;` explains one, `cvarlist` lists the lot. Tab completes, up walks
+back, ` or escape closes.
+</code></pre>
+<p>Log lines from the engine appear in it as they happen. Crates that are not
+ours — the graphics backend, the window library — are held to warnings, so
+opening the console to read one line does not mean scrolling past a page of
+Vulkan loader chatter. <code>RUST_LOG</code> lifts that: someone who sets it is debugging
+the thing they set it for.</p>
+<h3 id="useful-convars"><a class="header" href="#useful-convars">Useful convars</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Convar</th><th></th></tr>
+</thead>
+<tbody>
+<tr><td><code>sv_gravity</code> <code>sv_maxspeed</code> <code>sv_accelerate</code></td><td>movement tuning</td></tr>
+<tr><td><code>sv_airaccelerate</code> <code>sv_air_max_wishspeed</code></td><td>air control — see below</td></tr>
+<tr><td><code>sv_jump_height</code></td><td>jump height in units; the impulse is derived from it</td></tr>
+<tr><td><code>sv_stepsize</code></td><td>tallest step walked up without jumping (18)</td></tr>
+<tr><td><code>cl_fov</code> <code>sensitivity</code> <code>m_yaw</code> <code>m_pitch</code></td><td>view and mouse</td></tr>
+<tr><td><code>r_drawworld</code> <code>r_fullbright</code> <code>r_lightmap</code> <code>r_novis</code></td><td>rendering toggles (cheat)</td></tr>
+<tr><td><code>r_speeds</code></td><td>per-frame culling and draw statistics</td></tr>
+<tr><td><code>mat_exposure</code></td><td>overall brightness</td></tr>
+<tr><td><code>developer</code></td><td>verbosity; <code>2</code> also traces entity I/O</td></tr>
+</tbody>
+</table>
+</div>
+<p><code>sv_air_max_wishspeed</code> is the air-speed cap that makes bunny-hopping and
+surfing work. It is 30 by default, and it is not a bug: changing it changes the
+game.</p>
+<hr>
+<h1 id="timbre--the-sound-compiler"><a class="header" href="#timbre--the-sound-compiler">Timbre — the sound compiler</a></h1>
+<p>Turns <code>.wav</code>, <code>.flac</code> and <code>.mp3</code> into <code>.keroaud</code>. It is the one tool with no
+Source counterpart, because Source shipped <code>.wav</code> and paid for it in download
+size; this pays a compile step instead. It is the sound tab in the toolset
+window, and also a headless stage:</p>
+<pre><code>kerosene-tools timbre                          # the sound tab
+kerosene-tools timbre build                    # compile a project's sounds
+kerosene-tools timbre compile a.wav --gain 0.8 --mono
+kerosene-tools timbre info a.keroaud
+</code></pre>
+<h2 id="what-it-reads"><a class="header" href="#what-it-reads">What it reads</a></h2>
+<p>WAV goes through the engine’s own decoder — the one that also reads <code>smpl</code>
+chunk loop points. FLAC and MP3 go through Symphonia, which is a dependency
+this project would not accept in the engine and does accept in a build tool:
+see <a href="licensing.html#the-one-copyleft-dependency"><code>licensing.md</code></a>.</p>
+<p>MP3 is read because people have MP3s, not because it is a good thing to build
+from. Compiling one to ADPCM is lossy-to-lossy — the artifacts compound rather
+than cancelling, and the second encoder spends its bits describing the first
+one’s mistakes. Timbre says so every time, and says so again if the result
+comes out <em>larger</em> than the source, which for an already-compressed input it
+often does.</p>
+<p>A file whose extension lies about its contents is named as such rather than
+reported as corrupt: a <code>.wav</code> that is really an MP3 is a thing that happens to
+downloaded files, and “not a RIFF/WAVE file” sends you looking for the wrong
+problem.</p>
+<p>FLAC can carry a loop region in <code>LOOPSTART</code>/<code>LOOPLENGTH</code> Vorbis comments, which
+is what game audio has settled on, and Timbre reads it — otherwise a looping
+ambience compiled from FLAC loses what the same sound in a WAV would keep.</p>
+<h2 id="what-it-decides"><a class="header" href="#what-it-decides">What it decides</a></h2>
+<p><strong>Encoding.</strong> ADPCM at a quarter the size, or 16-bit PCM. Per sound, not per
+project: ADPCM is close to transparent on impacts, speech and machinery, and
+audible on a quiet room tone with a lot of air in it. It also has an attack
+transient — the quantiser starts at its smallest step and takes a few
+milliseconds to reach a loud signal — which softens a sharp onset. PCM16 is
+the escape hatch for material where either matters.</p>
+<p><strong>Gain.</strong> Applied before encoding rather than at play time, so a sound
+recorded too hot is fixed once instead of in every entity that plays it.</p>
+<p><strong>Loop points.</strong> Read out of the WAV’s <code>smpl</code> chunk if it has one. Before
+this, looping was all-or-nothing: a room tone with a proper loop region had it
+thrown away and was repeated end to end, click and all.</p>
+<p><strong>Channels.</strong> A sound placed in the world has to be mono — there is one pan
+and a stereo file already carries its own left and right, so positioning it
+applies a pan to a signal that is not a point. Timbre says so, and can fold it
+down.</p>
+<h2 id="the-window"><a class="header" href="#the-window">The window</a></h2>
+<p><code>timbre</code> with no arguments opens it, because every one of those decisions is
+better made by seeing and hearing the result than by reading a number. A gain
+of 0.8 means nothing on a command line; the same 0.8 with the waveform redrawn
+under it and the clipped samples marked in red means something at a glance.</p>
+<ul>
+<li>The waveform is the samples that will actually be written, not the source.</li>
+<li>Peak and a live level meter, the second following the playhead.</li>
+<li>Play through the same mixer the engine uses.</li>
+<li>Gain in decibels, encoding, mono, and the loop region shaded on the wave.</li>
+</ul>
+<p>Settings are written to <code>sound/timbre.kerobuild</code> and read back by <code>timbre build</code>, so the window and the command line cannot disagree about what a build
+is — the same discipline that makes the texture build a library call rather
+than a second implementation.</p>
+<h2 id="where-the-window-comes-from"><a class="header" href="#where-the-window-comes-from">Where the window comes from</a></h2>
+<p><code>kerosene-ui</code> is a window with egui in it and nothing else: winit’s application
+handler, a wgpu surface, an egui integration and the frame loop that drives
+them. Implement <code>App</code>, call <code>run</code>. It exists because that is three hundred
+lines with nothing to do with any particular tool, and a second copy of them
+is a second place for a resize bug to live.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../docs/scripting.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
+                            </a>
+
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../docs/scripting.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
+                    </a>
+
+            </nav>
+
+        </div>
+
+        <template id=fa-eye><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M288 32c-80.8 0-145.5 36.8-192.6 80.6C48.6 156 17.3 208 2.5 243.7c-3.3 7.9-3.3 16.7 0 24.6C17.3 304 48.6 356 95.4 399.4C142.5 443.2 207.2 480 288 480s145.5-36.8 192.6-80.6c46.8-43.5 78.1-95.4 93-131.1c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C433.5 68.8 368.8 32 288 32zM432 256c0 79.5-64.5 144-144 144s-144-64.5-144-144s64.5-144 144-144s144 64.5 144 144zM288 192c0 35.3-28.7 64-64 64c-11.5 0-22.3-3-31.6-8.4c-.2 2.8-.4 5.5-.4 8.4c0 53 43 96 96 96s96-43 96-96s-43-96-96-96c-2.8 0-5.6 .1-8.4 .4c5.3 9.3 8.4 20.1 8.4 31.6z"/></svg></span></template>
+        <template id=fa-eye-slash><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M38.8 5.1C28.4-3.1 13.3-1.2 5.1 9.2S-1.2 34.7 9.2 42.9l592 464c10.4 8.2 25.5 6.3 33.7-4.1s6.3-25.5-4.1-33.7L525.6 386.7c39.6-40.6 66.4-86.1 79.9-118.4c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C465.5 68.8 400.8 32 320 32c-68.2 0-125 26.3-169.3 60.8L38.8 5.1zM223.1 149.5C248.6 126.2 282.7 112 320 112c79.5 0 144 64.5 144 144c0 24.9-6.3 48.3-17.4 68.7L408 294.5c5.2-11.8 8-24.8 8-38.5c0-53-43-96-96-96c-2.8 0-5.6 .1-8.4 .4c5.3 9.3 8.4 20.1 8.4 31.6c0 10.2-2.4 19.8-6.6 28.3l-90.3-70.8zm223.1 298L373 389.9c-16.4 6.5-34.3 10.1-53 10.1c-79.5 0-144-64.5-144-144c0-6.9 .5-13.6 1.4-20.2L83.1 161.5C60.3 191.2 44 220.8 34.5 243.7c-3.3 7.9-3.3 16.7 0 24.6c14.9 35.7 46.2 87.7 93 131.1C174.5 443.2 239.2 480 320 480c47.8 0 89.9-12.9 126.2-32.5z"/></svg></span></template>
+        <template id=fa-copy><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M502.6 70.63l-61.25-61.25C435.4 3.371 427.2 0 418.7 0H255.1c-35.35 0-64 28.66-64 64l.0195 256C192 355.4 220.7 384 256 384h192c35.2 0 64-28.8 64-64V93.25C512 84.77 508.6 76.63 502.6 70.63zM464 320c0 8.836-7.164 16-16 16H255.1c-8.838 0-16-7.164-16-16L239.1 64.13c0-8.836 7.164-16 16-16h128L384 96c0 17.67 14.33 32 32 32h47.1V320zM272 448c0 8.836-7.164 16-16 16H63.1c-8.838 0-16-7.164-16-16L47.98 192.1c0-8.836 7.164-16 16-16H160V128H63.99c-35.35 0-64 28.65-64 64l.0098 256C.002 483.3 28.66 512 64 512h192c35.2 0 64-28.8 64-64v-32h-47.1L272 448z"/></svg></span></template>
+        <template id=fa-play><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M73 39c-14.8-9.1-33.4-9.4-48.5-.9S0 62.6 0 80V432c0 17.4 9.4 33.4 24.5 41.9s33.7 8.1 48.5-.9L361 297c14.3-8.7 23-24.2 23-41s-8.7-32.2-23-41L73 39z"/></svg></span></template>
+        <template id=fa-clock-rotate-left><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M75 75L41 41C25.9 25.9 0 36.6 0 57.9V168c0 13.3 10.7 24 24 24H134.1c21.4 0 32.1-25.9 17-41l-30.8-30.8C155 85.5 203 64 256 64c106 0 192 86 192 192s-86 192-192 192c-40.8 0-78.6-12.7-109.7-34.4c-14.5-10.1-34.4-6.6-44.6 7.9s-6.6 34.4 7.9 44.6C151.2 495 201.7 512 256 512c141.4 0 256-114.6 256-256S397.4 0 256 0C185.3 0 121.3 28.7 75 75zm181 53c-13.3 0-24 10.7-24 24V256c0 6.4 2.5 12.5 7 17l72 72c9.4 9.4 24.6 9.4 33.9 0s9.4-24.6 0-33.9l-65-65V152c0-13.3-10.7-24-24-24z"/></svg></span></template>
+
+        <!-- Livereload script (if served using the cli tool) -->
+        <script>
+            const wsProtocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsAddress = wsProtocol + "//" + location.host + "/" + "__livereload";
+            const socket = new WebSocket(wsAddress);
+            socket.onmessage = function (event) {
+                if (event.data === "reload") {
+                    socket.close();
+                    location.reload();
+                }
+            };
+
+            window.onbeforeunload = function() {
+                socket.close();
+            }
+        </script>
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="../elasticlunr-ef4e11c1.min.js"></script>
+        <script src="../mark-09e88c2c.min.js"></script>
+        <script src="../searcher-09f2665d.js"></script>
+
+        <script src="../clipboard-1626706a.min.js"></script>
+        <script src="../highlight-abc7f01d.js"></script>
+        <script src="../book-609e4cb8.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="../mermaid-28fca7ae.min.js"></script>
+        <script src="../mermaid-init-53b67c53.js"></script>
+
+
+
+    </div>
+    </body>
+</html>

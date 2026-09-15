@@ -2,3 +2,13 @@
 title = "Kerosene game engine docs"
 authors = ["T342"]
 language = "en"
+
+[preprocessor]
+
+[preprocessor.mermaid]
+command = "mdbook-mermaid"
+
+[output]
+
+[output.html]
+additional-js = ["mermaid.min.js", "mermaid-init.js"]

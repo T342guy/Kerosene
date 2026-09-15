@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Welcome! - Kerosene game engine docs</title>
+        <title>Positioning - Kerosene game engine docs</title>
 
 
         <!-- Custom HTML head -->
@@ -12,33 +12,33 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="theme-color" content="#ffffff">
 
-        <link rel="icon" href="favicon-de23e50b.svg">
-        <link rel="shortcut icon" href="favicon-8114d1fc.png">
-        <link rel="stylesheet" href="css/variables-8adf115d.css">
-        <link rel="stylesheet" href="css/general-e96d0476.css">
-        <link rel="stylesheet" href="css/chrome-d279d366.css">
-        <link rel="stylesheet" href="css/print-9e4910d8.css" media="print">
+        <link rel="icon" href="../favicon-de23e50b.svg">
+        <link rel="shortcut icon" href="../favicon-8114d1fc.png">
+        <link rel="stylesheet" href="../css/variables-8adf115d.css">
+        <link rel="stylesheet" href="../css/general-e96d0476.css">
+        <link rel="stylesheet" href="../css/chrome-d279d366.css">
+        <link rel="stylesheet" href="../css/print-9e4910d8.css" media="print">
 
         <!-- Fonts -->
-        <link rel="stylesheet" href="fonts/fonts-9644e21d.css">
+        <link rel="stylesheet" href="../fonts/fonts-9644e21d.css">
 
         <!-- Highlight.js Stylesheets -->
-        <link rel="stylesheet" id="mdbook-highlight-css" href="highlight-493f70e1.css">
-        <link rel="stylesheet" id="mdbook-tomorrow-night-css" href="tomorrow-night-4c0ae647.css">
-        <link rel="stylesheet" id="mdbook-ayu-highlight-css" href="ayu-highlight-3fdfc3ac.css">
+        <link rel="stylesheet" id="mdbook-highlight-css" href="../highlight-493f70e1.css">
+        <link rel="stylesheet" id="mdbook-tomorrow-night-css" href="../tomorrow-night-4c0ae647.css">
+        <link rel="stylesheet" id="mdbook-ayu-highlight-css" href="../ayu-highlight-3fdfc3ac.css">
 
         <!-- Custom theme stylesheets -->
 
 
         <!-- Provide site root and default themes to javascript -->
         <script>
-            const path_to_root = "";
+            const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-7de34f39.js";
+            window.path_to_searchindex_js = "../searchindex-7de34f39.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-b0b5977e.js"></script>
+        <script src="../toc-b0b5977e.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -105,7 +105,7 @@
             <!-- populated by js -->
             <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
             <noscript>
-                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+                <iframe class="sidebar-iframe-outer" src="../toc.html"></iframe>
             </noscript>
             <div id="mdbook-sidebar-resize-handle" class="sidebar-resize-handle">
                 <div class="sidebar-resize-indicator"></div>
@@ -140,7 +140,7 @@
                     <h1 class="menu-title">Kerosene game engine docs</h1>
 
                     <div class="right-buttons">
-                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                        <a href="../print.html" title="Print this book" aria-label="Print this book">
                             <span class=fa-svg id="print-button"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M128 0C92.7 0 64 28.7 64 64v96h64V64H354.7L384 93.3V160h64V93.3c0-17-6.7-33.3-18.7-45.3L400 18.7C388 6.7 371.7 0 354.7 0H128zM384 352v32 64H128V384 368 352H384zm64 32h32c17.7 0 32-14.3 32-32V256c0-35.3-28.7-64-64-64H64c-35.3 0-64 28.7-64 64v96c0 17.7 14.3 32 32 32H64v64c0 35.3 28.7 64 64 64H384c35.3 0 64-28.7 64-64V384zm-16-88c-13.3 0-24-10.7-24-24s10.7-24 24-24s24 10.7 24 24s-10.7 24-24 24z"/></svg></span>
                         </a>
 
@@ -174,19 +174,159 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="welcome"><a class="header" href="#welcome">Welcome!</a></h1>
-<p>Hello there! Thank you for checking out Kerosene.</p>
-<blockquote class="blockquote-tag blockquote-tag-note">
-<p class="blockquote-tag-title"><svg viewbox="0 0 16 16" width="18" height="18"><path d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8Zm8-6.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM6.5 7.75A.75.75 0 0 1 7.25 7h1a.75.75 0 0 1 .75.75v2.75h.25a.75.75 0 0 1 0 1.5h-2a.75.75 0 0 1 0-1.5h.25v-2h-.25a.75.75 0 0 1-.75-.75ZM8 6a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"></path></svg>Note</p>
-<p>AI Generated content disclosure: Most of these docs were made my AI. If you want to improve them, please do! All help to kerosene is greatly appreciated :&gt;</p>
+                        <h1 id="positioning"><a class="header" href="#positioning">Positioning</a></h1>
+<p>What this engine is good at, what it is not, and which games it is shaped to
+make. A companion to <a href="missing-features.html"><code>missing-features.md</code></a>: that sheet
+says what is absent, this one says which of those absences actually matter.</p>
+<blockquote>
+<p>Game titles here are named for one reason: to point at a shape of game, the
+same way the README names Valve and id tools to point at a shape of tool.
+None of their makers are affiliated with, endorse or sponsor Kerosene, and
+none of their code or content is in it. See <a href="../NOTICE"><code>NOTICE</code></a>.</p>
 </blockquote>
+<h2 id="the-comparison-people-reach-for"><a class="header" href="#the-comparison-people-reach-for">The comparison people reach for</a></h2>
+<p>The question that prompted this document was whether Kerosene could compete
+with Unity. The answer is no, and pursuing it would be the fastest way to kill
+the project.</p>
+<p>Unity is roughly two decades and thousands of engineer-years. Matching it means
+a shader graph, an animation state machine, terrain, particles, LOD, five
+platform backends, an asset store, and console certification. That is not a
+roadmap; it is a company. Kerosene is around 73,000 lines across eighteen
+crates and ten tools.</p>
+<p>But “compete with Unity” is the wrong frame, and the architecture already says
+so. The README’s thesis – the tools are separate from the engine and share
+open formats – is something Unity structurally cannot do, because its editor
+<em>is</em> the product and its runtime is downstream of it. Kerosene’s compilers are
+subcommands. You can script them, run them on a build server, replace one, or
+write your own. That is a real advantage and a permanent one, and it is worth
+more than feature parity in a race that cannot be won.</p>
+<p>The useful question is not “how do we catch up” but “what is this shaped to be
+best at”.</p>
+<h2 id="the-titanfall-argument"><a class="header" href="#the-titanfall-argument">The Titanfall argument</a></h2>
+<p>The strongest case for this architecture is that it has already been made, by
+someone shipping a game on it.</p>
+<p>Respawn built Titanfall on a branch of Source 2009. They did not take it for
+its renderer, most of which they replaced, or for its tools. They took it for
+two things: <strong>the movement solver and the brush pipeline</strong>.</p>
+<p>Everything that makes that game feel the way it does – wallrunning, sliding,
+carried momentum – is built on top of the structure in
+<a href="../crates/kerosene-physics/src/movement.rs"><code>kerosene-physics</code></a>:
+<code>accelerate</code>, <code>air_accelerate</code>, <code>clip_velocity</code>, <code>try_move</code>, <code>step_move</code>. That
+is the Quake-to-Source lineage, and it is why air-strafing works at all. It is
+also five readable functions with unit tests, rather than a character
+controller written for someone else’s game.</p>
+<p>The other half is the pipeline. Those levels are still convex solids compiled
+to a BSP tree with a precomputed PVS, because for a shooter that has to hold
+sixty frames a second, nothing beats the level telling you what you can see.
+That is Cleave, Umbra and Radiance.</p>
+<p>So: Kerosene is already good at the two things that mattered enough to build a
+studio’s flagship on. What it does not have is everything that was built on
+top of them with a large team.</p>
+<h2 id="four-things-it-is-structurally-good-at"><a class="header" href="#four-things-it-is-structurally-good-at">Four things it is structurally good at</a></h2>
+<p><strong>Movement feel.</strong> The solver is legible and tested. Tuning air acceleration is
+editing a function, not fighting an abstraction.</p>
+<p><strong>Entity I/O.</strong> <a href="../crates/kerosene-entity/src/io.rs"><code>kerosene-entity/src/io.rs</code></a>
+has connections with delays, parameters and fire-once semantics. A designer
+wires an entire set-piece without writing code, and the result is a text file
+that diffs and reviews. This is an underrated design, and the mainstream
+engines’ answer – callbacks serialised into a scene blob – is worse.</p>
+<p><strong>Iteration speed.</strong> Brushes compile in seconds. That is a different design
+loop from sculpting in a DCC package and importing.</p>
+<p><strong>Determinism.</strong> A headless simulation, a unit scale that lands on powers of
+two, and no garbage collector. This is more valuable than it sounds; see the
+time-trial entry below.</p>
+<h2 id="five-games-it-is-shaped-to-make"><a class="header" href="#five-games-it-is-shaped-to-make">Five games it is shaped to make</a></h2>
+<p>Each entry names the shape, what it leans on, and what it is still missing.</p>
+<h3 id="1-a-movement-shooter"><a class="header" href="#1-a-movement-shooter">1. A movement shooter</a></h3>
+<p><em>Titanfall 2</em>, <em>Ultrakill</em>, <em>Neon White</em>, <em>Severed Steel</em>.</p>
+<p>These live or die on the solver, and Neon White in particular shows the market
+does not want photorealism – it wants frame-perfect movement and levels that
+read at a glance.</p>
+<p><strong>Leans on:</strong> the movement solver, fast compiles.
+<strong>Needs:</strong> weapons, and skeletal animation for viewmodels. Very little else.
+<strong>This is the shortest path from here to a shipped game.</strong></p>
+<h3 id="2-an-immersive-sim-or-boomer-shooter"><a class="header" href="#2-an-immersive-sim-or-boomer-shooter">2. An immersive sim or boomer shooter</a></h3>
+<p><em>Half-Life 2</em>, <em>Dishonored</em>, <em>Prey</em>, <em>Deathloop</em>.</p>
+<p>All brush-built, all I/O-driven. Physics props plus entity I/O plus Rhai hooks
+is most of the substrate for “the player solves this room however they like”.</p>
+<p><strong>Leans on:</strong> entity I/O, the physics sandbox, scripting.
+<strong>Needs:</strong> weapons, damage, and eventually NPCs.
+<strong>The best fit for what actually exists today</strong>, because it leans on the I/O
+system and the physics rather than on animation.</p>
+<h3 id="3-a-time-trial-or-speedrunning-game"><a class="header" href="#3-a-time-trial-or-speedrunning-game">3. A time-trial or speedrunning game</a></h3>
+<p><em>Neon White</em>, <em>Clustertruck</em>, the <em>Trackmania</em> design space.</p>
+<p>Deterministic movement, fast level compiles, ghost replays. Determinism is the
+<em>feature</em> here rather than an implementation detail: fixed-timestep physics in
+the mainstream engines is not replay-stable across machines, and people build
+elaborate workarounds. Kerosene gets it as a consequence of how it is built.</p>
+<p><strong>Leans on:</strong> determinism, the solver, iteration speed.
+<strong>Needs:</strong> demo recording – which is also how the determinism claim gets
+<em>proven</em>, since nothing replays a session today – plus save/load for ghosts,
+and a HUD.</p>
+<h3 id="4-competitive-multiplayer-with-a-mod-scene"><a class="header" href="#4-competitive-multiplayer-with-a-mod-scene">4. Competitive multiplayer with a mod scene</a></h3>
+<p><em>Counter-Strike</em>, <em>Team Fortress 2</em>.</p>
+<p>This is where the open-formats thesis pays off hardest, because a community
+that can write its own tools makes a game outlive its studio.</p>
+<p><strong>Leans on:</strong> replaceable compilers, open formats, the headless simulation.
+<strong>Needs:</strong> the whole of the networking section. Furthest out – but the
+headless split means the architecture is already pointed the right way.</p>
+<p>The mod-scene half does not have to wait for the networking half. A map is a
+<code>.vault</code>, the VFS already mounts archives as layers, and Steam Workshop is an
+upload from Chisel and a subscription in-game. That is a weekend against the
+Steamworks SDK, not a networking stack, and it is the first place the
+open-formats thesis pays out where a player can see it.</p>
+<h3 id="5-horror"><a class="header" href="#5-horror">5. Horror</a></h3>
+<p><em>Cry of Fear</em> and the lo-fi space around it.</p>
+<p>Baked radiosity in tight brush geometry is an aesthetic, not a compromise, and
+this genre has no appetite for physically-based shading.</p>
+<p><strong>Leans on:</strong> Radiance, the brush pipeline.
+<strong>Needs:</strong> audio occlusion and reverb – sound doing the work graphics does
+elsewhere.</p>
+<h2 id="the-pattern-and-what-it-rules-out"><a class="header" href="#the-pattern-and-what-it-rules-out">The pattern, and what it rules out</a></h2>
+<p>Every one of those is <strong>geometry-heavy and animation-light</strong>. That is not a
+coincidence: it is exactly where the missing-features sheet is strongest and
+weakest.</p>
+<p>The genres to stay away from are the ones the mainstream engines are actually
+good at – anything built on characters, dialogue, cutscenes, open worlds, or
+a large art budget. Not because they are impossible, but because they are a
+fight against every strength listed above.</p>
+<h2 id="what-gates-all-of-it"><a class="header" href="#what-gates-all-of-it">What gates all of it</a></h2>
+<p>Three items on the sheet stand between “an impressive engine” and “somebody
+shipped a game with this”:</p>
+<ol>
+<li><strong>Skeletal animation.</strong> <code>.keromdl</code> stores bones and weights and nothing
+plays them. No characters means no NPCs and no enemies – a sandbox rather
+than a game. This is the single biggest blocker on the whole sheet.</li>
+<li><strong>Networking.</strong> The headless simulation is the hard architectural half, and
+it is done. Without a wire protocol, though, the comparison to Source stops
+being true in the way that mattered most to Source.</li>
+<li><strong>Windows.</strong> Nothing has built it there. wgpu, winit and cpal all do
+Windows, so this is almost certainly untested rather than broken – but
+there is no CI to say so, and most of the people who would want this
+cannot run it until something does.</li>
+</ol>
+<p>Two more are smaller than those and gate the <em>feel</em> rather than the
+possibility: the view is not interpolated between ticks (<code>host.rs</code> pins
+<code>alpha = 1.0</code>), and there is no game UI layer, so there is no menu, no
+options screen and no HUD to put a game behind. Both are on the order of
+days, and both are in the way of every genre above.</p>
+<p>Everything else on that sheet – PBR, post-processing, decals, particles, LOD
+– makes games <em>prettier</em>. These make games <em>possible</em>.</p>
+<h2 id="the-honest-summary"><a class="header" href="#the-honest-summary">The honest summary</a></h2>
+<p>Kerosene will not be a general-purpose Unity competitor. It could plausibly
+become the engine someone reaches for when they want to build a Half-Life
+2-shaped game and find that nothing else lets them. That is a smaller market
+and a far more winnable one.</p>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../docs/missing-features.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
+                            </a>
 
-                            <a rel="next prefetch" href="docs/architecture.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../docs/scripting.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -196,8 +336,11 @@
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../docs/missing-features.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
+                    </a>
 
-                    <a rel="next prefetch" href="docs/architecture.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../docs/scripting.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>
@@ -233,17 +376,17 @@
         </script>
 
 
-        <script src="elasticlunr-ef4e11c1.min.js"></script>
-        <script src="mark-09e88c2c.min.js"></script>
-        <script src="searcher-09f2665d.js"></script>
+        <script src="../elasticlunr-ef4e11c1.min.js"></script>
+        <script src="../mark-09e88c2c.min.js"></script>
+        <script src="../searcher-09f2665d.js"></script>
 
-        <script src="clipboard-1626706a.min.js"></script>
-        <script src="highlight-abc7f01d.js"></script>
-        <script src="book-609e4cb8.js"></script>
+        <script src="../clipboard-1626706a.min.js"></script>
+        <script src="../highlight-abc7f01d.js"></script>
+        <script src="../book-609e4cb8.js"></script>
 
         <!-- Custom JS scripts -->
-        <script src="mermaid-28fca7ae.min.js"></script>
-        <script src="mermaid-init-53b67c53.js"></script>
+        <script src="../mermaid-28fca7ae.min.js"></script>
+        <script src="../mermaid-init-53b67c53.js"></script>
 
 
 

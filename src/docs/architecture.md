@@ -31,7 +31,42 @@ to sample. Neither belongs in the engine.
 
 ## Crate dependencies
 
-<img width="6278" height="2427" alt="Car Evaluation Decision Flow-2026-09-12-223834" src="https://github.com/user-attachments/assets/cae03668-d5f3-4602-97e9-a46b4b1e0d42" />
+```mermaid
+---
+config:
+  layout: elk
+  theme: default
+  look: neo
+  fontFamily: '''Source Code Pro Variable'', monospace'
+---
+flowchart TB
+    n1["Kerosene-math"] --> n2["Kerosene-kv"] & n4(["cleave"]) & n8["Kerosene-physics"] & n9["Kerosene rigid"] & n11["kerosene-entity"] & n13["Kerosene-vfs"] & n14["kerosene-asset"] & n15["kerosene-render"] & n17["Kerosene (runtime)"]
+    n2 --> n3["kerosene-map"] & n5["kerosene-bsp"]
+    n3 --> n5 & n4
+    n4 --> n5
+    n6(["umbra"]) --> n5
+    n7(["radiance"]) --> n6
+    n5 --> n8
+    n10(["Box3d-rust"]) --> n9
+    n12["kerosene-game"] --> n11
+    n14 --> n13 & n15
+    n15 --> n16["kerosene-engine"]
+    n17 --> n16
+
+    n1@{ shape: rounded}
+    n2@{ shape: rounded}
+    n8@{ shape: rounded}
+    n9@{ shape: rounded}
+    n11@{ shape: rounded}
+    n13@{ shape: rounded}
+    n14@{ shape: rounded}
+    n15@{ shape: rounded}
+    n17@{ shape: rounded}
+    n3@{ shape: rounded}
+    n5@{ shape: rounded}
+    n12@{ shape: rounded}
+    n16@{ shape: rounded}
+```
 
 
 Nothing points upward. `kerosene-math` knows about nothing; `kerosene-engine` knows
