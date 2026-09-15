@@ -4,21 +4,58 @@ How the pieces fit, and why they are arranged this way.
 
 ## The shape of the thing
 
-```
-                    ┌──────────────────────────────────────────┐
-   source content   │             build-time tools             │   runtime
-                    └──────────────────────────────────────────┘
+```mermaid
+---
+config:
+  layout: elk
+---
+flowchart LR
+    n1["Source content"] --> n2(["Build-time tools"])
+    n2 --> n3["Runtime"]
+    n4(["art/.png"]) --> n7@{ label: "<span style=\"color:\">alchemy</span>" }
+    n7 --> n8(["materials/*.kerotex &amp; *.keromat"])
+    n8 --> n9["Kerosene"]
+    n5(["art/.obj"]) --> n10["forge"]
+    n10 --> n11(["models/*.keromdl"])
+    n11 --> n9
+    n6(["maps/.keromap"]) --> n12["cleave"]
+    n12 --> n13(["maps/*.kerobsp"]) & n15(["`*.keroprt`"])
+    n13 --> n14["umbra"]
+    n15 --> n14
+    n14 --> n16["+vis"] & n17["radiance"]
+    n16 --> n9
+    n17 --> n18["+light"]
+    n18 <--> n16 & n19["chisel"]
+    n19 --> n6
 
-   art/*.png ──────────────► alchemy ──────► materials/*.kerotex
-                                                    *.keromat  ──┐
-   art/*.obj ──────────────► forge ──────► models/*.keromdl ─────┤
-                                                              │
-   maps/*.keromap ────────────► cleave ──────► maps/*.kerobsp       ├──► kerosene
-        ▲                       │                │            │
-        │                       └── *.keroprt ──► umbra ──► +vis   │
-     chisel                                          │        │
-        │                                        radiance     │
-        └────────────────────────────────────────► +light ────┘
+    n1@{ shape: rect}
+    n3@{ shape: rect}
+    n7@{ shape: rounded}
+    n9@{ shape: rect}
+    n10@{ shape: rounded}
+    n12@{ shape: rounded}
+    n14@{ shape: rounded}
+    n16@{ shape: rect}
+    n17@{ shape: rounded}
+    n18@{ shape: rect}
+    n19@{ shape: rounded}
+    style n1 stroke:#2962FF,color:#2962FF
+    style n2 stroke:#FF6D00,color:#FF6D00
+    style n3 stroke:#AA00FF,color:#AA00FF
+    style n4 stroke:#2962FF,color:#2962FF
+    style n7 stroke:#FF6D00
+    style n8 color:#D50000,stroke:#D50000
+    style n9 color:#AA00FF,stroke:#AA00FF
+    style n5 stroke:#2962FF,color:#2962FF
+    style n10 stroke:#FF6D00
+    style n11 color:#D50000,stroke:#D50000
+    style n6 stroke:#2962FF,color:#2962FF
+    style n12 stroke:#FF6D00
+    style n13 color:#D50000,stroke:#D50000
+    style n15 stroke:#D50000,color:#D50000
+    style n14 stroke:#FF6D00
+    style n17 stroke:#FF6D00
+    style n19 stroke:#FF6D00
 ```
 
 Everything above the line happens once, on a developer's machine or a build

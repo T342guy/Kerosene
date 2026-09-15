@@ -32,3 +32,6 @@ content/maps/*.kerobsp
 
 # Pi coding-agent session transcripts
 pi-session-*.html
+
+# mdbook
+
