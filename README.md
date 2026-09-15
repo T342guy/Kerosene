@@ -1,5 +1,7 @@
 # Kerosene
 
+![Kerosene](./.github/Images/kerosene-readme-banner.png)
+
 A brush-based 3D game engine in Rust, built the way Valve's Source engine is
 built: levels are convex solids carved into a BSP tree, visibility and lighting
 are computed once at build time by compilers, and the engine loads the result.
