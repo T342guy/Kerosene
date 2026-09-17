@@ -104,7 +104,13 @@ impl Bsp {
     /// roughly `(-16, -16, 0)` to `(16, 16, 72)`.
     pub fn trace_box(&self, start: Vec3, end: Vec3, mins: Vec3, maxs: Vec3, mask: u32) -> Trace {
         let head = self.models.first().map_or(0, |m| m.head_node);
-        let query = Query { start, end, mins, maxs, mask };
+        let query = Query {
+            start,
+            end,
+            mins,
+            maxs,
+            mask,
+        };
         self.trace_node(head, query, 0)
     }
 
@@ -124,12 +130,24 @@ impl Bsp {
         let Some(m) = self.models.get(model) else {
             return Trace::miss(end);
         };
-        let query = Query { start, end, mins, maxs, mask };
+        let query = Query {
+            start,
+            end,
+            mins,
+            maxs,
+            mask,
+        };
         self.trace_node(m.head_node, query, model)
     }
 
     fn trace_node(&self, head: i32, query: Query, model: usize) -> Trace {
-        let Query { start, end, mins, maxs, mask } = query;
+        let Query {
+            start,
+            end,
+            mins,
+            maxs,
+            mask,
+        } = query;
         let is_point = mins == Vec3::ZERO && maxs == Vec3::ZERO;
         let mut work = Work {
             bsp: self,
@@ -264,7 +282,13 @@ impl Work<'_> {
                 continue;
             }
             self.clip_to_brush(&brush);
-            if self.trace.all_solid {
+            // Nothing can stop the trace sooner than "before it started", so
+            // that is the one result that ends the loop. Testing `all_solid`
+            // here instead -- which starts out true, and is only cleared by
+            // visiting open space -- returned after the *first* brush of
+            // every solid leaf, and a func_door built from two brushes only
+            // ever collided with one of them.
+            if self.trace.fraction == 0.0 {
                 return;
             }
         }

@@ -461,6 +461,33 @@ fn a_document_round_trips_through_a_file() {
 }
 
 #[test]
+fn undoing_back_to_the_saved_state_is_clean_again() {
+    let mut d = doc();
+    block(&mut d, 0.0, 64.0);
+    d.mark_clean();
+    assert!(!d.is_modified());
+
+    block(&mut d, 128.0, 192.0);
+    assert!(d.is_modified());
+    d.undo();
+    assert!(!d.is_modified(), "undone to exactly what was saved");
+    d.redo();
+    assert!(d.is_modified());
+    d.undo();
+    d.undo();
+    assert!(d.is_modified(), "now short of the saved state");
+    d.redo();
+    assert!(!d.is_modified());
+
+    // Editing from below the saved depth abandons the branch it was on.
+    d.undo();
+    block(&mut d, 256.0, 320.0);
+    assert!(d.is_modified());
+    d.undo();
+    assert!(d.is_modified(), "the saved state is not on this branch");
+}
+
+#[test]
 fn the_title_shows_unsaved_changes() {
     let mut d = doc();
     // Not "untitled.keromap": a map that has never been saved has no file,
@@ -836,4 +863,50 @@ fn nothing_selected_cannot_be_given_a_class() {
     let mut d = Document::new();
     d.selection.clear();
     assert!(!d.set_brush_class(Some("func_door")));
+}
+
+#[test]
+fn duplicating_a_selection_makes_fresh_copies_and_selects_them() {
+    let mut d = doc();
+    let original = block(&mut d, 0.0, 64.0);
+    let door = d.create_entity("func_door", Vec3::ZERO);
+    d.find_entity_mut(door).unwrap().set("targetname", "gate");
+    d.selection.solids.insert(original);
+    d.selection.entities.insert(door);
+
+    let n = d.duplicate_selection(Vec3::new(128.0, 0.0, 0.0));
+    assert_eq!(n, 2);
+    assert_eq!(d.map.world.solids.len(), 2);
+    assert_eq!(d.map.entities.len(), 2);
+    assert!(
+        !d.selection.solids.contains(&original),
+        "the copies are selected, not the originals"
+    );
+    let copy = d
+        .map
+        .world
+        .solids
+        .iter()
+        .find(|s| s.id != original)
+        .unwrap();
+    assert!(copy.sides.iter().all(|side| side.id != 0));
+    assert_eq!(copy.bounds().min.x, 128.0, "offset by the delta");
+    let copied_door = d.map.entities.iter().find(|e| e.id != door).unwrap();
+    assert_eq!(
+        copied_door.get("targetname"),
+        None,
+        "a name names one thing"
+    );
+
+    d.undo();
+    assert_eq!(d.map.world.solids.len(), 1);
+}
+
+#[test]
+fn select_all_takes_everything() {
+    let mut d = doc();
+    block(&mut d, 0.0, 64.0);
+    block(&mut d, 128.0, 192.0);
+    d.create_entity("light", Vec3::ZERO);
+    assert_eq!(d.select_all(), 3);
 }

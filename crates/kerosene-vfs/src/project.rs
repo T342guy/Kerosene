@@ -145,17 +145,21 @@ impl Project {
     /// person would want and nothing they would have to work around.
     pub fn write_new(path: &Path, name: &str, content_relative: &str) -> anyhow::Result<()> {
         if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent)?;
+            std::fs::create_dir_all(parent)
+                .map_err(|e| anyhow::anyhow!("creating {}: {e}", parent.display()))?;
         }
+        // Through the KeyValues writer, so a name with a quote in it -- or
+        // a content path with a backslash -- comes back out of the parser
+        // as it went in.
+        let mut kv = KeyValues::new("project");
+        kv.push("name", name);
+        kv.push("content", content_relative);
         let body = format!(
             "// A Kerosene project. Every tool reads this to find the content\n\
              // tree, so there is one answer rather than one guess per tool.\n\
-             project\n\
-             {{\n\
-             \t\"name\" \"{name}\"\n\
-             \t// Relative to this file, so the project can live anywhere.\n\
-             \t\"content\" \"{content_relative}\"\n\
-             }}\n"
+             // `content` is relative to this file, so the project can live anywhere.\n\
+             {}",
+            kv.to_text()
         );
         std::fs::write(path, body)
             .map_err(|e| anyhow::anyhow!("writing {}: {e}", path.display()))?;

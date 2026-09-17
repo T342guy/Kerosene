@@ -43,6 +43,10 @@ pub struct SoundParams {
     /// Playback rate. 2.0 is an octave up and half the length.
     pub pitch: f32,
     pub looping: bool,
+    /// The frames to repeat when looping, `start..end`, or `None` for the
+    /// whole sound. A compiled `.keroaud` carries this so an ambience can
+    /// have an attack that plays once and a body that loops.
+    pub loop_region: Option<(usize, usize)>,
     /// Where it is, or `None` to be heard flat.
     pub position: Option<Vec3>,
     /// Distance at which it is at full volume, in kerosene units.
@@ -59,6 +63,7 @@ impl Default for SoundParams {
             volume: 1.0,
             pitch: 1.0,
             looping: false,
+            loop_region: None,
             position: None,
             // Roughly a room's width: inside it a sound is at full volume,
             // which is what stops a footstep two paces away from being
@@ -127,6 +132,46 @@ pub struct Mixer {
     pub listener: Listener,
     /// Master volume, 0 to 1.
     pub volume: f32,
+    /// Where the game thread leaves a new listener and volume for the next
+    /// block to pick up. See [`MixerControl`].
+    control: Arc<MixerControl>,
+}
+
+/// The per-tick knobs, kept outside the mixer's own lock.
+///
+/// The audio callback `try_lock`s the mixer and plays silence if it loses --
+/// a late buffer being worse than a quiet one. The game thread used to take
+/// that same lock every tick just to move the listener, and a callback that
+/// landed in the middle of it was a dropped block. These live in their own
+/// tiny lock instead, held for a copy and no longer; the mixer reads them at
+/// the top of each block.
+#[derive(Default)]
+pub struct MixerControl {
+    listener: std::sync::Mutex<Listener>,
+    /// Volume as its bit pattern, so it needs no lock at all.
+    volume: std::sync::atomic::AtomicU32,
+}
+
+impl MixerControl {
+    fn new() -> MixerControl {
+        MixerControl {
+            listener: std::sync::Mutex::new(Listener::default()),
+            volume: std::sync::atomic::AtomicU32::new(1.0f32.to_bits()),
+        }
+    }
+
+    /// Point the ears somewhere, for the next block.
+    pub fn set_listener(&self, listener: Listener) {
+        *self.listener.lock().unwrap_or_else(|e| e.into_inner()) = listener;
+    }
+
+    /// Master volume, 0 to 1, for the next block.
+    pub fn set_volume(&self, volume: f32) {
+        self.volume.store(
+            volume.clamp(0.0, 1.0).to_bits(),
+            std::sync::atomic::Ordering::Relaxed,
+        );
+    }
 }
 
 impl Mixer {
@@ -137,7 +182,28 @@ impl Mixer {
             next_handle: 1,
             listener: Listener::default(),
             volume: 1.0,
+            control: Arc::new(MixerControl::new()),
         }
+    }
+
+    /// The handle the game thread steers the listener and volume through.
+    pub fn control(&self) -> Arc<MixerControl> {
+        Arc::clone(&self.control)
+    }
+
+    /// Take whatever the game thread has set since the last block. Never
+    /// waits: if the control lock is momentarily held, the previous listener
+    /// serves one more block. `mix` does this itself; it is public for a
+    /// test that wants to read the result without mixing.
+    pub fn apply_control(&mut self) {
+        if let Ok(listener) = self.control.listener.try_lock() {
+            self.listener = *listener;
+        }
+        self.volume = f32::from_bits(
+            self.control
+                .volume
+                .load(std::sync::atomic::Ordering::Relaxed),
+        );
     }
 
     pub fn output_rate(&self) -> u32 {
@@ -197,6 +263,7 @@ impl Mixer {
         if frames == 0 {
             return;
         }
+        self.apply_control();
 
         let master = self.volume.clamp(0.0, 1.0);
         let listener = self.listener;
@@ -217,14 +284,24 @@ impl Mixer {
             if total == 0 {
                 continue;
             }
+            // Where a loop jumps back to, and from: the region the file
+            // declares when it is usable, else the whole sound.
+            let (loop_start, loop_end) = match voice.params.loop_region {
+                Some((start, end)) if start < end && end <= total => (start, end),
+                _ => (0, total),
+            };
 
             for frame in 0..frames {
                 let position = voice.cursor;
-                if position >= total as f64 {
+                if position >= loop_end as f64 {
                     if !voice.params.looping {
-                        break;
+                        if position >= total as f64 {
+                            break;
+                        }
+                    } else {
+                        let span = (loop_end - loop_start) as f64;
+                        voice.cursor = loop_start as f64 + (position - loop_start as f64) % span;
                     }
-                    voice.cursor = position % total as f64;
                 }
 
                 // Ramp once per frame rather than per block, so a fast-moving
@@ -237,10 +314,10 @@ impl Mixer {
                 let fraction = (voice.cursor - index as f64) as f32;
                 for channel in 0..2u16 {
                     let a = voice.sound.sample(index, channel);
-                    let b = if index + 1 < total {
+                    let b = if voice.params.looping && index + 1 >= loop_end {
+                        voice.sound.sample(loop_start, channel)
+                    } else if index + 1 < total {
                         voice.sound.sample(index + 1, channel)
-                    } else if voice.params.looping {
-                        voice.sound.sample(0, channel)
                     } else {
                         0.0
                     };

@@ -1,0 +1,57 @@
+# Build, lint and test on every push and pull request.
+#
+# Linux runs the whole suite. Windows and macOS build only: the point of
+# those two is to find out that the tree still compiles there, which is the
+# question nobody at a Linux desk can answer by hand.
+name: CI
+
+on:
+  push:
+    branches: ["MASTER"]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+  # Tool crates are compiled at opt-level 2 in the dev profile; incremental
+  # artefacts for those are large and rarely reused on a fresh runner.
+  CARGO_INCREMENTAL: 0
+
+jobs:
+  check:
+    name: fmt, clippy, test (linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # The toolchain file pins the channel; rustup reads it.
+      - name: Install toolchain
+        run: rustup show
+
+      - name: Install ALSA headers
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Format
+        run: cargo fmt --all --check
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Test
+        run: cargo test --workspace
+
+  build:
+    name: build (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install toolchain
+        run: rustup show
+      - uses: Swatinem/rust-cache@v2
+      - name: Build
+        run: cargo build --workspace

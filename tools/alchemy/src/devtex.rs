@@ -446,6 +446,8 @@ pub struct Written {
     pub changed: usize,
     /// Files that were already exactly right.
     pub unchanged: usize,
+    /// Files somebody has edited by hand, left as they are.
+    pub kept: usize,
 }
 
 impl Written {
@@ -457,9 +459,13 @@ impl Written {
 impl std::fmt::Display for Written {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self.changed {
-            0 => write!(f, "{} already up to date", self.total()),
-            n => write!(f, "{n} written, {} already up to date", self.unchanged),
+            0 => write!(f, "{} already up to date", self.total())?,
+            n => write!(f, "{n} written, {} already up to date", self.unchanged)?,
         }
+        if self.kept > 0 {
+            write!(f, ", {} edited by hand and kept", self.kept)?;
+        }
+        Ok(())
     }
 }
 
@@ -482,6 +488,12 @@ pub fn write_all(art_root: &Path) -> Result<Written> {
 /// The set knows which shader each wants -- a sky is not lit, a tool texture
 /// is not shaded -- and that is not something `batch --make-materials` can
 /// work out from a PNG.
+///
+/// A material that exists and is not byte-for-byte what a previous run
+/// wrote is somebody's: `tools/water` with a `$surfaceprop` added, say. It
+/// is kept, the same bargain `batch` makes with authored materials. Chisel
+/// runs this on every launch, and a generator that silently undid a hand
+/// edit each time would be a way to lose the same afternoon repeatedly.
 pub fn write_materials(materials_root: &Path) -> Result<Written> {
     let mut written = Written::default();
     for texture in set() {
@@ -493,9 +505,16 @@ pub fn write_materials(materials_root: &Path) -> Result<Written> {
             "{}\n{{\n\t\"$basetexture\" \"{}\"\n}}\n",
             texture.shader, texture.name
         );
-        if std::fs::read_to_string(&path).is_ok_and(|existing| existing == body) {
-            written.unchanged += 1;
-            continue;
+        match std::fs::read_to_string(&path) {
+            Ok(existing) if existing == body => {
+                written.unchanged += 1;
+                continue;
+            }
+            Ok(_) => {
+                written.kept += 1;
+                continue;
+            }
+            Err(_) => {}
         }
         std::fs::write(&path, body).with_context(|| format!("writing {}", path.display()))?;
         written.changed += 1;

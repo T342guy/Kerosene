@@ -51,7 +51,9 @@ pub struct Entity {
 
 impl Entity {
     pub fn targetname(&self) -> Option<&str> {
-        self.fields.text("targetname")
+        // Always stored as text -- `set_targetname` sees to that -- so this
+        // can hand out a borrow.
+        self.fields.get("targetname").and_then(Value::as_str)
     }
 
     pub fn spawnflags(&self) -> u32 {
@@ -322,10 +324,10 @@ impl EntityWorld {
                         // studio model path, which stays a plain field.
                         if let Some(rest) = value.strip_prefix('*')
                             && let Ok(index) = rest.parse::<usize>()
-                                && let Some(e) = self.get_mut(id)
-                            {
-                                e.brush_model = Some(index);
-                            }
+                            && let Some(e) = self.get_mut(id)
+                        {
+                            e.brush_model = Some(index);
+                        }
                         if let Some(e) = self.get_mut(id) {
                             e.fields.set("model", Value::Text(value.to_string()));
                         }
@@ -449,10 +451,10 @@ impl EntityWorld {
             // still in flight.
             if let Some(e) = self.get_mut(caller)
                 && let Some(c) = e.connections.get_mut(*index)
-                    && c.times_to_fire > 0
-                {
-                    c.times_to_fire -= 1;
-                }
+                && c.times_to_fire > 0
+            {
+                c.times_to_fire -= 1;
+            }
         }
 
         queued.len()
@@ -545,7 +547,8 @@ impl EntityWorld {
             let event = self.queue.pop().expect("just peeked");
 
             let receivers = self.resolve(&event.target, event.activator, event.caller);
-            if receivers.is_empty() && matches!(event.target, Target::Named(_))
+            if receivers.is_empty()
+                && matches!(event.target, Target::Named(_))
                 && let Target::Named(name) = &event.target
             {
                 log::debug!("nothing named '{name}' to receive '{}'", event.input);

@@ -150,9 +150,17 @@ fn collect(root: &Path, dir: &Path, out: &mut Vec<(PathBuf, String)>) -> Result<
     for entry in std::fs::read_dir(dir).with_context(|| format!("reading {}", dir.display()))? {
         let entry = entry?;
         let path = entry.path();
-        if path.is_dir() {
+        // The entry's own type, not the target's: a symlinked directory is
+        // not followed, so a link back up the tree cannot recurse forever
+        // and a link out of it cannot pack something the tree does not hold.
+        let kind = entry.file_type()?;
+        if kind.is_symlink() {
+            log::warn!("vault: skipping symlink {}", path.display());
+            continue;
+        }
+        if kind.is_dir() {
             collect(root, &path, out)?;
-        } else if path.is_file() {
+        } else if kind.is_file() {
             let relative = path.strip_prefix(root).unwrap_or(&path);
             // Archives always use forward slashes, whatever the host uses.
             let virtual_path = relative.to_string_lossy().replace('\\', "/");
@@ -218,9 +226,20 @@ fn unpack(path: &Path, out: &Path) -> Result<()> {
         let Some(data) = archive.read(&entry.path)? else {
             continue;
         };
-        // Entry paths were normalised when packed and cannot contain `..`, so
-        // joining them onto the output directory is safe.
-        let target = out.join(&entry.path);
+        // `Archive::open` refuses any entry that is not a normalised virtual
+        // path, so nothing here is absolute or climbs; the check is repeated
+        // because this is the one place a bad name would touch the disk.
+        let relative = Path::new(&entry.path);
+        if relative
+            .components()
+            .any(|c| !matches!(c, std::path::Component::Normal(_)))
+        {
+            anyhow::bail!(
+                "refusing to unpack {:?}: not a path inside the tree",
+                entry.path
+            );
+        }
+        let target = out.join(relative);
         if let Some(parent) = target.parent() {
             std::fs::create_dir_all(parent)
                 .with_context(|| format!("creating {}", parent.display()))?;

@@ -48,7 +48,8 @@ struct Gfx {
 
 /// Geometry for the currently loaded map.
 struct LoadedMap {
-    name: String,
+    /// The engine's load generation these resources were built from.
+    generation: u64,
     mesh: WorldMesh,
     resources: MapResources,
     frame_bind_group: wgpu::BindGroup,
@@ -239,6 +240,18 @@ impl ApplicationHandler for App {
             gfx.window.request_redraw();
         }
     }
+
+    fn exiting(&mut self, _event_loop: &ActiveEventLoop) {
+        // Whatever was set this session -- a sensitivity, a field of view,
+        // a rebound key -- is written where the next start reads it back.
+        // Done here rather than on `quit` alone so that closing the window
+        // keeps the settings too.
+        let text = self.engine.config_text(&self.input.to_config());
+        match self.engine.vfs.write("cfg/config.cfg", text.as_bytes()) {
+            Ok(path) => log::info!("wrote {}", path.display()),
+            Err(e) => log::warn!("could not write config.cfg: {e}"),
+        }
+    }
 }
 
 /// A key the host acts on itself, whatever else is on screen.
@@ -314,6 +327,32 @@ impl App {
         for (kind, payload) in unhandled {
             match kind.as_str() {
                 kerosene_console::requests::TOGGLE_CONSOLE => self.toggle_console(),
+                kerosene_console::requests::BIND => {
+                    let mut words = payload.splitn(2, char::is_whitespace);
+                    let key = words.next().unwrap_or("").trim_matches('"');
+                    match words.next().map(|c| c.trim().trim_matches('"')) {
+                        Some(command) if !command.is_empty() => {
+                            self.input.bind(key, command);
+                        }
+                        _ => {
+                            let line = match self.input.binding(key) {
+                                Some(command) => format!("\"{key}\" = \"{command}\""),
+                                None => format!("\"{key}\" is not bound"),
+                            };
+                            self.engine.console.print(line);
+                        }
+                    }
+                }
+                kerosene_console::requests::UNBIND => self.input.unbind(payload.trim()),
+                kerosene_console::requests::UNBIND_ALL => self.input.unbind_all(),
+                kerosene_console::requests::BIND_LIST => {
+                    let listing = self.input.to_config();
+                    if listing.is_empty() {
+                        self.engine.console.print("no keys are bound");
+                    } else {
+                        self.engine.console.print(listing);
+                    }
+                }
                 _ => leftover.push((kind, payload)),
             }
         }
@@ -324,14 +363,33 @@ impl App {
             return;
         }
 
-        // Rebuild GPU resources when the map changes.
-        let current = self.engine.level.as_ref().map(|l| l.name.clone());
-        let loaded = self.map.as_ref().map(|m| m.name.clone());
+        // Rebuild GPU resources when a map loads -- by generation, not by
+        // name, so `map x` typed after recompiling x shows the new geometry
+        // rather than colliding with it while drawing the old.
+        let current = self
+            .engine
+            .level
+            .as_ref()
+            .map(|_| self.engine.load_generation());
+        let loaded = self.map.as_ref().map(|m| m.generation);
         if current != loaded {
             self.rebuild_map();
         }
 
         self.draw(real_dt);
+
+        // `fps_max`: the loop polls, so without this a display without
+        // vsync spins a core drawing frames nobody can see. Slept after
+        // the draw, measured from the frame's start, so the cap is a cap
+        // on the whole frame rather than on the idle part of it.
+        let cap = self.engine.console.float("fps_max");
+        if cap > 0.0 {
+            let budget = std::time::Duration::from_secs_f32(1.0 / cap);
+            let spent = now.elapsed();
+            if spent < budget {
+                std::thread::sleep(budget - spent);
+            }
+        }
     }
 
     fn rebuild_map(&mut self) {
@@ -340,8 +398,13 @@ impl App {
             return;
         };
 
-        let exposure = self.engine.console.float("mat_exposure");
-        let atlas = LightmapAtlas::build(&level.bsp, exposure);
+        // Baked at unit exposure: `mat_exposure` is applied by the shader,
+        // per frame, so it is live and is counted once. Folding it in here
+        // as well squared it, and froze half of it at load time.
+        let atlas = LightmapAtlas::build(&level.bsp, 1.0);
+        // Models are per map: a `.keromdl` that failed to load, and was then
+        // compiled, gets its retry on the next load rather than on restart.
+        self.model_cache.clear();
         let mesh = WorldMesh::build(&level.bsp, &atlas);
         let resources = MapResources::upload(
             &gfx.device,
@@ -367,9 +430,16 @@ impl App {
             mesh.materials.len(),
             atlas.occupancy() * 100.0
         ));
+        if atlas.overflowed > 0 {
+            self.engine.console.warn(format!(
+                "{} faces did not fit the lightmap atlas and draw unlit; \
+                 raise their lightmap scale in Chisel or split the map",
+                atlas.overflowed
+            ));
+        }
 
         self.map = Some(LoadedMap {
-            name: level.name.clone(),
+            generation: self.engine.load_generation(),
             mesh,
             resources,
             frame_bind_group,
@@ -395,11 +465,14 @@ impl App {
             .ensure_depth(&gfx.device, gfx.config.width, gfx.config.height);
 
         // Interpolate between the last two simulation states, so the view is
-        // smooth on a display refreshing faster than the tick rate.
-        let alpha = 1.0;
+        // smooth on a display refreshing faster than the tick rate. The
+        // angles come straight from the input rather than from the last tick
+        // for the same reason: a mouse is read every frame, and looking
+        // around at the tick rate is the stutter people notice first.
+        let alpha = self.engine.interpolation_alpha();
         let camera = Camera {
             position: self.engine.interpolated_eye(alpha),
-            angles: self.engine.player.view_angles,
+            angles: self.input.state().view_angles.clamped_view(),
             fov: self.engine.console.float("cl_fov"),
             aspect: gfx.config.width as f32 / gfx.config.height.max(1) as f32,
             ..Default::default()
@@ -458,7 +531,13 @@ impl App {
             if self.model_cache.contains_key(name) {
                 continue;
             }
-            let model = load_model(&gfx.device, &gfx.queue, &gfx.renderer, &self.engine.vfs, name);
+            let model = load_model(
+                &gfx.device,
+                &gfx.queue,
+                &gfx.renderer,
+                &self.engine.vfs,
+                name,
+            );
             if model.is_none() {
                 self.engine.console.warn(format!("missing model: {name}"));
             }
@@ -589,12 +668,8 @@ impl App {
 
                 // The physics debug overlay, drawn last so it sits on top.
                 if let Some(buffer) = &line_buffer {
-                    gfx.renderer.draw_lines(
-                        &mut pass,
-                        &map.frame_bind_group,
-                        buffer,
-                        line_count,
-                    );
+                    gfx.renderer
+                        .draw_lines(&mut pass, &map.frame_bind_group, buffer, line_count);
                 }
 
                 self.stats.cluster = level.bsp.point_cluster(camera.position);

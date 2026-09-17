@@ -13,7 +13,7 @@ use crate::camera::Camera;
 use crate::lightmap::{ATLAS_SIZE, LightmapAtlas};
 use crate::mesh::{WorldMesh, WorldVertex};
 use bytemuck::{Pod, Zeroable};
-use kerosene_asset::{MapKind, Material, Model, Shader, Texture};
+use kerosene_asset::{MapKind, Material, Model, Texture};
 use kerosene_bsp::surf;
 use kerosene_math::{Mat4, Pose, Vec3};
 use kerosene_vfs::Vfs;
@@ -219,6 +219,10 @@ pub struct Renderer {
     camera_buffer: wgpu::Buffer,
     /// One [`ModelUniform`] per brush model, indexed by a dynamic offset.
     model_buffer: wgpu::Buffer,
+    /// CPU-side span the poses are laid out in before upload, kept so it is
+    /// not reallocated every frame. A mutex only because `update_models`
+    /// takes `&self`; it is never contended.
+    model_staging: std::sync::Mutex<Vec<u8>>,
     model_bind_group: wgpu::BindGroup,
     /// Distance between two entries in `model_buffer`, honouring the device's
     /// uniform alignment.
@@ -636,6 +640,7 @@ impl Renderer {
             material_layout,
             camera_buffer,
             model_buffer,
+            model_staging: std::sync::Mutex::new(Vec::new()),
             model_bind_group,
             model_stride,
             sampler,
@@ -653,7 +658,8 @@ impl Renderer {
     pub fn ensure_depth(&mut self, device: &wgpu::Device, width: u32, height: u32) {
         let (width, height) = (width.max(1), height.max(1));
         if let Some((_, _, w, h)) = &self.depth
-            && *w == width && *h == height
+            && *w == width
+            && *h == height
         {
             return;
         }
@@ -693,25 +699,35 @@ impl Renderer {
     /// Index 0 is the world and is always the identity; a caller may pass it
     /// or not.
     pub fn update_models(&self, queue: &wgpu::Queue, poses: &[Pose]) {
-        let mut data = vec![ModelUniform::default(); MAX_MODELS];
-        for (i, pose) in poses.iter().enumerate().take(MAX_MODELS) {
-            data[i] = ModelUniform::from(*pose);
-        }
         // Written as one span with the device's stride between entries, so
-        // the same buffer can be addressed by dynamic offset.
+        // the same buffer can be addressed by dynamic offset. The staging
+        // buffer is kept between frames: this runs every frame, and the
+        // span is over a hundred kilobytes.
         let stride = self.model_stride as usize;
-        let mut bytes = vec![0u8; stride * MAX_MODELS];
-        for (i, entry) in data.iter().enumerate() {
+        let mut bytes = self.model_staging.lock().unwrap_or_else(|e| e.into_inner());
+        bytes.clear();
+        bytes.resize(stride * MAX_MODELS, 0);
+        let identity = ModelUniform::default();
+        for i in 0..MAX_MODELS {
+            let entry = match poses.get(i) {
+                Some(pose) => ModelUniform::from(*pose),
+                None => identity,
+            };
             let at = i * stride;
             bytes[at..at + std::mem::size_of::<ModelUniform>()]
-                .copy_from_slice(bytemuck::bytes_of(entry));
+                .copy_from_slice(bytemuck::bytes_of(&entry));
         }
         queue.write_buffer(&self.model_buffer, 0, &bytes);
     }
 
     /// The dynamic offset that addresses one model's entry.
+    ///
+    /// A model past the cap addresses slot 0, the world's identity, which is
+    /// what "drawn unmoved" means; clamping to the last slot instead drew it
+    /// at whatever pose happened to live there.
     fn model_offset(&self, model: usize) -> u32 {
-        self.model_stride * model.min(MAX_MODELS - 1) as u32
+        let slot = if model < MAX_MODELS { model } else { 0 };
+        self.model_stride * slot as u32
     }
 
     /// Draw one uploaded studio model, at the pose in model slot `slot`.
@@ -744,10 +760,10 @@ impl Renderer {
                     .material_bind_groups
                     .get(material as usize)
                     .and_then(|g| g.as_ref())
-                {
-                    pass.set_bind_group(1, group, &[]);
-                    current_material = material;
-                }
+            {
+                pass.set_bind_group(1, group, &[]);
+                current_material = material;
+            }
             pass.draw_indexed(first..first + count, 0, 0..1);
             stats.draw_calls += 1;
             stats.triangles += (count / 3) as usize;
@@ -1172,9 +1188,7 @@ fn load_material_maps(
     let material = Material::parse(&text).ok()?;
 
     // A sky material's base texture is sampled by direction, but it is loaded
-    // exactly the same way.
-    let _ = matches!(material.shader, Shader::Sky);
-
+    // exactly the same way as any other.
     let mut loaded = LoadedMaps::default();
     for (slot, kind) in MAP_KINDS.into_iter().enumerate() {
         // The base colour falls back to the material's own name, which is the
@@ -1223,7 +1237,6 @@ fn load_texture(
 ) -> Option<wgpu::Texture> {
     let bytes = vfs.read(&kerosene_asset::texture_path(name)).ok()?;
     let texture = Texture::from_bytes(&bytes).ok()?;
-    let pixels = texture.mip_as_rgba8(0)?;
 
     let format = if texture.flags.is_color() {
         wgpu::TextureFormat::Rgba8UnormSrgb
@@ -1231,15 +1244,69 @@ fn load_texture(
         wgpu::TextureFormat::Rgba8Unorm
     };
 
-    Some(upload_rgba_format(
-        device,
-        queue,
-        name,
-        texture.width(),
-        texture.height(),
-        &pixels,
+    // The whole chain, not just level 0: Alchemy compiled the mips so the
+    // sampler's trilinear and anisotropic settings have something to pick
+    // from. Uploading one level made both a no-op, and every tiled floor
+    // shimmer at distance.
+    let levels: Vec<(u32, u32, Vec<u8>)> = (0..texture.mip_count())
+        .filter_map(|level| {
+            let mip = &texture.mips[level];
+            texture
+                .mip_as_rgba8(level)
+                .map(|pixels| (mip.width, mip.height, pixels))
+        })
+        .collect();
+    if levels.is_empty() {
+        return None;
+    }
+    Some(upload_rgba_chain(device, queue, name, &levels, format))
+}
+
+/// Upload a full mip chain, largest first, in a chosen format.
+fn upload_rgba_chain(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    label: &str,
+    levels: &[(u32, u32, Vec<u8>)],
+    format: wgpu::TextureFormat,
+) -> wgpu::Texture {
+    let (width, height, _) = levels[0];
+    let texture = device.create_texture(&wgpu::TextureDescriptor {
+        label: Some(label),
+        size: wgpu::Extent3d {
+            width,
+            height,
+            depth_or_array_layers: 1,
+        },
+        mip_level_count: levels.len() as u32,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
         format,
-    ))
+        usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+        view_formats: &[],
+    });
+    for (level, (w, h, pixels)) in levels.iter().enumerate() {
+        queue.write_texture(
+            wgpu::TexelCopyTextureInfo {
+                texture: &texture,
+                mip_level: level as u32,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            pixels,
+            wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(4 * w),
+                rows_per_image: Some(*h),
+            },
+            wgpu::Extent3d {
+                width: *w,
+                height: *h,
+                depth_or_array_layers: 1,
+            },
+        );
+    }
+    texture
 }
 
 /// Upload RGBA8 texels as linear data.
@@ -1399,8 +1466,8 @@ pub fn load_model(
                 // colour so far. Binding a layout the pipeline declares but
                 // the data does not fill is not an option: it is a validation
                 // error, not a blank surface.
-                let loaded = load_material_maps(device, queue, vfs, &material_name)
-                    .unwrap_or_default();
+                let loaded =
+                    load_material_maps(device, queue, vfs, &material_name).unwrap_or_default();
                 let (group, buffer) = loaded.bind_group(
                     device,
                     renderer,

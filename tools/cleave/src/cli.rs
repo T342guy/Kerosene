@@ -3,11 +3,12 @@
 //! toolset calls for the `cleave` subcommand.
 //!
 //! ```text
-//! kerosene-tools cleave map.keromap [-o out.kerobsp] [--ignore-leaks] [--no-fill] [--dry-run] [-v]
+//! kerosene-tools cleave map.keromap [-o out.kerobsp] [--content DIR] [--ignore-leaks] [--no-fill] [--dry-run] [-v]
 //! ```
 
 use anyhow::{Context, Result};
 use clap::Parser;
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::time::Instant;
 
@@ -38,6 +39,63 @@ struct Args {
     /// Print per-stage detail.
     #[arg(short, long)]
     verbose: bool,
+
+    /// The content tree whose compiled textures size the map's faces.
+    /// Found from the map's project file when not given.
+    #[arg(long)]
+    content: Option<PathBuf>,
+}
+
+/// The pixel size of every material's base texture, read from the compiled
+/// content the way the engine will read it.
+///
+/// Through the VFS rather than the source PNG, for the reason Chisel gives:
+/// the engine draws the `.kerotex`, and a size read from anything else is a
+/// guess about what Alchemy did. A material with no compiled texture behind
+/// it is left out, and the pipeline warns about it by name.
+fn texture_sizes(
+    map: &kerosene_map::Map,
+    content: &std::path::Path,
+) -> HashMap<String, (u32, u32)> {
+    let mut vfs = kerosene_vfs::Vfs::new();
+    vfs.add_directory(content, "GAME");
+    for archive in std::fs::read_dir(content)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .map(|e| e.path())
+        .filter(|p| p.extension().is_some_and(|e| e == "vault"))
+    {
+        let _ = vfs.mount_archive(&archive, "GAME");
+    }
+
+    let mut sizes = HashMap::new();
+    for (_, solid) in map.all_solids() {
+        for side in &solid.sides {
+            let key = side.material.to_ascii_lowercase();
+            if sizes.contains_key(&key) {
+                continue;
+            }
+            let Some(size) = texture_size(&vfs, &side.material) else {
+                continue;
+            };
+            sizes.insert(key, size);
+        }
+    }
+    sizes
+}
+
+fn texture_size(vfs: &kerosene_vfs::Vfs, material: &str) -> Option<(u32, u32)> {
+    let text = vfs
+        .read_string(&kerosene_asset::material_path(material))
+        .ok()?;
+    let parsed = kerosene_asset::Material::parse(&text).ok()?;
+    // The same fallback the renderer applies: a material with no
+    // `$basetexture` draws the texture of its own name.
+    let base = parsed.base_texture().unwrap_or(material);
+    let bytes = vfs.read(&kerosene_asset::texture_path(base)).ok()?;
+    let texture = kerosene_asset::Texture::from_bytes(&bytes).ok()?;
+    Some((texture.width(), texture.height()))
 }
 
 /// Entry point for the `cleave` subcommand of the unified toolset.
@@ -69,27 +127,61 @@ pub fn run(args: Vec<String>) -> Result<()> {
             problems.len()
         );
     }
-    for lint in pipeline::lint_materials(&map) {
-        println!("  warning: {lint}");
-    }
+    let content = kerosene_vfs::root::find(args.content.as_deref(), Some(&args.map));
+    let sizes = match &content {
+        Some(found) => texture_sizes(&map, &found.root),
+        None => {
+            println!(
+                "  warning: no content tree found for {}; faces will be scaled as if every \
+                 texture were {}x{} (pass --content, or put the map in a project)",
+                args.map.display(),
+                crate::emit::DEFAULT_TEXTURE_SIZE.0,
+                crate::emit::DEFAULT_TEXTURE_SIZE.1
+            );
+            HashMap::new()
+        }
+    };
 
     let options = pipeline::CompileOptions {
         ignore_leaks: args.ignore_leaks,
         no_fill: args.no_fill,
         verbose: args.verbose,
+        texture_sizes: sizes,
     };
+
+    let out_path = args
+        .output
+        .clone()
+        .unwrap_or_else(|| args.map.with_extension("kerobsp"));
+    let leak_path = out_path.with_extension("keroleak");
 
     let output = match pipeline::compile(&map, &options) {
         Ok(o) => o,
-        Err(e) => {
-            // A leak is the one failure worth extra help: write the trace out
-            // even though the compile failed, so it can be loaded and looked at.
-            if let pipeline::CompileError::Leaked(_) = &e {
-                println!("  {e}");
-                println!("  Run again with --ignore-leaks to write the leak trace.");
+        Err(pipeline::CompileError::Leaked(leak)) if !args.dry_run => {
+            // A leak is the one failure worth extra help: the trace is written
+            // even though the compile failed, so Chisel can draw the red line
+            // and a person can follow it to the hole -- on a default compile,
+            // not only after they knew to ask for --ignore-leaks.
+            std::fs::write(&leak_path, leak.to_lin())
+                .with_context(|| format!("writing {}", leak_path.display()))?;
+            println!(
+                "  LEAK: wrote {} (load it in Chisel to see the leak)",
+                leak_path.display()
+            );
+            // Whatever an earlier, sealed build left behind is stale now: the
+            // engine must not load a BSP that no longer matches the map.
+            for stale in [
+                &out_path,
+                &out_path.with_extension("keroprt"),
+                &out_path.with_extension("kerowalk"),
+            ] {
+                if stale.exists() {
+                    let _ = std::fs::remove_file(stale);
+                }
             }
-            return Err(e.into());
+            return Err(pipeline::CompileError::Leaked(leak).into());
         }
+        Err(e) => return Err(e.into()),
     };
 
     for w in &output.warnings {
@@ -135,9 +227,6 @@ pub fn run(args: Vec<String>) -> Result<()> {
         return Ok(());
     }
 
-    let out_path = args
-        .output
-        .unwrap_or_else(|| args.map.with_extension("kerobsp"));
     let size = kerosene_bsp::write_bsp(&output.bsp, &out_path)
         .with_context(|| format!("writing {}", out_path.display()))?;
 
@@ -155,7 +244,6 @@ pub fn run(args: Vec<String>) -> Result<()> {
     // left by an earlier broken build, or every later compile looks like it
     // leaked -- the editor loads the file, not the result, and has no way to
     // tell a stale trace from a fresh one.
-    let leak_path = out_path.with_extension("keroleak");
     match &output.leak {
         Some(leak) => {
             std::fs::write(&leak_path, leak.to_lin())?;

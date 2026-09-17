@@ -19,22 +19,15 @@ These were found by reading the tree rather than the README, and each is
 either a correctness gap or a thing whose absence undercuts a claim made
 elsewhere in these docs.
 
-- **The view is not interpolated between ticks.**
-  [`host.rs`](../crates/kerosene-engine/src/host.rs) sets `alpha = 1.0`
-  under a comment saying the camera is interpolated. `interpolated_eye` and
-  `previous_origin` exist and work; nothing feeds them the accumulator
-  fraction. At a 64 Hz tick on a 144 Hz display the eye snaps to the last
-  tick, which is exactly the stutter a movement shooter cannot have. The fix
-  is `accumulator / interval` passed where the constant is now, and it is the
-  cheapest, most visible change in the repository.
-- **No continuous integration.** `.github/` holds an image. There are 1491
-  tests and nothing runs them on push; no `cargo fmt --check`, no `clippy`, no
-  build on Windows or macOS. The "no documented Windows build story" below is
-  mostly this: a three-OS build matrix is how it gets documented.
-- **No panic hook, no crash log.** Nothing in `apps/` or the engine calls
-  `std::panic::set_hook`. A shipped game that dies takes its backtrace with
-  it. Log to a file beside the binary, and on panic write the last N console
-  lines and the map name with it.
+- ~~**The view is not interpolated between ticks.**~~ Fixed: the host
+  reads `Engine::interpolation_alpha()` and takes the view angles from the
+  latest input rather than the last tick.
+- ~~**No continuous integration.**~~ Fixed: `.github/workflows/ci.yml` runs
+  `fmt --check`, `clippy -D warnings` and the tests on Linux, and builds on
+  Windows and macOS.
+- ~~**No panic hook, no crash log.**~~ Fixed:
+  `kerosene_console::install_crash_handler` writes `crash.log` beside the
+  binary with the panic, a backtrace and the last 64 log lines.
 - **No demo recording.** The most conspicuous Source feature not here, and
   the one the architecture most obviously supports: the tick is fixed, the
   simulation runs headless, and input arrives as an `InputState` per tick.
@@ -45,8 +38,8 @@ elsewhere in these docs.
 - **No game-state serialization at all.** There is no `serde` anywhere in the
   tree. Save/load, state that survives a map transition, and cloud saves all
   wait on this.
-- **`snd_restart` is the only sound convar.** There is no master, music or
-  effects volume, so an options screen has nothing to set.
+- **`volume` is the only sound convar an options screen could set.** There
+  is no separate music or effects volume.
 - **`kerosene-ui` is not a UI toolkit.** It is the window that hosts the
   tools -- winit, a wgpu surface and egui in three hundred lines. The name is
   spoken for by the thing a game actually needs (section 8), and freeing it
@@ -70,18 +63,13 @@ for completeness.
   README's reason -- a bad encoder is worse than none -- no longer holds:
   `intel_tex_2` and `texpresso` are pure-Rust BC7 encoders that are good
   enough.
-- **Mipmaps at runtime.** `.kerotex` stores a full mip chain and the upload
-  path takes only level 0, so the sampler's anisotropy setting does nothing and
-  tiled surfaces shimmer at distance.
-- **Texture dimensions in the BSP.** Cleave writes `texdata.width`/`height` as
-  a hardcoded 512 and nothing corrects them, so world UVs are scaled as if
-  every texture were 512 across. The dev textures are 256, so brush texturing
-  is off by 2x against the scale a `.keromap` states.
+- ~~**Mipmaps at runtime.**~~ Fixed: the whole chain is uploaded.
+- ~~**Texture dimensions in the BSP.**~~ Fixed: Cleave reads each material's
+  compiled texture (from the project found next to the map, or `--content`)
+  and writes its real size, warning by name for any it cannot find. Maps
+  compiled before this carry the old 512 and want a recompile.
 - **Audio.** Stereo only. Falloff and panning exist; occlusion, reverb, and
   doppler do not.
-
-The mipmap and texdata items are correctness bugs rather than features, and
-between them they make every screenshot look worse than the engine is.
 
 ## 3. Rendering and visuals
 
@@ -299,9 +287,9 @@ between them they make every screenshot look worse than the engine is.
   is most likely untested rather than broken -- but nothing has tested it.
   CI is how it gets tested.
 - **Mobile / console.** None.
-- **Crash reporting.** No panic hook (section 1), no minidumps, nothing that
-  phones home. `sentry` covers Rust panics and native crashes; Breakpad
-  minidumps beside the log are the no-service option.
+- **Crash reporting.** A panic hook writes `crash.log` (section 1); there
+  are no minidumps for native crashes and nothing that phones home. `sentry`
+  covers both; Breakpad minidumps beside the log are the no-service option.
 - **Installer / auto-updater.** None.
 - **`build-content.sh` is a shell script.** Which is to say, Linux-only. A
   `cargo xtask` or a `just` file does the same on every platform.

@@ -22,7 +22,7 @@ pub const MAP_EXTENSION: &str = "keromap";
 /// A `.kerobsp` left behind under the old name is worse than clutter: the
 /// game still loads it, so a renamed map appears to work under a name that no
 /// longer exists and to be missing under the one that does.
-pub const ARTEFACTS: &[&str] = &["kerobsp", "keroprt", "keroleak"];
+pub const ARTEFACTS: &[&str] = &["kerobsp", "keroprt", "keroleak", "kerowalk"];
 
 /// Turn what someone typed into the path of a map.
 ///
@@ -97,7 +97,17 @@ fn collect(dir: &Path, depth: usize, out: &mut Vec<PathBuf>) {
     if depth > MAX_DEPTH {
         return;
     }
-    for entry in std::fs::read_dir(dir).into_iter().flatten().flatten() {
+    // A directory that is there but cannot be read is worth a line: "0
+    // maps" with no reason is the message that costs an afternoon.
+    let entries = match std::fs::read_dir(dir) {
+        Ok(entries) => entries,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return,
+        Err(e) => {
+            log::warn!("could not read {}: {e}", dir.display());
+            return;
+        }
+    };
+    for entry in entries.flatten() {
         let path = entry.path();
         if path.is_dir() {
             collect(&path, depth + 1, out);

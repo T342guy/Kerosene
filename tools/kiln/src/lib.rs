@@ -105,6 +105,9 @@ pub struct Settings {
     pub dry_run: bool,
     /// Compile a map even if it leaks.
     pub ignore_leaks: bool,
+    /// Rebuild sounds whose compiled form is already newer than the source.
+    /// For when the compiler changed and the sources did not.
+    pub force: bool,
     /// Treat `.obj` source as metres rather than kerosene units.
     ///
     /// True by default because modelling packages work in metres and a model
@@ -124,6 +127,7 @@ impl Default for Settings {
             fast: false,
             dry_run: false,
             ignore_leaks: false,
+            force: false,
             models_in_metres: true,
             ship_to: None,
         }
@@ -141,16 +145,30 @@ impl Settings {
     /// archives and where the engine looks without being told. Named after
     /// the project, so two projects installed side by side do not collide.
     pub fn archive(&self) -> PathBuf {
-        let stem = match &self.project {
-            Some(p) => slug(&p.name),
-            None => "content".to_string(),
-        };
-        self.content.join(format!("{stem}.vault"))
+        archive_path(&self.content, self.project.as_ref())
     }
 }
 
-/// Turn a project name into something safe to use as a filename.
-pub(crate) fn slug(name: &str) -> String {
+/// Where a project's content archive lives: `<content>/<slug>.vault`, or
+/// `content.vault` when nothing names the project.
+///
+/// One function so the build panel and the archive panel agree on it -- when
+/// each guessed on its own, one built `my_game.vault` and the other looked
+/// for `content.vault`.
+pub fn archive_path(content: &Path, project: Option<&kerosene_vfs::Project>) -> PathBuf {
+    let stem = match project {
+        Some(p) => slug(&p.name),
+        None => "content".to_string(),
+    };
+    content.join(format!("{stem}.vault"))
+}
+
+/// Turn a project name into something safe to use as a filename: lower-case
+/// ASCII, `_` for anything else.
+///
+/// Shared with `init`, so the project file and the archive it builds carry
+/// the same spelling of the same name.
+pub fn slug(name: &str) -> String {
     let mut out: String = name
         .chars()
         .map(|c| {
@@ -201,8 +219,11 @@ pub fn build(settings: &Settings) -> Result<Report> {
         } else {
             let built = alchemy::build_textures(&settings.content).context("building textures")?;
             println!("  {built}");
-            report.textures = built.textures.compiled;
-            report.textures_skipped = built.textures.skipped;
+            // Loose images and folder sets both: the summary line used to
+            // count only the first, and a project built entirely from sets
+            // reported "0 textures".
+            report.textures = built.textures.compiled + built.sets.compiled;
+            report.textures_skipped = built.textures.skipped + built.sets.skipped;
         }
     }
 
@@ -211,8 +232,8 @@ pub fn build(settings: &Settings) -> Result<Report> {
         if settings.dry_run {
             println!("  would build {}", settings.content.join("sound").display());
         } else {
-            let built =
-                timbre::build_sounds(&settings.content, false).context("building sounds")?;
+            let built = timbre::build_sounds(&settings.content, settings.force)
+                .context("building sounds")?;
             for done in &built.compiled {
                 for warning in &done.warnings {
                     println!("  {}: {warning}", done.output.display());
@@ -320,13 +341,22 @@ fn build_map(settings: &Settings, map: &Path, report: &mut Report) -> Result<()>
     if settings.ignore_leaks {
         args.push("--ignore-leaks".into())
     }
-    run_tool("cleave", &args, settings)?;
+    let sealed = run_tool("cleave", &args, settings);
 
-    // A leak is reported rather than fatal: the map still compiles, it just
-    // will not light or cull correctly, and finding out at the end of a build
-    // of forty maps beats finding out on the first one.
+    // A leak is reported rather than fatal to the *build*: Cleave writes the
+    // trace and refuses the map, and finding out at the end of a build of
+    // forty maps beats finding out on the first one. The other stages are
+    // skipped -- there is no BSP to light or cull -- unless the leak was
+    // waved through with --ignore-leaks, in which case there is.
     if !settings.dry_run && map.with_extension("keroleak").is_file() {
-        report.leaking.push(name);
+        report.leaking.push(name.clone());
+    }
+    if let Err(e) = sealed {
+        if report.leaking.last() == Some(&name) {
+            println!("  {name} leaks; skipping vis and lighting");
+            return Ok(());
+        }
+        return Err(e);
     }
 
     let mut args = vec![compiled.display().to_string()];
@@ -389,7 +419,17 @@ fn sources(dir: &Path, extension: &str) -> Vec<PathBuf> {
 }
 
 fn collect(dir: &Path, extension: &str, out: &mut Vec<PathBuf>) {
-    for entry in std::fs::read_dir(dir).into_iter().flatten().flatten() {
+    // Missing means "none of these"; unreadable is said aloud rather than
+    // reported as none.
+    let entries = match std::fs::read_dir(dir) {
+        Ok(entries) => entries,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return,
+        Err(e) => {
+            println!("  warning: could not read {}: {e}", dir.display());
+            return;
+        }
+    };
+    for entry in entries.flatten() {
         let path = entry.path();
         if path.is_dir() {
             collect(&path, extension, out);

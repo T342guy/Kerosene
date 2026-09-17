@@ -246,7 +246,19 @@ impl KeyValues {
 
     fn write_into(&self, out: &mut String, depth: usize) {
         let pad = "\t".repeat(depth);
-        let _ = writeln!(out, "{pad}{}", self.name);
+        // A name the lexer would not read back as one bare word -- empty,
+        // or holding whitespace or a delimiter -- goes out quoted, so that
+        // what `parse` accepted, `to_text` can reproduce.
+        let bare = !self.name.is_empty()
+            && !self
+                .name
+                .chars()
+                .any(|c| c.is_whitespace() || matches!(c, '"' | '{' | '}' | '[' | ']' | '\\'));
+        if bare {
+            let _ = writeln!(out, "{pad}{}", self.name);
+        } else {
+            let _ = writeln!(out, "{pad}\"{}\"", escape(&self.name));
+        }
         let _ = writeln!(out, "{pad}{{");
         let inner = "\t".repeat(depth + 1);
         for e in &self.entries {
@@ -360,5 +372,26 @@ world
             parsed.block("m").unwrap().get("path"),
             Some(r#"materials\dev\a "quoted" name"#)
         );
+    }
+
+    #[test]
+    fn block_names_that_need_quoting_survive_a_round_trip() {
+        let mut root = KeyValues::new("");
+        root.push_block(KeyValues::new("my block"));
+        root.push_block(KeyValues::new(""));
+        let text = root.to_document();
+        let parsed = KeyValues::parse(&text).unwrap();
+        assert!(parsed.block("my block").is_some(), "{text}");
+        assert!(parsed.block("").is_some(), "{text}");
+    }
+
+    #[test]
+    fn integers_do_not_wrap_or_truncate_through_the_float_fallback() {
+        use crate::FromKvValue;
+        assert_eq!(i32::from_kv("64.000000").ok(), Some(64));
+        assert!(u32::from_kv("-1").is_err());
+        assert!(i32::from_kv("64.7").is_err());
+        assert!(i32::from_kv("NaN").is_err());
+        assert!(u32::from_kv("1e12").is_err());
     }
 }

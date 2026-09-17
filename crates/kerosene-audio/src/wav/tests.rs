@@ -129,6 +129,18 @@ fn chunks_it_does_not_understand_are_skipped() {
 }
 
 #[test]
+fn an_empty_chunk_before_the_data_is_stepped_over() {
+    // A zero-length LIST or PAD chunk is legal and appears in the wild; it
+    // used to end the scan before `data` was reached.
+    let mut bytes = wav(FORMAT_PCM, 16, 1, 44100, &pcm16(&[16384, -16384]));
+    let mut extra = Vec::new();
+    extra.extend_from_slice(b"PAD ");
+    extra.extend_from_slice(&0u32.to_le_bytes());
+    bytes.splice(12..12, extra);
+    assert_eq!(decode(&bytes).unwrap().frames(), 2);
+}
+
+#[test]
 fn an_odd_length_chunk_is_padded_and_the_next_one_still_parses() {
     let mut bytes = wav(FORMAT_PCM, 16, 1, 44100, &pcm16(&[16384]));
     let mut extra = Vec::new();

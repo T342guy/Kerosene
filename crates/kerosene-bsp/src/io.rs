@@ -8,7 +8,6 @@
 
 use crate::{Bsp, LUMP_COUNT, lumps};
 use bytemuck::{Pod, cast_slice};
-use std::io::Write;
 use std::path::Path;
 use thiserror::Error;
 
@@ -103,8 +102,9 @@ impl Bsp {
             });
         }
 
-        let dir_bytes = &bytes[8..8 + LUMP_COUNT * 16];
-        let dir: &[LumpDir] = cast_slice(dir_bytes);
+        // Copied rather than cast, for the reason `read_lump` gives: the
+        // caller's bytes make no alignment promise.
+        let dir: Vec<LumpDir> = read_lump(&bytes[8..8 + LUMP_COUNT * 16], name, "directory")?;
         let revision = u32::from_le_bytes(
             bytes[8 + LUMP_COUNT * 16..8 + LUMP_COUNT * 16 + 4]
                 .try_into()
@@ -179,9 +179,13 @@ impl Bsp {
         Ok(bsp)
     }
 
+    /// Write the BSP over `path`, atomically.
+    ///
+    /// Umbra and Radiance rewrite Cleave's output in place, so a crash mid-write
+    /// would take the only copy with it; the file is swapped in whole.
     pub fn save(&self, path: &Path) -> Result<u64> {
         let bytes = self.to_bytes();
-        std::fs::write(path, &bytes).map_err(|source| BspError::Io {
+        kerosene_vfs::write_atomic(path, &bytes).map_err(|source| BspError::Io {
             path: path.display().to_string(),
             source,
         })?;
@@ -264,14 +268,5 @@ pub fn write_bsp(bsp: &Bsp, path: &Path) -> Result<u64> {
             source,
         })?;
     }
-    let bytes = bsp.to_bytes();
-    let mut f = std::fs::File::create(path).map_err(|source| BspError::Io {
-        path: path.display().to_string(),
-        source,
-    })?;
-    f.write_all(&bytes).map_err(|source| BspError::Io {
-        path: path.display().to_string(),
-        source,
-    })?;
-    Ok(bytes.len() as u64)
+    bsp.save(path)
 }

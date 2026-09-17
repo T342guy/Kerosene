@@ -69,9 +69,11 @@ impl Default for MoveParams {
             friction: 4.0,
             stop_speed: 100.0,
             step_size: 18.0,
-            // sqrt(2 * 800 * 57): enough to reach 57 units, so a player clears
-            // a 56-unit crate. Deriving it from the height rather than
-            // hard-coding a speed keeps jump height right if gravity changes.
+            // sqrt(2 * 800 * 57): enough to reach 57 units under the default
+            // gravity, so a player clears a 56-unit crate. A constant cannot
+            // follow `gravity` if that is changed on the same struct; the
+            // engine sets this from `jump_for_height` after reading its
+            // convars, and anything else that changes gravity should too.
             jump_impulse: (2.0f32 * 800.0 * 57.0).sqrt(),
             air_speed_cap: 30.0,
             duck_speed_scale: 0.34,
@@ -234,6 +236,14 @@ pub fn player_move(
         return result;
     }
 
+    // Swimming likewise: water is drag in every direction, no gravity worth
+    // the name, and a wish that follows the view up and down.
+    if state.water_level >= WaterLevel::Waist && !state.on_ground {
+        water_move(state, input, params, world, dt);
+        categorize_position(state, world, params);
+        return result;
+    }
+
     if state.on_ground {
         apply_friction(state, params, dt);
     }
@@ -275,6 +285,52 @@ pub fn player_move(
         state.fall_speed = entry_fall_speed;
     }
     result
+}
+
+/// One tick of swimming: Quake's water move, in the same shape.
+///
+/// Drag scales with how deep the player is; the wish direction takes the
+/// view's pitch and the `up` and jump inputs; with no input at all the player
+/// sinks slowly rather than hanging in place, which is what makes water read
+/// as water and not as noclip.
+fn water_move(
+    state: &mut MoveState,
+    input: &MoveInput,
+    params: &MoveParams,
+    world: &dyn CollisionWorld,
+    dt: f32,
+) {
+    let basis = input.view_angles.vectors();
+    let mut wish = basis.forward * input.forward + basis.right * input.side + Vec3::Z * input.up;
+    let swim_speed = params.max_speed * 0.8;
+    if input.jump {
+        wish.z += 1.0;
+    }
+    if input.forward == 0.0 && input.side == 0.0 && input.up == 0.0 && !input.jump {
+        // Sinking: a fraction of swim speed, so a still player settles.
+        wish.z -= 0.2;
+    }
+    let length = wish.length();
+    let (wish_dir, wish_speed) = if length < 1e-6 {
+        (Vec3::ZERO, 0.0)
+    } else {
+        (wish / length, (length * swim_speed).min(swim_speed))
+    };
+
+    // Drag, deeper is thicker.
+    let depth = match state.water_level {
+        WaterLevel::Eyes => 3.0,
+        WaterLevel::Waist => 2.0,
+        _ => 1.0,
+    };
+    let speed = state.velocity.length();
+    if speed > 0.0 {
+        let drop = speed * params.friction * depth / 3.0 * dt;
+        state.velocity *= ((speed - drop).max(0.0)) / speed;
+    }
+
+    accelerate(state, wish_dir, wish_speed, params.accelerate, params, dt);
+    try_move(state, world, params, dt);
 }
 
 /// Which way the player wants to go, and how fast.
@@ -551,7 +607,7 @@ pub fn step_move(
         state.origin = up_trace.endpos;
     }
 
-    try_move(state, world, params, dt);
+    let (blocked_up, _) = try_move(state, world, params, dt);
 
     let step_down = state.origin - Vec3::Z * params.step_size;
     let down_trace = world.trace_hull(
@@ -590,8 +646,10 @@ pub fn step_move(
     } else {
         // Keep the stepped position, but take the downward velocity: the step
         // itself must not add upward speed, or walking up stairs launches you.
+        // A clean step is not a wall hit: only report one if the raised
+        // attempt was itself blocked, or the stair would count as a collision.
         state.velocity.z = down_velocity.z;
-        (true, up_origin.z > start_origin.z + 0.1)
+        (blocked_up, up_origin.z > start_origin.z + 0.1)
     }
 }
 

@@ -81,6 +81,34 @@ fn a_looping_sound_does_not_end() {
 }
 
 #[test]
+fn a_loop_region_repeats_only_its_own_frames() {
+    // Frames 0..100 are the attack (1.0), 100..200 the body (0.5). Looping
+    // over the body must never play the attack again.
+    let mut samples = vec![1.0; 100];
+    samples.extend(vec![0.5; 100]);
+    let sound = Arc::new(Sound {
+        channels: 1,
+        sample_rate: RATE,
+        samples,
+    });
+    let mut m = mixer();
+    let params = SoundParams {
+        looping: true,
+        loop_region: Some((100, 200)),
+        ..Default::default()
+    };
+    m.play(sound, params);
+    // Past the attack and around the loop several times.
+    let mut out = vec![0.0; 200 * 2];
+    m.mix(&mut out);
+    let mut out = vec![0.0; 500 * 2];
+    m.mix(&mut out);
+    let peak = out.iter().fold(0.0f32, |a, s| a.max(s.abs()));
+    assert!(peak <= 0.5 + 1e-3, "the attack came back: peak {peak}");
+    assert!(peak > 0.4, "the body should still be playing: peak {peak}");
+}
+
+#[test]
 fn stopping_a_sound_stops_it() {
     let mut mixer = mixer();
     let handle = mixer.play(steady(10_000, 1), SoundParams::default().looping());
@@ -104,7 +132,7 @@ fn stop_all_clears_everything() {
 fn a_handle_comes_back_even_for_a_sound_nobody_will_hear() {
     // So a caller can stop what it started without checking first.
     let mut mixer = mixer();
-    mixer.listener = facing_x();
+    mixer.control().set_listener(facing_x());
     let far = SoundParams {
         position: Some(Vec3::new(1e6, 0.0, 0.0)),
         ..Default::default()
@@ -126,7 +154,7 @@ fn volume_scales_what_comes_out() {
 #[test]
 fn the_master_volume_applies_on_top() {
     let mut mixer = mixer();
-    mixer.volume = 0.5;
+    mixer.control().set_volume(0.5);
     mixer.play(steady(1000, 1), SoundParams::default().with_volume(0.5));
     let (l, _) = peaks(&mut mixer, 512);
     assert!((l - 0.25).abs() < 0.02, "{l}");
@@ -373,7 +401,7 @@ fn there_is_a_ceiling_on_how_many_sounds_play_at_once() {
 #[test]
 fn the_voice_that_gives_way_is_the_quietest_one() {
     let mut mixer = mixer();
-    mixer.listener = facing_x();
+    mixer.control().set_listener(facing_x());
     // Fill up with distant sounds, then add a near one.
     for _ in 0..MAX_VOICES {
         let far = SoundParams {
@@ -396,7 +424,7 @@ fn the_voice_that_gives_way_is_the_quietest_one() {
 #[test]
 fn a_moving_sound_can_be_moved() {
     let mut mixer = mixer();
-    mixer.listener = facing_x();
+    mixer.control().set_listener(facing_x());
     let handle = mixer.play(
         steady(100_000, 1),
         SoundParams::at(Vec3::new(0.0, 0.0, 0.0)).looping(),

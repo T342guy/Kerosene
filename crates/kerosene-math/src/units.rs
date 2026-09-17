@@ -15,8 +15,8 @@
 //! | Quantity | Unit | Symbol |
 //! |---|---|---|
 //! | Distance | kerosene unit | `ku` |
-//! | Area | square kerosene unit | `vu²` |
-//! | Volume | cubic kerosene unit | `vu³` |
+//! | Area | square kerosene unit | `ku²` |
+//! | Volume | cubic kerosene unit | `ku³` |
 //! | Speed | kerosene units per second | `ku/s` |
 //! | Angle | degree | `°` |
 //! | Time | second | `s` |
@@ -25,10 +25,16 @@
 ///
 /// A kerosene unit is an inch, so this is the inches-per-metre conversion and not
 /// a number anyone gets to choose.
-pub const VU_PER_METRE: f32 = 39.3701;
+pub const KU_PER_METRE: f32 = 39.370_08;
 
 /// Kerosene units in one foot.
-pub const VU_PER_FOOT: f32 = 12.0;
+pub const KU_PER_FOOT: f32 = 12.0;
+
+/// The names from before the unit was renamed, kept so older tools still build.
+#[deprecated(note = "renamed to KU_PER_METRE")]
+pub const VU_PER_METRE: f32 = KU_PER_METRE;
+#[deprecated(note = "renamed to KU_PER_FOOT")]
+pub const VU_PER_FOOT: f32 = KU_PER_FOOT;
 
 /// The reference figure the scale is built around: a standing player.
 ///
@@ -42,13 +48,13 @@ pub const PLAYER_WIDTH: f32 = 32.0;
 pub const PLAYER_SPEED: f32 = 320.0;
 
 pub fn metres(ku: f32) -> f32 {
-    ku / VU_PER_METRE
+    ku / KU_PER_METRE
 }
 pub fn from_metres(m: f32) -> f32 {
-    m * VU_PER_METRE
+    m * KU_PER_METRE
 }
 pub fn feet(ku: f32) -> f32 {
-    ku / VU_PER_FOOT
+    ku / KU_PER_FOOT
 }
 
 /// Format a distance with its unit and a metric equivalent.
@@ -126,7 +132,7 @@ mod tests {
 
     #[test]
     fn a_kerosene_unit_is_an_inch() {
-        assert!((metres(VU_PER_METRE) - 1.0).abs() < 1e-4);
+        assert!((metres(KU_PER_METRE) - 1.0).abs() < 1e-4);
         assert!((from_metres(1.0) - 39.3701).abs() < 1e-3);
         assert!((feet(12.0) - 1.0).abs() < 1e-6);
     }

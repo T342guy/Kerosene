@@ -32,6 +32,16 @@ fn a_pcm_round_trip_is_faithful() {
 }
 
 #[test]
+fn a_header_claiming_more_adpcm_frames_than_the_file_holds_is_an_error() {
+    // Not a multi-gigabyte reservation: the frame count is the file's claim
+    // and must be checked against its size before anything is sized by it.
+    let sound = tone(100, 2, 0.5);
+    let mut bytes = encode(&sound, Encoding::Adpcm, Loop::default());
+    bytes[16..20].copy_from_slice(&u32::MAX.to_le_bytes());
+    assert!(matches!(decode(&bytes), Err(AudioError::Malformed(_))));
+}
+
+#[test]
 fn adpcm_is_a_quarter_the_size_of_pcm() {
     // The reason the encoding is a choice at all.
     let sound = tone(8000, 1, 0.75);

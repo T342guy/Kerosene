@@ -68,6 +68,85 @@ fn solid_cube() -> Bsp {
     cube_world(content_flags::SOLID)
 }
 
+/// A world of one *solid* leaf holding two 64-unit cubes, at x 0..64 and
+/// x 128..192, the way Cleave emits a brush entity's model.
+fn two_cube_solid_leaf() -> Bsp {
+    let mut bsp = Bsp::new();
+    let mut planes = kerosene_math::PlaneSet::new();
+    let name = bsp.intern_texdata_string("dev/grid");
+    bsp.texdata.push(TexData {
+        name_offset: name,
+        ..Default::default()
+    });
+    bsp.texinfo.push(TexInfo {
+        texdata: 0,
+        ..Default::default()
+    });
+    for (index, x0) in [0.0f32, 128.0].into_iter().enumerate() {
+        let faces = [
+            (Vec3::X, x0 + 64.0),
+            (-Vec3::X, -x0),
+            (Vec3::Y, 64.0),
+            (-Vec3::Y, 0.0),
+            (Vec3::Z, 64.0),
+            (-Vec3::Z, 0.0),
+        ];
+        for (normal, dist) in faces {
+            let plane = planes.insert(Plane::new(normal, dist));
+            bsp.brushsides.push(BrushSide {
+                plane,
+                texinfo: 0,
+                bevel: 0,
+            });
+        }
+        bsp.brushes.push(Brush {
+            first_side: (index * 6) as u32,
+            num_sides: 6,
+            contents: content_flags::SOLID,
+        });
+        bsp.leafbrushes.push(index as u32);
+    }
+    bsp.planes = planes.planes().iter().map(BspPlane::from_plane).collect();
+    bsp.leaves.push(Leaf {
+        contents: content_flags::SOLID,
+        first_leafbrush: 0,
+        num_leafbrushes: 2,
+        cluster: 0,
+        mins: [-512; 3],
+        maxs: [512; 3],
+        ..Default::default()
+    });
+    bsp.models.push(Model {
+        mins: [-512.0; 3],
+        maxs: [512.0; 3],
+        origin: [0.0; 3],
+        head_node: encode_leaf(0),
+        first_face: 0,
+        num_faces: 0,
+    });
+    bsp.validate().expect("fixture is well formed");
+    bsp
+}
+
+#[test]
+fn every_brush_in_a_solid_leaf_is_tested() {
+    // Regression: the per-brush early-out used to fire on the initial
+    // all_solid, so only the first brush of a solid leaf was ever clipped.
+    let bsp = two_cube_solid_leaf();
+    let t = bsp.trace_ray(
+        Vec3::new(100.0, 32.0, 32.0),
+        Vec3::new(300.0, 32.0, 32.0),
+        content_flags::MASK_SOLID,
+    );
+    assert!(t.hit(), "the second brush must stop the ray");
+    assert!(
+        (t.endpos.x - 128.0).abs() < 0.1,
+        "stopped at {:?}",
+        t.endpos
+    );
+    assert!(!t.start_solid);
+}
+
 #[test]
 fn a_ray_stops_at_the_near_face() {
     let bsp = solid_cube();

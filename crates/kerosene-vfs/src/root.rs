@@ -216,12 +216,14 @@ pub fn scaffold(root: &Path, dirs: Option<&[String]>) -> Vec<String> {
     for name in wanted {
         // A project's own list is text somebody typed, so it does not get to
         // name a directory outside the tree.
-        let name = name.trim().trim_matches('/');
-        if name.is_empty() || name.contains("..") {
+        let name = name.trim().trim_matches(['/', '\\']);
+        // Through the same normaliser the VFS uses, so `..`, a drive letter
+        // and a leading separator are all refused the same way.
+        let Some(relative) = crate::path::normalize(name) else {
             log::warn!("ignoring content directory {name:?}: it must be a name inside the tree");
             continue;
-        }
-        let path = root.join(name);
+        };
+        let path = root.join(&relative);
         if path.is_dir() {
             continue;
         }

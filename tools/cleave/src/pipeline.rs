@@ -31,6 +31,12 @@ pub struct CompileOptions {
     /// Skip removing the space outside the map. Useful when debugging a leak.
     pub no_fill: bool,
     pub verbose: bool,
+    /// The pixel size of each material's base texture, by material name,
+    /// for the ones the caller could find. World texture coordinates are
+    /// divided by these at draw time, so a size that is wrong tiles every
+    /// surface wearing it at the wrong scale. A material missing from here
+    /// is written as [`crate::emit::DEFAULT_TEXTURE_SIZE`] with a warning.
+    pub texture_sizes: std::collections::HashMap<String, (u32, u32)>,
 }
 
 /// Per-stage numbers, printed after a compile.
@@ -69,10 +75,18 @@ pub struct CompileOutput {
 pub enum CompileError {
     #[error("the map has no brushes to compile")]
     NoBrushes,
+    /// The map is not sealed. Carries the trace, so the caller can write
+    /// the `.keroleak` for Chisel without compiling a second time.
     #[error(
-        "the map leaks: {0} entity could reach the void. Compile with --ignore-leaks to build it anyway."
+        "the map leaks: the entity at {} could reach the void. Compile with --ignore-leaks to build it anyway.",
+        .0.from
     )]
-    Leaked(String),
+    Leaked(LeakPath),
+    #[error(
+        "the map has {0} visibility clusters and the format holds {max}; merge or simplify geometry",
+        max = i16::MAX
+    )]
+    TooManyClusters(usize),
 }
 
 pub fn compile(map: &Map, options: &CompileOptions) -> Result<CompileOutput, CompileError> {
@@ -154,7 +168,7 @@ pub fn compile(map: &Map, options: &CompileOptions) -> Result<CompileOutput, Com
     if let Some(leak) = &flood.leak
         && !options.ignore_leaks
     {
-        return Err(CompileError::Leaked(format!("{:?}", leak.from)));
+        return Err(CompileError::Leaked(leak.clone()));
     }
 
     // Only fill outside when the map is actually sealed. Filling a leaking map
@@ -163,6 +177,12 @@ pub fn compile(map: &Map, options: &CompileOptions) -> Result<CompileOutput, Com
         stats.leaves_filled = portal::fill_outside(&mut tree);
     }
     stats.clusters = portal::assign_clusters(&mut tree);
+    // The BSP stores a cluster as an i16. Past that the ids would wrap to
+    // negative -- "solid, no cluster" -- and the vis data would be quietly
+    // wrong for every leaf past the limit.
+    if stats.clusters > i16::MAX as usize {
+        return Err(CompileError::TooManyClusters(stats.clusters));
+    }
 
     // ---- non-structural brushes into leaves ----
     // Detail, clips, triggers and water never split the tree, so they have to
@@ -187,9 +207,27 @@ pub fn compile(map: &Map, options: &CompileOptions) -> Result<CompileOutput, Com
 
     let entities_text = build_entity_lump(map, &model_entities);
     let prt = portal::write_prt(&tree, &portals, stats.clusters);
-    let walk = crate::walk::collect(&world, &planes);
+    let walk = crate::walk::collect(&world, &planes, &tree);
 
-    let bsp = emit::emit(&tree, &planes, &world, &models, entities_text, 1);
+    let bsp = emit::emit(
+        &tree,
+        &planes,
+        &world,
+        &models,
+        entities_text,
+        1,
+        &options.texture_sizes,
+    );
+    for material in emit::materials_without_a_size(&bsp, &options.texture_sizes) {
+        warnings.push(Warning {
+            brush_id: 0,
+            message: format!(
+                "material '{material}' has no compiled texture; its faces are scaled as if it were {}x{}",
+                emit::DEFAULT_TEXTURE_SIZE.0,
+                emit::DEFAULT_TEXTURE_SIZE.1
+            ),
+        });
+    }
     stats.faces = bsp.faces.len();
     stats.vertices = bsp.vertices.len();
 

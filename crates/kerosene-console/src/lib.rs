@@ -26,7 +26,7 @@ use std::sync::Arc;
 pub mod logging;
 pub mod overlay;
 mod tokenize;
-pub use logging::{LogRelay, install as install_logger};
+pub use logging::{LogRelay, install as install_logger, install_crash_handler};
 pub use overlay::ConsoleUi;
 pub use tokenize::{split_commands, tokenize};
 
@@ -229,7 +229,8 @@ pub struct Console {
     /// Reads a config file by name. Wired to the VFS by the engine, left
     /// unset in tools that have no filesystem of their own.
     exec_handler: Option<ExecHandler>,
-    /// Depth guard: an `exec` that execs itself would otherwise spin forever.
+    /// Depth guard: an `exec` that execs itself, or an alias that names
+    /// itself, would otherwise spin forever.
     exec_depth: u32,
     /// Things commands have asked the host to do.
     ///
@@ -267,6 +268,15 @@ pub mod requests {
     pub const PHYS_SPAWN: &str = "phys_spawn";
     /// Print rigid-body simulation counts.
     pub const PHYS_STATS: &str = "phys_stats";
+    /// Bind a key. The payload is `<key> <command...>`. Owned by the host,
+    /// which is where the keyboard is.
+    pub const BIND: &str = "bind";
+    /// Unbind a key. The payload is the key.
+    pub const UNBIND: &str = "unbind";
+    /// Print every binding.
+    pub const BIND_LIST: &str = "bindlist";
+    /// Remove every binding, ahead of a config that sets them all.
+    pub const UNBIND_ALL: &str = "unbindall";
 }
 
 const MAX_EXEC_DEPTH: u32 = 16;
@@ -582,10 +592,9 @@ impl Console {
         }
     }
 
-    /// Queue text at the *front* of the buffer.
-    ///
-    /// `exec` uses this: the contents of a config file must run before
-    /// whatever was already queued behind the `exec` line itself.
+    /// Queue text at the *front* of the buffer, ahead of whatever was
+    /// already waiting -- for a host that wants a command to run before
+    /// the rest of this frame's queue.
     pub fn enqueue_front(&mut self, text: impl Into<String>) {
         for cmd in split_commands(&text.into()).into_iter().rev() {
             self.buffer.push_front(cmd);
@@ -647,7 +656,20 @@ impl Console {
         }
 
         if let Some(expansion) = self.aliases.get(&name).cloned() {
-            self.enqueue_front(expansion);
+            // Expanded in place rather than pushed onto the buffer, so that
+            // `lowgrav; sv_gravity 500` runs in the order it was written and
+            // an alias inside an exec'd config runs where its line is. The
+            // depth guard is what stops `alias a a` -- or `a` and `b` that
+            // name each other -- from expanding forever.
+            if self.exec_depth >= MAX_EXEC_DEPTH {
+                self.error(format!(
+                    "alias: '{name}' expands deeper than {MAX_EXEC_DEPTH} levels; is it recursive?"
+                ));
+                return;
+            }
+            self.exec_depth += 1;
+            self.execute(&expansion);
+            self.exec_depth -= 1;
             return;
         }
 
@@ -1076,6 +1098,25 @@ mod tests {
         c.enqueue("lowgrav");
         c.run_buffered();
         assert_eq!(c.float("sv_gravity"), 200.0);
+    }
+
+    #[test]
+    fn a_self_referential_alias_terminates() {
+        let mut c = con();
+        c.execute("alias a b");
+        c.execute("alias b a");
+        c.enqueue("a");
+        c.run_buffered();
+        c.execute("a");
+        assert!(c.log().any(|l| l.text.contains("recursive")));
+    }
+
+    #[test]
+    fn aliases_run_in_order_with_what_follows_them() {
+        let mut c = con();
+        c.execute("alias lowgrav sv_gravity 200");
+        c.execute("lowgrav; sv_gravity 500");
+        assert_eq!(c.float("sv_gravity"), 500.0);
     }
 
     #[test]

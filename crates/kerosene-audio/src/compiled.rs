@@ -178,11 +178,22 @@ pub fn decode(bytes: &[u8]) -> Result<(Sound, Info), AudioError> {
                 )));
             }
             body[..count * 2]
-                .as_chunks::<2>().0.iter()
+                .as_chunks::<2>()
+                .0
+                .iter()
                 .map(|c| i16::from_le_bytes([c[0], c[1]]) as f32 / 32768.0)
                 .collect()
         }
         Encoding::Adpcm => {
+            // Checked against the bytes before decoding, as the PCM branch
+            // is: the count is the header's claim, and the decoder reserves
+            // for it up front.
+            let available = body.len() * 2;
+            if available < count {
+                return Err(AudioError::Malformed(format!(
+                    "truncated: header says {count} samples, the file holds {available}"
+                )));
+            }
             let decoded = adpcm::decode(body, info.channels, count);
             if decoded.len() < count {
                 return Err(AudioError::Malformed(format!(

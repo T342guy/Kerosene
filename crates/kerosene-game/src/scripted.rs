@@ -34,7 +34,7 @@ pub fn register(registry: &mut ClassRegistry) {
 fn spawn(world: &mut EntityWorld, id: EntityId) {
     let file = world
         .get(id)
-        .and_then(|e| e.fields.text("scriptfile").map(str::to_string))
+        .and_then(|e| e.fields.text("scriptfile").map(|s| s.into_owned()))
         .unwrap_or_default();
     if !file.trim().is_empty() {
         world.request(host_requests::SCRIPT_FILE, file, id, None);
@@ -47,7 +47,7 @@ fn run_code(world: &mut EntityWorld, id: EntityId, event: &InputEvent) -> bool {
     let source = if event.parameter.trim().is_empty() {
         world
             .get(id)
-            .and_then(|e| e.fields.text("code").map(str::to_string))
+            .and_then(|e| e.fields.text("code").map(|s| s.into_owned()))
             .unwrap_or_default()
     } else {
         event.parameter.clone()
@@ -65,7 +65,7 @@ fn call_function(world: &mut EntityWorld, id: EntityId, event: &InputEvent) -> b
     let name = if event.parameter.trim().is_empty() {
         world
             .get(id)
-            .and_then(|e| e.fields.text("function").map(str::to_string))
+            .and_then(|e| e.fields.text("function").map(|s| s.into_owned()))
             .unwrap_or_default()
     } else {
         event.parameter.clone()
@@ -83,7 +83,7 @@ fn run_file(world: &mut EntityWorld, id: EntityId, event: &InputEvent) -> bool {
     let file = if event.parameter.trim().is_empty() {
         world
             .get(id)
-            .and_then(|e| e.fields.text("scriptfile").map(str::to_string))
+            .and_then(|e| e.fields.text("scriptfile").map(|s| s.into_owned()))
             .unwrap_or_default()
     } else {
         event.parameter.clone()

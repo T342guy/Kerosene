@@ -29,6 +29,7 @@ vault = { path = "../vault" }
 timbre = { path = "../timbre" }
 kerosene-ui.workspace = true
 kerosene-vfs.workspace = true
+kerosene-console.workspace = true
 egui.workspace = true
 clap.workspace = true
 anyhow.workspace = true

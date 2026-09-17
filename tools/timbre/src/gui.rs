@@ -649,15 +649,22 @@ impl Timbre {
                 // In decibels, because that is the unit gain is thought in, while
                 // the value stored stays a plain multiplier.
                 let mut db = decibels_value(options.gain);
-                if ui
-                    .add(
-                        egui::Slider::new(&mut db, -24.0..=12.0)
-                            .suffix(" dB")
-                            .fixed_decimals(1),
-                    )
-                    .changed()
-                {
+                let slider = ui.add(
+                    egui::Slider::new(&mut db, -24.0..=12.0)
+                        .suffix(" dB")
+                        .fixed_decimals(1),
+                );
+                // The value follows the drag, but the sound is re-prepared
+                // and the script rewritten only when the drag ends (or the
+                // number is typed): doing both on every pixel of a drag
+                // stuttered a long ambience and hammered the disk.
+                if slider.changed() {
                     options.gain = 10f32.powf(db / 20.0);
+                    if let Some(entry) = self.entries.get_mut(index) {
+                        entry.options = options;
+                    }
+                }
+                if slider.drag_stopped() || (slider.changed() && !slider.dragged()) {
                     changed = true;
                 }
                 ui.end_row();

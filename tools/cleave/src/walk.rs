@@ -36,7 +36,16 @@ const WALK_SLOPE: f32 = 0.7;
 const MIN_FACE_AREA: f32 = 1.0;
 
 /// Build the walkmap from the world's compiled brushes.
-pub fn collect(world_brushes: &[BrushWork], planes: &PlaneSet) -> Walkmap {
+///
+/// `tree` is the built, filled BSP: a face is kept only if the space just
+/// above it is inside the world. Without that test the top of the ceiling
+/// slab and the tops of the outer walls -- upward faces with no neighbour --
+/// became floors an NPC could path across on the outside of the map.
+pub fn collect(
+    world_brushes: &[BrushWork],
+    planes: &PlaneSet,
+    tree: &crate::tree::Tree,
+) -> Walkmap {
     let mut faces = Vec::new();
     for brush in world_brushes {
         for side in &brush.sides {
@@ -49,6 +58,13 @@ pub fn collect(world_brushes: &[BrushWork], planes: &PlaneSet) -> Walkmap {
                     continue;
                 }
                 if fragment.area() < MIN_FACE_AREA {
+                    continue;
+                }
+                let above = fragment.center() + normal * 1.0;
+                let leaf = tree.point_leaf(above, planes);
+                if leaf == tree.outside
+                    || tree.nodes[leaf].contents & kerosene_bsp::contents::SOLID != 0
+                {
                     continue;
                 }
                 faces.push(WalkFace {
@@ -115,7 +131,8 @@ mod tests {
     fn a_floor_becomes_a_walkable_face() {
         let solid = Solid::cube(Aabb::new(Vec3::ZERO, Vec3::splat(128.0)), "dev/grid");
         let (brush, planes) = chopped(&solid);
-        let walk = collect(&[brush], &planes);
+        let tree = crate::tree::Tree::build(vec![brush.clone()], &planes);
+        let walk = collect(&[brush], &planes, &tree);
 
         // Five non-flat faces are dropped; the +Z floor remains.
         assert_eq!(walk.len(), 1);
@@ -133,7 +150,8 @@ mod tests {
             }
         }
         let (brush, planes) = chopped(&solid);
-        let walk = collect(&[brush], &planes);
+        let tree = crate::tree::Tree::build(vec![brush.clone()], &planes);
+        let walk = collect(&[brush], &planes, &tree);
         assert!(walk.is_empty());
     }
 
@@ -146,7 +164,8 @@ mod tests {
             }
         }
         let (brush, planes) = chopped(&solid);
-        let walk = collect(&[brush], &planes);
+        let tree = crate::tree::Tree::build(vec![brush.clone()], &planes);
+        let walk = collect(&[brush], &planes, &tree);
         assert_eq!(walk.len(), 1);
         assert_eq!(walk.faces[0].rule, WalkmapRule::Avoid);
     }
@@ -164,7 +183,8 @@ mod tests {
             }
         }
         let (brush, planes) = chopped(&solid);
-        let walk = collect(&[brush], &planes);
+        let tree = crate::tree::Tree::build(vec![brush.clone()], &planes);
+        let walk = collect(&[brush], &planes, &tree);
         // The floor (flat) plus the forced wall.
         assert_eq!(walk.len(), 2);
         assert!(
@@ -178,7 +198,8 @@ mod tests {
     fn tool_volumes_are_never_ground() {
         let solid = Solid::cube(Aabb::new(Vec3::ZERO, Vec3::splat(128.0)), "tools/nodraw");
         let (brush, planes) = chopped(&solid);
-        let walk = collect(&[brush], &planes);
+        let tree = crate::tree::Tree::build(vec![brush.clone()], &planes);
+        let walk = collect(&[brush], &planes, &tree);
         assert!(walk.is_empty(), "nodraw faces must not become floors");
     }
 
@@ -186,7 +207,8 @@ mod tests {
     fn a_wall_and_ceiling_are_not_walkable() {
         let solid = Solid::cube(Aabb::new(Vec3::ZERO, Vec3::splat(128.0)), "dev/grid");
         let (brush, planes) = chopped(&solid);
-        let walk = collect(&[brush], &planes);
+        let tree = crate::tree::Tree::build(vec![brush.clone()], &planes);
+        let walk = collect(&[brush], &planes, &tree);
         // Only the top face qualifies; the five others are walls/floor.
         assert_eq!(walk.len(), 1);
         assert_eq!(walk.faces[0].normal, Vec3::Z);

@@ -25,6 +25,8 @@ pub struct InputState {
     pub duck: bool,
     pub attack: bool,
     pub use_key: bool,
+    /// The walk modifier (`+speed`): held to move at `sv_walkspeed`.
+    pub walk: bool,
     pub view_angles: Angles,
 }
 
@@ -72,6 +74,7 @@ impl HeldActions {
             duck: self.duck,
             attack: self.attack,
             use_key: self.use_key,
+            walk: self.speed,
             view_angles,
         }
     }
@@ -118,7 +121,9 @@ impl InputSystem {
             ("mouse1", "+attack"),
             ("e", "+use"),
             ("`", "toggleconsole"),
-            ("escape", "cancelselect"),
+            // Escape is not bound: the host intercepts it before bindings
+            // are consulted (see `host::intercepted`), so a binding here
+            // would never fire.
         ] {
             self.bind(key, command);
         }
@@ -131,6 +136,10 @@ impl InputSystem {
 
     pub fn unbind(&mut self, key: &str) {
         self.bindings.remove(&key.to_lowercase());
+    }
+
+    pub fn unbind_all(&mut self) {
+        self.bindings.clear();
     }
 
     pub fn binding(&self, key: &str) -> Option<&str> {

@@ -532,6 +532,39 @@ fn a_submerged_player_cannot_jump() {
 }
 
 #[test]
+fn a_submerged_player_swims_up_and_does_not_plummet() {
+    let deep = BoxWorld::new().with_floor().volume(
+        Vec3::new(-256.0, -256.0, 0.0),
+        Vec3::new(256.0, 256.0, 400.0),
+        contents::WATER,
+    );
+    // Start mid-water and let go of everything: sinks, but slowly.
+    let mut state = MoveState {
+        origin: Vec3::new(0.0, 0.0, 200.0),
+        ..Default::default()
+    };
+    run(&mut state, &deep, MoveInput::default(), 32);
+    assert!(state.origin.z < 200.0, "a still swimmer settles");
+    assert!(
+        state.origin.z > 150.0,
+        "but does not fall like a stone: {}",
+        state.origin.z
+    );
+
+    // Holding jump swims upward.
+    let mut state = MoveState {
+        origin: Vec3::new(0.0, 0.0, 200.0),
+        ..Default::default()
+    };
+    let input = MoveInput {
+        jump: true,
+        ..Default::default()
+    };
+    run(&mut state, &deep, input, 32);
+    assert!(state.origin.z > 200.0, "jump swims up: {}", state.origin.z);
+}
+
+#[test]
 fn the_eye_position_follows_the_stance() {
     let mut state = MoveState {
         origin: Vec3::new(0.0, 0.0, 10.0),

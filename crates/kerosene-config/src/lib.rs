@@ -110,9 +110,9 @@ impl EngineConf {
             None => Renderer::default(),
             Some(name) => Renderer::from_name(name).unwrap_or_else(|| {
                 log::warn!(
-                        "Invalid rendering method name {name:?}; using default: {}",
-                        Renderer::default().label()
-                    );
+                    "Invalid rendering method name {name:?}; using default: {}",
+                    Renderer::default().label()
+                );
                 Renderer::default()
             }),
         };

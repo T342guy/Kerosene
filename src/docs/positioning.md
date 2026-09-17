@@ -168,16 +168,15 @@ shipped a game with this":
 2. **Networking.** The headless simulation is the hard architectural half, and
    it is done. Without a wire protocol, though, the comparison to Source stops
    being true in the way that mattered most to Source.
-3. **Windows.** Nothing has built it there. wgpu, winit and cpal all do
-   Windows, so this is almost certainly untested rather than broken -- but
-   there is no CI to say so, and most of the people who would want this
-   cannot run it until something does.
+3. **Windows.** CI builds it there, and nothing has run it there. wgpu,
+   winit and cpal all do Windows, so what is left is untested rather than
+   broken -- but most of the people who would want this cannot find out
+   until somebody launches it.
 
-Two more are smaller than those and gate the *feel* rather than the
-possibility: the view is not interpolated between ticks (`host.rs` pins
-`alpha = 1.0`), and there is no game UI layer, so there is no menu, no
-options screen and no HUD to put a game behind. Both are on the order of
-days, and both are in the way of every genre above.
+One more is smaller than those and gates the *feel* rather than the
+possibility: there is no game UI layer, so there is no menu, no options
+screen and no HUD to put a game behind. It is on the order of days, and it
+is in the way of every genre above.
 
 Everything else on that sheet -- PBR, post-processing, decals, particles, LOD
 -- makes games *prettier*. These make games *possible*.

@@ -41,8 +41,18 @@ macro_rules! numeric {
                 let t = s.trim();
                 t.parse::<$t>()
                     // Map files are full of integers written as "64.000000",
-                    // so an integer parse falls back to a float parse.
-                    .or_else(|_| t.parse::<f64>().map(|f| f as $t))
+                    // so an integer parse falls back to a float parse -- but
+                    // only for a float that *is* this integer. `as` would
+                    // quietly turn "-1" into 0 for an unsigned type and
+                    // "64.7" into 64, and a value that was written wrong is
+                    // better reported than rounded.
+                    .or_else(|_| {
+                        t.parse::<f64>().ok().and_then(|f| {
+                            let whole = f.fract() == 0.0 && f.is_finite();
+                            (whole && f >= <$t>::MIN as f64 && f <= <$t>::MAX as f64)
+                                .then_some(f as $t)
+                        }).ok_or(())
+                    })
                     .map_err(|_| malformed(s, $name))
             }
         }

@@ -89,22 +89,12 @@ pub fn run(args: Vec<String>) -> Result<()> {
 }
 
 /// A project name as a filename: lowercase, spaces to dashes, nothing exotic.
+/// The same spelling Kiln gives the archive, so `My Game.keroproj` and
+/// `my_game.vault` are recognisably one thing.
 fn slug(name: &str) -> String {
-    let slug: String = name
-        .chars()
-        .map(|c| {
-            if c.is_ascii_alphanumeric() {
-                c.to_ascii_lowercase()
-            } else {
-                '-'
-            }
-        })
-        .collect();
-    let slug = slug.trim_matches('-').to_string();
-    if slug.is_empty() {
-        "project".to_string()
-    } else {
-        slug
+    match kiln::slug(name).as_str() {
+        "content" => "project".to_string(),
+        other => other.to_string(),
     }
 }
 

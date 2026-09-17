@@ -31,7 +31,7 @@ pub mod wav;
 #[cfg(feature = "device")]
 pub mod device;
 
-pub use mixer::{Listener, Mixer, SoundHandle, SoundParams, gains_for};
+pub use mixer::{Listener, Mixer, MixerControl, SoundHandle, SoundParams, gains_for};
 pub use script::{SoundDef, SoundScript};
 pub use wav::Sound;
 
@@ -74,6 +74,10 @@ pub enum AudioError {
 pub struct SoundBank {
     script: SoundScript,
     loaded: HashMap<String, Arc<Sound>>,
+    /// What a compiled file said about itself: the loop region it wants.
+    /// Kept beside the samples rather than in them, so a `Sound` stays the
+    /// plain buffer every decoder produces.
+    loops: HashMap<String, (usize, usize)>,
     /// Names that failed to load, so a missing file is complained about once
     /// rather than every time a trigger fires.
     missing: HashMap<String, ()>,
@@ -103,6 +107,24 @@ impl SoundBank {
 
     pub fn get(&self, name: &str) -> Option<Arc<Sound>> {
         self.loaded.get(&name.to_ascii_lowercase()).cloned()
+    }
+
+    /// Record the loop region a compiled file declared for a name.
+    pub fn set_loop_region(&mut self, name: &str, region: Option<(usize, usize)>) {
+        let key = name.to_ascii_lowercase();
+        match region {
+            Some(r) => {
+                self.loops.insert(key, r);
+            }
+            None => {
+                self.loops.remove(&key);
+            }
+        }
+    }
+
+    /// The loop region recorded for a name, if its file declared one.
+    pub fn loop_region(&self, name: &str) -> Option<(usize, usize)> {
+        self.loops.get(&name.to_ascii_lowercase()).copied()
     }
 
     pub fn is_loaded(&self, name: &str) -> bool {
@@ -154,6 +176,7 @@ impl SoundBank {
 
     pub fn forget_all(&mut self) {
         self.loaded.clear();
+        self.loops.clear();
         self.missing.clear();
     }
 }

@@ -28,6 +28,7 @@ fn main() -> Result<()> {
     let log = kerosene_console::install_logger(kerosene_console::logging::level_from_env(
         log::LevelFilter::Info,
     ));
+    kerosene_console::install_crash_handler(Some(log.clone()));
 
     let args: Vec<String> = std::env::args().skip(1).collect();
     if args.iter().any(|a| a == "--help" || a == "-h") {
@@ -117,8 +118,10 @@ fn run_headless(config: EngineConfig, ticks: u64) -> Result<()> {
     let unclaimed = take_console_requests(&mut engine);
     report_unhandled(&mut engine, unclaimed);
 
-    if let Some(map) = config.map.as_deref() {
-        engine.load_map(map)?;
+    // The configured map is already pending inside the engine; taking it
+    // here rather than loading it again keeps one load, and one error.
+    if let Some(map) = engine.take_pending_map() {
+        engine.load_map(&map)?;
     }
 
     let interval = engine.tick_interval();
@@ -136,6 +139,9 @@ fn run_headless(config: EngineConfig, ticks: u64) -> Result<()> {
         engine.console.run_buffered();
         let unclaimed = take_console_requests(&mut engine);
         report_unhandled(&mut engine, unclaimed);
+        // `map` from a script or a startup command lands here, since there
+        // is no `frame` to pick it up.
+        engine.load_pending_map();
         if engine.should_quit {
             break;
         }

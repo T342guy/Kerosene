@@ -248,7 +248,9 @@ fn raw_normals_point_outward(model: &Model) -> usize {
     let centre = model.bounds.center();
     model
         .indices
-        .as_chunks::<3>().0.iter()
+        .as_chunks::<3>()
+        .0
+        .iter()
         .filter(|t| {
             let p: Vec<Vec3> = t
                 .iter()

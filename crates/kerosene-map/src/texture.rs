@@ -13,7 +13,7 @@
 use kerosene_math::{Plane, Vec3};
 
 /// One texture axis: a world direction, a texel offset, and a scale in
-//  world-units-per-texel.
+/// world-units-per-texel.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct TextureAxis {
     pub axis: Vec3,
@@ -56,7 +56,9 @@ impl TextureAxis {
     pub fn parse(s: &str) -> Option<TextureAxis> {
         // "[x y z offset] scale"
         let open = s.find('[')?;
-        let close = s.find(']')?;
+        // Searched from the bracket, not the start: a `]` before the `[`
+        // would otherwise give a slice that ends before it begins.
+        let close = open + s[open..].find(']')?;
         let inner: Vec<f32> = s[open + 1..close]
             .split_whitespace()
             .map(|t| t.parse().ok())
@@ -253,6 +255,15 @@ mod tests {
             "{:?} vs {:?}",
             ru.axis,
             v.axis
+        );
+    }
+
+    #[test]
+    fn a_close_bracket_before_the_open_one_is_rejected_not_a_panic() {
+        assert_eq!(TextureAxis::parse("]["), None);
+        assert_eq!(
+            TextureAxis::parse("] [1 0 0 0] 0.25"),
+            TextureAxis::parse("[1 0 0 0] 0.25")
         );
     }
 }

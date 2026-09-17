@@ -136,7 +136,8 @@ pub fn teleport_target(world: &EntityWorld, id: EntityId) -> Option<String> {
     if !entity.classname.eq_ignore_ascii_case("trigger_teleport") {
         return None;
     }
-    let target = entity.fields.text("target")?.trim();
+    let target = entity.fields.text("target")?;
+    let target = target.trim();
     (!target.is_empty()).then(|| target.to_string())
 }
 

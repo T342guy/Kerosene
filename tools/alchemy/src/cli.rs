@@ -166,7 +166,8 @@ pub fn run(args: Vec<String>) -> Result<()> {
         } => {
             let out = output.unwrap_or_else(|| image.with_extension("kerotex"));
             let flags = build_flags(normal, clamp, point, ui);
-            let size = compile_image(&image, &out, flags, opaque)?;
+            // A normal map is never translucent: its alpha, if any, is data.
+            let size = compile_image(&image, &out, flags, opaque || normal)?;
             println!(
                 "  wrote {} ({:.1} KiB)",
                 out.display(),

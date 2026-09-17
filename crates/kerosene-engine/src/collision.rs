@@ -12,7 +12,7 @@
 
 use kerosene_bsp::{Bsp, Trace, contents};
 use kerosene_entity::EntityWorld;
-use kerosene_math::{Plane, Pose, Vec3};
+use kerosene_math::{Aabb, Plane, Pose, Vec3};
 use kerosene_physics::CollisionWorld;
 
 use crate::physics::PhysicsProps;
@@ -49,11 +49,13 @@ impl<'a> LevelCollision<'a> {
                 continue;
             }
 
-            let class = entity.classname.to_lowercase();
-            if class.starts_with("trigger_") {
+            let class = entity.classname.as_str();
+            if crate::engine::is_trigger_class(class) {
                 continue;
             }
-            if class == "func_detail" || class == "func_illusionary" {
+            if class.eq_ignore_ascii_case("func_detail")
+                || class.eq_ignore_ascii_case("func_illusionary")
+            {
                 continue;
             }
             // A disabled func_brush is not there.
@@ -168,7 +170,10 @@ impl CollisionWorld for LevelCollision<'_> {
 /// kicked across the room blocks them the same tick the simulation moved it.
 pub struct PlayerCollision<'a> {
     level: LevelCollision<'a>,
-    props: &'a PhysicsProps,
+    /// The prop boxes as they stood when this was built -- once per tick,
+    /// not once per trace. A tick's move issues dozens of traces, and each
+    /// used to ask the rigid world for every box afresh.
+    prop_boxes: Vec<Aabb>,
 }
 
 impl<'a> PlayerCollision<'a> {
@@ -179,7 +184,7 @@ impl<'a> PlayerCollision<'a> {
     ) -> PlayerCollision<'a> {
         PlayerCollision {
             level: LevelCollision::new(bsp, entities),
-            props,
+            prop_boxes: props.prop_aabbs(),
         }
     }
 
@@ -192,7 +197,7 @@ impl<'a> PlayerCollision<'a> {
             (-mins.y).max(maxs.y),
             (-mins.z).max(maxs.z),
         );
-        for prop in self.props.prop_aabbs() {
+        for prop in &self.prop_boxes {
             // Minkowski expansion: grow the prop box by the hull and sweep a
             // point, exactly as the BSP tracer does for brushes.
             let expanded = prop.expanded_by(half);
@@ -248,7 +253,7 @@ impl CollisionWorld for PlayerCollision<'_> {
         let mut out = self.level.contents_at(point);
         // Standing inside a prop reads as solid, which is mostly moot (the
         // trace already stops you there) but keeps `contents_at` honest.
-        for prop in self.props.prop_aabbs() {
+        for prop in &self.prop_boxes {
             if prop.contains_point(point) {
                 out |= contents::SOLID;
             }

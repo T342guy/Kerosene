@@ -41,6 +41,10 @@ struct Args {
     #[arg(long)]
     ignore_leaks: bool,
 
+    /// Rebuild sounds even when their compiled form looks up to date.
+    #[arg(long)]
+    force: bool,
+
     /// Treat `.obj` sources as kerosene units rather than metres.
     #[arg(long)]
     model_units: bool,
@@ -116,6 +120,7 @@ pub fn run(args: Vec<String>) -> Result<()> {
         fast: args.fast,
         dry_run: args.dry_run,
         ignore_leaks: args.ignore_leaks,
+        force: args.force,
         models_in_metres: !args.model_units,
         ship_to: args.ship,
     };
@@ -144,12 +149,15 @@ pub fn run(args: Vec<String>) -> Result<()> {
     if !report.leaking.is_empty() {
         println!();
         println!(
-            "{} map(s) LEAK and will not light or cull correctly:",
+            "{} map(s) LEAK and were not lit or culled:",
             report.leaking.len()
         );
         for name in &report.leaking {
             println!("  {name} -- open it in Chisel; the leak is drawn as a red line");
         }
+        // A build server should see this as the failure it is; the summary
+        // above is for the person reading the log.
+        anyhow::bail!("{} map(s) leak", report.leaking.len());
     }
     Ok(())
 }

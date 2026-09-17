@@ -239,7 +239,8 @@ impl Model {
                 available: bytes.len(),
             });
         }
-        let header: RawHeader = *bytemuck::from_bytes(&bytes[..HEADER_SIZE]);
+        // Read unaligned: the caller's slice makes no alignment promise.
+        let header: RawHeader = bytemuck::pod_read_unaligned(&bytes[..HEADER_SIZE]);
         if header.magic != MAGIC {
             return Err(ModelError::BadMagic);
         }

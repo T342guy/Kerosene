@@ -18,7 +18,10 @@ pub use toolset::{Launch, Tab, Toolset, run_gui};
 
 /// The headless subcommands, in the order help prints them.
 pub const SUBCOMMANDS: &[(&str, &str)] = &[
-    ("init", "start a project: a .keroproj and the tree beside it"),
+    (
+        "init",
+        "start a project: a .keroproj and the tree beside it",
+    ),
     ("cleave", "compile a .keromap into a .kerobsp"),
     ("umbra", "compute the PVS for a compiled map"),
     ("radiance", "bake static lighting into a compiled map"),

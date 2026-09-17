@@ -121,6 +121,139 @@ fn floor_world(blocker: bool) -> Bsp {
     bsp
 }
 
+/// A floor at z = 0 (face 0) meeting a wall at x = 64 facing -X (face 1),
+/// each backed by a solid slab, so a bounce from one to the other has
+/// geometry to be occluded by and nothing in the way.
+fn corner_world() -> Bsp {
+    let mut bsp = Bsp::new();
+    let mut planes = PlaneSet::new();
+
+    let floor_plane = planes.insert(Plane::new(Vec3::Z, 0.0));
+    let wall_plane = planes.insert(Plane::new(-Vec3::X, -64.0));
+
+    // Floor slab: x 0..64, y 0..64, z -16..0. Wall slab: x 64..80, y 0..64,
+    // z 0..64.
+    let slabs: [[(Vec3, f32); 6]; 2] = [
+        [
+            (Vec3::X, 64.0),
+            (-Vec3::X, 0.0),
+            (Vec3::Y, 64.0),
+            (-Vec3::Y, 0.0),
+            (Vec3::Z, 0.0),
+            (-Vec3::Z, 16.0),
+        ],
+        [
+            (Vec3::X, 80.0),
+            (-Vec3::X, -64.0),
+            (Vec3::Y, 64.0),
+            (-Vec3::Y, 0.0),
+            (Vec3::Z, 64.0),
+            (-Vec3::Z, 0.0),
+        ],
+    ];
+    for (i, slab) in slabs.iter().enumerate() {
+        for (n, d) in slab {
+            bsp.brushsides.push(BrushSide {
+                plane: planes.insert(Plane::new(*n, *d)),
+                texinfo: 0,
+                bevel: 0,
+            });
+        }
+        bsp.brushes.push(Brush {
+            first_side: (i * 6) as u32,
+            num_sides: 6,
+            contents: kerosene_bsp::contents::SOLID,
+        });
+        bsp.leafbrushes.push(i as u32);
+    }
+    bsp.planes = planes.planes().iter().map(BspPlane::from_plane).collect();
+
+    bsp.vertices = vec![
+        [0.0, 0.0, 0.0],
+        [0.0, 64.0, 0.0],
+        [64.0, 64.0, 0.0],
+        [64.0, 0.0, 0.0],
+        [64.0, 0.0, 64.0],
+        [64.0, 64.0, 64.0],
+    ];
+    bsp.edges = vec![
+        Edge { v: [0, 1] },
+        Edge { v: [1, 2] },
+        Edge { v: [2, 3] },
+        Edge { v: [3, 0] },
+        // The wall, wound so it faces -X: (64,0,0) (64,0,64) (64,64,64) (64,64,0).
+        Edge { v: [3, 4] },
+        Edge { v: [4, 5] },
+        Edge { v: [5, 2] },
+        Edge { v: [2, 3] },
+    ];
+    bsp.surfedges = vec![0, 1, 2, 3, 4, 5, 6, 7];
+
+    let name = bsp.intern_texdata_string("dev/grid");
+    bsp.texdata.push(TexData {
+        reflectivity: [0.8, 0.8, 0.8],
+        name_offset: name,
+        width: 512,
+        height: 512,
+        view_width: 512,
+        view_height: 512,
+    });
+    // Floor: luxels along X and Y. Wall: along Y and Z.
+    let mut floor_ti = TexInfo {
+        texdata: 0,
+        ..Default::default()
+    };
+    floor_ti.lightmap_vecs[0] = [1.0 / 16.0, 0.0, 0.0, 0.0];
+    floor_ti.lightmap_vecs[1] = [0.0, 1.0 / 16.0, 0.0, 0.0];
+    let mut wall_ti = TexInfo {
+        texdata: 0,
+        ..Default::default()
+    };
+    wall_ti.lightmap_vecs[0] = [0.0, 1.0 / 16.0, 0.0, 0.0];
+    wall_ti.lightmap_vecs[1] = [0.0, 0.0, 1.0 / 16.0, 0.0];
+    bsp.texinfo.push(floor_ti);
+    bsp.texinfo.push(wall_ti);
+
+    for (plane, first, texinfo) in [(floor_plane, 0, 0), (wall_plane, 4, 1)] {
+        bsp.faces.push(Face {
+            plane: plane & !1,
+            side: (plane & 1) as u8,
+            first_surfedge: first,
+            num_surfedges: 4,
+            texinfo,
+            dispinfo: -1,
+            lightmap_offset: -1,
+            lightmap_mins: [0, 0],
+            lightmap_size: [5, 5],
+            light_styles: [0, 255, 255, 255],
+            area: 4096.0,
+            ..Default::default()
+        });
+    }
+    bsp.leaffaces = vec![0, 1];
+    bsp.leaves.push(Leaf {
+        contents: kerosene_bsp::contents::EMPTY,
+        first_leafface: 0,
+        num_leaffaces: 2,
+        first_leafbrush: 0,
+        num_leafbrushes: 2,
+        cluster: 0,
+        mins: [-512; 3],
+        maxs: [512; 3],
+        ..Default::default()
+    });
+    bsp.models.push(Model {
+        mins: [-512.0; 3],
+        maxs: [512.0; 3],
+        origin: [0.0; 3],
+        head_node: encode_leaf(0),
+        first_face: 0,
+        num_faces: 2,
+    });
+    bsp.validate().expect("fixture is well formed");
+    bsp
+}
+
 fn lights_from(text: &str) -> LightSet {
     LightSet::from_kv(&KeyValues::parse(text).unwrap())
 }
@@ -275,6 +408,37 @@ fn bouncing_only_adds_light() {
     assert!(
         after >= before,
         "a bounce pass must not darken anything: {after} vs {before}"
+    );
+}
+
+#[test]
+fn a_lit_floor_bounces_light_onto_the_wall_beside_it() {
+    // Regression: the bounce trace ended exactly on the emitting face, which
+    // the tracer counts as entering its brush, so every patch occluded
+    // itself and `--bounces` added nothing at all.
+    let lights = lights_from(
+        r#"entity { "classname" "light" "origin" "16 32 8" "_light" "255 255 255 300" }"#,
+    );
+    let wall_total = |bounces: u32| -> f32 {
+        let mut world = corner_world();
+        let opts = BakeOptions {
+            supersample: 1,
+            bounces,
+            ..quick()
+        };
+        bake(&mut world, &lights, &opts);
+        world
+            .face_lightmap(1)
+            .unwrap()
+            .iter()
+            .map(|c| c.to_linear().x)
+            .sum()
+    };
+    let direct = wall_total(0);
+    let bounced = wall_total(1);
+    assert!(
+        bounced > direct * 1.05,
+        "the wall must be brighter for the floor's bounce: {bounced} vs {direct}"
     );
 }
 

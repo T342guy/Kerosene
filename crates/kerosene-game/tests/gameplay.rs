@@ -796,10 +796,12 @@ fn a_locked_button_says_so_instead_of_pressing() {
     let mut w = world_from(BUTTON_MAP);
     let switch = named(&w, "switch");
     let gate = named(&w, "gate");
+    // Wired to something observable: a locked press must reach the
+    // `OnUseLocked` the schema advertises for a button, not a door's word.
     w.get_mut(switch)
         .unwrap()
         .connections
-        .push(Connection::new("OnUseLocked", "gate", "Close"));
+        .push(Connection::new("OnUseLocked", "count", "Add").with_parameter("10"));
     w.accept_input(switch, &InputEvent::new("Lock"));
 
     press(&mut w, switch);
@@ -817,8 +819,8 @@ fn a_locked_button_says_so_instead_of_pressing() {
     );
     assert_eq!(
         field(&w, named(&w, "count"), "value"),
-        0.0,
-        "OnPressed must not fire either"
+        10.0,
+        "OnUseLocked fires (10), OnPressed does not (would add 1)"
     );
 }
 
@@ -1177,7 +1179,10 @@ entity {
     let props = w.find_by_class("prop_physics");
     assert_eq!(props.len(), 3, "one batch of three props");
     for id in &props {
-        assert_eq!(w.get(*id).unwrap().fields.text("model"), Some("props/cube"));
+        assert_eq!(
+            w.get(*id).unwrap().fields.text("model").as_deref(),
+            Some("props/cube")
+        );
     }
 }
 

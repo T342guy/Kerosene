@@ -284,7 +284,7 @@ does not have yet.
 ## Status
 
 Everything above works end to end: you can draw a level in Chisel, compile it
-through all three stages, and walk around it. 1491 tests cover the pieces and
+through all three stages, and walk around it. 1600 tests cover the pieces and
 the seams between them, including a suite that builds a map in memory,
 compiles it, loads it and plays it.
 
@@ -295,11 +295,8 @@ Known limits, stated plainly:
   wire protocol and prediction are not written.
 - **No skeletal animation.** `.keromdl` carries bones and per-vertex weights, and
   Forge preserves them, but nothing animates them yet.
-- **The view is not interpolated between ticks.** The hooks exist; the
-  fraction is pinned to 1.0. On a display faster than the tick rate the
-  camera steps.
-- **No CI, and no Windows or macOS build has been tried.** The dependencies
-  are all cross-platform, so this is untested rather than known-broken.
+- **No Windows or macOS build has been tried by hand.** CI builds both, so
+  a tree that stops compiling there is caught; nothing has been *run* there.
 - **No game UI, no save/load, no demo recording.** The developer console is
   the only overlay; nothing serialises game state; nothing records a session.
 - **Chisel's 3D view is software-rasterised, not GPU-rendered.** Occlusion is

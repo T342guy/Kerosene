@@ -61,9 +61,8 @@ pub fn sound_name(world: &EntityWorld, id: EntityId) -> String {
             e.fields
                 .text("sound")
                 .or_else(|| e.fields.text("message"))
-                .map(str::trim)
+                .map(|n| n.trim().to_string())
                 .filter(|n| !n.is_empty())
-                .map(str::to_string)
         })
         .unwrap_or_default()
 }

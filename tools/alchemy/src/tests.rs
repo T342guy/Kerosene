@@ -361,7 +361,10 @@ fn a_new_texture_refuses_to_overwrite_an_existing_one() {
         "default",
         false,
     );
-    assert!(result.is_err(), "an existing folder should not be clobbered");
+    assert!(
+        result.is_err(),
+        "an existing folder should not be clobbered"
+    );
 
     let _ = std::fs::remove_dir_all(&dir);
 }

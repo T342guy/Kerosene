@@ -304,8 +304,16 @@ impl Engine {
             .f32("volume", entity.fields.f32("health", 1.0))
             .clamp(0.0, 1.0);
         let radius = entity.fields.f32("radius", 0.0);
-        let pitch = entity.fields.f32("pitch", 1.0).max(0.01);
+        // A rate, so 1 is unchanged. Source writes pitch as a percentage,
+        // and a copied `pitch 100` would otherwise play as a click: anything
+        // past what a rate could sensibly be is read as one.
+        let pitch = entity.fields.f32("pitch", 1.0);
+        let pitch = if pitch > 10.0 { pitch / 100.0 } else { pitch }.clamp(0.01, 4.0);
         let looping = entity.fields.bool("looping", true);
+
+        // One voice per entity: a second `PlaySound` replaces the first
+        // rather than stacking a loop nothing can stop any more.
+        self.stop_entity_sound(id);
 
         let vfs = self.vfs.clone();
         let Some(sound) = self.audio.sound(&vfs, name) else {
@@ -316,6 +324,16 @@ impl Engine {
         params.volume *= volume;
         params.pitch *= pitch;
         params.looping = looping;
+        params.loop_region = self.audio.bank.loop_region(name);
+        // A stereo file has no one place to be: panning it is undefined,
+        // and the mixer plays it flat. Say so once rather than let a designer
+        // wonder why their positioned ambience does not move.
+        if sound.channels > 1 && params.position.is_some() {
+            self.audio.warn_once(format!(
+                "sound `{name}` is stereo and cannot be positioned; playing it everywhere"
+            ));
+            params.position = None;
+        }
         if radius > 0.0 {
             params.max_distance = radius;
             params.reference_distance = (radius * 0.1).max(16.0);

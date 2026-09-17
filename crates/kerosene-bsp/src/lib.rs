@@ -211,12 +211,12 @@ impl Bsp {
     }
 
     pub fn num_clusters(&self) -> usize {
-        // `then` rather than `then_some`: the latter evaluates its argument
-        // eagerly, so a solid leaf's cluster of -1 would be cast to usize and
-        // overflow before the guard ever ran.
+        // Filter before the cast: a solid leaf's cluster is -1, and casting
+        // that to usize first would wrap to the largest possible count.
         self.leaves
             .iter()
-            .filter(|&l| l.cluster >= 0).map(|l| l.cluster as usize + 1)
+            .filter(|&l| l.cluster >= 0)
+            .map(|l| l.cluster as usize + 1)
             .max()
             .unwrap_or(0)
     }

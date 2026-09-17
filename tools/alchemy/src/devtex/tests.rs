@@ -246,6 +246,28 @@ fn running_it_again_changes_nothing() {
 }
 
 #[test]
+fn a_material_somebody_edited_is_kept() {
+    let dir = std::env::temp_dir().join(format!("alchemy-devtex-kept-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let materials = dir.join("materials");
+    write_materials(&materials).expect("first run");
+
+    let edited = materials.join("tools/water.keromat");
+    let mine = "water\n{\n\t\"$basetexture\" \"tools/water\"\n\t\"$surfaceprop\" \"water\"\n}\n";
+    std::fs::write(&edited, mine).unwrap();
+
+    let again = write_materials(&materials).expect("second run");
+    assert_eq!(again.kept, 1);
+    assert_eq!(
+        std::fs::read_to_string(&edited).unwrap(),
+        mine,
+        "the edit survives"
+    );
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
 fn a_texture_someone_deleted_comes_back() {
     // Filling gaps is the other half of the job: a clone that lost a file, or
     // a set that grew a new entry, should not need a special command.
@@ -266,7 +288,8 @@ fn a_report_says_what_happened_in_words() {
     assert_eq!(
         Written {
             changed: 0,
-            unchanged: 20
+            unchanged: 20,
+            kept: 0
         }
         .to_string(),
         "20 already up to date"
@@ -274,7 +297,8 @@ fn a_report_says_what_happened_in_words() {
     assert_eq!(
         Written {
             changed: 3,
-            unchanged: 17
+            unchanged: 17,
+            kept: 0
         }
         .to_string(),
         "3 written, 17 already up to date"

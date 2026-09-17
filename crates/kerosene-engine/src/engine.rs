@@ -162,6 +162,16 @@ pub fn brush_pose(bsp: Option<&Bsp>, model: usize, origin: Vec3, angles: Angles)
     Pose::about(origin, angles, pivot)
 }
 
+/// Whether a classname is a trigger volume's, case-insensitively.
+///
+/// Compared in place: `to_lowercase` per entity per tick was a measurable
+/// share of a tick's allocations for a thing that is asked every tick.
+pub fn is_trigger_class(classname: &str) -> bool {
+    classname
+        .get(..8)
+        .is_some_and(|prefix| prefix.eq_ignore_ascii_case("trigger_"))
+}
+
 /// The engine.
 pub struct Engine {
     pub console: Console,
@@ -182,6 +192,13 @@ pub struct Engine {
     held_prop: Option<HeldProp>,
     /// Accumulated real time not yet simulated.
     accumulator: f32,
+    /// Bumped by every successful `load_map`, so a host can tell "the same
+    /// map, loaded again" from "nothing happened" -- a name cannot.
+    load_generation: u64,
+    /// Whether this engine was asked to open an audio device, so that
+    /// `snd_restart` reopens what was opened and not a device a headless
+    /// run never wanted.
+    wants_audio: bool,
     /// Total simulated time.
     pub time: f32,
     pub tick_count: u64,
@@ -321,6 +338,8 @@ impl Engine {
             player: PlayerState::default(),
             held_prop: None,
             accumulator: 0.0,
+            load_generation: 0,
+            wants_audio: config.audio,
             time: 0.0,
             tick_count: 0,
             pending_map: config.map.clone(),
@@ -330,14 +349,57 @@ impl Engine {
         let vfs = engine.vfs.clone();
         engine.audio.load_scripts(&vfs);
 
+        // Saved settings first, then the person's own autoexec, then the
+        // command line -- so each later one can overrule the one before it.
+        // `config.cfg` is written by the host on quit (`Engine::config_text`)
+        // and is where archived convars and bindings come back from; a first
+        // run has neither file, and says nothing about it.
+        for cfg in ["config.cfg", "autoexec.cfg"] {
+            if engine.vfs.exists(&format!("cfg/{cfg}")) {
+                engine.console.enqueue(format!("exec {cfg}"));
+            }
+        }
         for command in &config.startup_commands {
             engine.console.enqueue(command.clone());
         }
         engine
     }
 
+    /// The text of `cfg/config.cfg`: every archived convar that is not at
+    /// its default, and every binding, as console lines.
+    ///
+    /// Written by the host on quit and exec'd on the next start, which is
+    /// how `sensitivity`, `cl_fov` and a rebound key survive a restart.
+    pub fn config_text(&self, bindings: &str) -> String {
+        let mut out = String::from(
+            "// Written by Kerosene on exit. Edit autoexec.cfg for settings of \
+             your own; this file is overwritten.\n",
+        );
+        for (name, value) in self.console.archived() {
+            out.push_str(&format!("{name} \"{value}\"\n"));
+        }
+        if !bindings.is_empty() {
+            out.push_str("unbindall\n");
+            out.push_str(bindings);
+            out.push('\n');
+        }
+        out
+    }
+
     pub fn tick_rate(&self) -> f32 {
         self.console.float("sv_tickrate").max(1.0)
+    }
+
+    /// How far through the current tick interval the real clock has got, in
+    /// `0..1`: the blend a renderer wants between the previous and current
+    /// simulation states.
+    pub fn interpolation_alpha(&self) -> f32 {
+        (self.accumulator / self.tick_interval()).clamp(0.0, 1.0)
+    }
+
+    /// See `load_generation`.
+    pub fn load_generation(&self) -> u64 {
+        self.load_generation
     }
 
     pub fn tick_interval(&self) -> f32 {
@@ -412,6 +474,7 @@ impl Engine {
             bsp,
             sky_color,
         });
+        self.load_generation += 1;
         self.spawn_player();
         self.time = 0.0;
         self.tick_count = 0;
@@ -488,6 +551,12 @@ impl Engine {
             self.physics.launch_prop(held.id, Vec3::ZERO);
         }
 
+        // The old body goes before the new one arrives: a respawn that
+        // spawned a second `player` entity left the first behind, at the
+        // place of death, for `find_by_class` and scripts to trip over.
+        if let Some(old) = self.player.entity.take() {
+            self.entities.remove(old);
+        }
         let player = self.entities.spawn("player");
         self.entities.player = Some(player);
         if let Some(e) = self.entities.get_mut(player) {
@@ -531,12 +600,7 @@ impl Engine {
             self.console.drain_log_relay(&relay);
         }
         self.console.run_buffered();
-
-        if let Some(map) = self.pending_map.take()
-            && let Err(e) = self.load_map(&map)
-        {
-            self.console.error(format!("{e}"));
-        }
+        self.load_pending_map();
 
         let interval = self.tick_interval();
         self.accumulator = (self.accumulator + real_dt).min(interval * 8.0);
@@ -557,13 +621,21 @@ impl Engine {
         self.player.previous_origin = self.player.movement.origin;
 
         self.player.view_angles = input.view_angles.clamped_view();
+        // Read every tick rather than at map load, so `developer 2` typed
+        // mid-map starts tracing entity I/O at once.
+        self.entities.set_trace(self.console.int("developer") >= 2);
 
         if let Some(level) = &self.level {
             // Rebuilt each tick: a door that moved since the last one has to
             // block where it is now, not where it was -- and so does a prop
             // the player just kicked.
             let world = PlayerCollision::new(&level.bsp, &self.entities, &self.physics);
-            let params = self.movement_params();
+            let mut params = self.movement_params();
+            if input.walk {
+                params.max_speed = params
+                    .max_speed
+                    .min(self.console.float("sv_walkspeed").max(0.0));
+            }
             let move_input = MoveInput {
                 forward: input.forward,
                 side: input.side,
@@ -757,22 +829,24 @@ impl Engine {
             self.player.movement.origin + hull.maxs,
         );
 
-        let triggers: Vec<(EntityId, usize, Vec3)> = self
+        let triggers: Vec<(EntityId, usize, Vec3, Angles)> = self
             .entities
             .iter()
-            .filter(|e| e.classname.to_lowercase().starts_with("trigger_"))
-            .filter_map(|e| e.brush_model.map(|m| (e.id, m, e.origin)))
+            .filter(|e| is_trigger_class(&e.classname))
+            .filter_map(|e| e.brush_model.map(|m| (e.id, m, e.origin, e.angles)))
             .collect();
 
         let player_entity = self.player.entity;
         let mut hurt = 0.0;
         let mut entered: Vec<EntityId> = Vec::new();
-        for (id, model_index, offset) in triggers {
+        for (id, model_index, origin, angles) in triggers {
             let Some(model) = level.bsp.models.get(model_index) else {
                 continue;
             };
-            let bounds = model.bounds();
-            let moved = Aabb::new(bounds.min + offset, bounds.max + offset);
+            // Placed the way it is drawn and collided with, so a trigger
+            // brush given `angles` fires where it appears to be.
+            let moved =
+                brush_pose(Some(&level.bsp), model_index, origin, angles).bounds_of(model.bounds());
             // A box overlap is enough: trigger brushes are convex volumes and
             // the exact brush test costs more than it is worth here.
             let inside = moved.intersects(&player_box);
@@ -1080,6 +1154,25 @@ impl Engine {
         self.pending_map.is_some()
     }
 
+    /// Take the requested map without loading it, for a host that wants to
+    /// handle the error itself.
+    pub fn take_pending_map(&mut self) -> Option<String> {
+        self.pending_map.take()
+    }
+
+    /// Load the map the console asked for, if it asked for one.
+    ///
+    /// `frame` does this on its own; a host that drives `tick` directly --
+    /// the headless runner -- calls it between ticks, or `map` typed from a
+    /// script or a `+map` on the command line is set and never read.
+    pub fn load_pending_map(&mut self) {
+        if let Some(map) = self.pending_map.take()
+            && let Err(e) = self.load_map(&map)
+        {
+            self.console.error(format!("{e}"));
+        }
+    }
+
     /// The prop the pick-up tool is carrying, if any.
     pub fn held_prop(&self) -> Option<EntityId> {
         self.held_prop.map(|h| h.id)
@@ -1138,6 +1231,12 @@ fn register_cvars(console: &mut Console) {
         "320",
         ConVarFlags::REPLICATED,
         "Maximum ground speed, in kerosene units per second.",
+    );
+    console.register_cvar(
+        "sv_walkspeed",
+        "150",
+        ConVarFlags::REPLICATED,
+        "Ground speed while the walk key (+speed) is held.",
     );
     console.register_cvar(
         "sv_accelerate",
@@ -1353,6 +1452,47 @@ fn register_commands(console: &mut Console) {
         |con, _| con.request(requests::TOGGLE_CONSOLE, ""),
     );
 
+    // Bindings are the host's -- it owns the keyboard -- so these hand the
+    // words over. Typing `bind w +forward` and typing `+forward` are the same
+    // thing, which is what makes a binding a binding.
+    console.register_command(
+        "bind",
+        ConVarFlags::NONE,
+        "Bind a key to a command: bind <key> <command>. With only a key, show its binding.",
+        |con, args| {
+            if args.count() < 2 {
+                con.warn("usage: bind <key> [command]");
+                return;
+            }
+            let payload = args.rest.clone();
+            con.request(requests::BIND, &payload);
+        },
+    );
+    console.register_command(
+        "unbind",
+        ConVarFlags::NONE,
+        "Remove a key's binding.",
+        |con, args| match args.get(1) {
+            Some(key) => {
+                let key = key.to_string();
+                con.request(requests::UNBIND, &key)
+            }
+            None => con.warn("usage: unbind <key>"),
+        },
+    );
+    console.register_command(
+        "bindlist",
+        ConVarFlags::NONE,
+        "Print every key binding.",
+        |con, _| con.request(requests::BIND_LIST, ""),
+    );
+    console.register_command(
+        "unbindall",
+        ConVarFlags::NONE,
+        "Remove every key binding. config.cfg starts with this so it sets them all.",
+        |con, _| con.request(requests::UNBIND_ALL, ""),
+    );
+
     console.register_command(
         "map",
         ConVarFlags::NONE,
@@ -1517,7 +1657,11 @@ pub fn take_console_requests(engine: &mut Engine) -> Vec<(String, String)> {
             }
             requests::STOP_SOUND => engine.audio.stop_all(),
             requests::SOUND_RESTART => {
-                engine.audio = crate::audio::AudioSystem::open();
+                engine.audio = if engine.wants_audio {
+                    crate::audio::AudioSystem::open()
+                } else {
+                    crate::audio::AudioSystem::silent()
+                };
                 let vfs = engine.vfs.clone();
                 engine.audio.load_scripts(&vfs);
                 let status = engine.audio.status.clone();

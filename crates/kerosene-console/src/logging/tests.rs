@@ -152,19 +152,26 @@ fn opening_a_log_file_somewhere_impossible_reports_rather_than_logging() {
 fn the_environment_can_choose_the_level_but_nonsense_does_not() {
     // Only a bare level is understood; anything else keeps the default rather
     // than turning logging off by accident.
-    unsafe { std::env::set_var("RUST_LOG", "warn") };
+    // Through the pure form: setting the real variable would race every
+    // other test in this binary that reads it.
     assert_eq!(
-        level_from_env(log::LevelFilter::Info),
+        level_from_spec(Some("warn"), log::LevelFilter::Info),
         log::LevelFilter::Warn
     );
-    unsafe { std::env::set_var("RUST_LOG", "kerosene_bsp=trace") };
     assert_eq!(
-        level_from_env(log::LevelFilter::Info),
+        level_from_spec(Some("kerosene_bsp=trace"), log::LevelFilter::Info),
         log::LevelFilter::Info
     );
-    unsafe { std::env::remove_var("RUST_LOG") };
     assert_eq!(
-        level_from_env(log::LevelFilter::Info),
+        level_from_spec(None, log::LevelFilter::Info),
+        log::LevelFilter::Info
+    );
+    assert_eq!(
+        foreign_level_given(log::LevelFilter::Info, false),
+        log::LevelFilter::Warn
+    );
+    assert_eq!(
+        foreign_level_given(log::LevelFilter::Info, true),
         log::LevelFilter::Info
     );
 }

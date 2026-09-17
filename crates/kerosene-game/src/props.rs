@@ -85,8 +85,8 @@ fn spawn_batch(world: &mut EntityWorld, id: EntityId) {
     let model = spawner
         .fields
         .text("model")
-        .unwrap_or("props/cube")
-        .to_string();
+        .map(|m| m.into_owned())
+        .unwrap_or_else(|| "props/cube".to_string());
     let batch = spawner.fields.i32("spawncount", 1).max(1) as usize;
     let max_total = spawner.fields.i32("maxprops", -1);
     let spread = spawner.fields.f32("spread", 0.0).max(0.0);

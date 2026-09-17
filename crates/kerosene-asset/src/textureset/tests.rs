@@ -52,7 +52,10 @@ fn a_nested_folder_is_named_for_its_whole_path() {
 #[test]
 fn a_folder_directly_in_the_root_keeps_its_own_name() {
     let root = Path::new("/content/textures");
-    assert_eq!(TextureSet::name_from_path(&root.join("brick"), root), "brick");
+    assert_eq!(
+        TextureSet::name_from_path(&root.join("brick"), root),
+        "brick"
+    );
 }
 
 #[test]
@@ -217,7 +220,9 @@ fn an_unknown_shader_falls_back_to_lit() {
         "texture { \"shader\" \"raytraced\" }",
     );
     assert_eq!(
-        TextureSet::discover(&dir.0.join("set"), &dir.0).unwrap().shader,
+        TextureSet::discover(&dir.0.join("set"), &dir.0)
+            .unwrap()
+            .shader,
         Shader::Lit
     );
 }

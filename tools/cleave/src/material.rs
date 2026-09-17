@@ -168,8 +168,11 @@ pub fn contents_words(contents: u32) -> String {
 pub fn describe_brush(materials: &[String], classname: Option<&str>) -> String {
     let by_class = classname.and_then(contents_for_classname);
     let contents = by_class.unwrap_or_else(|| {
-        let face_contents: Vec<u32> = materials.iter().map(|m| flags_for(m).contents).collect();
-        crate::brush::resolve_contents(&face_contents)
+        crate::brush::resolve_contents_of(
+            materials
+                .iter()
+                .map(|m| (flags_for(m).contents, is_known_tool(m))),
+        )
     });
 
     let words = contents_words(contents);

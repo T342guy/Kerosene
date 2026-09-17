@@ -2375,7 +2375,11 @@ fn the_volume_convar_reaches_the_mixer() {
     engine.load_map("testmap").unwrap();
     engine.console.set("volume", "0.25");
     engine.tick(TICK, &InputState::default());
-    assert!((engine.audio.with_mixer(|m| m.volume) - 0.25).abs() < 1e-6);
+    let volume = engine.audio.with_mixer(|m| {
+        m.apply_control();
+        m.volume
+    });
+    assert!((volume - 0.25).abs() < 1e-6);
     let _ = std::fs::remove_dir_all(&dir);
 }
 
@@ -2393,7 +2397,10 @@ fn the_listener_follows_the_player() {
         engine.tick(TICK, &input);
     }
 
-    let ears = engine.audio.with_mixer(|m| m.listener.position);
+    let ears = engine.audio.with_mixer(|m| {
+        m.apply_control();
+        m.listener.position
+    });
     let eye = engine.player.movement.eye_position();
     assert!(
         (ears - eye).length() < 1.0,
@@ -3200,6 +3207,27 @@ fn a_trigger_hurt_that_kills_respawns_the_player_rather_than_leaving_them_dead()
 }
 
 #[test]
+fn respawning_replaces_the_player_entity_rather_than_adding_one() {
+    // Every death used to spawn a fresh `player` and leave the old one
+    // standing where it fell, for `find_by_class` to hand back.
+    let (mut engine, dir) = engine_with(&corridor_with_hurt("400"), "respawn-count");
+    let idle = InputState {
+        view_angles: Angles::ZERO,
+        ..Default::default()
+    };
+    for _ in 0..3 {
+        engine.hurt_player(1000.0, "test");
+        engine.tick(TICK, &idle);
+    }
+    assert_eq!(
+        engine.entities.find_by_class("player").len(),
+        1,
+        "one player, however many deaths"
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
 fn a_disabled_trigger_hurt_does_no_damage() {
     let mut map = corridor_with_hurt("50");
     let at = map.entities.len() - 1;
@@ -3388,5 +3416,44 @@ fn a_name_in_the_wrong_case_still_finds_the_file() {
             .sound(&engine.vfs.clone(), "test/beeploud")
             .is_some()
     );
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn archived_settings_and_bindings_come_back_through_config_cfg() {
+    use kerosene_engine::engine::{Engine, EngineConfig};
+    let dir = std::env::temp_dir().join(format!(
+        "kerosene-config-{}-{:?}",
+        std::process::id(),
+        std::thread::current().id()
+    ));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let config = EngineConfig {
+        content_paths: vec![dir.clone()],
+        ..Default::default()
+    };
+
+    // A session sets a couple of things and writes its config on the way out.
+    let mut engine = Engine::new(&config);
+    engine.console.run_buffered();
+    engine.console.execute("sensitivity 7.5");
+    let text = engine.config_text("bind \"f\" \"+use\"");
+    assert!(text.contains("sensitivity \"7.5\""), "{text}");
+    assert!(text.contains("unbindall"), "{text}");
+    engine.vfs.write("cfg/config.cfg", text.as_bytes()).unwrap();
+
+    // The next session reads it back before anything else runs.
+    let mut again = Engine::new(&config);
+    again.console.run_buffered();
+    assert_eq!(again.console.float("sensitivity"), 7.5);
+    let requests = kerosene_engine::engine::take_console_requests(&mut again);
+    assert!(
+        requests
+            .iter()
+            .any(|(kind, payload)| kind == "bind" && payload.contains("+use")),
+        "the bind reaches the host: {requests:?}"
+    );
+
     let _ = std::fs::remove_dir_all(&dir);
 }
