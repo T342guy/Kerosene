@@ -559,6 +559,7 @@ kerosene-tools kiln --only maps --fast           # just relight, quickly
 kerosene-tools kiln --only textures              # after adding art
 kerosene-tools kiln --dry-run                    # say what would run
 kerosene-tools kiln --tools                      # which pieces can be found
+kerosene-tools kiln --ship dist                  # build, then assemble a distribution
 ```
 
 Runs the whole content pipeline over a project: the texture build, then models
@@ -590,6 +591,17 @@ inside the content tree, which is where the engine looks for it.
 `scripts/build-content.sh` in this repository is a thin wrapper: it builds the
 toolset from source and regenerates the sample map from the code that defines
 it, then calls Kiln. Neither of those two belongs in a shipped tool.
+
+`--ship <dir>` is the stage after the content: it builds the project's
+`game` package if the `.keroproj` names one (or takes the `kerosene` runtime
+beside the toolset if not), then assembles a distribution — the binary, the
+`.vault` under `content/`, a `.keroproj` pointing at it, both licence texts
+and a `README.txt` carrying the notices the licences require. It copies a
+named list of files rather than a directory, so no tool ever ends up in a
+player's hands, and it refuses an archive that is missing or older than the
+content tree rather than shipping maps nobody built. What it does and does
+not do for a release is the subject of
+[Publishing](../gamedev/publishing.md).
 
 ---
 

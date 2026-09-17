@@ -14,4 +14,12 @@
 - [Scripting](./docs/scripting.md)
 - [Tools](./docs/tools.md)
 
+# Game developer docs
+
+- [Making a game](./gamedev/making-a-game.md)
+- [Publishing](./gamedev/publishing.md)
+- [Platforms & distribution](./gamedev/platforms.md)
+- [Shipping checklist](./gamedev/shipping-checklist.md)
+- [FAQ](./gamedev/faq.md)
+
 # Devnotes

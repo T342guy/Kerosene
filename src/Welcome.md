@@ -28,3 +28,7 @@ Kerosene currently supports the following features:
 - Hard-coded interaction keys (MB1 = Throw, E = Pick up/drop)
 - Entites
 - And more!
+
+Want to build a game on it rather than work on the engine? Start with the
+[Game developer docs](gamedev/making-a-game.md), and read
+[Publishing](gamedev/publishing.md) before you hand anything to anyone.
