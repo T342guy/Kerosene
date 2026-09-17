@@ -15,6 +15,9 @@ use kerosene_math::{Basis, Vec3};
 use std::sync::Arc;
 
 use crate::Sound;
+use crate::dsp::OnePole;
+use crate::env::VoiceEnv;
+use crate::reverb::{Fdn, ReverbParams};
 
 /// A playing sound, so it can be stopped or moved later.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
@@ -109,6 +112,22 @@ struct Voice {
     /// Gains applied last block, ramped towards rather than jumped to.
     gain: [f32; 2],
     started: bool,
+    /// What the world is doing to this voice, and what it will be doing:
+    /// muffling, quietening, and how much the room hears. Ramped like the
+    /// gains. At identity the whole path is skipped.
+    env: VoiceEnv,
+    env_target: VoiceEnv,
+    /// The muffling itself, one per ear.
+    lowpass: [OnePole; 2],
+    /// Whether the filters were running last block, so they can be primed
+    /// with the signal when they switch in rather than starting from zero.
+    shaped: bool,
+}
+
+impl Voice {
+    fn is_shaped(&self) -> bool {
+        !(self.env.is_identity() && self.env_target.is_identity())
+    }
 }
 
 /// How many voices may sound at once.
@@ -124,6 +143,10 @@ pub const MAX_VOICES: usize = 64;
 /// a click, and a sound moving past the listener changes gain every block.
 const RAMP: f32 = 0.35;
 
+/// How many finished voices the mixer will remember for the game thread
+/// before it starts forgetting the oldest. Well over what a tick can end.
+const MAX_ENDED: usize = 256;
+
 /// The mixer.
 pub struct Mixer {
     output_rate: u32,
@@ -135,6 +158,11 @@ pub struct Mixer {
     /// Where the game thread leaves a new listener and volume for the next
     /// block to pick up. See [`MixerControl`].
     control: Arc<MixerControl>,
+    /// The room, and the mono bus the voices feed it through.
+    reverb: Fdn,
+    send: Vec<f32>,
+    /// Voices that ran off the end since the game thread last asked.
+    ended: Vec<SoundHandle>,
 }
 
 /// The per-tick knobs, kept outside the mixer's own lock.
@@ -150,6 +178,14 @@ pub struct MixerControl {
     listener: std::sync::Mutex<Listener>,
     /// Volume as its bit pattern, so it needs no lock at all.
     volume: std::sync::atomic::AtomicU32,
+    /// The room the listener is in, and whether it changed since the mixer
+    /// last looked.
+    reverb: std::sync::Mutex<(ReverbParams, bool)>,
+    /// Per-voice shaping for the next block. Swapped in and out whole, so
+    /// neither thread allocates once both buffers have grown to size.
+    voice_env: std::sync::Mutex<Vec<(SoundHandle, VoiceEnv)>>,
+    /// Voices that finished, for the game thread to stop tracking.
+    ended: std::sync::Mutex<Vec<SoundHandle>>,
 }
 
 impl MixerControl {
@@ -157,7 +193,35 @@ impl MixerControl {
         MixerControl {
             listener: std::sync::Mutex::new(Listener::default()),
             volume: std::sync::atomic::AtomicU32::new(1.0f32.to_bits()),
+            reverb: std::sync::Mutex::new((ReverbParams::default(), false)),
+            voice_env: std::sync::Mutex::new(Vec::with_capacity(MAX_VOICES)),
+            ended: std::sync::Mutex::new(Vec::with_capacity(MAX_ENDED)),
         }
+    }
+
+    /// The room to be in, for the next block.
+    pub fn set_reverb(&self, params: ReverbParams) {
+        *self.reverb.lock().unwrap_or_else(|e| e.into_inner()) = (params, true);
+    }
+
+    /// Hand over every voice's shaping for the next block.
+    ///
+    /// Swaps the caller's list with the one held here and gives back the old
+    /// one, which the caller clears and refills next tick -- the two buffers
+    /// trade places forever and nobody allocates. A list the mixer has not
+    /// consumed yet is simply replaced: the newest is the one that matters.
+    pub fn set_voice_envs(&self, envs: &mut Vec<(SoundHandle, VoiceEnv)>) {
+        let mut held = self.voice_env.lock().unwrap_or_else(|e| e.into_inner());
+        std::mem::swap(&mut *held, envs);
+    }
+
+    /// Collect the voices that finished since last time, into the caller's
+    /// list -- swapped, like `set_voice_envs`, so the caller should clear
+    /// what it gets back once it has read it.
+    pub fn take_ended(&self, into: &mut Vec<SoundHandle>) {
+        let mut held = self.ended.lock().unwrap_or_else(|e| e.into_inner());
+        std::mem::swap(&mut *held, into);
+        held.clear();
     }
 
     /// Point the ears somewhere, for the next block.
@@ -183,6 +247,32 @@ impl Mixer {
             listener: Listener::default(),
             volume: 1.0,
             control: Arc::new(MixerControl::new()),
+            reverb: Fdn::new(output_rate.max(1)),
+            send: vec![0.0; 4096],
+            ended: Vec::with_capacity(MAX_ENDED),
+        }
+    }
+
+    /// The room, directly. `MixerControl::set_reverb` is the same from the
+    /// game thread.
+    pub fn set_reverb(&mut self, params: ReverbParams) {
+        self.reverb.set_params(params);
+    }
+
+    pub fn reverb(&self) -> &ReverbParams {
+        self.reverb.params()
+    }
+
+    /// Whether the room is doing anything at all this block.
+    pub fn reverb_active(&self) -> bool {
+        self.reverb.is_active()
+    }
+
+    /// Shape one voice, directly. From the game thread, hand a whole list to
+    /// `MixerControl::set_voice_envs` instead.
+    pub fn set_voice_env(&mut self, handle: SoundHandle, env: VoiceEnv) {
+        if let Some(voice) = self.voices.iter_mut().find(|v| v.handle == handle) {
+            voice.env_target = env;
         }
     }
 
@@ -204,6 +294,26 @@ impl Mixer {
                 .volume
                 .load(std::sync::atomic::Ordering::Relaxed),
         );
+        if let Ok(mut reverb) = self.control.reverb.try_lock()
+            && reverb.1
+        {
+            reverb.1 = false;
+            self.reverb.set_params(reverb.0);
+        }
+        if let Ok(mut envs) = self.control.voice_env.try_lock() {
+            for (handle, env) in envs.drain(..) {
+                if let Some(voice) = self.voices.iter_mut().find(|v| v.handle == handle) {
+                    voice.env_target = env;
+                }
+            }
+        }
+        if !self.ended.is_empty()
+            && let Ok(mut ended) = self.control.ended.try_lock()
+        {
+            let room = MAX_ENDED.saturating_sub(ended.len());
+            ended.extend(self.ended.drain(..).take(room));
+            self.ended.clear();
+        }
     }
 
     pub fn output_rate(&self) -> u32 {
@@ -234,6 +344,10 @@ impl Mixer {
             params,
             gain,
             started: false,
+            env: VoiceEnv::IDENTITY,
+            env_target: VoiceEnv::IDENTITY,
+            lowpass: [OnePole::open(); 2],
+            shaped: false,
         });
         handle
     }
@@ -269,13 +383,37 @@ impl Mixer {
         let listener = self.listener;
         let rate = self.output_rate as f64;
 
+        // The room's input. Only voices with a send touch it, so when
+        // nothing does it stays zero and costs nothing.
+        if self.send.len() < frames {
+            self.send.resize(frames, 0.0);
+        }
+        let send = &mut self.send[..frames];
+        send.fill(0.0);
+
         for voice in &mut self.voices {
             let target = gains_for(&voice.params, &listener);
             // Ramp from wherever the last block ended, except on the very
             // first block of a sound, which starts where it belongs.
             if !voice.started {
                 voice.gain = target;
+                voice.env = voice.env_target;
                 voice.started = true;
+            }
+
+            // Shaping by the world, if any. The cutoff moves once a block:
+            // the filter's output stays continuous across a coefficient
+            // change, so it need not move every frame the way gain does.
+            let shaped = voice.is_shaped();
+            let prime = shaped && !voice.shaped;
+            voice.shaped = shaped;
+            if shaped {
+                let from = voice.env.cutoff_hz.max(1.0).ln();
+                let to = voice.env_target.cutoff_hz.max(1.0).ln();
+                voice.env.cutoff_hz = (from + (to - from) * RAMP).exp();
+                for lp in &mut voice.lowpass {
+                    lp.set_cutoff(voice.env.cutoff_hz, rate as f32);
+                }
             }
 
             let source_rate = voice.sound.sample_rate.max(1) as f64;
@@ -309,9 +447,15 @@ impl Mixer {
                 for (gain, target) in voice.gain.iter_mut().zip(target) {
                     *gain += (target - *gain) * RAMP / frames as f32;
                 }
+                if shaped {
+                    let k = RAMP / frames as f32;
+                    voice.env.gain += (voice.env_target.gain - voice.env.gain) * k;
+                    voice.env.send += (voice.env_target.send - voice.env.send) * k;
+                }
 
                 let index = voice.cursor as usize;
                 let fraction = (voice.cursor - index as f64) as f32;
+                let mut mono = 0.0;
                 for channel in 0..2u16 {
                     let a = voice.sound.sample(index, channel);
                     let b = if voice.params.looping && index + 1 >= loop_end {
@@ -321,18 +465,48 @@ impl Mixer {
                     } else {
                         0.0
                     };
-                    let sample = a + (b - a) * fraction;
+                    let mut sample = a + (b - a) * fraction;
+                    if shaped {
+                        let lowpass = &mut voice.lowpass[channel as usize];
+                        if prime && frame == 0 {
+                            lowpass.prime(sample);
+                        }
+                        sample = lowpass.process(sample) * voice.env.gain;
+                        mono += sample * 0.5;
+                    }
                     out[frame * 2 + channel as usize] +=
                         sample * voice.gain[channel as usize] * master;
+                }
+                if shaped && voice.env.send > 0.0 {
+                    send[frame] += mono * voice.env.send * voice.params.volume.max(0.0) * master;
                 }
 
                 voice.cursor += step;
             }
+
+            // Once a shaped voice has ramped back to nothing, drop it onto
+            // the plain path again so it is bit for bit what it was.
+            if shaped && voice.env_target.is_identity() && voice.env.is_nearly_identity() {
+                voice.env = VoiceEnv::IDENTITY;
+                for lp in &mut voice.lowpass {
+                    *lp = OnePole::open();
+                }
+            }
         }
 
-        // Retire anything that ran off the end.
-        let voices = &mut self.voices;
-        voices.retain(|v| v.params.looping || v.cursor < v.sound.frames() as f64);
+        // The room on top of the dry mix.
+        self.reverb.process(&self.send[..frames], out);
+
+        // Retire anything that ran off the end, remembering who for the
+        // game thread.
+        let ended = &mut self.ended;
+        self.voices.retain(|v| {
+            let alive = v.params.looping || v.cursor < v.sound.frames() as f64;
+            if !alive && ended.len() < MAX_ENDED {
+                ended.push(v.handle);
+            }
+            alive
+        });
 
         // Clipping rather than wrapping: a sum over 1.0 has to become loud,
         // not become a different waveform.
@@ -358,7 +532,12 @@ impl Mixer {
             })
             .map(|(i, _)| i);
         if let Some(index) = quietest {
-            self.voices.remove(index);
+            let voice = self.voices.remove(index);
+            // Gone as surely as if it had ended, and the game thread tracking
+            // it needs to hear so.
+            if self.ended.len() < MAX_ENDED {
+                self.ended.push(voice.handle);
+            }
         }
     }
 }

@@ -354,4 +354,65 @@ fn stats_reports_every_lump() {
     let stats = bsp.stats();
     assert_eq!(stats.iter().find(|(n, _)| *n == "faces").unwrap().1, 1);
     assert_eq!(stats.iter().find(|(n, _)| *n == "leaves").unwrap().1, 2);
+    assert_eq!(
+        stats
+            .iter()
+            .find(|(n, _)| *n == "acoustic rooms")
+            .unwrap()
+            .1,
+        0
+    );
+}
+
+#[test]
+fn acoustics_round_trip_through_the_spare_lumps() {
+    use crate::acoustics::{self, AcousticRoom, Acoustics, NO_ROOM, room_flags};
+    let mut bsp = tiny_bsp();
+    let leaves = bsp.leaves.len();
+    assert!(bsp.acoustics.is_none());
+    bsp.acoustics = Some(Acoustics {
+        rooms: vec![AcousticRoom {
+            rt60: [1.0, 0.9, 0.7, 0.4],
+            absorption: [0.05; 4],
+            mean_free_path: 200.0,
+            predelay: 0.01,
+            openness: 0.0,
+            wet: 0.3,
+            diffusion: 0.5,
+            centre: [0.0; 3],
+            radius: 100.0,
+            volume: 1e6,
+            flags: room_flags::INHERITED,
+            leaf_count: 1,
+        }],
+        leaf_room: (0..leaves)
+            .map(|i| if i == 0 { NO_ROOM } else { 0 })
+            .collect(),
+        paths: vec![],
+    });
+    let bytes = bsp.to_bytes();
+    let dir: &[LumpDir] = bytemuck::cast_slice(&bytes[8..8 + LUMP_COUNT * 16]);
+    assert_eq!(dir[lumps::ACOUSTICS].ident, acoustics::MAGIC);
+    assert_eq!(dir[lumps::ACOUSTICS].version, acoustics::VERSION);
+    assert_eq!(dir[lumps::ACOUSTIC_LEAFS].length as usize, leaves * 2);
+
+    let back = Bsp::from_bytes(&bytes, "test.kerobsp").expect("should reload");
+    assert_eq!(back.acoustics, bsp.acoustics);
+    assert_eq!(
+        back.stats()
+            .iter()
+            .find(|(n, _)| *n == "acoustic rooms")
+            .unwrap()
+            .1,
+        1
+    );
+    assert_eq!(back.to_bytes(), bytes);
+
+    // A leaf lump of the wrong length is caught at the door.
+    bsp.acoustics.as_mut().unwrap().leaf_room.push(0);
+    let bytes = bsp.to_bytes();
+    assert!(matches!(
+        Bsp::from_bytes(&bytes, "bad.kerobsp"),
+        Err(BspError::Invalid { .. })
+    ));
 }

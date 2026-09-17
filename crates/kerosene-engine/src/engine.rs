@@ -11,9 +11,11 @@
 //! simulate identically -- and rendering interpolates between the last two
 //! states rather than dragging simulation along with it.
 
+use crate::acoustics;
 use crate::collision::{LevelCollision, PlayerCollision};
 use crate::input::InputState;
 use crate::physics::PhysicsProps;
+use kerosene_audio::ReverbParams;
 use kerosene_bsp::{Bsp, contents};
 use kerosene_console::{ConVarFlags, Console, requests};
 use kerosene_entity::{EntityId, EntityWorld, Value};
@@ -450,6 +452,10 @@ impl Engine {
             self.console
                 .warn("this map has no lighting; run Radiance on it");
         }
+        if bsp.acoustics.is_none() {
+            self.console
+                .warn("this map has no acoustics; run Resonance on it");
+        }
 
         // A fresh entity world per map: nothing from the last one should
         // survive, and a stale handle must not resolve.
@@ -677,6 +683,7 @@ impl Engine {
             self.player.view_angles.vectors(),
         );
         self.audio.set_volume(self.console.float("volume"));
+        self.update_acoustics();
 
         if input.use_key && !self.player.use_held {
             self.use_what_is_in_front();
@@ -817,6 +824,91 @@ impl Engine {
         // jump height where the designer put it.
         params.jump_impulse = params.jump_for_height(self.console.float("sv_jump_height"));
         params
+    }
+
+    /// Decide what the world around the listener sounds like, and tell the
+    /// mixer: the room's reverb, and per voice the air and walls between it
+    /// and the ear.
+    ///
+    /// A forced preset wins over the map, so a designer can audition a hall
+    /// without compiling one. A map with no acoustics is dry.
+    fn update_acoustics(&mut self) {
+        let eye = self.player.movement.eye_position();
+        let basis = self.player.view_angles.vectors();
+        let reverb_on = self.console.bool("snd_reverb");
+        let occlusion_on = self.console.bool("snd_occlusion");
+        let air_on = self.console.bool("snd_air");
+        let debug = self.console.int("snd_acoustics_debug");
+
+        let mut room = None;
+        let params = if !reverb_on {
+            ReverbParams::default()
+        } else {
+            let preset = self.console.string("snd_reverb_preset");
+            match ReverbParams::preset(preset) {
+                Some(p) => p,
+                None => {
+                    if !preset.trim().is_empty() {
+                        self.audio.warn_once(format!(
+                            "snd_reverb_preset `{preset}` is not one of {}",
+                            ReverbParams::PRESETS.join(", ")
+                        ));
+                    }
+                    match self
+                        .level
+                        .as_ref()
+                        .and_then(|level| acoustics::surroundings(&level.bsp, eye))
+                    {
+                        Some(here) => {
+                            room = Some(here.room);
+                            here.params
+                        }
+                        None => ReverbParams::default(),
+                    }
+                }
+            }
+        };
+        if debug >= 1 && room != self.audio.room {
+            match (
+                room,
+                self.level.as_ref().and_then(|l| l.bsp.acoustics.as_ref()),
+            ) {
+                (Some(index), Some(a)) => {
+                    let r = &a.rooms[index as usize];
+                    self.console.print(format!(
+                        "acoustics: room {index} ({} leaves) rt60 {:.2}/{:.2}/{:.2}/{:.2}s \
+                         pre {:.0}ms open {:.2} wet {:.2} path {:.0}",
+                        r.leaf_count,
+                        r.rt60[0],
+                        r.rt60[1],
+                        r.rt60[2],
+                        r.rt60[3],
+                        r.predelay * 1000.0,
+                        r.openness,
+                        r.wet,
+                        r.mean_free_path
+                    ));
+                }
+                _ => self.console.print("acoustics: no room here"),
+            }
+        }
+        self.audio.room = room;
+        self.audio.set_reverb(params);
+
+        let wet = if params.enabled { params.wet } else { 0.0 };
+        match &self.level {
+            Some(level) if occlusion_on => {
+                let bsp = &level.bsp;
+                self.audio.update_voices(eye, wet, air_on, |source| {
+                    match acoustics::reach(bsp, eye, &basis, source) {
+                        acoustics::Reach::Clear => Some(0.0),
+                        acoustics::Reach::Occluded(o) => Some(o),
+                        acoustics::Reach::Unreachable => None,
+                    }
+                });
+            }
+            _ => self.audio.update_voices(eye, wet, air_on, |_| Some(0.0)),
+        }
     }
 
     /// Tell every trigger whether the player is inside it, and take the
@@ -1435,6 +1527,36 @@ fn register_cvars(console: &mut Console) {
         Some(1.0),
         ConVarFlags::ARCHIVE,
         "Master sound volume.",
+    );
+    console.register_cvar(
+        "snd_reverb",
+        "1",
+        ConVarFlags::ARCHIVE,
+        "Room reverb. 0 is dry everywhere.",
+    );
+    console.register_cvar(
+        "snd_reverb_preset",
+        "",
+        ConVarFlags::ARCHIVE,
+        "Force a room everywhere: room, hall, cave, or outdoor. Empty uses the map's.",
+    );
+    console.register_cvar(
+        "snd_occlusion",
+        "1",
+        ConVarFlags::ARCHIVE,
+        "Muffle sounds behind walls, and silence ones with no way through.",
+    );
+    console.register_cvar(
+        "snd_air",
+        "1",
+        ConVarFlags::ARCHIVE,
+        "Let distance take the highs out of a sound, the way air does.",
+    );
+    console.register_cvar(
+        "snd_acoustics_debug",
+        "0",
+        ConVarFlags::CHEAT,
+        "1 reports the room you are in; 2 also draws rooms and occlusion traces.",
     );
 }
 

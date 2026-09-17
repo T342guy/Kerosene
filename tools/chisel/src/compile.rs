@@ -30,6 +30,9 @@ pub struct CompileSettings {
     pub run_vis: bool,
     /// Skip the expensive visibility pass. Right while a layout is moving.
     pub fast_vis: bool,
+    /// Work out what each room sounds like. Needs the materials, so it is
+    /// handed the content tree like Cleave is.
+    pub run_acoustics: bool,
     pub run_lighting: bool,
     /// Lightmap samples per luxel per axis.
     pub samples: u32,
@@ -47,6 +50,7 @@ impl Default for CompileSettings {
             content_root: PathBuf::from("content"),
             run_vis: true,
             fast_vis: false,
+            run_acoustics: true,
             run_lighting: true,
             samples: 2,
             bounces: 1,
@@ -251,6 +255,21 @@ fn run_compile(
         }
     }
 
+    if settings.run_acoustics {
+        let mut args = vec![
+            compiled.display().to_string(),
+            "--content".into(),
+            settings.content_root.display().to_string(),
+        ];
+        if settings.fast_vis {
+            args.push("--fast".into());
+        }
+        stage("resonance", &args, sender)?;
+        if cancelled() {
+            return Err(());
+        }
+    }
+
     if settings.run_lighting {
         let args = vec![
             compiled.display().to_string(),
@@ -355,7 +374,7 @@ fn stage(tool: &str, args: &[String], sender: &Sender<CompileMessage>) -> Result
 ///
 /// These are compiled into the very executable that is running the editor, so
 /// running one means re-invoking ourselves with the subcommand first.
-const COMPILERS: &[&str] = &["cleave", "umbra", "radiance"];
+const COMPILERS: &[&str] = &["cleave", "umbra", "resonance", "radiance"];
 
 /// Build a command for one of the pieces the compile pipeline needs.
 ///
@@ -399,7 +418,7 @@ pub fn tool_path(name: &str) -> Option<PathBuf> {
 /// compile" is otherwise a mystery. The compilers are always present -- they
 /// are this binary -- and only the engine runtime is looked up.
 pub fn available_tools() -> Vec<(&'static str, bool)> {
-    ["cleave", "umbra", "radiance", "kerosene"]
+    ["cleave", "umbra", "resonance", "radiance", "kerosene"]
         .iter()
         .map(|&name| {
             let found = if COMPILERS.contains(&name) {

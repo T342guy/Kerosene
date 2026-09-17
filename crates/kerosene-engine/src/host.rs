@@ -544,11 +544,23 @@ impl App {
             self.model_cache.insert(name.clone(), model);
         }
 
-        // Physics debug overlay: the prop boxes, when `phys_debug` is on.
-        let line_vertices: Vec<LineVertex> = if self.engine.console.int("phys_debug") >= 1 {
-            self.engine
-                .physics
-                .debug_lines()
+        // Debug overlays: the prop boxes when `phys_debug` is on, and the
+        // acoustic rooms and occlusion traces when `snd_acoustics_debug` is 2.
+        let mut debug_lines = Vec::new();
+        if self.engine.console.int("phys_debug") >= 1 {
+            debug_lines.extend(self.engine.physics.debug_lines());
+        }
+        if self.engine.console.int("snd_acoustics_debug") >= 2
+            && let Some(level) = &self.engine.level
+        {
+            debug_lines.extend(crate::acoustics::debug_lines(
+                &level.bsp,
+                self.engine.player.movement.eye_position(),
+                self.engine.audio.tracked_voices(),
+            ));
+        }
+        let line_vertices: Vec<LineVertex> = if !debug_lines.is_empty() {
+            debug_lines
                 .iter()
                 .flat_map(|l| {
                     [

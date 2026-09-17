@@ -8,7 +8,8 @@
 //!   error rather than a panic.
 //! * [`mixer`] turns voices into a stereo buffer. Pure arithmetic, no device,
 //!   which is what makes panning and falloff testable rather than something
-//!   you notice by ear on the third playthrough.
+//!   you notice by ear on the third playthrough. [`reverb`] and [`env`] are
+//!   the room and the air it applies on the way, built from [`dsp`].
 //! * [`device`] hands that buffer to the sound card, behind a feature flag,
 //!   because it is the only part that needs a C library on Linux and the only
 //!   part that cannot run in a test.
@@ -24,14 +25,19 @@ use std::sync::Arc;
 
 pub mod adpcm;
 pub mod compiled;
+pub mod dsp;
+pub mod env;
 pub mod mixer;
+pub mod reverb;
 pub mod script;
 pub mod wav;
 
 #[cfg(feature = "device")]
 pub mod device;
 
+pub use env::VoiceEnv;
 pub use mixer::{Listener, Mixer, MixerControl, SoundHandle, SoundParams, gains_for};
+pub use reverb::{BANDS_HZ, Fdn, ReverbParams};
 pub use script::{SoundDef, SoundScript};
 pub use wav::Sound;
 

@@ -22,7 +22,16 @@ use std::process::{Command, Stdio};
 
 /// The toolset's own subcommands, all compiled into the one executable.
 pub const TOOLSET: &[&str] = &[
-    "chisel", "cleave", "umbra", "radiance", "alchemy", "timbre", "forge", "vault", "kiln",
+    "chisel",
+    "cleave",
+    "umbra",
+    "resonance",
+    "radiance",
+    "alchemy",
+    "timbre",
+    "forge",
+    "vault",
+    "kiln",
 ];
 
 /// The runtime, still its own binary so a game can ship without the tools.
@@ -30,7 +39,16 @@ pub const RUNTIME: &str = "kerosene";
 
 /// Every name [`available`] reports, in a fixed order.
 pub const ALL: &[&str] = &[
-    "chisel", "cleave", "umbra", "radiance", "alchemy", "timbre", "forge", "vault", "kiln",
+    "chisel",
+    "cleave",
+    "umbra",
+    "resonance",
+    "radiance",
+    "alchemy",
+    "timbre",
+    "forge",
+    "vault",
+    "kiln",
     "kerosene",
 ];
 
@@ -97,7 +115,8 @@ mod tests {
     fn the_toolset_subcommands_are_all_known() {
         // The dispatcher and this list must not drift: a subcommand that is
         // compiled in but not listed here would be invisible to `--tools`.
-        assert_eq!(TOOLSET.len(), 9);
+        assert_eq!(TOOLSET.len(), 10);
+        assert!(TOOLSET.contains(&"resonance"));
         assert!(TOOLSET.contains(&"cleave"));
         assert!(TOOLSET.contains(&"chisel"));
     }

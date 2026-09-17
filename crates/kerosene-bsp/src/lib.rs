@@ -12,6 +12,8 @@
 //! * *Did I hit anything?* Traces walk the same tree, testing brush planes
 //!   rather than triangles.
 //! * *How is this surface lit?* Lightmaps are baked per face into [`Bsp::lighting`].
+//! * *What does it sound like here?* Each leaf names an acoustic room, and
+//!   the room says how long sound lingers (see [`acoustics`]).
 //!
 //! The format is a header, a lump directory, and flat arrays of `#[repr(C)]`
 //! records, so loading is a bounds check and a cast rather than a parse.
@@ -25,11 +27,13 @@
 //! not split space, which is the single biggest lever a level designer has
 //! over compile times.
 
+pub mod acoustics;
 pub mod io;
 pub mod trace;
 pub mod types;
 pub mod vis;
 
+pub use acoustics::{AcousticPath, AcousticRoom, Acoustics, NO_ROOM, room_flags};
 pub use io::{BspError, LumpDir, MAGIC, VERSION, write_bsp};
 pub use trace::Trace;
 pub use types::*;
@@ -58,6 +62,10 @@ pub mod lumps {
     pub const TEXDATA_STRINGS: usize = 15;
     pub const VISIBILITY: usize = 16;
     pub const LIGHTING: usize = 17;
+    /// Rooms; see [`crate::acoustics`]. Took a spare slot, so no version bump.
+    pub const ACOUSTICS: usize = 18;
+    /// One `u16` per leaf: which room it is in.
+    pub const ACOUSTIC_LEAFS: usize = 19;
 
     pub const NAMES: [&str; super::LUMP_COUNT] = [
         "entities",
@@ -78,13 +86,13 @@ pub mod lumps {
         "texdata_strings",
         "visibility",
         "lighting",
-        "reserved18",
-        "reserved19",
+        "acoustics",
+        "acoustic_leafs",
     ];
 }
 
-/// Slots in the lump directory. Two spare so a later lump can be added without
-/// a format version bump.
+/// Slots in the lump directory. Two were left spare so a later lump could be
+/// added without a format version bump; the acoustics lumps took them.
 pub const LUMP_COUNT: usize = 20;
 
 /// A compiled map.
@@ -116,6 +124,8 @@ pub struct Bsp {
     pub visibility: Vec<u8>,
     /// Baked lightmap samples; empty until Radiance runs.
     pub lighting: Vec<ColorRgbExp32>,
+    /// Rooms and which leaf is in which; `None` until Resonance runs.
+    pub acoustics: Option<Acoustics>,
 }
 
 impl Bsp {
@@ -155,6 +165,14 @@ impl Bsp {
     }
 
     /// Leaf containing `point` in the world model.
+    /// The acoustic room around a point, if the map has acoustics and the
+    /// point is somewhere sound was measured.
+    pub fn room_at(&self, point: Vec3) -> Option<(u16, &AcousticRoom)> {
+        self.acoustics
+            .as_ref()?
+            .room_of_leaf(self.point_leaf(point))
+    }
+
     pub fn point_leaf(&self, point: Vec3) -> usize {
         let head = self.models.first().map_or(0, |m| m.head_node);
         self.point_leaf_from(point, head)
@@ -206,6 +224,19 @@ impl Bsp {
         }
         match VisData::new(&self.visibility) {
             Some(v) => v.is_visible(from as usize, to as usize, VisKind::Pvs),
+            None => true,
+        }
+    }
+
+    /// Whether sound from one cluster can reach another at all: the PAS,
+    /// which is the PVS grown by one room. A doorway you cannot see
+    /// through is still one you can hear through.
+    pub fn cluster_audible(&self, from: i16, to: i16) -> bool {
+        if from < 0 || to < 0 {
+            return true;
+        }
+        match VisData::new(&self.visibility) {
+            Some(v) => v.is_visible(from as usize, to as usize, VisKind::Pas),
             None => true,
         }
     }
@@ -465,6 +496,9 @@ impl Bsp {
                 return Err(format!("model {i} face range runs past the lump"));
             }
         }
+        if let Some(acoustics) = &self.acoustics {
+            acoustics.validate(self.leaves.len())?;
+        }
         Ok(())
     }
 
@@ -489,6 +523,10 @@ impl Bsp {
             ("clusters", self.num_clusters()),
             ("vis bytes", self.visibility.len()),
             ("lightmap samples", self.lighting.len()),
+            (
+                "acoustic rooms",
+                self.acoustics.as_ref().map_or(0, |a| a.rooms.len()),
+            ),
         ]
     }
 }

@@ -12,13 +12,32 @@
 //! and one without, and only one of those would ever be tested. Here, a
 //! missing device costs the last hop to the speakers and nothing else.
 
-use kerosene_audio::{Mixer, Sound, SoundBank, SoundHandle, SoundParams, SoundScript};
+use kerosene_audio::{
+    Mixer, ReverbParams, Sound, SoundBank, SoundHandle, SoundParams, SoundScript, VoiceEnv, env,
+};
 use kerosene_math::{Basis, Vec3};
 use kerosene_vfs::Vfs;
 use std::sync::{Arc, Mutex};
 
 /// The sample rate used when there is no device to ask.
 const HEADLESS_RATE: u32 = 48_000;
+
+/// How many voices get their occlusion re-traced in one tick. The rest keep
+/// last tick's answer and take their turn next time; walls do not move
+/// much in a sixty-fourth of a second.
+const OCCLUSION_BUDGET: usize = 24;
+
+/// A positioned voice the engine steers through the world every tick.
+#[derive(Clone, Copy, Debug)]
+struct TrackedVoice {
+    handle: SoundHandle,
+    position: Vec3,
+    reference_distance: f32,
+    max_distance: f32,
+    /// How much wall was between it and the ear when last asked: `None`
+    /// means no path at all.
+    occlusion: Option<f32>,
+}
 
 pub struct AudioSystem {
     pub bank: SoundBank,
@@ -32,6 +51,20 @@ pub struct AudioSystem {
     /// Warnings already given, so a bad entity is one line and not one per
     /// trigger.
     warned: std::collections::HashSet<String>,
+    /// The room last handed to the mixer, so an unchanged one costs nothing
+    /// a tick.
+    reverb: Option<ReverbParams>,
+    /// Every positioned voice still playing, and the buffers that carry its
+    /// shaping to the mixer and its ending back. The buffers trade places
+    /// with the mixer's rather than being rebuilt, so steady state allocates
+    /// nothing.
+    tracked: Vec<TrackedVoice>,
+    envs: Vec<(SoundHandle, VoiceEnv)>,
+    ended: Vec<SoundHandle>,
+    /// Where the round-robin over occlusion traces got to.
+    occlusion_cursor: usize,
+    /// The acoustic room the listener was last in, for the debug readout.
+    pub room: Option<u16>,
 }
 
 impl Default for AudioSystem {
@@ -53,6 +86,12 @@ impl AudioSystem {
             device: None,
             status: "no audio device".to_string(),
             warned: std::collections::HashSet::new(),
+            reverb: None,
+            tracked: Vec::new(),
+            envs: Vec::new(),
+            ended: Vec::new(),
+            occlusion_cursor: 0,
+            room: None,
         }
     }
 
@@ -72,6 +111,12 @@ impl AudioSystem {
                         device: Some(device),
                         status,
                         warned: std::collections::HashSet::new(),
+                        reverb: None,
+                        tracked: Vec::new(),
+                        envs: Vec::new(),
+                        ended: Vec::new(),
+                        occlusion_cursor: 0,
+                        room: None,
                     }
                 }
                 Err(e) => {
@@ -138,12 +183,136 @@ impl AudioSystem {
         self.control.set_volume(volume);
     }
 
-    pub fn stop_all(&self) {
-        self.with_mixer(|mixer| mixer.stop_all());
+    /// The room the listener is in, for the next block. Handed over only
+    /// when it differs from last time; the mixer slides to it from wherever
+    /// it is.
+    pub fn set_reverb(&mut self, params: ReverbParams) {
+        if self.reverb != Some(params) {
+            self.reverb = Some(params);
+            self.control.set_reverb(params);
+        }
     }
 
-    pub fn stop(&self, handle: SoundHandle) {
+    /// The room the mixer was last told about.
+    pub fn reverb(&self) -> Option<ReverbParams> {
+        self.reverb
+    }
+
+    pub fn stop_all(&mut self) {
+        self.with_mixer(|mixer| mixer.stop_all());
+        self.tracked.clear();
+    }
+
+    pub fn stop(&mut self, handle: SoundHandle) {
         self.with_mixer(|mixer| mixer.stop(handle));
+        self.tracked.retain(|v| v.handle != handle);
+    }
+
+    /// Start a decoded sound, and follow it through the world if it has a
+    /// place in it. Every voice the engine starts comes through here, so
+    /// none escapes the shaping.
+    pub fn start(&mut self, sound: Arc<Sound>, params: SoundParams) -> SoundHandle {
+        let handle = self.with_mixer(|mixer| mixer.play(sound, params));
+        if let Some(position) = params.position {
+            self.tracked.push(TrackedVoice {
+                handle,
+                position,
+                reference_distance: params.reference_distance,
+                max_distance: params.max_distance,
+                occlusion: Some(0.0),
+            });
+        }
+        handle
+    }
+
+    /// Move a positioned voice.
+    pub fn move_voice(&mut self, handle: SoundHandle, position: Vec3) {
+        self.with_mixer(|mixer| mixer.set_position(handle, position));
+        if let Some(v) = self.tracked.iter_mut().find(|v| v.handle == handle) {
+            v.position = position;
+        }
+    }
+
+    /// How many positioned voices are being followed.
+    pub fn tracked_count(&self) -> usize {
+        self.tracked.len()
+    }
+
+    /// Where every followed voice is and how much wall was last found in
+    /// its way (`None`: no way through), for the debug overlay.
+    pub fn tracked_voices(&self) -> impl Iterator<Item = (Vec3, Option<f32>)> + '_ {
+        self.tracked.iter().map(|v| (v.position, v.occlusion))
+    }
+
+    /// Shape every tracked voice for the next block: air over its distance,
+    /// walls in its way, and how much of it the listener's room should hear.
+    ///
+    /// `reach` answers, for a source position, how much wall lies between it
+    /// and the ear -- `None` for no path at all -- and is asked for at most
+    /// [`OCCLUSION_BUDGET`] voices a tick, the others keeping their last
+    /// answer. Traces are the one expensive thing here and the map is the
+    /// engine's, which is why the question is a callback.
+    pub fn update_voices(
+        &mut self,
+        eye: Vec3,
+        room_wet: f32,
+        air: bool,
+        mut reach: impl FnMut(Vec3) -> Option<f32>,
+    ) {
+        // Forget what has finished.
+        self.control.take_ended(&mut self.ended);
+        if !self.ended.is_empty() {
+            let ended = &self.ended;
+            self.tracked.retain(|v| !ended.contains(&v.handle));
+            self.ended.clear();
+        }
+        if self.tracked.is_empty() {
+            return;
+        }
+
+        // Ask about walls, a budget's worth at a time, round robin.
+        let count = self.tracked.len();
+        let asked = count.min(OCCLUSION_BUDGET);
+        for i in 0..asked {
+            let index = (self.occlusion_cursor + i) % count;
+            let position = self.tracked[index].position;
+            self.tracked[index].occlusion = reach(position);
+        }
+        self.occlusion_cursor = (self.occlusion_cursor + asked) % count;
+
+        self.envs.clear();
+        for voice in &self.tracked {
+            let distance = voice.position.distance(eye);
+            let mut shaped = VoiceEnv::IDENTITY;
+            if air {
+                shaped.cutoff_hz = env::air_cutoff(distance);
+            }
+            match voice.occlusion {
+                None => {
+                    shaped.gain = 0.0;
+                }
+                Some(occlusion) if occlusion > 0.0 => {
+                    shaped.cutoff_hz = shaped.cutoff_hz.min(env::occlusion_cutoff(occlusion));
+                    shaped.gain = env::occlusion_gain(occlusion);
+                }
+                Some(_) => {}
+            }
+            if shaped.gain > 0.0 && room_wet > 0.0 {
+                // The room hears it as far as the ear does, fading out over
+                // the same last quarter the dry sound does.
+                let fade_from = voice.max_distance * 0.75;
+                let fade = if distance >= voice.max_distance {
+                    0.0
+                } else if distance > fade_from {
+                    1.0 - (distance - fade_from) / (voice.max_distance - fade_from).max(1e-3)
+                } else {
+                    1.0
+                };
+                shaped.send = env::send_for(room_wet, distance, voice.reference_distance) * fade;
+            }
+            self.envs.push((voice.handle, shaped));
+        }
+        self.control.set_voice_envs(&mut self.envs);
     }
 
     /// Load every `.kerosnd` in the content tree.
@@ -233,13 +402,13 @@ impl AudioSystem {
         let (_, mut params) = self.bank.resolve(name);
         params.position = position;
         params.volume *= volume_scale.max(0.0);
-        Some(self.with_mixer(|mixer| mixer.play(sound, params)))
+        Some(self.start(sound, params))
     }
 
     /// Play with parameters worked out by the caller.
     pub fn play_with(&mut self, vfs: &Vfs, name: &str, params: SoundParams) -> Option<SoundHandle> {
         let sound = self.sound(vfs, name)?;
-        Some(self.with_mixer(|mixer| mixer.play(sound, params)))
+        Some(self.start(sound, params))
     }
 
     /// Forget every decoded sound, keeping the scripts.

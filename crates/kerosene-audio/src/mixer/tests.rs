@@ -454,3 +454,232 @@ fn mixing_into_an_empty_buffer_is_not_an_error() {
     mixer.play(steady(100, 1), SoundParams::default());
     mixer.mix(&mut []);
 }
+
+// ---- the world: room, air, walls ------------------------------------------
+
+use crate::env::VoiceEnv;
+use crate::reverb::ReverbParams;
+
+/// Deterministic white noise, so a filter's effect is visible as an energy
+/// ratio rather than a waveform to squint at.
+fn noise(frames: usize) -> Arc<Sound> {
+    let mut seed = 12345u32;
+    let samples = (0..frames)
+        .map(|_| {
+            seed = seed.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+            (seed >> 8) as f32 / (1u32 << 24) as f32 * 2.0 - 1.0
+        })
+        .collect();
+    Arc::new(Sound {
+        channels: 1,
+        sample_rate: RATE,
+        samples,
+    })
+}
+
+/// Energy in the top of the band, as a share of the total: the energy of
+/// the first difference is a crude high-pass.
+fn treble_share(out: &[f32]) -> f32 {
+    let left: Vec<f32> = out.iter().step_by(2).copied().collect();
+    let total: f32 = left.iter().map(|s| s * s).sum();
+    let diff: f32 = left.windows(2).map(|w| (w[1] - w[0]).powi(2)).sum();
+    diff / total.max(1e-12)
+}
+
+fn mix_seconds(mixer: &mut Mixer, seconds: f32) -> Vec<f32> {
+    let frames = (seconds * RATE as f32) as usize;
+    let mut out = vec![0.0; frames * 2];
+    for chunk in out.chunks_mut(512) {
+        mixer.mix(chunk);
+    }
+    out
+}
+
+#[test]
+fn disabled_reverb_is_bit_identical() {
+    let mut plain = mixer();
+    let mut off = mixer();
+    off.set_reverb(ReverbParams {
+        enabled: false,
+        ..ReverbParams::preset("hall").unwrap()
+    });
+    let sound = noise(4000);
+    plain.play(
+        Arc::clone(&sound),
+        SoundParams::at(Vec3::new(100.0, 50.0, 0.0)),
+    );
+    off.play(sound, SoundParams::at(Vec3::new(100.0, 50.0, 0.0)));
+    let a = mix_seconds(&mut plain, 0.2);
+    let b = mix_seconds(&mut off, 0.2);
+    assert!(a.iter().any(|s| *s != 0.0));
+    assert!(
+        a.iter().zip(&b).all(|(x, y)| x.to_bits() == y.to_bits()),
+        "a disabled room changed the output"
+    );
+}
+
+#[test]
+fn a_voice_that_returns_to_identity_is_bit_identical_again() {
+    let mut plain = mixer();
+    let mut shaped = mixer();
+    let sound = noise(RATE as usize * 2);
+    plain.play(Arc::clone(&sound), SoundParams::default().looping());
+    let handle = shaped.play(sound, SoundParams::default().looping());
+    shaped.set_voice_env(
+        handle,
+        VoiceEnv {
+            cutoff_hz: 500.0,
+            gain: 0.5,
+            send: 0.0,
+        },
+    );
+    mix_seconds(&mut shaped, 0.5);
+    shaped.set_voice_env(handle, VoiceEnv::IDENTITY);
+    mix_seconds(&mut shaped, 0.5);
+    mix_seconds(&mut plain, 1.0);
+    let a = mix_seconds(&mut plain, 0.1);
+    let b = mix_seconds(&mut shaped, 0.1);
+    assert!(
+        a.iter().zip(&b).all(|(x, y)| x.to_bits() == y.to_bits()),
+        "the voice did not come back to the plain path"
+    );
+}
+
+#[test]
+fn occluded_voice_loses_highs() {
+    let mut open = mixer();
+    let mut shut = mixer();
+    let sound = noise(RATE as usize);
+    open.play(Arc::clone(&sound), SoundParams::default().looping());
+    let handle = shut.play(sound, SoundParams::default().looping());
+    shut.set_voice_env(
+        handle,
+        VoiceEnv {
+            cutoff_hz: crate::env::occlusion_cutoff(1.0),
+            gain: crate::env::occlusion_gain(1.0),
+            send: 0.0,
+        },
+    );
+    // Let the cutoff ramp settle before measuring.
+    mix_seconds(&mut shut, 0.5);
+    mix_seconds(&mut open, 0.5);
+    let bright = treble_share(&mix_seconds(&mut open, 0.5));
+    let dull = treble_share(&mix_seconds(&mut shut, 0.5));
+    assert!(
+        dull < bright * 0.3,
+        "occlusion left the treble at {dull} of {bright}"
+    );
+    let (l, _) = peaks(&mut shut, 512);
+    assert!(l < 0.5, "occlusion left the level at {l}");
+}
+
+#[test]
+fn voice_env_gain_ramps_rather_than_jumps() {
+    let mut m = mixer();
+    let handle = m.play(steady(RATE as usize, 1), SoundParams::default().looping());
+    let mut out = vec![0.0; 512 * 2];
+    m.mix(&mut out);
+    m.set_voice_env(
+        handle,
+        VoiceEnv {
+            gain: 0.2,
+            ..VoiceEnv::IDENTITY
+        },
+    );
+    let mut last = 1.0f32;
+    for _ in 0..20 {
+        m.mix(&mut out);
+        for s in out.iter().step_by(2) {
+            assert!(
+                *s <= last + 1e-6,
+                "the level went back up: {s} after {last}"
+            );
+            assert!(last - *s < 0.01, "the level jumped from {last} to {s}");
+            last = *s;
+        }
+    }
+    assert!((last - 0.2).abs() < 0.02, "the ramp did not arrive: {last}");
+}
+
+#[test]
+fn a_sent_voice_leaves_a_tail() {
+    let tail_after = |send: f32| {
+        let mut m = mixer();
+        m.set_reverb(ReverbParams::preset("hall").unwrap());
+        let handle = m.play(noise(RATE as usize / 4), SoundParams::default());
+        m.set_voice_env(
+            handle,
+            VoiceEnv {
+                send,
+                ..VoiceEnv::IDENTITY
+            },
+        );
+        mix_seconds(&mut m, 0.5);
+        assert_eq!(m.voice_count(), 0, "the sound should have ended");
+        let out = mix_seconds(&mut m, 0.2);
+        out.iter().map(|s| s * s).sum::<f32>()
+    };
+    assert_eq!(
+        tail_after(0.0),
+        0.0,
+        "a voice with no send reached the room"
+    );
+    assert!(tail_after(1.0) > 1e-3, "a sent voice left no tail");
+}
+
+#[test]
+fn the_room_is_set_through_the_control() {
+    let m = mixer();
+    let control = m.control();
+    let mut m = m;
+    control.set_reverb(ReverbParams::preset("cave").unwrap());
+    m.apply_control();
+    assert_eq!(*m.reverb(), ReverbParams::preset("cave").unwrap());
+}
+
+#[test]
+fn ended_voices_are_reported_once() {
+    let mut m = mixer();
+    let control = m.control();
+    let short = m.play(steady(64, 1), SoundParams::default());
+    let long = m.play(steady(64, 1), SoundParams::default().looping());
+    mix_seconds(&mut m, 0.05);
+    let mut ended = Vec::new();
+    control.take_ended(&mut ended);
+    assert_eq!(ended, vec![short]);
+    ended.clear();
+    mix_seconds(&mut m, 0.05);
+    control.take_ended(&mut ended);
+    assert!(ended.is_empty(), "{ended:?}");
+    assert!(m.is_playing(long));
+}
+
+#[test]
+fn voice_env_swap_never_allocates() {
+    let mut m = mixer();
+    let control = m.control();
+    let handle = m.play(steady(64, 1), SoundParams::default().looping());
+    let mut envs: Vec<(SoundHandle, VoiceEnv)> = Vec::with_capacity(MAX_VOICES);
+    let mine = envs.capacity();
+    let mut out = vec![0.0; 256];
+    let mut seen = std::collections::HashSet::new();
+    for i in 0..1000 {
+        envs.clear();
+        envs.push((
+            handle,
+            VoiceEnv {
+                gain: 0.5 + (i % 2) as f32 * 0.1,
+                ..VoiceEnv::IDENTITY
+            },
+        ));
+        control.set_voice_envs(&mut envs);
+        m.mix(&mut out);
+        seen.insert(envs.as_ptr() as usize);
+        assert!(envs.capacity() >= mine, "a buffer shrank");
+    }
+    assert!(
+        seen.len() <= 2,
+        "the two buffers should trade places, not be replaced: {} distinct",
+        seen.len()
+    );
+}

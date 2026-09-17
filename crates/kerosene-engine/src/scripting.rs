@@ -339,7 +339,7 @@ impl Engine {
             params.reference_distance = (radius * 0.1).max(16.0);
         }
 
-        let handle = self.audio.with_mixer(|mixer| mixer.play(sound, params));
+        let handle = self.audio.start(sound, params);
         if let Some(e) = self.entities.get_mut(id) {
             e.fields
                 .set("__voice", kerosene_entity::Value::Int(handle.0 as i32));

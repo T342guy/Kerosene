@@ -22,8 +22,8 @@ scriptable and replaceable, while one binary carries them all.
                                emissive, occlusion + the material      │
    art/*.obj ──forge────► models/*.keromdl ────────────────────────────┤
    sound/*.{wav,flac,mp3} ──timbre──► sound/*.keroaud ─────────────────┤
-   maps/*.keromap ─cleave─► *.kerobsp ─umbra─► +vis ─radiance─► +light ┤
-                                                                       └─vault─► content.vault ─► kerosene
+   maps/*.keromap ─cleave─► *.kerobsp ─umbra─► +vis ─resonance─► +sound ─radiance─► +light ┤
+                                                                                            └─vault─► content.vault ─► kerosene
 
    chisel drives all of it: edits the map, runs the compilers, launches kerosene.
    kiln   runs the same pipeline over a whole project, with no editor.
@@ -65,6 +65,7 @@ the engine.
 | **Chisel** (editor) | The world editor. Four viewports, brush editing, entity I/O wiring, compile-and-run. | Hammer |
 | **Cleave** | `.keromap` → `.kerobsp`. CSG, BSP tree, portals, leak detection. | `vbsp` |
 | **Umbra** | Computes the PVS — which parts of a level can see which. | `vvis` |
+| **Resonance** | Works out what each room sounds like from its shape and materials, for the engine's reverb. | (Source has no equivalent) |
 | **Radiance** | Bakes static lighting into lightmaps. | `vrad` |
 | **Alchemy** | Compiles textures and authors materials. | VTFEdit / `vtex` |
 | **Timbre** (sound) | Compiles sounds — WAV, FLAC or MP3. Has a waveform view and a gain slider. | (Source has no equivalent) |
@@ -187,22 +188,23 @@ cargo run -p kerosene-runtime -- --headless 640 +map kero_start
 
 ## Compiling a map by hand
 
-The three stages are separate on purpose. Each reads and writes files, so you
+The four stages are separate on purpose. Each reads and writes files, so you
 can stop after any of them, run them from a Makefile, or parallelise them
 across a build farm.
 
 ```sh
-cleave   content/maps/kero_start.keromap    # → .kerobsp and .keroprt
-umbra    content/maps/kero_start.kerobsp    # → adds visibility
-radiance content/maps/kero_start.kerobsp    # → adds lighting
+cleave    content/maps/kero_start.keromap    # → .kerobsp and .keroprt
+umbra     content/maps/kero_start.kerobsp    # → adds visibility
+resonance content/maps/kero_start.kerobsp    # → adds acoustics
+radiance  content/maps/kero_start.kerobsp    # → adds lighting
 ```
 
-An unvised, unlit map still loads and plays; it just draws everything and looks
-flat. That is deliberate — you should be able to walk a level thirty seconds
-after drawing it.
+An unvised, unlit map still loads and plays; it just draws everything, looks
+flat and sounds dry. That is deliberate — you should be able to walk a level
+thirty seconds after drawing it.
 
-`umbra --fast` and `radiance --fast` skip the expensive passes while a layout
-is still moving.
+`umbra --fast`, `resonance --fast` and `radiance --fast` skip the expensive
+passes while a layout is still moving.
 
 ---
 
@@ -256,7 +258,7 @@ crates/
   kerosene-engine     the host: ties it together, with and without a window
   kerosene-game       entity classes — the game DLL analogue
 tools/
-  chisel cleave umbra radiance alchemy forge vault kiln
+  chisel cleave umbra resonance radiance alchemy forge vault kiln
 apps/
   kerosene        the runtime
 kerosene.keroproj  the project file: what content tree this is, and where

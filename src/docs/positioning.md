@@ -52,7 +52,7 @@ controller written for someone else's game.
 The other half is the pipeline. Those levels are still convex solids compiled
 to a BSP tree with a precomputed PVS, because for a shooter that has to hold
 sixty frames a second, nothing beats the level telling you what you can see.
-That is Cleave, Umbra and Radiance.
+That is Cleave, Umbra, Resonance and Radiance.
 
 So: Kerosene is already good at the two things that mattered enough to build a
 studio's flagship on. What it does not have is everything that was built on

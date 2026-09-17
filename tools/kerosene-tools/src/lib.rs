@@ -24,6 +24,10 @@ pub const SUBCOMMANDS: &[(&str, &str)] = &[
     ),
     ("cleave", "compile a .keromap into a .kerobsp"),
     ("umbra", "compute the PVS for a compiled map"),
+    (
+        "resonance",
+        "work out what each part of a compiled map sounds like",
+    ),
     ("radiance", "bake static lighting into a compiled map"),
     ("alchemy", "compile textures and author materials"),
     ("forge", "compile source meshes into .keromdl models"),
@@ -38,6 +42,7 @@ pub fn run_subcommand(name: &str, args: Vec<String>) -> anyhow::Result<()> {
         "init" => init::run(args),
         "cleave" => cleave::run(args),
         "umbra" => umbra::run(args),
+        "resonance" => resonance::run(args),
         "radiance" => radiance::run(args),
         "alchemy" => alchemy::run(args),
         "forge" => forge::run(args),

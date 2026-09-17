@@ -43,5 +43,8 @@ egui-winit.workspace = true
 
 [dev-dependencies]
 cleave = { path = "../../tools/cleave" }
+umbra = { path = "../../tools/umbra" }
+resonance = { path = "../../tools/resonance" }
+kerosene-asset.workspace = true
 kerosene-map.workspace = true
 kerosene-bsp.workspace = true

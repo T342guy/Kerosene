@@ -223,6 +223,20 @@ impl Material {
         SurfaceProperty::parse(self.surface_property())
     }
 
+    /// How much sound this surface soaks up, per band.
+    ///
+    /// `$acoustics` says so outright -- four numbers, or the name of a
+    /// surface whose numbers to borrow -- and otherwise it follows from
+    /// `$surfaceprop`, so a level made of ordinary materials sounds right
+    /// without anyone having tuned a thing. The override exists for the
+    /// texture that *looks* like concrete and is meant to be acoustic tile.
+    pub fn acoustics(&self) -> AcousticProfile {
+        match self.get("$acoustics").map(AcousticProfile::parse) {
+            Some(Some(profile)) => profile,
+            _ => AcousticProfile::of(&self.surface_type()),
+        }
+    }
+
     /// Uniform colour tint, defaulting to white.
     pub fn color_tint(&self) -> Vec3 {
         self.get("$color")
@@ -312,6 +326,79 @@ impl SurfaceProperty {
     /// convention `footstep/<surface>/<step number>`.
     pub fn footstep_sound(&self, step: u8) -> String {
         format!("footstep/{}/{}", self.as_str(), step % 4 + 1)
+    }
+}
+
+/// The bands acoustics are tabulated in, in hertz. The same four the mixer's
+/// reverb decays independently; defined here too so the asset crate does not
+/// have to know there is a mixer.
+pub const ACOUSTIC_BANDS_HZ: [f32; 4] = [125.0, 500.0, 2000.0, 8000.0];
+
+/// The most a surface may absorb. Nothing is a perfect sink, and a compiler
+/// that took one literally would divide by the log of zero.
+pub const MAX_ABSORPTION: f32 = 0.98;
+
+/// How much of the sound striking a surface does not come back, per band,
+/// 0 to [`MAX_ABSORPTION`].
+///
+/// Absorption coefficients in the sense an acoustician uses them -- the
+/// figures are the published ones for the materials named, rounded to the
+/// four bands. Every surface in a room contributes its own, and the
+/// compiler's ray probe turns the lot into how long the room rings.
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct AcousticProfile(pub [f32; 4]);
+
+impl AcousticProfile {
+    /// What `$surfaceprop` implies, absent an override.
+    pub fn of(surface: &SurfaceProperty) -> AcousticProfile {
+        AcousticProfile(match surface {
+            SurfaceProperty::Default => [0.05, 0.06, 0.07, 0.08],
+            SurfaceProperty::Concrete => [0.02, 0.03, 0.05, 0.07],
+            SurfaceProperty::Metal => [0.05, 0.04, 0.03, 0.03],
+            SurfaceProperty::Wood => [0.15, 0.10, 0.07, 0.07],
+            SurfaceProperty::Glass => [0.18, 0.04, 0.03, 0.02],
+            SurfaceProperty::Carpet => [0.02, 0.14, 0.60, 0.65],
+            SurfaceProperty::Dirt => [0.15, 0.30, 0.40, 0.50],
+            SurfaceProperty::Grass => [0.11, 0.26, 0.60, 0.69],
+            SurfaceProperty::Snow => [0.45, 0.75, 0.90, 0.95],
+            SurfaceProperty::Water => [0.01, 0.01, 0.02, 0.03],
+            SurfaceProperty::Other(_) => [0.05, 0.06, 0.07, 0.08],
+        })
+    }
+
+    /// Parse the value of `$acoustics`: four numbers per band, or the name
+    /// of a surface property to borrow from. Anything else is `None`, and
+    /// the caller falls back to `$surfaceprop` rather than guessing.
+    pub fn parse(value: &str) -> Option<AcousticProfile> {
+        let value = value.trim();
+        let words: Vec<&str> = value.split_whitespace().collect();
+        match words.as_slice() {
+            [a, b, c, d] => {
+                let mut bands = [0.0; 4];
+                for (band, word) in bands.iter_mut().zip([a, b, c, d]) {
+                    let n = word.parse::<f32>().ok()?;
+                    *band = if n.is_finite() {
+                        n.clamp(0.0, MAX_ABSORPTION)
+                    } else {
+                        0.0
+                    };
+                }
+                Some(AcousticProfile(bands))
+            }
+            // A name is looked up. An unknown one is unknown rather than
+            // `Other`, which would silently mean "default", and a lone
+            // number is a mistake, not a name.
+            [name] if name.parse::<f32>().is_err() => match SurfaceProperty::parse(name) {
+                SurfaceProperty::Other(_) => None,
+                known => Some(AcousticProfile::of(&known)),
+            },
+            _ => None,
+        }
+    }
+
+    /// Absorption in one band, clamped to what the compiler can use.
+    pub fn band(&self, band: usize) -> f32 {
+        self.0[band.min(3)].clamp(0.0, MAX_ABSORPTION)
     }
 }
 
@@ -412,6 +499,86 @@ lit
     #[test]
     fn an_empty_file_is_an_error() {
         assert!(matches!(Material::parse(""), Err(MaterialError::NoShader)));
+    }
+
+    #[test]
+    fn acoustics_follow_the_surface_property() {
+        let m = Material::parse(SAMPLE).unwrap();
+        assert_eq!(
+            m.acoustics(),
+            AcousticProfile::of(&SurfaceProperty::Concrete)
+        );
+        let bare = Material::parse("lit { }").unwrap();
+        assert_eq!(
+            bare.acoustics(),
+            AcousticProfile::of(&SurfaceProperty::Default)
+        );
+        let odd = Material::parse(r#"lit { "$surfaceprop" "cheese" }"#).unwrap();
+        assert_eq!(
+            odd.acoustics(),
+            AcousticProfile::of(&SurfaceProperty::Default)
+        );
+    }
+
+    #[test]
+    fn acoustics_can_be_stated_outright() {
+        let m = Material::parse(r#"lit { "$acoustics" "0.02 0.14 0.60 0.65" }"#).unwrap();
+        assert_eq!(m.acoustics(), AcousticProfile([0.02, 0.14, 0.60, 0.65]));
+        // Clamped, not trusted.
+        let m = Material::parse(r#"lit { "$acoustics" "-1 2 nan 0.5" }"#).unwrap();
+        assert_eq!(
+            m.acoustics(),
+            AcousticProfile([0.0, MAX_ABSORPTION, 0.0, 0.5])
+        );
+    }
+
+    #[test]
+    fn acoustics_can_borrow_another_surface() {
+        let m =
+            Material::parse(r#"lit { "$surfaceprop" "concrete" "$acoustics" "carpet" }"#).unwrap();
+        assert_eq!(m.acoustics(), AcousticProfile::of(&SurfaceProperty::Carpet));
+        assert_eq!(
+            m.surface_type(),
+            SurfaceProperty::Concrete,
+            "the footsteps stay concrete"
+        );
+    }
+
+    #[test]
+    fn a_bad_acoustics_value_falls_back_to_the_surface() {
+        for bad in ["0.1 0.2", "0.1 0.2 0.3 0.4 0.5", "velvet", "", "0.5"] {
+            let text = format!(r#"lit {{ "$surfaceprop" "metal" "$acoustics" "{bad}" }}"#);
+            let m = Material::parse(&text).unwrap();
+            assert_eq!(
+                m.acoustics(),
+                AcousticProfile::of(&SurfaceProperty::Metal),
+                "{bad:?} should have been ignored"
+            );
+        }
+    }
+
+    #[test]
+    fn every_surface_absorbs_something_and_not_everything() {
+        for s in [
+            SurfaceProperty::Default,
+            SurfaceProperty::Concrete,
+            SurfaceProperty::Metal,
+            SurfaceProperty::Wood,
+            SurfaceProperty::Glass,
+            SurfaceProperty::Carpet,
+            SurfaceProperty::Dirt,
+            SurfaceProperty::Grass,
+            SurfaceProperty::Snow,
+            SurfaceProperty::Water,
+        ] {
+            for b in 0..4 {
+                let a = AcousticProfile::of(&s).band(b);
+                assert!(a > 0.0 && a <= MAX_ABSORPTION, "{s:?} band {b} = {a}");
+            }
+        }
+        // Soft things eat the highs; hard things barely eat anything.
+        assert!(AcousticProfile::of(&SurfaceProperty::Carpet).band(3) > 0.5);
+        assert!(AcousticProfile::of(&SurfaceProperty::Concrete).band(3) < 0.1);
     }
 
     #[test]

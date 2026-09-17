@@ -32,8 +32,8 @@ quickly.
   source or otherwise.
 * **Changing Kerosene itself** means distributing those changed files under
   MPL-2.0 too. The obligation is confined to the files you actually change.
-* **The tools work the same way.** Chisel, Cleave, Umbra, Radiance, Alchemy,
-  Timbre, Forge, Vault and Kiln are all under the same terms.
+* **The tools work the same way.** Chisel, Cleave, Umbra, Resonance, Radiance,
+  Alchemy, Timbre, Forge, Vault and Kiln are all under the same terms.
 
 **LGPL-3.0-or-later is copyleft on the engine as a whole.** It is the
 stronger of the two:

@@ -22,9 +22,11 @@ flowchart LR
     n12 --> n13(["maps/*.kerobsp"]) & n15(["`*.keroprt`"])
     n13 --> n14["umbra"]
     n15 --> n14
-    n14 --> n16["+vis"] & n17["radiance"]
+    n14 --> n16["+vis"] & n17["radiance"] & n20["resonance"]
     n16 --> n9
     n17 --> n18["+light"]
+    n20 --> n21["+sound"]
+    n21 --> n16
     n18 <--> n16 & n19["chisel"]
     n19 --> n6
 
@@ -83,6 +85,7 @@ flowchart TB
     n4 --> n5
     n6(["umbra"]) --> n5
     n7(["radiance"]) --> n6
+    n20(["resonance"]) --> n6 & n14
     n5 --> n8
     n10(["Box3d-rust"]) --> n9
     n12["kerosene-game"] --> n11
@@ -201,6 +204,21 @@ When the cone closes to nothing, everything beyond is invisible.
 
 The result is a bit per cluster pair, run-length encoded. At runtime the
 renderer decompresses one row and skips every leaf not in it.
+
+### Resonance: acoustics
+
+Every leaf is listened to from inside: a few hundred rays go out and bounce
+until they have nothing left, and each surface they strike gives up how much
+it soaks up per band, from its material. The averages — how far a ray goes
+between surfaces, how much it loses at each — are what Eyring's formula for
+reverberation time wants, measured in the room's actual shape rather than
+assumed for a box.
+
+Leaves that touch and sound alike are then gathered into rooms by union-find
+over the portal graph, widest portals first, merging only while the merged
+average still sounds like both halves. A hall the tree cut into twenty leaves
+is one hall again; a doorway is a boundary because the two sides disagree.
+One record per room goes in the map, and a leaf-to-room table beside it.
 
 ### Radiance: lighting
 

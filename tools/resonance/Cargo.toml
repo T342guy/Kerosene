@@ -1,0 +1,23 @@
+[package]
+name = "resonance"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+kerosene-math.workspace = true
+kerosene-bsp.workspace = true
+kerosene-asset.workspace = true
+kerosene-vfs.workspace = true
+kerosene-kv.workspace = true
+umbra = { path = "../umbra" }
+anyhow.workspace = true
+clap.workspace = true
+log.workspace = true
+rayon.workspace = true
+
+[dev-dependencies]
+cleave = { path = "../cleave" }
+kerosene-map.workspace = true

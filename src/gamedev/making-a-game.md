@@ -114,7 +114,8 @@ skips the visibility and lighting passes while a layout is still moving; an
 unvised, unlit map loads and plays, it just draws everything and looks flat.
 
 Everything Kiln does is also a subcommand you can run by hand or from a build
-server — `cleave`, `umbra`, `radiance`, `alchemy`, `forge`, `timbre`, `vault`
+server — `cleave`, `umbra`, `resonance`, `radiance`, `alchemy`, `forge`,
+`timbre`, `vault`
 — and [Tools](../docs/tools.md) is the reference for each.
 
 When the game is ready for other people, the last stage is

@@ -437,6 +437,55 @@ rate in a BSP engine. Lower is better.
 `--fast` stops after the base estimate: much quicker, leaves far too much
 visible, and exactly what you want while a layout is still moving.
 
+Umbra also writes the *potentially audible set* — the PVS grown by one room —
+which is what lets the engine silence a sound that has no way of reaching you.
+
+---
+
+## Resonance — the acoustics compiler
+
+```sh
+kerosene-tools resonance map.kerobsp [--content DIR] [--portals map.keroprt]
+                  [--fast | --extra] [--rooms] [--dry-run]
+```
+
+Works out what each part of the map sounds like, and writes it back so the
+engine's reverb reads it straight off the map. An empty concrete hall rings;
+a carpeted office does not; a courtyard open to the sky barely does at all —
+and nobody placed anything to make it so. See
+[`audio.md`](audio.md#how-a-room-sounds) for what the engine does with it.
+
+It listens by throwing rays. From inside every leaf a few hundred rays go out
+and bounce until they have nothing left, and each surface they strike gives
+up how much it soaks up per band — from the material's `$surfaceprop`, or its
+`$acoustics` key when a designer has said otherwise. The averages are what
+Eyring's formula wants, measured rather than assumed, in a shape no formula
+assumes. Leaves that touch and sound alike are then gathered into *rooms*, one
+record each, so a hall the BSP cut into twenty pieces is one hall again and a
+doorway is a boundary because the two sides disagree.
+
+| Output | |
+|---|---|
+| `rt60` | Seconds for each of 125, 500, 2000 and 8000 Hz to fall 60 dB |
+| `predelay` | Time before the first reflection: the round trip to the nearest wall |
+| `openness` | The share of rays that escaped to the sky; over 0.35 is outdoors |
+| `wet` | How loud the room is next to the sound itself |
+| `diffusion` | How evenly the reflections are spread |
+
+`--rooms` prints the table. `--fast` uses a third of the rays, which is
+rougher and several times quicker; `--extra` four times as many, for a final
+build. It needs the materials, so it is told where the content is like Cleave
+is, and it reads the portal file Umbra reads to know which leaves touch —
+without one it joins leaves whose bounds touch, which is close.
+
+| Entity | |
+|---|---|
+| `env_acoustic_override` | The designer's last word: `rt60`, `wet`, `predelay`, `openness` for the room it sits in, and every room within `radius`. Anything left blank keeps the measured figure. |
+
+The whole thing is deterministic — the rays are seeded from the leaf index —
+so the same map compiles to the same bytes, and a room that rings differently
+after a rebuild does so because the map changed.
+
 ---
 
 ## Radiance — the lighting compiler
@@ -563,8 +612,8 @@ kerosene-tools kiln --ship dist                  # build, then assemble a distri
 ```
 
 Runs the whole content pipeline over a project: the texture build, then models
-through Forge, then every map through Cleave, Umbra and Radiance, then the
-pack into a `.vault`.
+through Forge, then every map through Cleave, Umbra, Resonance and Radiance,
+then the pack into a `.vault`.
 
 It is a program rather than a shell script for one reason, and it is the
 reason that matters: **a script is not shipped**. Install the tools, or copy
@@ -700,6 +749,7 @@ the thing they set it for.
 | `r_drawworld` `r_fullbright` `r_lightmap` `r_novis` | rendering toggles (cheat) |
 | `r_speeds` | per-frame culling and draw statistics |
 | `mat_exposure` | overall brightness |
+| `volume` `snd_reverb` `snd_reverb_preset` | sound; see [`audio.md`](audio.md#how-a-room-sounds) |
 | `developer` | verbosity; `2` also traces entity I/O |
 
 `sv_air_max_wishspeed` is the air-speed cap that makes bunny-hopping and

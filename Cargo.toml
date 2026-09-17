@@ -23,6 +23,7 @@ members = [
     "tools/chisel",
     "tools/cleave",
     "tools/umbra",
+    "tools/resonance",
     "tools/radiance",
     "tools/alchemy",
     "tools/timbre",

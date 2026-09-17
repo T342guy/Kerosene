@@ -751,7 +751,7 @@ pub struct DebugLine {
 }
 
 /// The 12 edges of a box, as corner index pairs.
-const BOX_EDGES: [(usize, usize); 12] = [
+pub const BOX_EDGES: [(usize, usize); 12] = [
     (0, 1),
     (0, 2),
     (0, 4),

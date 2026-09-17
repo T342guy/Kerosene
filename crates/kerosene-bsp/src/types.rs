@@ -432,6 +432,9 @@ mod tests {
         assert_eq!(size_of::<TexInfo>(), 72);
         assert_eq!(size_of::<TexData>(), 32);
         assert_eq!(size_of::<ColorRgbExp32>(), 4);
+        assert_eq!(size_of::<crate::acoustics::AcousticHeader>(), 32);
+        assert_eq!(size_of::<crate::acoustics::AcousticRoom>(), 80);
+        assert_eq!(size_of::<crate::acoustics::AcousticPath>(), 8);
         for a in [
             align_of::<BspPlane>(),
             align_of::<Face>(),

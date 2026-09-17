@@ -225,7 +225,16 @@ impl log::Log for LogRelay {
 /// Log targets are crate paths with underscores, so `kerosene` catches
 /// `kerosene_engine`, `kerosene_render` and the rest, and each tool catches itself.
 const OURS: &[&str] = &[
-    "kerosene", "chisel", "cleave", "umbra", "radiance", "alchemy", "forge", "vault", "kiln",
+    "kerosene",
+    "chisel",
+    "cleave",
+    "umbra",
+    "resonance",
+    "radiance",
+    "alchemy",
+    "forge",
+    "vault",
+    "kiln",
 ];
 
 /// Whether a log target is one of ours.

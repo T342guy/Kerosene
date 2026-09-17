@@ -52,6 +52,8 @@ pub fn register(registry: &mut ClassRegistry) {
         "light",
         "light_spot",
         "light_environment",
+        // Read by Resonance at compile time, like the lights by Radiance.
+        "env_acoustic_override",
         "func_detail",
         // A ladder is geometry, not behaviour: the compiler gives its brushes
         // ladder contents and the movement solver does the rest, so there is

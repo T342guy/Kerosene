@@ -3,7 +3,7 @@
 | Extension | What | Text or binary | Written by | Source analogue |
 |---|---|---|---|---|
 | `.keromap` | Editable map source | text (KeyValues) | Chisel | `.vmf` |
-| `.kerobsp` | Compiled map | binary, lump directory | Cleave / Umbra / Radiance | `.bsp` |
+| `.kerobsp` | Compiled map | binary, lump directory | Cleave / Umbra / Resonance / Radiance | `.bsp` |
 | `.keroprt` | Portal graph | text | Cleave | `.prt` |
 | `.keroleak` | Leak trace | text | Cleave | `.lin` |
 | `.kerowalk` | NPC walkmap | binary | Cleave | (Source has no equivalent) |
@@ -105,8 +105,10 @@ bounds check and a cast rather than a parse.
 | models | Model 0 is the world; 1..n are brush entities |
 | brushes, brushsides | Convex collision volumes |
 | texinfo, texdata, texdata_strings | Materials and their projections |
-| visibility | The run-length-encoded PVS |
+| visibility | The run-length-encoded PVS, and the PAS beside it |
 | lighting | Baked lightmap samples |
+| acoustics | One record per room: how long sound lingers there, per band |
+| acoustic_leafs | One `u16` per leaf: which room it is in |
 
 **The surfedge indirection.** A face's vertices are reached through a run of
 *surfedges*, each a signed index into the edge lump — negative meaning "walk
@@ -122,6 +124,16 @@ use the plane and its inverse.
 That is what lets a baked lightmap carry values well above 1.0 — a bright sky,
 a lamp against a wall — in four bytes instead of twelve, and it is why the
 lighting can be tone-mapped at runtime rather than clipped at bake time.
+
+**Rooms.** The two acoustics lumps took the directory's two spare slots, so
+adding them moved no version. The first is an `ACST` header — the four band
+frequencies, then how many rooms and paths follow — and an 80-byte record per
+room: decay time per band, the absorption it was derived from, mean free path,
+pre-delay, openness, wet level, diffusion, a bounding sphere, volume, flags and
+a leaf count. The second is one `u16` per leaf naming its room, `0xFFFF` for a
+leaf in none. An empty acoustics lump is a map Resonance has not run on, the
+same way an empty visibility lump is a map without vis; the engine plays it
+dry and says so.
 
 Every index in the file is validated at load. A dangling one becomes an
 out-of-bounds read deep inside the renderer, where the cause is invisible.
@@ -216,11 +228,19 @@ rather than a variant per combination.
 | `$ao` | Baked occlusion, multiplied into the lighting. Darkens what the surface shadows itself, which the lightmap's luxels are far too coarse to see. |
 
 `$surfaceprop` is the physical type the surface is made of — `concrete`,
-`metal`, `wood`, and so on. It has one runtime consumer today: a trace that
+`metal`, `wood`, and so on. It has two consumers. At runtime a trace that
 stops against a face reports the face's material, and the engine parses that
 material's `$surfaceprop` to choose a footstep sound (`footstep/<type>/n`).
-Unknown types parse to `other` rather than failing, so a game's own surface
-names still work without the engine shipping them.
+At compile time Resonance reads it for how much sound the surface soaks up,
+per band, from a table of the published figures for each type: carpet eats
+the highs, concrete eats almost nothing, snow eats almost everything. Unknown
+types parse to `other` rather than failing, so a game's own surface names
+still work without the engine shipping them.
+
+`$acoustics` overrides that, for the texture that looks like concrete and is
+meant to be acoustic tile: either four absorption coefficients for 125, 500,
+2000 and 8000 Hz — `"0.02 0.14 0.60 0.65"` — or the name of a surface type
+to borrow them from, `"carpet"`, leaving the footsteps as they were.
 
 ## `.keromdl` — models
 

@@ -2647,6 +2647,12 @@ impl ChiselApp {
                 ui.horizontal(|ui| {
                     ui.checkbox(&mut settings.run_vis, "visibility");
                     ui.checkbox(&mut settings.fast_vis, "fast");
+                    ui.checkbox(&mut settings.run_acoustics, "acoustics")
+                        .on_hover_text(
+                            "Resonance: work out how each room sounds from its shape \
+                             and materials, for the engine's reverb. Fast applies here \
+                             too, with fewer rays per room.",
+                        );
                     ui.checkbox(&mut settings.run_lighting, "lighting");
                     ui.checkbox(&mut settings.run_after, "run after");
                 });

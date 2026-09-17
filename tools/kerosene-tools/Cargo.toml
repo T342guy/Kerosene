@@ -21,6 +21,7 @@ path = "src/lib.rs"
 chisel = { path = "../chisel" }
 cleave = { path = "../cleave" }
 umbra = { path = "../umbra" }
+resonance = { path = "../resonance" }
 radiance = { path = "../radiance" }
 alchemy = { path = "../alchemy" }
 forge = { path = "../forge" }

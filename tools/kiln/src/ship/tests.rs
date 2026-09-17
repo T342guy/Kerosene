@@ -167,7 +167,15 @@ fn no_tool_is_ever_shipped_with_a_game() {
         let stem = name.trim_end_matches(".exe");
         assert!(
             ![
-                "chisel", "cleave", "umbra", "radiance", "alchemy", "timbre", "forge", "vault",
+                "chisel",
+                "cleave",
+                "umbra",
+                "resonance",
+                "radiance",
+                "alchemy",
+                "timbre",
+                "forge",
+                "vault",
                 "kiln"
             ]
             .contains(&stem),

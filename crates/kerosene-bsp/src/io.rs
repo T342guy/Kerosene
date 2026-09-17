@@ -6,7 +6,7 @@
 //! see [`crate::types`]. Lumps carry their own version number so a format bump
 //! to one lump does not invalidate the rest of the file.
 
-use crate::{Bsp, LUMP_COUNT, lumps};
+use crate::{Bsp, LUMP_COUNT, acoustics, acoustics::Acoustics, lumps};
 use bytemuck::{Pod, cast_slice};
 use std::path::Path;
 use thiserror::Error;
@@ -170,6 +170,11 @@ impl Bsp {
             texdata_strings: slice(lumps::TEXDATA_STRINGS)?.to_vec(),
             visibility: slice(lumps::VISIBILITY)?.to_vec(),
             lighting: read_lump(slice(lumps::LIGHTING)?, name, lumps::NAMES[lumps::LIGHTING])?,
+            acoustics: Acoustics::parse(slice(lumps::ACOUSTICS)?, slice(lumps::ACOUSTIC_LEAFS)?)
+                .map_err(|detail| BspError::Invalid {
+                    path: name.to_string(),
+                    detail,
+                })?,
         };
 
         bsp.validate().map_err(|detail| BspError::Invalid {
@@ -229,6 +234,17 @@ impl Bsp {
         push(&mut dir, lumps::TEXDATA_STRINGS, &self.texdata_strings);
         push(&mut dir, lumps::VISIBILITY, &self.visibility);
         push(&mut dir, lumps::LIGHTING, cast_slice(&self.lighting));
+        let (acoustics, acoustic_leafs) = self
+            .acoustics
+            .as_ref()
+            .map(|a| a.encode())
+            .unwrap_or_default();
+        push(&mut dir, lumps::ACOUSTICS, &acoustics);
+        push(&mut dir, lumps::ACOUSTIC_LEAFS, &acoustic_leafs);
+        if self.acoustics.is_some() {
+            dir[lumps::ACOUSTICS].version = acoustics::VERSION;
+            dir[lumps::ACOUSTICS].ident = acoustics::MAGIC;
+        }
 
         let mut out = Vec::with_capacity(HEADER_SIZE + body.len());
         out.extend_from_slice(&MAGIC);

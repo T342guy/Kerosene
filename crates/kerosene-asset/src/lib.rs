@@ -28,7 +28,10 @@ pub mod model;
 pub mod texture;
 pub mod textureset;
 
-pub use material::{Material, MaterialError, Shader, SurfaceProperty};
+pub use material::{
+    ACOUSTIC_BANDS_HZ, AcousticProfile, MAX_ABSORPTION, Material, MaterialError, Shader,
+    SurfaceProperty,
+};
 pub use model::{Bone, Mesh, Model, ModelError, Vertex};
 pub use texture::{Mip, PixelFormat, Texture, TextureError, TextureFlags};
 pub use textureset::{MapKind, TextureSet};

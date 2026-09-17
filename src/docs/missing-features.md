@@ -68,8 +68,8 @@ for completeness.
   compiled texture (from the project found next to the map, or `--content`)
   and writes its real size, warning by name for any it cannot find. Maps
   compiled before this carry the old 512 and want a recompile.
-- **Audio.** Stereo only. Falloff and panning exist; occlusion, reverb, and
-  doppler do not.
+- **Audio.** Stereo only. Falloff, panning, occlusion, air absorption and
+  a per-room reverb the compiler measures exist; doppler does not.
 
 ## 3. Rendering and visuals
 
@@ -179,13 +179,14 @@ for completeness.
 
 ## 7. Audio
 
-- **Occlusion / reverb / doppler** (acknowledged). A sound through a wall is
-  as loud as one in the room. Occlusion is one BSP trace per voice; reverb
-  is a soundscape entity or a per-leaf setting. Horror hinges on both.
+- ~~**Occlusion / reverb**~~ Fixed: Resonance measures every room at compile
+  time and the mixer has a reverb that reads it; walls muffle, and a sound
+  with no way through is silent. See [`audio.md`](audio.md#how-a-room-sounds).
+- **Doppler.** A sound moving past you does not bend in pitch.
 - **3D spatialization.** No HRTF, no surround.
-- **Audio effects / mixing buses.** The mixer is voices into a stereo buffer.
-  No EQ, reverb sends, compression, ducking, or effects graph -- and no volume
-  convars for an options screen to drive.
+- **Audio effects / mixing buses.** The mixer is voices into a stereo buffer
+  with one reverb bus. No EQ, compression, ducking, or effects graph -- and
+  no volume convars for an options screen to drive.
 - **Streaming audio.** Sounds are decoded whole; no streaming for long
   ambience or music.
 - **Footstep/impact effects.** `$surfaceprop` now parses into a
@@ -443,8 +444,8 @@ shooter or immersive sim, cheapest first.
 6. **Weapons and damage.** Hitscan, ammo, `OnDamaged`, decals for the holes.
 7. **Steam, Workshop first.** The one thing here no engine of this size can
    match, and the architecture was built for it.
-8. **Audio occlusion, reverb, impact sounds.** The horror genre, and the
-   physics sandbox sounding like one.
+8. **Impact sounds.** The physics sandbox sounding like one; the room it
+   happens in already rings.
 
 Everything after that -- animation, NPCs, networking -- is in the sections
 above and is not smaller for being later.

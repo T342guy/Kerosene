@@ -327,7 +327,7 @@ fn build_models(settings: &Settings) -> Result<usize> {
     Ok(built)
 }
 
-/// Take one map through the three compilers.
+/// Take one map through the four compilers.
 fn build_map(settings: &Settings, map: &Path, report: &mut Report) -> Result<()> {
     let name = map
         .file_stem()
@@ -353,7 +353,7 @@ fn build_map(settings: &Settings, map: &Path, report: &mut Report) -> Result<()>
     }
     if let Err(e) = sealed {
         if report.leaking.last() == Some(&name) {
-            println!("  {name} leaks; skipping vis and lighting");
+            println!("  {name} leaks; skipping vis, acoustics and lighting");
             return Ok(());
         }
         return Err(e);
@@ -364,6 +364,18 @@ fn build_map(settings: &Settings, map: &Path, report: &mut Report) -> Result<()>
         args.push("--fast".into())
     }
     run_tool("umbra", &args, settings)?;
+
+    // Acoustics read the materials, so they are told where the content is
+    // rather than left to find it.
+    let mut args = vec![
+        compiled.display().to_string(),
+        "--content".into(),
+        settings.content.display().to_string(),
+    ];
+    if settings.fast {
+        args.push("--fast".into())
+    }
+    run_tool("resonance", &args, settings)?;
 
     let mut args = vec![compiled.display().to_string()];
     if settings.fast {

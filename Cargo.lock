@@ -49,7 +49,7 @@ dependencies = [
 
 [[package]]
 name = "alchemy"
-version = "0.1.0-prealpha.3"
+version = "0.1.0-prealpha.4"
 dependencies = [
  "anyhow",
  "clap",
@@ -364,7 +364,7 @@ checksum = "f079e83a288787bcd14a6aea84cee5c87a67c5a3e660c30f557a3d24761b3527"
 
 [[package]]
 name = "chisel"
-version = "0.1.0-prealpha.3"
+version = "0.1.0-prealpha.4"
 dependencies = [
  "alchemy",
  "anyhow",
@@ -426,7 +426,7 @@ checksum = "c8d4a3bb8b1e0c1050499d1815f5ab16d04f0959b233085fb31653fbfc9d98f9"
 
 [[package]]
 name = "cleave"
-version = "0.1.0-prealpha.3"
+version = "0.1.0-prealpha.4"
 dependencies = [
  "anyhow",
  "clap",
@@ -925,7 +925,7 @@ checksum = "aa9a19cbb55df58761df49b23516a86d432839add4af60fc256da840f66ed35b"
 
 [[package]]
 name = "forge"
-version = "0.1.0-prealpha.3"
+version = "0.1.0-prealpha.4"
 dependencies = [
  "anyhow",
  "clap",
@@ -1404,7 +1404,7 @@ dependencies = [
 
 [[package]]
 name = "kerosene-asset"
-version = "0.1.0-prealpha.3"
+version = "0.1.0-prealpha.4"
 dependencies = [
  "anyhow",
  "bytemuck",
@@ -1417,7 +1417,7 @@ dependencies = [
 
 [[package]]
 name = "kerosene-audio"
-version = "0.1.0-prealpha.3"
+version = "0.1.0-prealpha.4"
 dependencies = [
  "cpal",
  "kerosene-kv",
@@ -1428,7 +1428,7 @@ dependencies = [
 
 [[package]]
 name = "kerosene-bsp"
-version = "0.1.0-prealpha.3"
+version = "0.1.0-prealpha.4"
 dependencies = [
  "anyhow",
  "bytemuck",
@@ -1442,7 +1442,7 @@ dependencies = [
 
 [[package]]
 name = "kerosene-config"
-version = "0.1.0-prealpha.3"
+version = "0.1.0-prealpha.4"
 dependencies = [
  "kerosene-kv",
  "log",
@@ -1451,7 +1451,7 @@ dependencies = [
 
 [[package]]
 name = "kerosene-console"
-version = "0.1.0-prealpha.3"
+version = "0.1.0-prealpha.4"
 dependencies = [
  "log",
  "thiserror 2.0.20",
@@ -1459,7 +1459,7 @@ dependencies = [
 
 [[package]]
 name = "kerosene-engine"
-version = "0.1.0-prealpha.3"
+version = "0.1.0-prealpha.4"
 dependencies = [
  "anyhow",
  "bytemuck",
@@ -1486,14 +1486,16 @@ dependencies = [
  "kerosene-vfs",
  "log",
  "pollster",
+ "resonance",
  "rhai",
+ "umbra",
  "wgpu",
  "winit",
 ]
 
 [[package]]
 name = "kerosene-entity"
-version = "0.1.0-prealpha.3"
+version = "0.1.0-prealpha.4"
 dependencies = [
  "anyhow",
  "glam",
@@ -1509,7 +1511,7 @@ dependencies = [
 
 [[package]]
 name = "kerosene-game"
-version = "0.1.0-prealpha.3"
+version = "0.1.0-prealpha.4"
 dependencies = [
  "glam",
  "kerosene-bsp",
@@ -1524,7 +1526,7 @@ dependencies = [
 
 [[package]]
 name = "kerosene-kv"
-version = "0.1.0-prealpha.3"
+version = "0.1.0-prealpha.4"
 dependencies = [
  "kerosene-math",
  "thiserror 2.0.20",
@@ -1532,7 +1534,7 @@ dependencies = [
 
 [[package]]
 name = "kerosene-map"
-version = "0.1.0-prealpha.3"
+version = "0.1.0-prealpha.4"
 dependencies = [
  "anyhow",
  "glam",
@@ -1544,7 +1546,7 @@ dependencies = [
 
 [[package]]
 name = "kerosene-math"
-version = "0.1.0-prealpha.3"
+version = "0.1.0-prealpha.4"
 dependencies = [
  "bytemuck",
  "glam",
@@ -1552,7 +1554,7 @@ dependencies = [
 
 [[package]]
 name = "kerosene-physics"
-version = "0.1.0-prealpha.3"
+version = "0.1.0-prealpha.4"
 dependencies = [
  "glam",
  "kerosene-bsp",
@@ -1562,7 +1564,7 @@ dependencies = [
 
 [[package]]
 name = "kerosene-render"
-version = "0.1.0-prealpha.3"
+version = "0.1.0-prealpha.4"
 dependencies = [
  "anyhow",
  "bytemuck",
@@ -1580,7 +1582,7 @@ dependencies = [
 
 [[package]]
 name = "kerosene-rigid"
-version = "0.1.0-prealpha.3"
+version = "0.1.0-prealpha.4"
 dependencies = [
  "box3d-rust",
  "glam",
@@ -1589,7 +1591,7 @@ dependencies = [
 
 [[package]]
 name = "kerosene-runtime"
-version = "0.1.0-prealpha.3"
+version = "0.1.0-prealpha.4"
 dependencies = [
  "anyhow",
  "clap",
@@ -1605,7 +1607,7 @@ dependencies = [
 
 [[package]]
 name = "kerosene-script"
-version = "0.1.0-prealpha.3"
+version = "0.1.0-prealpha.4"
 dependencies = [
  "kerosene-math",
  "log",
@@ -1615,7 +1617,7 @@ dependencies = [
 
 [[package]]
 name = "kerosene-tools"
-version = "0.1.0-prealpha.3"
+version = "0.1.0-prealpha.4"
 dependencies = [
  "alchemy",
  "anyhow",
@@ -1631,6 +1633,7 @@ dependencies = [
  "kiln",
  "log",
  "radiance",
+ "resonance",
  "timbre",
  "umbra",
  "vault",
@@ -1638,7 +1641,7 @@ dependencies = [
 
 [[package]]
 name = "kerosene-ui"
-version = "0.1.0-prealpha.3"
+version = "0.1.0-prealpha.4"
 dependencies = [
  "anyhow",
  "egui",
@@ -1653,7 +1656,7 @@ dependencies = [
 
 [[package]]
 name = "kerosene-vfs"
-version = "0.1.0-prealpha.3"
+version = "0.1.0-prealpha.4"
 dependencies = [
  "anyhow",
  "kerosene-kv",
@@ -1663,7 +1666,7 @@ dependencies = [
 
 [[package]]
 name = "kerosene-walk"
-version = "0.1.0-prealpha.3"
+version = "0.1.0-prealpha.4"
 dependencies = [
  "kerosene-map",
  "kerosene-math",
@@ -1689,7 +1692,7 @@ checksum = "e2db585e1d738fc771bf08a151420d3ed193d9d895a36df7f6f8a9456b911ddc"
 
 [[package]]
 name = "kiln"
-version = "0.1.0-prealpha.3"
+version = "0.1.0-prealpha.4"
 dependencies = [
  "alchemy",
  "anyhow",
@@ -2514,7 +2517,7 @@ checksum = "f8dcc9c7d52a811697d2151c701e0d08956f92b0e24136cf4cf27b57a6a0d9bf"
 
 [[package]]
 name = "radiance"
-version = "0.1.0-prealpha.3"
+version = "0.1.0-prealpha.4"
 dependencies = [
  "anyhow",
  "clap",
@@ -2626,6 +2629,24 @@ name = "renderdoc-sys"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "19b30a45b0cd0bcca8037f3d0dc3421eaf95327a17cad11964fb8179b4fc4832"
+
+[[package]]
+name = "resonance"
+version = "0.1.0-prealpha.4"
+dependencies = [
+ "anyhow",
+ "clap",
+ "cleave",
+ "kerosene-asset",
+ "kerosene-bsp",
+ "kerosene-kv",
+ "kerosene-map",
+ "kerosene-math",
+ "kerosene-vfs",
+ "log",
+ "rayon",
+ "umbra",
+]
 
 [[package]]
 name = "rhai"
@@ -3091,7 +3112,7 @@ dependencies = [
 
 [[package]]
 name = "timbre"
-version = "0.1.0-prealpha.3"
+version = "0.1.0-prealpha.4"
 dependencies = [
  "anyhow",
  "clap",
@@ -3212,7 +3233,7 @@ dependencies = [
 
 [[package]]
 name = "umbra"
-version = "0.1.0-prealpha.3"
+version = "0.1.0-prealpha.4"
 dependencies = [
  "anyhow",
  "clap",
@@ -3269,7 +3290,7 @@ checksum = "06abde3611657adf66d383f00b093d7faecc7fa57071cce2578660c9f1010821"
 
 [[package]]
 name = "vault"
-version = "0.1.0-prealpha.3"
+version = "0.1.0-prealpha.4"
 dependencies = [
  "anyhow",
  "clap",

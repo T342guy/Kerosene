@@ -230,6 +230,29 @@ class
           "help" "Negative points downward. Overrides the pitch in Angles when non-zero." }
 }
 
+// ------------------------------------------------------------ acoustics ----
+//
+// Read by Resonance at compile time. The probe measures every room from its
+// shape and materials; this is for the room that has to sound a particular
+// way regardless.
+
+class
+{
+    "name" "env_acoustic_override"
+    "base" "Entity" "base" "Point"
+    "help" "Sets how the room this sits in sounds, in place of what Resonance measured. Compile-time only. Any figure left blank keeps the measured one."
+    key { "name" "radius" "label" "Radius" "type" "float" "default" "0"
+          "help" "Also applies to every room within this many units. 0 is only the room this is in." }
+    key { "name" "rt60" "label" "Decay (seconds)" "type" "string" "default" ""
+          "help" "How long sound takes to fade by 60 dB: four numbers for 125, 500, 2000 and 8000 Hz, or one for all. A bathroom is about 1; a cathedral about 6." }
+    key { "name" "wet" "label" "Reverb level" "type" "float" "default" "-1"
+          "help" "0 to 1: how loud the room is next to the sound itself. Negative keeps the measured level." }
+    key { "name" "predelay" "label" "Pre-delay (seconds)" "type" "float" "default" "-1"
+          "help" "Time before the first echo, up to 0.1. Longer sounds bigger. Negative keeps the measured value." }
+    key { "name" "openness" "label" "Openness" "type" "float" "default" "-1"
+          "help" "0 to 1: how much of the sky the room sees. Over 0.35 counts as outdoors. Negative keeps the measured value." }
+}
+
 // ------------------------------------------------------------- brushwork ---
 
 class
