@@ -57,6 +57,16 @@ fix exists once, reviewed and maintained, rather than once per fork. Releasing
 a fork is permitted under either licence; a pull request is simply better for
 everyone who builds on Kerosene.
 
+A fork is welcome to carry a Kerosene-derived name ("Kerosene: Ultimate",
+"Kerosene NG") so that its lineage is plain. The licences govern the code;
+the name is a separate permission, granted on these conditions: publish the
+whole modified engine as source, not only the changed files; link to that
+source, and to Kerosene's, with the words "built from" or "modified from
+Kerosene" and the version diverged from, in the engine's own notice and in
+the notice of every game built on it; and say plainly that it is a
+derivative rather than the official Kerosene. A fork under any other name
+owes only what its licence says.
+
 Independent reimplementation
 ----------------------------
 

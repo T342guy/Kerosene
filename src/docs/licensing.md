@@ -312,7 +312,12 @@ there is no CLA, and the SPDX line in every file records it.
 change under MPL-2.0. Under the LGPL arm, publish the modified engine under
 the LGPL. Either way you are free to fork — but the project's preference is
 that you contribute the change back as a pull request and use the updated
-engine, so the fix exists once rather than once per fork.
+engine, so the fix exists once rather than once per fork. A fork that carries
+a Kerosene-derived name — *Kerosene: Ultimate*, say — additionally follows
+the naming policy: the whole engine published as source, a link to it, and a
+"built from Kerosene" link back. That is a condition of the name, not of the
+code, and it is set out in
+[Forks and derived engines](../gamedev/publishing.md#forks-and-derived-engines).
 
 **For someone shipping a game.** Your game is yours under either arm. Under
 MPL-2.0 you owe the notice and a pointer to the source, and nothing resembles

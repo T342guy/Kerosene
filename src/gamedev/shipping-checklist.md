@@ -31,7 +31,11 @@ In the order you will do them. Each item links to the page that explains it.
 - [ ] If you changed any Kerosene file: the changed files (MPL arm) or the
       modified engine (LGPL arm) are published, and the README says where.
       Better: the change is a pull request upstream.
-      ([Publishing](publishing.md#requirements))
+      ([Publishing](publishing.md#forks-and-derived-engines))
+- [ ] If the engine you built on carries a Kerosene-derived name: its whole
+      source is published; the game's `README.txt` links to it *and* to
+      Kerosene with "built from" / "modified from" and the commit it left
+      at. ([Publishing](publishing.md#the-naming-policy))
 - [ ] The engine commit you built against is tagged or written down, so the
       source pointer means something in a year.
 
@@ -43,8 +47,9 @@ In the order you will do them. Each item links to the page that explains it.
       a Rust toolchain or a Kerosene checkout on it.
 - [ ] Run it once from a read-only location and confirm it still starts —
       `engine.kconfig` cannot be written there and the defaults must do.
-- [ ] If the target is Windows or macOS: you are the first. Test there
-      before announcing it. ([Platforms](platforms.md))
+- [ ] If the target is Windows or macOS: CI builds it; you are still the
+      first to *run* it. Test there before announcing it.
+      ([Platforms](platforms.md))
 - [ ] Your store page says the things the engine cannot do yet and your game
       therefore does not: no save/load, no gamepad, no options menu, unless
       you built them. ([Publishing](publishing.md#you-can-but))

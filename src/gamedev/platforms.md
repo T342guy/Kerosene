@@ -10,16 +10,16 @@ storefront has any integration yet.
 | Platform | Status | Notes |
 |---|---|---|
 | Linux | Developed and tested here | Audio needs ALSA headers to *build* (`libasound2-dev` / `alsa-lib-devel`); without them build with `--no-default-features` and everything but sound works. Players need nothing extra |
-| Windows | Untested | wgpu, winit and cpal all support it. `kiln --ship` already names the binary `.exe` on Windows. Nobody has run it |
-| macOS | Untested | Same dependencies, same caveat. wgpu uses Metal |
+| Windows | Builds in CI; never run by hand | wgpu, winit and cpal all support it. `kiln --ship` already names the binary `.exe` on Windows. Nobody has launched the result |
+| macOS | Builds in CI; never run by hand | Same dependencies, same caveat. wgpu uses Metal |
 | Consoles | No | No SDKs, no plans in the tree |
 | Mobile | No | Touch input does not exist |
 | Web | No | wgpu can target WebGPU; the file system, audio and process model here assume a desktop |
 
-There is no continuous integration, so "untested" is the whole story rather
-than a hedge. If you ship on Windows or macOS you are the first, and the
-three-OS build matrix is the top of the engine's own roadmap
-(`missing-features.md`, "An order"). `scripts/build-content.sh` is a Linux
+CI (`.github/workflows/ci.yml`) runs `fmt`, `clippy` and the tests on Linux
+and builds the tree on Windows and macOS, so "compiles" is known and "runs"
+is not. If you ship on either you are the first to find out.
+`scripts/build-content.sh` is a Linux
 shell script, but it is only a wrapper: `kerosene-tools kiln` is what it
 calls and that is a program, on every platform.
 

@@ -31,12 +31,9 @@ either arm, a distribution must carry:
    do: `smartstring` (MPL-2.0, pulled in by the script engine) and the
    typefaces egui embeds (SIL OFL 1.1 and Ubuntu Font Licence 1.0). Both are
    satisfied by preserving their notices.
-5. **If you changed Kerosene's own files:** under the MPL arm, publish the
-   files you changed under MPL-2.0; under the LGPL arm, publish the modified
-   engine under the LGPL *and* keep it replaceable in your game (a shared
-   library, or object files for relinking). The project's preference, under
-   either: send the change upstream as a pull request and build on the
-   updated engine, so the fix exists once.
+5. **If you changed Kerosene's own files:** what you owe depends on the
+   arm you took and on what you call the result. See
+   [Forks and derived engines](#forks-and-derived-engines).
 
 `kiln --ship` writes 1, 2 and 4 for you and leaves a labelled space for 3.
 Item 5 is yours alone; no tool can know whether the engine you built against
@@ -51,7 +48,8 @@ is the one in the repository.
 | Statically link the engine | Rust does this by default and the MPL arm has no linking stage | Nothing under MPL. Under LGPL this is the relinking obligation — see below |
 | Ship on any storefront | No storefront term conflicts with either arm | The storefront's own requirements, none of which the engine helps with yet ([Platforms](platforms.md)) |
 | Ship the stock `kerosene` runtime, unmodified, as your game | A content-only project does exactly this; `kiln --ship` copies the runtime when `.keroproj` names no `game` package | The notice and licence texts, which `kiln --ship` writes |
-| Fork the engine | Both arms permit it | The obligations in item 5, and you now maintain a fork |
+| Fork the engine | Both arms permit it | What the arm you took asks for, and you now maintain a fork ([Forks and derived engines](#forks-and-derived-engines)) |
+| Call your fork *Kerosene: Something* | The project wants derived engines to be able to say where they came from | The naming policy: the whole engine published as source, a link to yours and a "built from" link to this one |
 | Ship without worrying about Valve or id content | There is none. Every format is Kerosene's own, byte-tagged, and cannot open theirs | Nothing, provided you do not put any of theirs in |
 | Let players mod the shipped game | Loose files under `content/` shadow packed ones in the `.vault`, deliberately (`crates/kerosene-vfs`) | It is also a tamper vector — see the table below |
 
@@ -67,6 +65,7 @@ is the one in the repository.
 | Ship a `.vault` older than the content in it | You would be shipping maps nobody built | `check_archive` in `ship.rs` refuses and lists the newer files |
 | Ship from a checkout that has not built the archive | There is nothing to copy | `ship.rs` refuses with "run kiln with no `--only` first" |
 | Expect a warranty | Both licences disclaim one; the `README.txt` says so | — |
+| Ship an engine *named after Kerosene* with its source closed or its origin unstated | The licences govern the code; the name is a separate permission, and the project grants it on conditions | The naming policy in [Forks and derived engines](#forks-and-derived-engines). Use another name and only the licence applies |
 
 ## You can, but…
 
@@ -77,21 +76,75 @@ roughly the order you will hit them; the fuller list is
 
 | What | The drawback | Source |
 |---|---|---|
-| Ship on Windows or macOS | Every dependency is cross-platform, and nothing has ever been tested there. There is no CI. Budget the time to be the first | README, "Known limits"; `missing-features.md` §13 |
+| Ship on Windows or macOS | CI builds both (`.github/workflows/ci.yml`), so they compile. Nobody has *run* the result by hand. Budget the time to be the first | README, "Known limits"; `missing-features.md` §13 |
 | Ship a game with save/load | There is no game-state serialisation at all — no `serde` in the tree. State does not survive a map transition, let alone a restart | `missing-features.md` §1, §10 |
 | Ship with a menu, HUD or options screen | The developer console is the only overlay. There is no game UI layer; egui is used for tools, not gameplay | `missing-features.md` §8 |
-| Ship with an options screen for sound | `snd_restart` is the only sound convar. No master, music or effects volume exists to be set | `missing-features.md` §1 |
+| Ship with an options screen for sound | `volume` is the only sound convar. There is no separate music or effects volume to set | `missing-features.md` §1 |
 | Ship with gamepad support | Keyboard and mouse only; no action-map layer, no rebinding UI | `missing-features.md` §9 |
 | Ship multiplayer | The simulation runs headless, which is the hard part, but there is no wire protocol, prediction or replication | README; `missing-features.md` §12 |
-| Ship with crash reporting | Nothing installs a panic hook. A game that dies takes its backtrace with it, and you will not get the bug report | `missing-features.md` §1, §13 |
+| Ship with crash reporting | `kerosene_console::install_crash_handler` writes `crash.log` beside the binary with the panic, a backtrace and the last 64 log lines. Nothing sends it anywhere: the player has to find it and mail it to you | `crates/kerosene-console/src/logging.rs`; `missing-features.md` §13 |
 | Ship uncompressed textures | `.kerotex` has no block compression, so the download is several times the size it needs to be | `missing-features.md` §2 |
-| Ship a modified engine | Legal: the obligations in Requirements item 5. Practical: you maintain a fork, and every upstream fix is a merge. The project asks for a pull request instead | `NOTICE`; `licensing.md` |
+| Ship a modified engine | Legal: what your licence arm asks, plus the naming policy if you call it Kerosene. Practical: you maintain a fork, and every upstream fix is a merge. The project asks for a pull request first | [Forks and derived engines](#forks-and-derived-engines) |
 | Ship under the LGPL arm | Rust links statically, so LGPL-3.0 §4 means shipping the engine as a replaceable library or your object files for relinking — real work `cargo` does not do for you. The MPL arm exists precisely so nobody has to | `licensing.md`, "Why two licences" |
 | Write gameplay in Rhai instead of Rust | The script layer is sandboxed on purpose: it cannot allocate an entity, walk the BSP, open a file or touch the renderer. Level glue, yes; a weapon system, no | `scripting.md` |
 | Let players drop loose files beside the `.vault` | The feature that makes modding trivial makes tampering trivial too. There is no signing, no manifest, no integrity check on loose files — only per-entry CRCs *inside* the archive | `tools.md`, Vault; `crates/kerosene-vfs` |
 | Install the game somewhere read-only | The first run writes `engine.kconfig` into the content tree beside the binary. In a read-only install directory that write fails and the defaults apply every run | `crates/kerosene-config` |
 | Rely on the engine being deterministic (replays, ghosts) | Asserted, not audited: nothing replays a session yet to prove it | `missing-features.md` §4 |
 | Ship on Steam | Nothing stops you, and nothing helps: no Steamworks integration, so no achievements, cloud, Workshop or Steam Input. The overlay should work over Vulkan and DX12 without help | [Platforms](platforms.md) |
+
+## Forks and derived engines
+
+There are three ways to change the engine, and they are not equal.
+
+**A pull request.** The cheapest by far, and the one the project asks for
+first. Send the change upstream, build on the updated engine, and the fix
+exists once — reviewed, tested, and maintained by someone other than you.
+Every other option below means you carry it.
+
+**A private fork.** You changed something, you ship it inside your own game,
+and you never name the result. What you owe is exactly what the arm you took
+says and nothing more: under MPL-2.0, the *files you changed*, as source,
+under MPL-2.0; under the LGPL, the modified engine as a whole, under the
+LGPL, kept replaceable in your game. That is the whole of it.
+
+**A derived engine.** The Source lineage has a precedent for this: Respawn
+took Source, rewrote large parts of it, and shipped Titanfall on the result
+— a branch that was recognisably Source and recognisably not. Kerosene would
+like to be forked that way. If you rewrite the renderer, or the physics, or
+half of everything, and other people are going to build games on what you
+made, that is a derived engine, and you are welcome to name it after this
+one so its lineage is plain: *Kerosene: Ultimate*, *Kerosene NG*, whatever
+fits.
+
+### The naming policy
+
+The licences govern the code. The name is a separate permission, and the
+project grants it on four conditions. Call your engine something that a
+reasonable person would take for a Kerosene branch — a name that contains
+"Kerosene" or is plainly derived from it — and you accept these:
+
+1. **Publish the whole modified engine as source**, under the same dual
+   licence or the arm you took — not only the files you changed. A
+   Kerosene-named engine is open the way Kerosene is open.
+2. **Link to your engine's source** in its own README or NOTICE, and in the
+   `README.txt` of every game built on it, so a player of that game can find
+   the engine it runs on.
+3. **Link to Kerosene's source** in the same places, with the words
+   *"built from Kerosene"* or *"modified from Kerosene"*, and the version or
+   commit you diverged from. That is the pointer this project's own notice
+   asks for, carried one step further.
+4. **Say it is a derivative.** Do not present it as the official Kerosene or
+   as endorsed by this project; a line in the README saying it is an
+   independent fork is enough.
+
+Use a name that is not Kerosene's and none of this applies: the policy is the
+price of the name, not of forking. Forking is free under either arm, and the
+project would rather see a well-named derivative than a closed one with a
+different label.
+
+What stays the same whichever way you go: the two licence texts ship, the
+notices ship, `kiln --ship` still writes them, and no Valve or id mark
+becomes part of anybody's branding.
 
 ## How `kiln --ship` helps
 

@@ -34,9 +34,20 @@ right. Point modders at the Kerosene repository instead.
 ([Publishing](publishing.md#you-cannot))
 
 **I changed the engine. What do I owe?**
-Under MPL, the changed files, as source, under MPL-2.0. Under LGPL, the
-modified engine, under LGPL, kept replaceable. Either way the project would
-rather have a pull request. ([Licensing](../docs/licensing.md))
+It depends on the arm and on the name. Under MPL, the changed files, as
+source, under MPL-2.0. Under LGPL, the modified engine, under LGPL, kept
+replaceable. If you call the result *Kerosene-anything*, add the naming
+policy: the whole engine as source, a link to it, and a "built from
+Kerosene" link back. Either way the project would rather have a pull request.
+([Publishing](publishing.md#forks-and-derived-engines))
+
+**Can I make my own engine out of Kerosene and call it "Kerosene: Ultimate"?**
+Yes, and the project would like that — the way Titanfall's engine was a
+rewritten branch of Source. The name comes with four conditions: publish the
+whole modified engine as source, link to it, link to Kerosene with "built
+from" or "modified from" and the commit you left at, and say it is a
+derivative rather than the official one. Pick a name that is not Kerosene's
+and only the licence applies. ([Publishing](publishing.md#the-naming-policy))
 
 **Do I owe anything for Symphonia (the MP3/FLAC decoder)?**
 No. Only Timbre, a build tool, links it, and `kiln --ship` never puts a tool
@@ -55,7 +66,8 @@ walk around it — but save/load, menus, gamepads, networking, animation and
 crash reporting do not exist. ([Publishing](publishing.md#you-can-but))
 
 **Does it run on Windows or macOS?**
-Nobody knows. The dependencies all do; nobody has tried. ([Platforms](platforms.md))
+It builds on both in CI. Nobody has run the result by hand.
+([Platforms](platforms.md))
 
 **Can players mod a shipped game?**
 Yes, trivially: a loose file under `content/` shadows the same path in the
