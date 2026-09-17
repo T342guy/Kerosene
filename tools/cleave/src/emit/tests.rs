@@ -129,6 +129,56 @@ fn outer_faces_are_removed_from_a_sealed_map() {
 }
 
 #[test]
+fn texture_sizes_are_written_from_the_caller_and_defaulted_with_a_warning() {
+    let mut options = CompileOptions::default();
+    options
+        .texture_sizes
+        .insert("DEV/GRID".to_string(), (256, 128));
+    let out = compile(&room_map(false), &options).expect("compiles");
+    let td = &out.bsp.texdata[0];
+    assert_eq!(out.bsp.texdata_name(0), "dev/grid");
+    assert_eq!(
+        (td.width, td.height),
+        (256, 128),
+        "sized from the caller, case aside"
+    );
+    let stray: Vec<_> = out
+        .warnings
+        .iter()
+        .filter(|w| w.message.contains("no compiled texture"))
+        .map(|w| w.message.clone())
+        .collect();
+    assert!(stray.is_empty(), "{stray:?}");
+
+    let out = compile_ok(&room_map(false));
+    let td = &out.bsp.texdata[0];
+    assert_eq!((td.width, td.height), crate::emit::DEFAULT_TEXTURE_SIZE);
+    assert!(
+        out.warnings.iter().any(|w| w.message.contains("dev/grid")),
+        "an unsized material is named in a warning"
+    );
+}
+
+#[test]
+fn the_walkmap_holds_only_floors_inside_the_room() {
+    // The top of the ceiling slab is an upward face too, on the outside of
+    // the world; it used to be a walkmap floor an NPC could path across.
+    let out = compile_ok(&room_map(false));
+    assert!(!out.walk.is_empty(), "the room has a floor");
+    for face in &out.walk.faces {
+        let center: Vec3 = face.vertices.iter().copied().sum::<Vec3>() / face.vertices.len() as f32;
+        assert!(
+            !out.bsp.point_is_solid(center + face.normal * 2.0),
+            "walk face at {center:?} is on the outside of the map"
+        );
+        assert!(
+            center.z < 1.0,
+            "the only floor is at z = 0, not the roof: {center:?}"
+        );
+    }
+}
+
+#[test]
 fn a_leaking_map_is_refused_by_default() {
     match compile(&room_map(true), &CompileOptions::default()) {
         Err(crate::pipeline::CompileError::Leaked(_)) => {}

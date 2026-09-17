@@ -88,11 +88,11 @@ pub fn decode(bytes: &[u8]) -> Result<Sound, AudioError> {
             _ => {}
         }
 
-        // Chunks are padded to even lengths.
+        // Chunks are padded to even lengths. An empty chunk (a `LIST` with
+        // nothing in it, a `PAD `) is legal and is simply stepped over: the
+        // offset advances by its header regardless, so there is no loop to
+        // guard against.
         at = body_at + size + (size & 1);
-        if size == 0 && id != b"data" {
-            break;
-        }
     }
 
     let format = format.ok_or_else(|| AudioError::Malformed("no fmt chunk".into()))?;
@@ -111,11 +111,15 @@ pub fn decode(bytes: &[u8]) -> Result<Sound, AudioError> {
     let samples = match (format.tag, format.bits) {
         (FORMAT_PCM, 8) => data.iter().map(|&b| (b as f32 - 128.0) / 128.0).collect(),
         (FORMAT_PCM, 16) => data
-            .as_chunks::<2>().0.iter()
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|c| i16::from_le_bytes([c[0], c[1]]) as f32 / 32768.0)
             .collect(),
         (FORMAT_PCM, 24) => data
-            .as_chunks::<3>().0.iter()
+            .as_chunks::<3>()
+            .0
+            .iter()
             .map(|c| {
                 // Sign-extend the top byte into a 32-bit value.
                 let v = i32::from_le_bytes([0, c[0], c[1], c[2]]);
@@ -123,11 +127,15 @@ pub fn decode(bytes: &[u8]) -> Result<Sound, AudioError> {
             })
             .collect(),
         (FORMAT_PCM, 32) => data
-            .as_chunks::<4>().0.iter()
+            .as_chunks::<4>()
+            .0
+            .iter()
             .map(|c| i32::from_le_bytes([c[0], c[1], c[2], c[3]]) as f32 / 2_147_483_648.0)
             .collect(),
         (FORMAT_FLOAT, 32) => data
-            .as_chunks::<4>().0.iter()
+            .as_chunks::<4>()
+            .0
+            .iter()
             .map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]]))
             .collect(),
         (tag, bits) => {

@@ -45,7 +45,6 @@ struct PendingFace {
     /// 1 when the face points opposite its plane.
     side: u8,
     texinfo: u32,
-    lightmap_scale: f32,
 }
 
 /// Merges coincident vertices so that adjacent faces share vertex records.
@@ -140,6 +139,31 @@ impl EdgeBuilder {
     }
 }
 
+/// The size written for a material whose texture could not be found.
+///
+/// Wrong for almost everything, which is the point of the warning that
+/// accompanies it: the renderer divides texture coordinates by this, so a
+/// 256-pixel texture recorded as 512 tiles at half the scale the map said.
+pub const DEFAULT_TEXTURE_SIZE: (u32, u32) = (512, 512);
+
+/// The materials in a compiled map that `sizes` had no entry for.
+pub fn materials_without_a_size(bsp: &Bsp, sizes: &HashMap<String, (u32, u32)>) -> Vec<String> {
+    let known: std::collections::HashSet<String> =
+        sizes.keys().map(|k| k.to_ascii_lowercase()).collect();
+    let mut out: Vec<String> = (0..bsp.texdata.len())
+        .map(|i| bsp.texdata_name(i))
+        // Tool materials that never draw have no texture to be sized by.
+        .filter(|name| {
+            !crate::material::is_known_tool(name) || crate::material::flags_for(name).emits_face
+        })
+        .filter(|name| !known.contains(&name.to_ascii_lowercase()))
+        .map(str::to_string)
+        .collect();
+    out.sort();
+    out.dedup();
+    out
+}
+
 /// Interns texinfo and texdata records.
 #[derive(Default)]
 struct TexBuilder {
@@ -148,6 +172,8 @@ struct TexBuilder {
     strings: Vec<u8>,
     texdata_by_name: HashMap<String, u32>,
     texinfo_seen: HashMap<String, u32>,
+    /// Texture sizes by lower-cased material name, from the caller.
+    sizes: HashMap<String, (u32, u32)>,
 }
 
 impl TexBuilder {
@@ -159,15 +185,20 @@ impl TexBuilder {
         self.strings.extend_from_slice(name.as_bytes());
         self.strings.push(0);
         let index = self.texdata.len() as u32;
+        let (width, height) = self
+            .sizes
+            .get(&name.to_ascii_lowercase())
+            .copied()
+            .unwrap_or(DEFAULT_TEXTURE_SIZE);
         self.texdata.push(TexData {
             // A neutral grey until Radiance reads the real material and
             // learns its actual average colour for bounce lighting.
             reflectivity: [0.5, 0.5, 0.5],
             name_offset: offset,
-            width: 512,
-            height: 512,
-            view_width: 512,
-            view_height: 512,
+            width,
+            height,
+            view_width: width,
+            view_height: height,
         });
         self.texdata_by_name.insert(name.to_string(), index);
         index
@@ -227,6 +258,7 @@ pub fn emit(
     brush_models: &[BrushModel],
     entities_text: String,
     revision: u32,
+    texture_sizes: &HashMap<String, (u32, u32)>,
 ) -> Bsp {
     let mut bsp = Bsp::new();
     bsp.revision = revision;
@@ -237,7 +269,13 @@ pub fn emit(
         .map(kerosene_bsp::BspPlane::from_plane)
         .collect();
 
-    let mut tex = TexBuilder::default();
+    let mut tex = TexBuilder {
+        sizes: texture_sizes
+            .iter()
+            .map(|(k, v)| (k.to_ascii_lowercase(), *v))
+            .collect(),
+        ..Default::default()
+    };
     let mut welder = VertexWelder::default();
     let mut edges = EdgeBuilder::new();
 
@@ -259,7 +297,6 @@ pub fn emit(
                     side.plane,
                     plane,
                     texinfo,
-                    side.lightmap_scale,
                     &mut leaf_faces,
                 );
             }
@@ -322,9 +359,7 @@ pub fn emit(
 
         let first_leafface = bsp.leaffaces.len() as u32;
         let solid = node.contents & contents::SOLID != 0;
-        if !solid
-            && let Some(pending) = leaf_faces.remove(&n)
-        {
+        if !solid && let Some(pending) = leaf_faces.remove(&n) {
             for pf in pending {
                 let face = build_face(pf, &mut welder, &mut edges, &tex);
                 bsp.leaffaces.push(bsp.faces.len() as u32);
@@ -444,7 +479,6 @@ pub fn emit(
                         plane: side.plane,
                         side: 0,
                         texinfo,
-                        lightmap_scale: side.lightmap_scale,
                     };
                     let face = build_face(pf, &mut welder, &mut edges, &tex);
                     bsp.faces.push(face);
@@ -513,7 +547,6 @@ fn file_face(
     plane_index: u32,
     face_plane: Plane,
     texinfo: u32,
-    lightmap_scale: f32,
     out: &mut HashMap<usize, Vec<PendingFace>>,
 ) {
     if winding.is_tiny() {
@@ -534,7 +567,6 @@ fn file_face(
             // built on the odd half of the pair is flagged as reversed.
             side: (plane_index & 1) as u8,
             texinfo,
-            lightmap_scale,
         });
         return;
     };
@@ -549,7 +581,6 @@ fn file_face(
             plane_index,
             face_plane,
             texinfo,
-            lightmap_scale,
             out,
         );
     };
@@ -590,7 +621,7 @@ fn build_face(
     let (first_surfedge, num_surfedges) = edges.push_face(&verts);
 
     let ti = &tex.texinfo[pf.texinfo as usize];
-    let (mins, size) = lightmap_extents(&pf.winding, ti, pf.lightmap_scale);
+    let (mins, size) = lightmap_extents(&pf.winding, ti);
 
     Face {
         plane: pf.plane,
@@ -611,7 +642,10 @@ fn build_face(
 }
 
 /// How many luxels a face needs, and where its luxel grid starts.
-fn lightmap_extents(w: &Winding, ti: &TexInfo, scale: f32) -> ([i32; 2], [u32; 2]) {
+///
+/// The face's lightmap scale is already folded into `ti.lightmap_vecs` by
+/// `TexBuilder::intern`, which is why none is taken here.
+fn lightmap_extents(w: &Winding, ti: &TexInfo) -> ([i32; 2], [u32; 2]) {
     if ti.flags & (surf::NOLIGHT | surf::SKY | surf::NODRAW) != 0 {
         return ([0, 0], [0, 0]);
     }
@@ -637,7 +671,6 @@ fn lightmap_extents(w: &Winding, ti: &TexInfo, scale: f32) -> ([i32; 2], [u32; 2
 
     // A single enormous face must not claim an unbounded lightmap. Clamping
     // the dimension effectively coarsens the scale for that face alone.
-    let _ = scale;
     size[0] = size[0].min(MAX_LIGHTMAP_DIM);
     size[1] = size[1].min(MAX_LIGHTMAP_DIM);
     (mins, size)

@@ -318,6 +318,7 @@ pub struct FloodResult {
 }
 
 /// A trace from an entity out through the hole in the map.
+#[derive(Clone, Debug)]
 pub struct LeakPath {
     /// The entity that leaked.
     pub from: Vec3,
@@ -453,16 +454,19 @@ pub fn fill_outside(tree: &mut Tree) -> usize {
 /// Returns how many clusters exist. Solid leaves keep `-1`: nothing can see
 /// out of solid rock, so they need no row in the PVS.
 pub fn assign_clusters(tree: &mut Tree) -> usize {
-    let mut next = 0i16;
+    // Counted wide and narrowed per leaf: an `i16` counter would panic in
+    // debug and wrap in release on a map with more clusters than the format
+    // holds. The pipeline refuses such a map with a message instead.
+    let mut next = 0usize;
     for leaf in tree.leaves().collect::<Vec<_>>() {
         if tree.nodes[leaf].contents & contents::SOLID != 0 {
             tree.nodes[leaf].cluster = -1;
         } else {
-            tree.nodes[leaf].cluster = next;
+            tree.nodes[leaf].cluster = i16::try_from(next).unwrap_or(i16::MAX);
             next += 1;
         }
     }
-    next as usize
+    next
 }
 
 /// Write the portal graph for Umbra.

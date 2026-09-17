@@ -61,29 +61,36 @@ impl Job {
 
         // Both streams matter: the stages print progress on stdout and
         // warnings on stderr, and a log missing half of it is worse than none.
+        let mut readers = Vec::new();
         if let Some(stdout) = child.stdout.take() {
             let sender = sender.clone();
-            std::thread::spawn(move || {
+            readers.push(std::thread::spawn(move || {
                 for line in BufReader::new(stdout).lines().map_while(Result::ok) {
                     if sender.send(Line::Out(line)).is_err() {
                         break;
                     }
                 }
-            });
+            }));
         }
         if let Some(stderr) = child.stderr.take() {
             let sender = sender.clone();
-            std::thread::spawn(move || {
+            readers.push(std::thread::spawn(move || {
                 for line in BufReader::new(stderr).lines().map_while(Result::ok) {
                     if sender.send(Line::Err(line)).is_err() {
                         break;
                     }
                 }
-            });
+            }));
         }
         let sender = sender.clone();
         std::thread::spawn(move || {
             let code = child.wait().ok().and_then(|s| s.code());
+            // The readers drain to EOF before the exit is announced, so the
+            // last lines -- the summary, or the error -- land in the log
+            // before the panel stops repainting for them.
+            for reader in readers {
+                let _ = reader.join();
+            }
             let _ = sender.send(Line::Exit(code));
         });
 
@@ -215,12 +222,16 @@ impl BuildPanel {
 /// The archive panel: a GUI over `kerosene-tools vault`.
 pub struct ArchivePanel {
     content_root: PathBuf,
+    /// The archive Kiln builds for this project, so pack, verify and list
+    /// all mean the same file the build tab wrote.
+    archive: PathBuf,
     job: Option<Job>,
 }
 
 impl ArchivePanel {
-    pub fn new(content_root: PathBuf) -> ArchivePanel {
+    pub fn new(content_root: PathBuf, project: Option<&kerosene_vfs::Project>) -> ArchivePanel {
         ArchivePanel {
+            archive: kiln::archive_path(&content_root, project),
             content_root,
             job: None,
         }
@@ -236,7 +247,7 @@ impl ArchivePanel {
             ui.label(format!("content: {}", self.content_root.display()));
             ui.separator();
 
-            let archive = self.content_root.join("content.vault");
+            let archive = self.archive.clone();
             let busy = self.running();
 
             ui.horizontal(|ui| {

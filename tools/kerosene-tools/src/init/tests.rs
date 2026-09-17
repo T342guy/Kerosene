@@ -24,7 +24,7 @@ fn a_fresh_directory_becomes_a_project_the_search_can_find() {
     let dir = scratch("fresh");
     init(&dir.join("mygame"), &["--name", "My Game"]).unwrap();
 
-    let project_path = dir.join("mygame/my-game.keroproj");
+    let project_path = dir.join("mygame/my_game.keroproj");
     assert!(project_path.is_file());
 
     let project = kerosene_vfs::Project::read(&project_path).unwrap();
@@ -112,7 +112,7 @@ fn a_project_that_names_its_own_directories_gets_those() {
 
 #[test]
 fn a_name_that_is_not_a_filename_still_produces_one() {
-    assert_eq!(slug("My Game!"), "my-game");
+    assert_eq!(slug("My Game!"), "my_game");
     assert_eq!(slug("  "), "project");
     assert_eq!(slug("Kerosene"), "kerosene");
 }

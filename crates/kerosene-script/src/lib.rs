@@ -233,8 +233,12 @@ impl ScriptHost {
             .run_ast_with_scope(&mut self.scope, &ast)
             .map_err(|e| ScriptError::Runtime(format!("{name}: {e}")))?;
 
-        // Later definitions win, which is what makes a reload a reload.
-        self.module = self.module.merge(&ast);
+        // Functions only: the statements just ran, and `AST::merge` would
+        // otherwise carry them along to be run again by every later call
+        // and every console `script` line -- a top-level `print` firing on
+        // each tick. Later definitions win, which is what makes a reload a
+        // reload.
+        self.module = self.module.merge(&ast.clone_functions_only());
         if !self.loaded.iter().any(|f| f == name) {
             self.loaded.push(name.to_string());
         }
@@ -270,8 +274,17 @@ impl ScriptHost {
         if !self.has_function(name) {
             return Err(ScriptError::NoSuchFunction(name.to_string()));
         }
+        // `eval_ast` off: the module holds no statements (see `load`), and
+        // the default would run them before the call if it did.
+        let options = rhai::CallFnOptions::new().eval_ast(false);
         self.engine
-            .call_fn::<rhai::Dynamic>(&mut self.scope, &self.module, name, args)
+            .call_fn_with_options::<rhai::Dynamic>(
+                options,
+                &mut self.scope,
+                &self.module,
+                name,
+                args,
+            )
             .map(|_| ())
             .map_err(|e| ScriptError::Runtime(format!("{name}: {e}")))
     }

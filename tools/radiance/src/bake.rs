@@ -94,38 +94,53 @@ pub fn bake(bsp: &mut Bsp, lights: &LightSet, options: &BakeOptions) -> BakeStat
     }
 
     // ---- direct lighting ----
-    let direct: Vec<(usize, Vec<Vec3>)> = jobs
+    let progress = Progress::new("direct", jobs.len());
+    let direct: Vec<(usize, FaceLight)> = jobs
         .par_iter()
-        .map(|&(face, _, _)| (face, light_face(bsp, face, lights, options, None)))
+        .map(|&(face, _, _)| {
+            let lit = light_face(bsp, face, lights, options, Pass::Direct);
+            progress.tick();
+            (face, lit)
+        })
         .collect();
 
-    let mut samples: Vec<Vec3> = vec![Vec3::ZERO; offset];
-    for (face, values) in &direct {
+    let mut direct_samples: Vec<Vec3> = vec![Vec3::ZERO; offset];
+    for (face, lit) in &direct {
         let start = bsp.faces[*face].lightmap_offset as usize;
-        samples[start..start + values.len()].copy_from_slice(values);
+        direct_samples[start..start + lit.luxels.len()].copy_from_slice(&lit.luxels);
+        stats.luxels_rescued += lit.rescued;
     }
+    let mut samples = direct_samples.clone();
 
     // ---- bounced lighting ----
     // Each lit face becomes an area emitter of its own average brightness
     // times its material's reflectivity, and every luxel gathers from them.
     // One bounce is what turns a room lit by a single lamp from a hard pool of
     // light into something that reads as an interior.
-    for _ in 0..options.bounces {
+    for bounce in 0..options.bounces {
         let patches = build_patches(bsp, &samples, &jobs);
         if patches.is_empty() {
             break;
         }
         stats.bounce_patches = patches.len();
 
-        let bounced: Vec<(usize, Vec<Vec3>)> = jobs
+        let label = format!("bounce {}/{}", bounce + 1, options.bounces);
+        let progress = Progress::new(&label, jobs.len());
+        let bounced: Vec<(usize, FaceLight)> = jobs
             .par_iter()
-            .map(|&(face, _, _)| (face, light_face(bsp, face, lights, options, Some(&patches))))
+            .map(|&(face, _, _)| {
+                let lit = light_face(bsp, face, lights, options, Pass::Bounce(&patches));
+                progress.tick();
+                (face, lit)
+            })
             .collect();
 
-        for (face, values) in &bounced {
+        // Direct plus this bounce's gather -- from patches that already hold
+        // the previous bounce, which is how light gets around two corners.
+        for (face, lit) in &bounced {
             let start = bsp.faces[*face].lightmap_offset as usize;
-            for (i, v) in values.iter().enumerate() {
-                samples[start + i] = *v;
+            for (i, v) in lit.luxels.iter().enumerate() {
+                samples[start + i] = direct_samples[start + i] + *v;
             }
         }
     }
@@ -135,11 +150,42 @@ pub fn bake(bsp: &mut Bsp, lights: &LightSet, options: &BakeOptions) -> BakeStat
         .map(|c| ColorRgbExp32::from_linear(*c * options.scale))
         .collect();
 
-    stats.luxels_rescued = direct
-        .iter()
-        .map(|(_, v)| v.iter().filter(|c| c.x < 0.0).count())
-        .sum();
     stats
+}
+
+/// A line every tenth of the way through a pass, from whichever thread
+/// crosses the mark. Lighting is the longest stage of a build, and a build
+/// that prints nothing for minutes looks hung.
+struct Progress {
+    label: String,
+    total: usize,
+    done: std::sync::atomic::AtomicUsize,
+    started: std::time::Instant,
+}
+
+impl Progress {
+    fn new(label: &str, total: usize) -> Progress {
+        Progress {
+            label: label.to_string(),
+            total,
+            done: std::sync::atomic::AtomicUsize::new(0),
+            started: std::time::Instant::now(),
+        }
+    }
+
+    fn tick(&self) {
+        let done = self.done.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
+        let step = (self.total / 10).max(1);
+        if self.total >= 200 && done.is_multiple_of(step) && done < self.total {
+            println!(
+                "  {:<10} {}% ({done}/{} faces, {:.0}s)",
+                self.label,
+                done * 100 / self.total,
+                self.total,
+                self.started.elapsed().as_secs_f32()
+            );
+        }
+    }
 }
 
 /// An area light standing in for a lit surface, for the bounce pass.
@@ -193,29 +239,57 @@ fn build_patches(bsp: &Bsp, samples: &[Vec3], jobs: &[(usize, usize, usize)]) ->
     out
 }
 
+/// Which light a pass gathers.
+///
+/// Direct light is gathered once; every bounce pass gathers only what the
+/// patches re-emit and adds it to the direct result it was handed. Gathering
+/// both on every bounce re-traced every shadow ray per bounce, which was
+/// most of what `--bounces 3` cost.
+#[derive(Clone, Copy)]
+enum Pass<'a> {
+    Direct,
+    Bounce(&'a [Patch]),
+}
+
+/// One face's luxels, and how many of them had to be rescued from inside
+/// geometry (see `rescue_sample`).
+struct FaceLight {
+    luxels: Vec<Vec3>,
+    rescued: usize,
+}
+
+impl FaceLight {
+    fn black(count: usize) -> FaceLight {
+        FaceLight {
+            luxels: vec![Vec3::ZERO; count],
+            rescued: 0,
+        }
+    }
+}
+
 /// Compute every luxel of one face.
 fn light_face(
     bsp: &Bsp,
     face_index: usize,
     lights: &LightSet,
     options: &BakeOptions,
-    patches: Option<&[Patch]>,
-) -> Vec<Vec3> {
+    pass: Pass<'_>,
+) -> FaceLight {
     let face = bsp.faces[face_index];
     let (w, h) = (
         face.lightmap_size[0] as usize,
         face.lightmap_size[1] as usize,
     );
     let Some(ti) = bsp.texinfo.get(face.texinfo as usize).copied() else {
-        return vec![Vec3::ZERO; w * h];
+        return FaceLight::black(w * h);
     };
     let Some(plane) = bsp.face_plane(face_index) else {
-        return vec![Vec3::ZERO; w * h];
+        return FaceLight::black(w * h);
     };
 
     let verts = bsp.face_vertices(face_index);
     if verts.len() < 3 {
-        return vec![Vec3::ZERO; w * h];
+        return FaceLight::black(w * h);
     }
     let face_center = verts.iter().copied().sum::<Vec3>() / verts.len() as f32;
 
@@ -238,7 +312,7 @@ fn light_face(
     );
     if basis.determinant().abs() < 1e-9 {
         // Degenerate mapping: the lightmap axes are parallel or zero.
-        return vec![Vec3::ZERO; w * h];
+        return FaceLight::black(w * h);
     }
     let inverse = basis.inverse();
 
@@ -275,6 +349,7 @@ fn light_face(
 
     let ss = options.supersample.max(1) as usize;
     let mut out = Vec::with_capacity(w * h);
+    let mut rescued = 0usize;
 
     for y in 0..h {
         for x in 0..w {
@@ -303,7 +378,10 @@ fn light_face(
                     else {
                         continue;
                     };
-                    total += gather(bsp, sample_at, plane.normal, lights, options, patches);
+                    if sample_at != world + plane.normal * SURFACE_OFFSET {
+                        rescued += 1;
+                    }
+                    total += gather(bsp, sample_at, plane.normal, lights, options, pass);
                     taken += 1;
                 }
             }
@@ -312,14 +390,18 @@ fn light_face(
             // centre so the luxel is merely approximate rather than black.
             if taken == 0 {
                 let at = face_center + plane.normal * SURFACE_OFFSET;
-                out.push(gather(bsp, at, plane.normal, lights, options, patches));
+                out.push(gather(bsp, at, plane.normal, lights, options, pass));
+                rescued += 1;
             } else {
                 out.push(total / taken as f32);
             }
         }
     }
 
-    out
+    FaceLight {
+        luxels: out,
+        rescued,
+    }
 }
 
 /// Move a sample point out of solid geometry, if it landed there.
@@ -343,15 +425,18 @@ fn rescue_sample(bsp: &Bsp, world: Vec3, face_center: Vec3, normal: Vec3) -> Opt
     None
 }
 
-/// Total light arriving at a point on a surface.
+/// Light arriving at a point on a surface, for one pass.
 fn gather(
     bsp: &Bsp,
     point: Vec3,
     normal: Vec3,
     lights: &LightSet,
     options: &BakeOptions,
-    patches: Option<&[Patch]>,
+    pass: Pass<'_>,
 ) -> Vec3 {
+    if let Pass::Bounce(patches) = pass {
+        return gather_bounce(bsp, point, normal, patches);
+    }
     let mut total = lights.ambient * options.ambient_scale;
 
     for light in &lights.lights {
@@ -380,10 +465,6 @@ fn gather(
         }
 
         total += intensity * lambert;
-    }
-
-    if let Some(patches) = patches {
-        total += gather_bounce(bsp, point, normal, patches);
     }
 
     total
@@ -417,10 +498,11 @@ fn gather_bounce(bsp: &Bsp, point: Vec3, normal: Vec3, patches: &[Patch]) -> Vec
             continue;
         }
 
-        if bsp
-            .trace_ray(point, patch.center, contents::MASK_OPAQUE)
-            .hit()
-        {
+        // Traced to just above the emitting face, not onto it: a ray that
+        // ends exactly on a solid brush's plane counts as entering it, so
+        // every patch used to occlude itself and no bounce ever arrived.
+        let target = patch.center + patch.normal * SURFACE_OFFSET;
+        if bsp.trace_ray(point, target, contents::MASK_OPAQUE).hit() {
             continue;
         }
         total += patch.radiance * form;

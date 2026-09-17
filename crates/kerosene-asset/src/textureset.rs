@@ -118,11 +118,34 @@ impl MapKind {
     /// `basecolor.png` would be a rule that exists only to be tripped over.
     pub fn aliases(self) -> &'static [&'static str] {
         match self {
-            MapKind::Base => &["basecolor", "base_color", "albedo", "diffuse", "color", "base", "col", "d"],
+            MapKind::Base => &[
+                "basecolor",
+                "base_color",
+                "albedo",
+                "diffuse",
+                "color",
+                "base",
+                "col",
+                "d",
+            ],
             MapKind::Normal => &["normal", "normalmap", "normal_map", "nrm", "bump", "n"],
             MapKind::Roughness => &["roughness", "rough", "rgh", "r"],
-            MapKind::Emissive => &["emissive", "emission", "selfillum", "self_illum", "glow", "light", "e"],
-            MapKind::Ao => &["ao", "occlusion", "ambientocclusion", "ambient_occlusion", "ambient"],
+            MapKind::Emissive => &[
+                "emissive",
+                "emission",
+                "selfillum",
+                "self_illum",
+                "glow",
+                "light",
+                "e",
+            ],
+            MapKind::Ao => &[
+                "ao",
+                "occlusion",
+                "ambientocclusion",
+                "ambient_occlusion",
+                "ambient",
+            ],
         }
     }
 
@@ -215,9 +238,7 @@ impl TextureSet {
             },
             Err(_) => None,
         };
-        let block = config
-            .as_ref()
-            .map(|kv| kv.block("texture").unwrap_or(kv));
+        let block = config.as_ref().map(|kv| kv.block("texture").unwrap_or(kv));
 
         let mut maps = BTreeMap::new();
 
@@ -246,7 +267,10 @@ impl TextureSet {
 
         if let Some(block) = block {
             for kind in MapKind::ALL {
-                let Some(named) = block.get(kind.key()).map(str::trim).filter(|v| !v.is_empty())
+                let Some(named) = block
+                    .get(kind.key())
+                    .map(str::trim)
+                    .filter(|v| !v.is_empty())
                 else {
                     continue;
                 };
@@ -358,6 +382,16 @@ impl TextureSet {
         }
         kv.push("shader", self.shader.name());
         kv.push("surfaceprop", self.surface_prop.clone());
+        // The sampling flags too, so a set read and written back keeps them.
+        for (key, on) in [
+            ("clamp", self.clamp),
+            ("point", self.point),
+            ("translucent", self.translucent),
+        ] {
+            if on {
+                kv.push(key, "1");
+            }
+        }
         format!(
             "// A Kerosene texture set. Every key is optional: delete one and\n\
              // the folder's own layout decides instead.\n\

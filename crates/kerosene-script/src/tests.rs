@@ -59,6 +59,30 @@ fn state_survives_between_console_lines() {
 }
 
 #[test]
+fn a_loaded_files_top_level_runs_once_not_on_every_call() {
+    // Regression: the merged AST used to keep the file's statements, and
+    // every hook call re-ran them -- a top-level `print` on every tick.
+    let mut host = host();
+    host.load(
+        "map.rhai",
+        r#"
+            print("loaded");
+            fn on_tick() { }
+        "#,
+    )
+    .unwrap();
+    host.call_hook("on_tick", vec![]).unwrap();
+    host.call_hook("on_tick", vec![]).unwrap();
+    host.run("1 + 1").unwrap();
+    let prints = host
+        .take_actions()
+        .into_iter()
+        .filter(|a| matches!(a, ScriptAction::Log(ScriptLevel::Print, _)))
+        .count();
+    assert_eq!(prints, 1);
+}
+
+#[test]
 fn a_syntax_error_names_itself_rather_than_panicking() {
     let mut host = host();
     let err = host.run("this is not rhai (((").unwrap_err();

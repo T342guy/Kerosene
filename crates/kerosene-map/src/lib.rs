@@ -47,7 +47,7 @@ pub use walk::WalkmapRule;
 
 use kerosene_kv::{Entry, KeyValues};
 use kerosene_math::{Aabb, Vec3};
-use std::collections::HashSet;
+use std::collections::HashMap;
 use thiserror::Error;
 
 /// Format version written into new files.
@@ -188,8 +188,35 @@ impl Map {
             next_id: 1,
         };
         map.reseed_next_id();
+        map.assign_missing_ids();
         map.check_unique_ids()?;
         Ok(map)
+    }
+
+    /// Give an id to every object that came in without one.
+    ///
+    /// A hand-written map need not number its brushes; `read_id` leaves
+    /// those at 0, and two of them would otherwise be reported as a
+    /// duplicate of an id nobody wrote. Called after [`Self::reseed_next_id`]
+    /// so the fresh ids land past everything the file did number.
+    fn assign_missing_ids(&mut self) {
+        let mut next = self.next_id;
+        let mut fill = |id: &mut u32| {
+            if *id == 0 {
+                *id = next;
+                next += 1;
+            }
+        };
+        for e in std::iter::once(&mut self.world).chain(self.entities.iter_mut()) {
+            fill(&mut e.id);
+            for s in &mut e.solids {
+                fill(&mut s.id);
+                for side in &mut s.sides {
+                    fill(&mut side.id);
+                }
+            }
+        }
+        self.next_id = next;
     }
 
     /// Point `next_id` past everything already in the map.
@@ -216,23 +243,28 @@ impl Map {
     /// selection; two objects sharing one is a corruption that produces
     /// baffling behaviour much later, so it is caught at load.
     fn check_unique_ids(&self) -> Result<(), MapError> {
-        let mut seen: HashSet<u32> = HashSet::new();
-        let mut report = |id: u32| -> Result<(), MapError> {
-            if !seen.insert(id) {
-                return Err(MapError::DuplicateId { id, count: 2 });
-            }
-            Ok(())
-        };
+        let mut seen: HashMap<u32, usize> = HashMap::new();
         for e in self.all_entities() {
-            report(e.id)?;
+            *seen.entry(e.id).or_default() += 1;
             for s in &e.solids {
-                report(s.id)?;
+                *seen.entry(s.id).or_default() += 1;
                 for side in &s.sides {
-                    report(side.id)?;
+                    *seen.entry(side.id).or_default() += 1;
                 }
             }
         }
-        Ok(())
+        // The lowest offending id, so the report is the same every load.
+        match seen
+            .iter()
+            .filter(|(_, n)| **n > 1)
+            .min_by_key(|(id, _)| **id)
+        {
+            Some((id, count)) => Err(MapError::DuplicateId {
+                id: *id,
+                count: *count,
+            }),
+            None => Ok(()),
+        }
     }
 
     /// Check every solid is well formed, collecting all problems at once.
@@ -410,6 +442,19 @@ entity
     }
 
     #[test]
+    fn objects_written_without_ids_are_numbered_rather_than_rejected() {
+        // Strip the side ids: a hand-written map need not number anything.
+        let unnumbered = SAMPLE
+            .replace("\"id\" \"3\"", "")
+            .replace("\"id\" \"4\"", "");
+        let map = Map::parse(&unnumbered).expect("missing ids are assigned, not duplicates");
+        let sides = &map.world.solids[0].sides;
+        assert!(sides.iter().all(|s| s.id != 0));
+        assert_ne!(sides[0].id, sides[1].id);
+        assert!(sides[0].id > 10, "fresh ids land past the file's own");
+    }
+
+    #[test]
     fn duplicate_ids_are_rejected() {
         let bad = SAMPLE.replace("\"id\" \"9\"", "\"id\" \"1\"");
         assert!(matches!(
@@ -464,7 +509,7 @@ world { "id" "1" "classname" "worldspawn"
                 ids.extend(s.sides.iter().map(|x| x.id));
             }
         }
-        let unique: HashSet<_> = ids.iter().collect();
+        let unique: std::collections::HashSet<_> = ids.iter().collect();
         assert_eq!(unique.len(), ids.len(), "ids collided: {ids:?}");
     }
 }

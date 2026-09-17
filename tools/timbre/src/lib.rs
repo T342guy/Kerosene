@@ -134,7 +134,9 @@ pub fn prepare(sound: &Sound, options: &Options) -> Sound {
             // 6 dB boost and clips anything that was already loud.
             samples: sound
                 .samples
-                .as_chunks::<2>().0.iter()
+                .as_chunks::<2>()
+                .0
+                .iter()
                 .map(|c| (c[0] + c[1]) * 0.5)
                 .collect(),
         }
@@ -323,6 +325,7 @@ pub fn build_sounds(content: &Path, force: bool) -> Result<Batch> {
     // Two sources with the same name compile to the same file, so one of them
     // silently wins and which one depends on the sort order. Named rather than
     // resolved: only the person who put both there knows which they meant.
+    let mut refused: std::collections::HashSet<PathBuf> = std::collections::HashSet::new();
     for (a, b) in colliding(&found) {
         batch.failed.push((
             b.clone(),
@@ -332,9 +335,15 @@ pub fn build_sounds(content: &Path, force: bool) -> Result<Batch> {
                 a.display()
             ),
         ));
+        // Both of them: compiling either would be choosing for the person.
+        refused.insert(a);
+        refused.insert(b);
     }
 
     for source in found {
+        if refused.contains(&source) {
+            continue;
+        }
         let output = output_for(&source);
         if !force && is_up_to_date(&source, &output, &script.path) {
             batch.skipped += 1;
@@ -391,7 +400,17 @@ pub fn sources(dir: &Path) -> Vec<PathBuf> {
 }
 
 fn collect(dir: &Path, out: &mut Vec<PathBuf>) {
-    for entry in std::fs::read_dir(dir).into_iter().flatten().flatten() {
+    // A missing directory is "no sounds"; an unreadable one is a problem
+    // that should be said, not reported as an empty build.
+    let entries = match std::fs::read_dir(dir) {
+        Ok(entries) => entries,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return,
+        Err(e) => {
+            log::warn!("could not read {}: {e}", dir.display());
+            return;
+        }
+    };
+    for entry in entries.flatten() {
         let path = entry.path();
         if path.is_dir() {
             collect(&path, out);

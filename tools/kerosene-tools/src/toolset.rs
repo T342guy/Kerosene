@@ -104,7 +104,7 @@ impl Toolset {
             sound,
             sound_note,
             build: BuildPanel::new(root.clone()),
-            archive: ArchivePanel::new(root),
+            archive: ArchivePanel::new(root, found.as_ref().and_then(|f| f.project.as_ref())),
         })
     }
 
@@ -168,6 +168,20 @@ impl kerosene_ui::App for Toolset {
             Tab::Archive => self.archive.running(),
             Tab::Editor => false,
         }
+    }
+
+    fn close_requested(&mut self) -> bool {
+        // The editor is the one tool holding work that is not on disk; its
+        // question is shown on its own tab.
+        if self.editor.request_close() {
+            return true;
+        }
+        self.tab = Tab::Editor;
+        false
+    }
+
+    fn wants_to_quit(&self) -> bool {
+        self.editor.wants_to_quit()
     }
 }
 

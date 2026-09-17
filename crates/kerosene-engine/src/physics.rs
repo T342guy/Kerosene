@@ -48,6 +48,9 @@ pub struct PhysicsProps {
     static_bodies: usize,
     /// The player, as the simulation sees them.
     player: Option<PlayerBody>,
+    /// Model names that would not load, so a prop with a missing `.keromdl`
+    /// is read from disk and warned about once rather than every tick.
+    missing_models: std::collections::HashSet<String>,
 }
 
 /// The player's presence in the rigid world.
@@ -72,6 +75,7 @@ impl PhysicsProps {
             movers: HashMap::new(),
             static_bodies: 0,
             player: None,
+            missing_models: std::collections::HashSet::new(),
         }
     }
 
@@ -187,16 +191,29 @@ impl PhysicsProps {
         // The body's mass, friction and bounciness come from the entity's
         // object properties (`mass`, `friction`, `elasticity`) so a designer
         // can make a heavy crate or a slippery one without touching code.
-        let new: Vec<(EntityId, Aabb)> = entities
+        let mut new: Vec<(EntityId, Aabb)> = Vec::new();
+        for e in entities
             .iter()
             .filter(|e| is_physics_prop(&e.classname))
             .filter(|e| !self.props.contains_key(&e.id))
-            .filter_map(|e| {
-                let name = e.fields.text("model")?;
-                let bounds = model_bounds(vfs, name)?;
-                Some((e.id, bounds))
-            })
-            .collect();
+        {
+            let Some(name) = e.fields.text("model") else {
+                continue;
+            };
+            if self.missing_models.contains(name.as_ref()) {
+                continue;
+            }
+            match model_bounds(vfs, &name) {
+                Some(bounds) => new.push((e.id, bounds)),
+                None => {
+                    log::warn!(
+                        "physics: {}: model {name} would not load; no body",
+                        e.classname
+                    );
+                    self.missing_models.insert(name.into_owned());
+                }
+            }
+        }
 
         for (id, bounds) in new {
             let (origin, angles) = match entities.get(id) {
@@ -586,7 +603,8 @@ impl PhysicsProps {
             .values()
             .filter(|prop| {
                 let box_ = prop_aabb(&self.rigid, prop);
-                reach.intersects(&box_) && ((box_.min + box_.max) * 0.5 - centre).dot(direction) > 0.0
+                reach.intersects(&box_)
+                    && ((box_.min + box_.max) * 0.5 - centre).dot(direction) > 0.0
             })
             .map(|prop| prop.body)
             .collect();
@@ -879,7 +897,8 @@ mod tests {
         // Values the solver cannot survive are clamped rather than obeyed. A
         // restitution over 1 gains energy on every bounce, and a prop given
         // one shakes itself apart.
-        e.fields.set("friction", kerosene_entity::Value::Float(-3.0));
+        e.fields
+            .set("friction", kerosene_entity::Value::Float(-3.0));
         e.fields
             .set("elasticity", kerosene_entity::Value::Float(2.0));
         let absurd = prop_material(&e, half);

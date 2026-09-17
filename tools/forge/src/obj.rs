@@ -23,7 +23,7 @@ use thiserror::Error;
 ///
 /// Re-exported from `kerosene-math` rather than written out again: the scale of
 /// the world is one fact, and two copies of it is one copy too many.
-pub use kerosene_math::units::VU_PER_METRE;
+pub use kerosene_math::units::KU_PER_METRE;
 
 #[derive(Debug, Error)]
 pub enum ObjError {
@@ -196,7 +196,7 @@ fn parse_corner(token: &str, mesh: &ObjMesh, line: usize) -> Result<Corner, ObjE
         match value.cmp(&0) {
             // Negative indices count backward from the end, which exporters
             // use for streaming output.
-            std::cmp::Ordering::Less => count.checked_sub((-value) as usize),
+            std::cmp::Ordering::Less => count.checked_sub(value.unsigned_abs() as usize),
             std::cmp::Ordering::Greater => Some(value as usize - 1),
             std::cmp::Ordering::Equal => None,
         }

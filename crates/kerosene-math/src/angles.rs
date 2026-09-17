@@ -92,8 +92,9 @@ impl Angles {
 
         let pitch = (-forward.z).atan2(forward.truncate().length()).to_degrees();
         let yaw = forward.y.atan2(forward.x).to_degrees();
-        // right.z = -right_neg.z; roll = atan2(right.z, up.z).
-        let roll = (-(-right_neg.z)).atan2(up.z).to_degrees();
+        // roll = atan2(-right.z, up.z), and right = -right_neg, so the two
+        // negations cancel: this is atan2(right_neg.z, up.z).
+        let roll = right_neg.z.atan2(up.z).to_degrees();
         Self::new(pitch, yaw, roll)
     }
 

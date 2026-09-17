@@ -58,6 +58,22 @@ pub trait App {
     fn wants_continuous_redraw(&self) -> bool {
         false
     }
+
+    /// The window's close button was pressed. Return `true` to let it close.
+    ///
+    /// An app with unsaved work answers `false` and puts up its question;
+    /// when the answer comes back it sets [`App::wants_to_quit`] instead.
+    /// Without this hook the close button was the one way out of the editor
+    /// that never asked, on the one occasion asking matters most.
+    fn close_requested(&mut self) -> bool {
+        true
+    }
+
+    /// Whether the app has decided, on its own, that the window should close.
+    /// Polled after every frame.
+    fn wants_to_quit(&self) -> bool {
+        false
+    }
 }
 
 /// Open a window and run `app` in it until it is closed.
@@ -123,7 +139,14 @@ impl ApplicationHandler for Host {
         }
 
         match event {
-            WindowEvent::CloseRequested => event_loop.exit(),
+            WindowEvent::CloseRequested => {
+                if self.app.close_requested() {
+                    event_loop.exit();
+                } else {
+                    // The app has a question to draw.
+                    gfx.window.request_redraw();
+                }
+            }
             WindowEvent::Resized(size) => {
                 gfx.config.width = size.width.max(1);
                 gfx.config.height = size.height.max(1);
@@ -133,6 +156,9 @@ impl ApplicationHandler for Host {
             WindowEvent::RedrawRequested => {
                 if let Err(e) = self.draw() {
                     log::warn!("frame skipped: {e}");
+                }
+                if self.app.wants_to_quit() {
+                    event_loop.exit();
                 }
             }
             _ => {}

@@ -15,6 +15,12 @@
 pub fn normalize(path: &str) -> Option<String> {
     let mut out: Vec<&str> = Vec::new();
     for part in path.split(['/', '\\']) {
+        // A drive letter or UNC prefix is an absolute path in disguise: on
+        // Windows `dir.join("C:/x")` throws `dir` away, so the `..` check
+        // alone would not keep such a key inside the tree.
+        if part.contains(':') {
+            return None;
+        }
         match part {
             "" | "." => continue,
             ".." => {
@@ -213,5 +219,16 @@ mod tests {
             with_extension("maps/noext", "kerobsp"),
             "maps/noext.kerobsp"
         );
+    }
+
+    #[test]
+    fn drive_letters_and_unc_prefixes_do_not_escape_the_tree() {
+        assert_eq!(normalize("C:/Windows/system.ini"), None);
+        assert_eq!(normalize(r"C:\Windows\system.ini"), None);
+        assert_eq!(
+            normalize(r"\\server\share\x"),
+            Some("server/share/x".to_string())
+        );
+        assert_eq!(normalize("/etc/passwd"), Some("etc/passwd".to_string()));
     }
 }

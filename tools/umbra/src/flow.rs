@@ -65,7 +65,20 @@ pub fn compute(graph: &PortalGraph, fast: bool) -> VisResult {
         // Sequential rather than threaded: each portal's result tightens the
         // pruning available to every later one, and reading a finished
         // neighbour's answer is what makes the flow converge quickly.
+        //
+        // This is the slow part, quadratic in portals, and on a real map it
+        // is minutes: a line every tenth of the way is the difference
+        // between "working" and "hung".
+        let started = std::time::Instant::now();
+        let step = (n / 10).max(1);
         for i in 0..n {
+            if i > 0 && i.is_multiple_of(step) {
+                println!(
+                    "  flow  {}% ({i}/{n} portals, {:.0}s)",
+                    i * 100 / n,
+                    started.elapsed().as_secs_f32()
+                );
+            }
             let result = {
                 let mut flow = Flow {
                     graph,
@@ -216,6 +229,11 @@ impl Flow<'_> {
 
     fn recurse(&mut self, cluster: usize, prev: &Stack, depth: usize) {
         if depth >= MAX_DEPTH {
+            // Give up on precision, not on correctness: everything this
+            // branch might still have reached is marked visible. Returning
+            // empty-handed here left those portals *unmarked*, which culled
+            // geometry that could be seen -- the wrong side of conservative.
+            self.vis.union_with(&prev.mightsee);
             return;
         }
 
@@ -430,6 +448,28 @@ mod tests {
     /// Two clusters sharing one portal.
     fn two_rooms() -> PortalGraph {
         PortalGraph::parse("VPRT1\n2\n1\n4 0 1 (0 0 0) (0 0 64) (0 64 64) (0 64 0)\n").unwrap()
+    }
+
+    #[test]
+    fn a_corridor_longer_than_the_recursion_cap_stays_visible_end_to_end() {
+        // Regression: past MAX_DEPTH the flow used to return without marking
+        // anything, so the far end of a long straight corridor was culled
+        // while standing in it and looking straight down it.
+        let clusters = MAX_DEPTH + 12;
+        let mut prt = format!("VPRT1\n{clusters}\n{}\n", clusters - 1);
+        for i in 0..clusters - 1 {
+            let x = 64 * (i + 1);
+            prt.push_str(&format!(
+                "4 {i} {} ({x} 0 32) ({x} 0 0) ({x} 32 0) ({x} 32 32)\n",
+                i + 1
+            ));
+        }
+        let g = PortalGraph::parse(&prt).unwrap();
+        let r = compute(&g, false);
+        assert!(
+            r.cluster_vis[0].test(clusters - 1),
+            "the far end of a straight corridor must be visible"
+        );
     }
 
     #[test]

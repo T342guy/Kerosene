@@ -6,8 +6,7 @@
 /// wgpu sits on top of several backends; this is the name a person writes for
 /// one of them. Vulkan is the default, and `auto` lets wgpu pick whatever it
 /// can find.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-#[derive(Default)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub enum Renderer {
     Auto,
     #[default]
@@ -16,7 +15,6 @@ pub enum Renderer {
     Dx12,
     Gl,
 }
-
 
 impl Renderer {
     /// The name as it is written in a config file.

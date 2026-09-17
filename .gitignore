@@ -35,3 +35,4 @@ pi-session-*.html
 
 # mdbook
 book
+content/cfg/config.cfg

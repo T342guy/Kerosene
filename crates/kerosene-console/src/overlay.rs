@@ -45,7 +45,9 @@ pub struct ConsoleUi {
 }
 
 impl ConsoleUi {
-    pub fn new() -> ConsoleUi { ConsoleUi::default() }
+    pub fn new() -> ConsoleUi {
+        ConsoleUi::default()
+    }
 
     /// Say what the console is, the first time it is opened.
     ///
@@ -54,7 +56,9 @@ impl ConsoleUi {
     /// is not something anybody guesses. Once per session: after that it is
     /// noise between you and the output you opened the console to read.
     pub fn greet(&mut self, console: &mut Console) {
-        if self.greeted { return }
+        if self.greeted {
+            return;
+        }
         self.greeted = true;
         console.print(format!(
             "Kerosene console -- {} commands and convars. \
@@ -67,7 +71,9 @@ impl ConsoleUi {
 
     pub fn toggle(&mut self) {
         self.open = !self.open;
-        if self.open { self.scroll = 0; }
+        if self.open {
+            self.scroll = 0;
+        }
     }
 
     pub fn close(&mut self) {
@@ -75,12 +81,16 @@ impl ConsoleUi {
     }
 
     /// Candidates for the current input, if tab has been pressed.
-    pub fn completions(&self) -> &[String] { &self.completions }
+    pub fn completions(&self) -> &[String] {
+        &self.completions
+    }
 
     /// Type into the line. Any edit drops a stale completion cycle.
     pub fn set_input(&mut self, text: impl Into<String>) {
         let text = text.into();
-        if text != self.completion_source { self.completions.clear(); }
+        if text != self.completion_source {
+            self.completions.clear();
+        }
         self.input = text;
     }
 
@@ -88,7 +98,9 @@ impl ConsoleUi {
     /// back on the way down.
     pub fn history_previous(&mut self, console: &Console) {
         let history = console.history();
-        if history.is_empty() { return }
+        if history.is_empty() {
+            return;
+        }
         let next = match self.history_index {
             None => {
                 self.draft = std::mem::take(&mut self.input);
@@ -105,7 +117,9 @@ impl ConsoleUi {
     /// Walk forward again, ending at the half-typed line.
     pub fn history_next(&mut self, console: &Console) {
         let history = console.history();
-        let Some(index) = self.history_index else { return };
+        let Some(index) = self.history_index else {
+            return;
+        };
         if index + 1 >= history.len() {
             self.history_index = None;
             self.input = std::mem::take(&mut self.draft);
@@ -133,7 +147,9 @@ impl ConsoleUi {
         // Only the command word completes; arguments are values, and guessing
         // at those would fight the person typing.
         let prefix = self.input.trim_start();
-        if prefix.contains(char::is_whitespace) || prefix.is_empty() { return }
+        if prefix.contains(char::is_whitespace) || prefix.is_empty() {
+            return;
+        }
 
         let candidates = console.complete(prefix);
         match candidates.len() {
@@ -164,7 +180,9 @@ impl ConsoleUi {
         self.history_index = None;
         self.completions.clear();
         self.scroll = 0;
-        if line.is_empty() { return None }
+        if line.is_empty() {
+            return None;
+        }
         console.execute_user(&line);
         Some(line)
     }
@@ -203,7 +221,9 @@ impl ConsoleUi {
 
 /// The longest prefix every candidate shares.
 fn common_prefix(candidates: &[String]) -> String {
-    let Some(first) = candidates.first() else { return String::new() };
+    let Some(first) = candidates.first() else {
+        return String::new();
+    };
     let mut length = first.len();
     for other in &candidates[1..] {
         length = length.min(

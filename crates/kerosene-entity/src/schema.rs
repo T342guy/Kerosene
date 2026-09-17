@@ -51,6 +51,15 @@ pub enum SchemaError {
     UnknownKeyType(String),
     #[error("`{0}` is not a class kind (expected point, brush or any)")]
     UnknownKind(String),
+    /// Any of the above, with the class it happened in. A schema is hundreds
+    /// of classes; "`strng` is not a key type" is a search, "in class
+    /// `func_door`: ..." is a fix.
+    #[error("in class `{class}`: {source}")]
+    InClass {
+        class: String,
+        #[source]
+        source: Box<SchemaError>,
+    },
 }
 
 /// Whether a class is placed as a point or built out of brushes.
@@ -355,7 +364,10 @@ fn parse_class_body(
         .to_string();
 
     let kind = match block.get("kind") {
-        Some(k) => ClassKind::parse(k)?,
+        Some(k) => ClassKind::parse(k).map_err(|e| SchemaError::InClass {
+            class: name.clone(),
+            source: Box::new(e),
+        })?,
         None => ClassKind::Point,
     };
 
@@ -365,15 +377,19 @@ fn parse_class_body(
         help: block.get("help").unwrap_or_default().to_string(),
         ..Default::default()
     };
+    let in_class = |e: SchemaError| SchemaError::InClass {
+        class: spec.name.clone(),
+        source: Box::new(e),
+    };
 
     for key_block in block.blocks("key") {
         let key_name = key_block
             .get("name")
             .filter(|n| !n.trim().is_empty())
-            .ok_or(SchemaError::Unnamed { block: "key" })?
+            .ok_or_else(|| in_class(SchemaError::Unnamed { block: "key" }))?
             .to_string();
         let kind = match key_block.get("type") {
-            Some(t) => KeyKind::parse(t)?,
+            Some(t) => KeyKind::parse(t).map_err(in_class)?,
             None => KeyKind::String,
         };
         let choices = key_block

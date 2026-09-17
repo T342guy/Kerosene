@@ -6,8 +6,9 @@
 //! compiled by Alchemy rather than loaded directly:
 //!
 //! * **Mipmaps are precomputed.** Generating them at load time costs startup
-//!   time on every run, and doing it well (gamma-correct downsampling) is not
-//!   something to redo per launch.
+//!   time on every run. (The chain is a plain box filter over the stored
+//!   bytes; a gamma-correct one would be an upgrade made here, once, rather
+//!   than in every loader.)
 //! * **Average colour is precomputed.** The lighting compile needs a surface's
 //!   reflectivity to bounce light off it, and scanning every texture at
 //!   compile time would be wasteful.
@@ -29,6 +30,9 @@ const HEADER_SIZE: usize = 48;
 /// comfortably inside a `u32`.
 pub const MAX_DIMENSION: u32 = 8192;
 
+/// The longest mip chain [`MAX_DIMENSION`] allows: halving down to 1x1.
+pub const MAX_MIP_COUNT: usize = MAX_DIMENSION.ilog2() as usize + 1;
+
 #[derive(Debug, Error)]
 pub enum TextureError {
     #[error("not a .kerotex file (bad magic)")]
@@ -39,6 +43,8 @@ pub enum TextureError {
     Truncated { needed: usize, available: usize },
     #[error("unknown pixel format {0}")]
     BadFormat(u32),
+    #[error("{0} mip levels; a {MAX_DIMENSION}-wide texture has at most {MAX_MIP_COUNT}")]
+    BadMipCount(u32),
     #[error(
         "{width}x{height} is not a usable size (max {MAX_DIMENSION}, and neither side may be zero)"
     )]
@@ -188,7 +194,7 @@ impl Texture {
             });
         }
 
-        let reflectivity = average_color(&pixels, format);
+        let reflectivity = average_color(&pixels, format, flags.is_color());
         let base = Mip {
             width,
             height,
@@ -238,7 +244,9 @@ impl Texture {
                 available: bytes.len(),
             });
         }
-        let header: RawHeader = *bytemuck::from_bytes(&bytes[..HEADER_SIZE]);
+        // Read unaligned: the caller's slice may be an `include_bytes!` or a
+        // window into a larger buffer, and neither promises 4-byte alignment.
+        let header: RawHeader = bytemuck::pod_read_unaligned(&bytes[..HEADER_SIZE]);
         if header.magic != MAGIC {
             return Err(TextureError::BadMagic);
         }
@@ -262,6 +270,13 @@ impl Texture {
         let format = PixelFormat::from_u32(header.format)?;
         let bpp = format.bytes_per_pixel();
 
+        // A chain can only halve so many times before both sides are 1, so
+        // a count past that is a corrupt header -- and one worth rejecting
+        // before it sizes an allocation. Reserving for the header's own
+        // number would let a 48-byte file ask for gigabytes.
+        if header.mip_count as usize > MAX_MIP_COUNT {
+            return Err(TextureError::BadMipCount(header.mip_count));
+        }
         let mut mips = Vec::with_capacity(header.mip_count as usize);
         let mut offset = HEADER_SIZE;
         let (mut w, mut h) = (header.width, header.height);
@@ -301,7 +316,9 @@ impl Texture {
             PixelFormat::Rgba8 => mip.pixels.clone(),
             PixelFormat::Rgb8 => mip
                 .pixels
-                .as_chunks::<3>().0.iter()
+                .as_chunks::<3>()
+                .0
+                .iter()
                 .flat_map(|p| [p[0], p[1], p[2], 255])
                 .collect(),
             PixelFormat::R8 => mip.pixels.iter().flat_map(|&v| [v, v, v, 255]).collect(),
@@ -348,33 +365,48 @@ fn generate_mips(base: Mip, format: PixelFormat) -> Vec<Mip> {
     mips
 }
 
-/// Average colour of an image, as a 0..1 linear-ish value.
-fn average_color(pixels: &[u8], format: PixelFormat) -> Vec3 {
+/// Average colour of an image, as a 0..1 linear value.
+///
+/// Colour art is stored sRGB-encoded, so each texel is decoded before it is
+/// summed: averaging the encoded bytes and calling the result linear makes
+/// a mid-grey wall bounce roughly twice the light it should. Data textures
+/// are already linear and are averaged as they are.
+fn average_color(pixels: &[u8], format: PixelFormat, srgb: bool) -> Vec3 {
     let bpp = format.bytes_per_pixel();
     if pixels.is_empty() || bpp == 0 {
         return Vec3::splat(0.5);
     }
+    let decode = |byte: u8| -> f64 {
+        let v = byte as f64 / 255.0;
+        if !srgb {
+            v
+        } else if v <= 0.04045 {
+            v / 12.92
+        } else {
+            ((v + 0.055) / 1.055).powf(2.4)
+        }
+    };
     let count = (pixels.len() / bpp) as f64;
     let mut sum = [0f64; 3];
     for p in pixels.chunks_exact(bpp) {
         match format {
             PixelFormat::R8 => {
-                let v = p[0] as f64;
+                let v = decode(p[0]);
                 sum[0] += v;
                 sum[1] += v;
                 sum[2] += v;
             }
             _ => {
-                sum[0] += p[0] as f64;
-                sum[1] += p[1] as f64;
-                sum[2] += p[2] as f64;
+                sum[0] += decode(p[0]);
+                sum[1] += decode(p[1]);
+                sum[2] += decode(p[2]);
             }
         }
     }
     Vec3::new(
-        (sum[0] / count / 255.0) as f32,
-        (sum[1] / count / 255.0) as f32,
-        (sum[2] / count / 255.0) as f32,
+        (sum[0] / count) as f32,
+        (sum[1] / count) as f32,
+        (sum[2] / count) as f32,
     )
 }
 
@@ -609,5 +641,42 @@ mod tests {
         assert!(back.flags.contains(TextureFlags::CLAMP));
         assert!(back.flags.contains(TextureFlags::NORMAL_MAP));
         assert!(!back.flags.contains(TextureFlags::UI));
+    }
+
+    #[test]
+    fn a_header_claiming_absurd_mip_counts_is_rejected_not_allocated() {
+        let tex =
+            Texture::build(4, 4, PixelFormat::Rgba8, TextureFlags::NONE, vec![0; 64]).unwrap();
+        let mut bytes = tex.to_bytes();
+        // mip_count lives after magic, version, width, height, format, flags.
+        let at = 4 * 6;
+        bytes[at..at + 4].copy_from_slice(&u32::MAX.to_le_bytes());
+        assert!(matches!(
+            Texture::from_bytes(&bytes),
+            Err(TextureError::BadMipCount(_))
+        ));
+    }
+
+    #[test]
+    fn headers_read_from_an_unaligned_slice() {
+        let tex =
+            Texture::build(4, 4, PixelFormat::Rgba8, TextureFlags::NONE, vec![0; 64]).unwrap();
+        let mut padded = vec![0u8; 1];
+        padded.extend(tex.to_bytes());
+        assert!(Texture::from_bytes(&padded[1..]).is_ok());
+    }
+
+    #[test]
+    fn colour_averages_are_linear() {
+        // sRGB 128 decodes to about 0.216, not 0.5.
+        let tex =
+            Texture::build(2, 2, PixelFormat::Rgb8, TextureFlags::NONE, vec![128; 12]).unwrap();
+        assert!(
+            (tex.reflectivity.x - 0.216).abs() < 0.01,
+            "{}",
+            tex.reflectivity.x
+        );
+        let data = Texture::build(2, 2, PixelFormat::R8, TextureFlags::DATA, vec![128; 4]).unwrap();
+        assert!((data.reflectivity.x - 0.502).abs() < 0.01);
     }
 }

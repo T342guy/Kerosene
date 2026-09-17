@@ -120,7 +120,9 @@ fn build_stream(
             Err(_) => block.fill(0.0),
         }
 
-        for (frame, out) in data.chunks_mut(channels).enumerate() {
+        // `chunks_exact`: a trailing partial frame would index one past the
+        // block that was sized for whole frames.
+        for (frame, out) in data.chunks_exact_mut(channels.max(1)).enumerate() {
             let (l, r) = (block[frame * 2], block[frame * 2 + 1]);
             match out.len() {
                 0 => {}

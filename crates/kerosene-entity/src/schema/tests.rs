@@ -178,7 +178,13 @@ fn a_missing_base_is_an_error_rather_than_a_silent_gap() {
 #[test]
 fn an_unknown_key_type_is_rejected() {
     let err = Schema::parse(r#"class { "name" "c" key { "name" "k" "type" "wat" } }"#).unwrap_err();
-    assert!(matches!(err, SchemaError::UnknownKeyType(_)), "{err}");
+    // Named with the class it was found in, since a schema has hundreds.
+    assert!(
+        matches!(&err, SchemaError::InClass { class, source }
+            if class == "c" && matches!(**source, SchemaError::UnknownKeyType(_))),
+        "{err}"
+    );
+    assert!(err.to_string().contains("`c`"), "{err}");
 }
 
 #[test]

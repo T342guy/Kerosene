@@ -265,7 +265,7 @@ fn set_value(world: &mut EntityWorld, id: EntityId, raw: f32) {
 fn input_show_message(world: &mut EntityWorld, id: EntityId, _e: &InputEvent) -> bool {
     let text = world
         .get(id)
-        .and_then(|e| e.fields.text("message").map(str::to_string))
+        .and_then(|e| e.fields.text("message").map(|m| m.into_owned()))
         .unwrap_or_default();
     if !text.is_empty() {
         log::info!("{text}");

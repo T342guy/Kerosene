@@ -144,7 +144,9 @@ fn pressing_tab_again_cycles_through_the_candidates() {
     ui.complete(&con);
     assert_ne!(ui.input, first, "tab did not move on");
     // Once round the whole list and back to where it started.
-    for _ in 1..count { ui.complete(&con); }
+    for _ in 1..count {
+        ui.complete(&con);
+    }
     assert_eq!(ui.input, first, "the cycle did not come back round");
 }
 
@@ -156,7 +158,10 @@ fn typing_after_a_completion_starts_a_new_one() {
     ui.complete(&con);
     assert!(!ui.completions().is_empty());
     ui.set_input("cl_");
-    assert!(ui.completions().is_empty(), "a stale cycle survived an edit");
+    assert!(
+        ui.completions().is_empty(),
+        "a stale cycle survived an edit"
+    );
 }
 
 #[test]
@@ -230,7 +235,9 @@ fn the_wheel_scrolls_a_line_at_a_time_and_reaches_the_whole_log() {
 #[test]
 fn scrolling_cannot_walk_off_the_top() {
     let mut ui = ConsoleUi::new();
-    for _ in 0..100 { ui.scroll_up(30); }
+    for _ in 0..100 {
+        ui.scroll_up(30);
+    }
     let range = ui.visible_range(30, 10);
     assert!(range.start < range.end || range.is_empty());
     assert!(range.end <= 30);
@@ -277,7 +284,10 @@ fn the_console_says_what_it_is_the_first_time_it_opens() {
 fn the_greeting_counts_what_is_actually_registered() {
     let mut console = Console::new();
     let builtins = console.name_count();
-    assert!(builtins > 0, "a console with no builtins is a broken console");
+    assert!(
+        builtins > 0,
+        "a console with no builtins is a broken console"
+    );
 
     console.register_cvar("sv_wibble", "1", crate::ConVarFlags::NONE, "test");
     assert_eq!(console.name_count(), builtins + 1);

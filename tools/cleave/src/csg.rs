@@ -34,7 +34,14 @@ pub fn chop_brushes(brushes: &mut [BrushWork], planes: &PlaneSet) -> usize {
     // authored, not as previous iterations left them.
     let snapshot: Vec<BrushWork> = brushes.to_vec();
 
+    // Quadratic in brushes; on a large map this is where cleave spends its
+    // time, so say how far along it is.
+    let total = brushes.len();
+    let step = (total / 10).max(1);
     for i in 0..brushes.len() {
+        if total >= 500 && i > 0 && i.is_multiple_of(step) {
+            println!("  csg   {}% ({i}/{total} brushes)", i * 100 / total);
+        }
         for s in 0..brushes[i].sides.len() {
             let Some(winding) = brushes[i].sides[s].winding.clone() else {
                 brushes[i].sides[s].fragments.clear();
@@ -235,7 +242,7 @@ mod tests {
     }
 
     #[test]
-    fn two_flush_brushes_keep_exactly_one_shared_face() {
+    fn two_flush_brushes_lose_both_faces_on_their_seam() {
         // Side by side, touching at x = 64. Each has a face there.
         let (mut b, planes) = make(&[
             (

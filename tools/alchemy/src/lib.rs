@@ -195,7 +195,10 @@ pub fn batch(dir: &Path, out_root: &Path, make_materials: bool) -> Result<Batch>
         if is_up_to_date(path, &out) {
             report.skipped += 1;
         } else {
-            compile_image(path, &out, flags, false)?;
+            // A normal map's alpha is not transparency, whatever the PNG
+            // says; treating it as such made the surface it describes
+            // vanish. Forced opaque here as `compile_set` already does.
+            compile_image(path, &out, flags, is_normal)?;
             report.compiled += 1;
         }
 
@@ -212,12 +215,16 @@ pub fn batch(dir: &Path, out_root: &Path, make_materials: bool) -> Result<Batch>
             }
             let mut material = Material::new(Shader::Lit);
             material.set("$basetexture", name);
-            // Wire up a matching normal map if one was compiled alongside.
-            if images
-                .iter()
-                .any(|(_, r)| r.starts_with(&format!("{name}_normal.")))
-            {
-                material.set("$bumpmap", format!("{name}_normal"));
+            // Wire up a matching normal map if one was compiled alongside,
+            // under either spelling the batch recognises as one.
+            for suffix in ["_normal", "_n"] {
+                if images
+                    .iter()
+                    .any(|(_, r)| r.starts_with(&format!("{name}{suffix}.")))
+                {
+                    material.set("$bumpmap", format!("{name}{suffix}"));
+                    break;
+                }
             }
             if let Some(parent) = mat_path.parent() {
                 std::fs::create_dir_all(parent)?;

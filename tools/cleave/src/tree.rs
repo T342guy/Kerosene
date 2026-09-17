@@ -22,6 +22,7 @@
 //! completely carved out of space, so whatever is left inside it *is* it.
 
 use crate::brush::BrushWork;
+use kerosene_bsp::surf;
 use kerosene_math::{Aabb, PlaneSet, PlaneSide, Vec3};
 use std::collections::HashSet;
 
@@ -282,6 +283,11 @@ fn select_split(brushes: &[BrushWork], planes: &PlaneSet, used: &HashSet<u32>) -
             if used.contains(&pair) {
                 continue;
             }
+            // Skip is the material a hint brush's other faces wear so that
+            // they do nothing; that includes not proposing a split.
+            if side.surface & surf::SKIP != 0 {
+                continue;
+            }
 
             let plane = planes.get(side.plane);
             let (mut front, mut back, mut splits) = (0i32, 0i32, 0i32);
@@ -319,6 +325,11 @@ fn select_split(brushes: &[BrushWork], planes: &PlaneSet, used: &HashSet<u32>) -
             // planes, where the renderer can cull them per node.
             if side.is_visible_surface() {
                 value += 3;
+            }
+            // A hint exists to be split along. Its whole purpose is to win
+            // here, ahead of whatever the heuristic would have picked.
+            if side.surface & surf::HINT != 0 {
+                value += 1000;
             }
 
             if value > best_value {

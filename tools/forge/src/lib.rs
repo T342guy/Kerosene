@@ -20,7 +20,7 @@ use anyhow::{Context, Result, bail};
 use clap::{Parser, Subcommand};
 use kerosene_asset::{Mesh, Model, Vertex};
 use kerosene_math::Vec3;
-use obj::{ObjMesh, UpAxis, VU_PER_METRE};
+use obj::{KU_PER_METRE, ObjMesh, UpAxis};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
@@ -86,7 +86,7 @@ pub fn run(args: Vec<String>) -> Result<()> {
             recompute_normals,
         } => {
             let out = output.unwrap_or_else(|| source.with_extension("keromdl"));
-            let scale = scale * if scale_metres { VU_PER_METRE } else { 1.0 };
+            let scale = scale * if scale_metres { KU_PER_METRE } else { 1.0 };
             let up = if z_up { UpAxis::Z } else { UpAxis::Y };
             compile(
                 &source,
@@ -286,7 +286,7 @@ mod tests {
             let path = root.join(format!("art/props/{name}.obj"));
             let text = std::fs::read_to_string(&path)
                 .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-            let mesh = ObjMesh::parse(&text, UpAxis::Y, VU_PER_METRE).unwrap();
+            let mesh = ObjMesh::parse(&text, UpAxis::Y, KU_PER_METRE).unwrap();
 
             let mut checked = 0;
             for group in &mesh.groups {

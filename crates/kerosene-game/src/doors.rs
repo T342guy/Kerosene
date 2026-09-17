@@ -52,6 +52,8 @@ struct MoverOutputs {
     fully_back: &'static str,
     /// The input `wait` fires at itself to come back.
     ret: &'static str,
+    /// Fired instead of moving when it is locked.
+    locked: &'static str,
 }
 
 const DOOR_OUTPUTS: MoverOutputs = MoverOutputs {
@@ -60,6 +62,7 @@ const DOOR_OUTPUTS: MoverOutputs = MoverOutputs {
     fully_forward: "OnFullyOpen",
     fully_back: "OnFullyClosed",
     ret: "Close",
+    locked: "OnLockedUse",
 };
 
 const BUTTON_OUTPUTS: MoverOutputs = MoverOutputs {
@@ -72,6 +75,8 @@ const BUTTON_OUTPUTS: MoverOutputs = MoverOutputs {
     fully_forward: "OnIn",
     fully_back: "OnOut",
     ret: "Unpress",
+    // Source's name for it on a button, and the one the schema declares.
+    locked: "OnUseLocked",
 };
 
 fn outputs_for(classname: &str) -> &'static MoverOutputs {
@@ -336,7 +341,8 @@ fn start(world: &mut EntityWorld, id: EntityId, event: &InputEvent, opening: boo
         .map(|e| e.fields.bool("locked", false))
         .unwrap_or(false)
     {
-        world.fire_output(id, "OnLockedUse", event.activator, None);
+        let locked = outputs_of(world, id).locked;
+        world.fire_output(id, locked, event.activator, None);
         return true;
     }
 

@@ -252,7 +252,7 @@ impl Material {
 /// an unknown string is preserved as [`SurfaceProperty::Other`] rather than
 /// lost, so a game can ship its own surface types without the engine knowing
 /// them.
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+#[derive(Clone, PartialEq, Eq, Debug, Default)]
 pub enum SurfaceProperty {
     /// The default; ordinary, generic ground.
     #[default]
@@ -266,8 +266,9 @@ pub enum SurfaceProperty {
     Water,
     Snow,
     Carpet,
-    /// A named type the engine does not recognise, kept as its string.
-    Other,
+    /// A named type the engine does not recognise, kept as its string
+    /// (lower-cased), so a game's own `footstep/<name>/` sounds still resolve.
+    Other(String),
 }
 
 impl SurfaceProperty {
@@ -286,12 +287,12 @@ impl SurfaceProperty {
             "water" => SurfaceProperty::Water,
             "snow" => SurfaceProperty::Snow,
             "carpet" => SurfaceProperty::Carpet,
-            _ => SurfaceProperty::Other,
+            other => SurfaceProperty::Other(other.to_string()),
         }
     }
 
     /// The canonical name, for logging and for re-serialising.
-    pub fn as_str(self) -> &'static str {
+    pub fn as_str(&self) -> &str {
         match self {
             SurfaceProperty::Default => "default",
             SurfaceProperty::Concrete => "concrete",
@@ -303,13 +304,13 @@ impl SurfaceProperty {
             SurfaceProperty::Water => "water",
             SurfaceProperty::Snow => "snow",
             SurfaceProperty::Carpet => "carpet",
-            SurfaceProperty::Other => "other",
+            SurfaceProperty::Other(name) => name,
         }
     }
 
     /// The footstep sound a game plays for this surface, by the naming
     /// convention `footstep/<surface>/<step number>`.
-    pub fn footstep_sound(self, step: u8) -> String {
+    pub fn footstep_sound(&self, step: u8) -> String {
         format!("footstep/{}/{}", self.as_str(), step % 4 + 1)
     }
 }
@@ -433,7 +434,10 @@ lit
 
     #[test]
     fn an_unknown_surface_is_preserved_as_other() {
-        assert_eq!(SurfaceProperty::parse("rubber"), SurfaceProperty::Other);
+        let rubber = SurfaceProperty::parse("Rubber");
+        assert_eq!(rubber, SurfaceProperty::Other("rubber".to_string()));
+        assert_eq!(rubber.as_str(), "rubber");
+        assert_eq!(rubber.footstep_sound(0), "footstep/rubber/1");
     }
 
     #[test]

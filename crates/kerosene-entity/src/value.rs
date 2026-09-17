@@ -195,8 +195,17 @@ impl Fields {
     pub fn bool(&self, key: &str, default: bool) -> bool {
         self.get(key).and_then(Value::as_bool).unwrap_or(default)
     }
-    pub fn text(&self, key: &str) -> Option<&str> {
-        self.get(key).and_then(Value::as_str)
+    /// A field as text, however it was typed.
+    ///
+    /// A value that parsed as a number or a vector -- a `target` of `"1"`, a
+    /// `message` of `"3 2 1"` -- is written back out the way level data
+    /// spells it, rather than reported missing because it happened to look
+    /// like something else. Only a key that was never set is `None`.
+    pub fn text(&self, key: &str) -> Option<std::borrow::Cow<'_, str>> {
+        self.get(key).map(|v| match v {
+            Value::Text(t) => std::borrow::Cow::Borrowed(t.as_str()),
+            other => std::borrow::Cow::Owned(other.to_string()),
+        })
     }
     pub fn vec3(&self, key: &str, default: Vec3) -> Vec3 {
         self.get(key).and_then(Value::as_vec3).unwrap_or(default)
@@ -233,7 +242,13 @@ mod tests {
         // Map files are inconsistent about this, and always have been.
         let mut f = Fields::new();
         f.set("TargetName", Value::Text("door1".into()));
-        assert_eq!(f.text("targetname"), Some("door1"));
+        assert_eq!(f.text("targetname").as_deref(), Some("door1"));
+        // A name that happens to be numeric is still a name.
+        f.set("target", Value::from_keyvalue("1"));
+        f.set("message", Value::from_keyvalue("3 2 1"));
+        assert_eq!(f.text("target").as_deref(), Some("1"));
+        assert_eq!(f.text("message").as_deref(), Some("3 2 1"));
+        assert_eq!(f.text("nothing"), None);
         assert!(f.contains("TARGETNAME"));
     }
 

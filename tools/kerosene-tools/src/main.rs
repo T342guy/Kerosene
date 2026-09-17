@@ -27,6 +27,10 @@ fn main() -> Result<()> {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
         .format_timestamp(None)
         .init();
+    // A crash in the editor should leave something behind besides a closed
+    // window. No relay here -- env_logger is the logger -- so the report
+    // carries the panic and a backtrace.
+    kerosene_console::install_crash_handler(None);
 
     let args: Vec<String> = std::env::args().skip(1).collect();
     let Some(first) = args.first().cloned() else {
@@ -89,6 +93,9 @@ fn opens_sound_window(args: &[String]) -> bool {
         None => true,
         Some("edit") => true,
         Some("build") | Some("compile") | Some("info") => false,
+        // Asking for help or the version is asking the command line, and
+        // must reach clap rather than open a window with the answer in it.
+        Some("-h" | "--help" | "-V" | "--version") => false,
         Some(other) => other.starts_with('-'),
     }
 }

@@ -118,7 +118,9 @@ impl Script {
         if let Some(parent) = self.path.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        std::fs::write(&self.path, self.to_text())
+        // Atomically: this is the only copy of every gain and loop point a
+        // person set by ear.
+        kerosene_vfs::write_atomic(&self.path, self.to_text().as_bytes())
             .with_context(|| format!("writing {}", self.path.display()))?;
         Ok(())
     }

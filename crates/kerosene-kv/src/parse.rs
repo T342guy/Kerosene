@@ -126,8 +126,14 @@ impl<'a> Lexer<'a> {
                             self.pos += 1;
                             break;
                         }
-                        b'\\' if self.pos + 1 < self.src.len() => {
-                            let esc = self.src[self.pos + 1];
+                        b'\\' => {
+                            // A backslash as the very last byte of the input
+                            // escapes nothing; it is kept literally and the
+                            // loop then reports the string unterminated.
+                            // Falling through to the plain-run arm instead
+                            // would stop that arm's scan on this same byte
+                            // without consuming it, and spin forever.
+                            let esc = self.src.get(self.pos + 1).copied().unwrap_or(0);
                             // Only the sequences we ourselves emit are
                             // resolved. Anything else keeps its backslash, so
                             // hand-written asset paths like
@@ -337,5 +343,13 @@ mod tests {
             KeyValues::parse("a { \"k\" \"oops }"),
             Err(ParseError::UnterminatedString { .. })
         ));
+    }
+
+    #[test]
+    fn a_trailing_backslash_inside_a_quote_does_not_hang() {
+        // Regression: a truncated file ending in `\` inside an open quote
+        // used to loop forever in the lexer.
+        let result = KeyValues::parse("a { \"k\" \"v\\");
+        assert!(matches!(result, Err(ParseError::UnterminatedString { .. })));
     }
 }

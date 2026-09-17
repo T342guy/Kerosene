@@ -53,6 +53,13 @@ impl BitSet {
         more != 0
     }
 
+    /// Set every bit that is set in `other`.
+    pub fn union_with(&mut self, other: &BitSet) {
+        for (w, o) in self.words.iter_mut().zip(&other.words) {
+            *w |= o;
+        }
+    }
+
     pub fn count(&self) -> usize {
         self.words.iter().map(|w| w.count_ones() as usize).sum()
     }

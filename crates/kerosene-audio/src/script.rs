@@ -63,6 +63,7 @@ impl SoundDef {
             volume: self.volume,
             pitch: self.pitch,
             looping: self.looping,
+            loop_region: None,
             position: None,
             reference_distance: self.reference_distance,
             attenuation: self.attenuation,

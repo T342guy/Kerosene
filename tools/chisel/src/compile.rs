@@ -119,6 +119,17 @@ pub struct CompileJob {
     pub log: Vec<CompileMessage>,
     pub finished: bool,
     pub failed: bool,
+    /// Set to stop the pipeline between stages when the job is dropped or
+    /// replaced, so an abandoned compile does not keep writing the same
+    /// files a new one is about to.
+    cancel: std::sync::Arc<std::sync::atomic::AtomicBool>,
+}
+
+impl Drop for CompileJob {
+    fn drop(&mut self) {
+        self.cancel
+            .store(true, std::sync::atomic::Ordering::Relaxed);
+    }
 }
 
 impl CompileJob {
@@ -130,13 +141,16 @@ impl CompileJob {
     pub fn start(map: &Path, settings: CompileSettings) -> CompileJob {
         let (sender, receiver) = channel();
         let map = map.to_path_buf();
+        let cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
 
+        let flag = std::sync::Arc::clone(&cancel);
         std::thread::spawn(move || {
-            let _ = run_compile(&map, &settings, &sender);
+            let _ = run_compile(&map, &settings, &sender, &flag);
         });
 
         CompileJob {
             receiver,
+            cancel,
             log: Vec::new(),
             finished: false,
             failed: false,
@@ -185,8 +199,10 @@ fn run_compile(
     map: &Path,
     settings: &CompileSettings,
     sender: &Sender<CompileMessage>,
+    cancel: &std::sync::atomic::AtomicBool,
 ) -> Result<(), ()> {
     let compiled = map.with_extension("kerobsp");
+    let cancelled = || cancel.load(std::sync::atomic::Ordering::Relaxed);
 
     // Alchemy first, and in-process rather than as a stage. The compilers run
     // as subcommands of this same binary; the texture build is a library call
@@ -208,12 +224,21 @@ fn run_compile(
         }
     }
 
-    // Cleave.
-    let mut args = vec![map.display().to_string()];
+    // Cleave. The content tree is handed over for the same reason the
+    // engine gets it below: it sizes every face by the compiled texture it
+    // wears, and the editor knows which tree that is.
+    let mut args = vec![
+        map.display().to_string(),
+        "--content".into(),
+        settings.content_root.display().to_string(),
+    ];
     if settings.ignore_leaks {
         args.push("--ignore-leaks".into());
     }
     stage("cleave", &args, sender)?;
+    if cancelled() {
+        return Err(());
+    }
 
     if settings.run_vis {
         let mut args = vec![compiled.display().to_string()];
@@ -221,6 +246,9 @@ fn run_compile(
             args.push("--fast".into());
         }
         stage("umbra", &args, sender)?;
+        if cancelled() {
+            return Err(());
+        }
     }
 
     if settings.run_lighting {
@@ -232,6 +260,9 @@ fn run_compile(
             settings.bounces.to_string(),
         ];
         stage("radiance", &args, sender)?;
+        if cancelled() {
+            return Err(());
+        }
     }
 
     let _ = sender.send(CompileMessage::Finished(compiled.clone()));
@@ -281,15 +312,28 @@ fn stage(tool: &str, args: &[String], sender: &Sender<CompileMessage>) -> Result
 
     // Both streams matter: the compilers print progress on stdout and
     // warnings on stderr, and a log missing half of it is worse than useless.
+    // Each on its own thread: reading them one after the other deadlocked
+    // whenever a compiler filled the stderr pipe before it closed stdout --
+    // it blocked writing warnings while this end blocked reading progress.
+    let mut readers = Vec::new();
     if let Some(stdout) = child.stdout.take() {
-        for line in BufReader::new(stdout).lines().map_while(Result::ok) {
-            let _ = sender.send(CompileMessage::Line(line));
-        }
+        let sender = sender.clone();
+        readers.push(std::thread::spawn(move || {
+            for line in BufReader::new(stdout).lines().map_while(Result::ok) {
+                let _ = sender.send(CompileMessage::Line(line));
+            }
+        }));
     }
     if let Some(stderr) = child.stderr.take() {
-        for line in BufReader::new(stderr).lines().map_while(Result::ok) {
-            let _ = sender.send(CompileMessage::Line(line));
-        }
+        let sender = sender.clone();
+        readers.push(std::thread::spawn(move || {
+            for line in BufReader::new(stderr).lines().map_while(Result::ok) {
+                let _ = sender.send(CompileMessage::Line(line));
+            }
+        }));
+    }
+    for reader in readers {
+        let _ = reader.join();
     }
 
     match child.wait() {
@@ -469,6 +513,7 @@ mod tests {
     fn the_log_renders_as_text() {
         let mut job = CompileJob {
             receiver: channel().1,
+            cancel: Default::default(),
             log: vec![
                 CompileMessage::Stage("cleave".into()),
                 CompileMessage::Line("68 faces".into()),
@@ -489,6 +534,7 @@ mod tests {
         let (sender, receiver) = channel();
         let mut job = CompileJob {
             receiver,
+            cancel: Default::default(),
             log: Vec::new(),
             finished: false,
             failed: false,

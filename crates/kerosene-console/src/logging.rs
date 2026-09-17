@@ -32,11 +32,20 @@ const CONSOLE_TARGET: &str = "kerosene_console";
 /// to exhaust memory before the next frame gets a chance to drain it.
 const MAX_PENDING: usize = 8192;
 
+/// How many lines the crash log gets to say what led up to it.
+const RECENT_LINES: usize = 64;
+
 #[derive(Default)]
 struct Shared {
     pending: Vec<LogLine>,
     dropped: usize,
-    file: Option<std::fs::File>,
+    /// The last few lines of everything, console-targeted or not, so a
+    /// crash can be reported with what was happening just before it.
+    recent: std::collections::VecDeque<String>,
+    /// Buffered: one syscall per line under the mutex was measurable
+    /// during a map load. Warnings and worse flush at once, and so does
+    /// [`log::Log::flush`], so a crash log still ends where the crash was.
+    file: Option<std::io::BufWriter<std::fs::File>>,
 }
 
 /// The global logger, and the handle the engine drains it through.
@@ -90,13 +99,15 @@ impl LogRelay {
     pub fn open_file(&self, path: &std::path::Path) -> std::io::Result<()> {
         let file = std::fs::File::create(path)?;
         let mut shared = self.shared.lock().unwrap_or_else(|e| e.into_inner());
-        shared.file = Some(file);
+        shared.file = Some(std::io::BufWriter::new(file));
         Ok(())
     }
 
     pub fn close_file(&self) {
         let mut shared = self.shared.lock().unwrap_or_else(|e| e.into_inner());
-        shared.file = None;
+        if let Some(mut file) = shared.file.take() {
+            let _ = file.flush();
+        }
     }
 
     pub fn has_file(&self) -> bool {
@@ -111,6 +122,17 @@ impl LogRelay {
     ///
     /// The second element is how many records were dropped because the queue
     /// was full, so a flood is reported rather than silently truncated.
+    /// The last few lines logged, oldest first.
+    pub fn recent(&self) -> Vec<String> {
+        self.shared
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .recent
+            .iter()
+            .cloned()
+            .collect()
+    }
+
     pub fn take(&self) -> (Vec<LogLine>, usize) {
         let mut shared = self.shared.lock().unwrap_or_else(|e| e.into_inner());
         let dropped = std::mem::take(&mut shared.dropped);
@@ -166,10 +188,19 @@ impl log::Log for LogRelay {
         let mut shared = self.shared.lock().unwrap_or_else(|e| e.into_inner());
         if let Some(file) = shared.file.as_mut() {
             let _ = writeln!(file, "[{:<5}] {}", record.level(), text);
+            if record.level() <= log::Level::Warn {
+                let _ = file.flush();
+            }
         }
         // stderr stays useful: a crash before the first frame has no console
         // to print into, and a terminal is where that has to be readable.
         let _ = writeln!(std::io::stderr(), "[{:<5}] {}", record.level(), text);
+        if shared.recent.len() >= RECENT_LINES {
+            shared.recent.pop_front();
+        }
+        shared
+            .recent
+            .push_back(format!("[{:<5}] {}", record.level(), text));
 
         if from_console {
             return;
@@ -229,6 +260,52 @@ pub fn install(level: log::LevelFilter) -> Arc<LogRelay> {
     relay
 }
 
+/// Write a crash log when the process panics, then carry on panicking.
+///
+/// A shipped game that dies takes its backtrace with it; this leaves one
+/// behind, as `crash.log` beside the executable (or in the working
+/// directory when that is not writable), with the panic, where it was, a
+/// backtrace, and the last few lines the log had seen -- which say which map
+/// was loading and what the console was doing. The relay's file, if one is
+/// open, is flushed first so its tail is not lost with the process.
+pub fn install_crash_handler(relay: Option<Arc<LogRelay>>) {
+    use std::fmt::Write as _;
+    let previous = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        let mut report = String::new();
+        let _ = writeln!(report, "Kerosene crashed: {info}");
+        if let Some(location) = info.location() {
+            let _ = writeln!(report, "at {}:{}", location.file(), location.line());
+        }
+        let _ = writeln!(report);
+        let _ = writeln!(report, "{}", std::backtrace::Backtrace::force_capture());
+        if let Some(relay) = &relay {
+            log::Log::flush(relay.as_ref());
+            let recent = relay.recent();
+            if !recent.is_empty() {
+                let _ = writeln!(report, "\nlast {} log lines:", recent.len());
+                for line in recent {
+                    let _ = writeln!(report, "  {line}");
+                }
+            }
+        }
+
+        let beside_exe = std::env::current_exe()
+            .ok()
+            .and_then(|exe| exe.parent().map(|d| d.join("crash.log")));
+        let candidates = beside_exe
+            .into_iter()
+            .chain(std::iter::once(std::path::PathBuf::from("crash.log")));
+        for path in candidates {
+            if std::fs::write(&path, &report).is_ok() {
+                eprintln!("crash report written to {}", path.display());
+                break;
+            }
+        }
+        previous(info);
+    }));
+}
+
 /// How loudly crates that are not ours may log.
 ///
 /// Warnings and worse, which is the level at which a foreign crate is telling
@@ -236,7 +313,14 @@ pub fn install(level: log::LevelFilter) -> Arc<LogRelay> {
 /// sets it is debugging the thing they set it for, and second-guessing them
 /// would make the variable useless.
 pub fn foreign_level(ours: log::LevelFilter) -> log::LevelFilter {
-    if std::env::var_os("RUST_LOG").is_some() {
+    foreign_level_given(ours, std::env::var_os("RUST_LOG").is_some())
+}
+
+/// [`foreign_level`] with the environment's answer passed in, so the rule
+/// can be tested without touching a process-wide variable that other tests
+/// are reading at the same time.
+pub fn foreign_level_given(ours: log::LevelFilter, rust_log_is_set: bool) -> log::LevelFilter {
+    if rust_log_is_set {
         return ours;
     }
     ours.min(log::LevelFilter::Warn)
@@ -246,7 +330,12 @@ pub fn foreign_level(ours: log::LevelFilter) -> log::LevelFilter {
 /// default. Only a bare level is understood -- per-module filtering is what
 /// the `developer` convar and log targets are for.
 pub fn level_from_env(default: log::LevelFilter) -> log::LevelFilter {
-    match std::env::var("RUST_LOG").ok().as_deref().map(str::trim) {
+    level_from_spec(std::env::var("RUST_LOG").ok().as_deref(), default)
+}
+
+/// [`level_from_env`] with the variable's value passed in.
+pub fn level_from_spec(spec: Option<&str>, default: log::LevelFilter) -> log::LevelFilter {
+    match spec.map(str::trim) {
         Some("error") => log::LevelFilter::Error,
         Some("warn") => log::LevelFilter::Warn,
         Some("info") => log::LevelFilter::Info,

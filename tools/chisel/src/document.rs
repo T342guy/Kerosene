@@ -71,8 +71,13 @@ pub struct Document {
     pub current_material: String,
     undo: Vec<Snapshot>,
     redo: Vec<Snapshot>,
-    /// Set on every edit, cleared on save.
-    modified: bool,
+    /// How deep the undo stack was when the map was last saved (or loaded),
+    /// or `None` when that state can no longer be reached by undoing.
+    ///
+    /// A depth rather than a flag: the map is clean whenever the undo stack
+    /// is back at this depth, so undoing an edit to where the file is
+    /// takes the `*` off the title again, and redoing puts it back.
+    saved_at: Option<usize>,
     /// Bumped whenever the map changes, by an edit or by undo.
     ///
     /// The UI holds edit buffers -- a half-typed property value is not in the
@@ -98,14 +103,16 @@ impl Document {
             current_material: "dev/grid".to_string(),
             undo: Vec::new(),
             redo: Vec::new(),
-            modified: false,
+            saved_at: Some(0),
             revision: 0,
         }
     }
 
     pub fn open(path: PathBuf) -> anyhow::Result<Document> {
-        let text = std::fs::read_to_string(&path)?;
-        let map = Map::parse(&text)?;
+        let text = std::fs::read_to_string(&path)
+            .map_err(|e| anyhow::anyhow!("reading {}: {e}", path.display()))?;
+        let map =
+            Map::parse(&text).map_err(|e| anyhow::anyhow!("parsing {}: {e}", path.display()))?;
         Ok(Document {
             map,
             path: Some(path),
@@ -118,16 +125,20 @@ impl Document {
             .or_else(|| self.path.clone())
             .ok_or_else(|| anyhow::anyhow!("no path to save to"))?;
         if let Some(parent) = target.parent() {
-            std::fs::create_dir_all(parent)?;
+            std::fs::create_dir_all(parent)
+                .map_err(|e| anyhow::anyhow!("creating {}: {e}", parent.display()))?;
         }
-        std::fs::write(&target, self.map.to_text())?;
+        // Atomically: a map is a day's work, and a crash mid-write must not
+        // leave half of it on disk in place of all of it.
+        kerosene_vfs::write_atomic(&target, self.map.to_text().as_bytes())
+            .map_err(|e| anyhow::anyhow!("writing {}: {e}", target.display()))?;
         self.path = Some(target.clone());
-        self.modified = false;
+        self.saved_at = Some(self.undo.len());
         Ok(target)
     }
 
     pub fn is_modified(&self) -> bool {
-        self.modified
+        self.saved_at != Some(self.undo.len())
     }
 
     /// Treat the map as it stands as a starting point rather than as work.
@@ -138,7 +149,7 @@ impl Document {
     /// question that is always wrong is one people learn to click through,
     /// including the time it is right.
     pub fn mark_clean(&mut self) {
-        self.modified = false;
+        self.saved_at = Some(self.undo.len());
     }
 
     /// A counter that changes whenever the map does. See [`Document::revision`].
@@ -166,6 +177,11 @@ impl Document {
         label: impl Into<String>,
         edit: impl FnOnce(&mut Document) -> T,
     ) -> T {
+        // An edit made from below the saved depth starts a new branch: the
+        // saved state is on the branch that was just abandoned.
+        if self.saved_at.is_some_and(|depth| depth > self.undo.len()) {
+            self.saved_at = None;
+        }
         self.undo.push(Snapshot {
             map: self.map.clone(),
             selection: self.selection.clone(),
@@ -173,10 +189,11 @@ impl Document {
         });
         if self.undo.len() > MAX_UNDO {
             self.undo.remove(0);
+            // The stack shifted down by one under the saved mark.
+            self.saved_at = self.saved_at.and_then(|d| d.checked_sub(1));
         }
         // A new edit invalidates anything that was redoable.
         self.redo.clear();
-        self.modified = true;
         self.revision += 1;
         edit(self)
     }
@@ -188,7 +205,6 @@ impl Document {
             selection: std::mem::replace(&mut self.selection, snapshot.selection),
             label: snapshot.label.clone(),
         });
-        self.modified = true;
         self.revision += 1;
         Some(snapshot.label.0)
     }
@@ -200,7 +216,6 @@ impl Document {
             selection: std::mem::replace(&mut self.selection, snapshot.selection),
             label: snapshot.label.clone(),
         });
-        self.modified = true;
         self.revision += 1;
         Some(snapshot.label.0)
     }
@@ -278,6 +293,100 @@ impl Document {
 
             let count = solids.len() + entities.len();
             doc.selection.clear();
+            count
+        })
+    }
+
+    /// Select every brush and entity in the map.
+    pub fn select_all(&mut self) -> usize {
+        self.selection.clear();
+        for solid in &self.map.world.solids {
+            self.selection.solids.insert(solid.id);
+        }
+        for entity in &self.map.entities {
+            self.selection.entities.insert(entity.id);
+        }
+        self.selection.len()
+    }
+
+    /// Copy everything selected, offset by `delta`, and select the copies.
+    ///
+    /// Hammer's shift-drag. Copies get fresh ids throughout -- a brush, its
+    /// sides, an entity -- because ids are how undo, I/O and selection tell
+    /// objects apart, and a duplicate that shared one would be the same
+    /// object to all three. A copied entity keeps its keyvalues but not its
+    /// `targetname`, which names one thing; two would make `ent_fire` fire
+    /// both.
+    pub fn duplicate_selection(&mut self, delta: Vec3) -> usize {
+        if self.selection.is_empty() {
+            return 0;
+        }
+        self.apply("duplicate", |doc| {
+            let solids = doc.selection.solids.clone();
+            let entities = doc.selection.entities.clone();
+            let mut new_selection = Selection::default();
+
+            let world_copies: Vec<Solid> = doc
+                .map
+                .world
+                .solids
+                .iter()
+                .filter(|s| solids.contains(&s.id))
+                .cloned()
+                .collect();
+            for mut copy in world_copies {
+                copy.translate(delta);
+                let id = doc.map.add_world_solid(copy);
+                new_selection.solids.insert(id);
+            }
+
+            // Whole brush entities, and single brushes picked out of one.
+            let entity_copies: Vec<Entity> = doc
+                .map
+                .entities
+                .iter()
+                .filter(|e| entities.contains(&e.id))
+                .cloned()
+                .collect();
+            for mut copy in entity_copies {
+                copy.id = doc.map.next_id();
+                copy.remove("targetname");
+                for solid in &mut copy.solids {
+                    solid.translate(delta);
+                    solid.id = doc.map.next_id();
+                    for side in &mut solid.sides {
+                        side.id = doc.map.next_id();
+                    }
+                }
+                if let Some(origin) = copy.get_vec3("origin") {
+                    copy.set_origin(origin + delta);
+                }
+                new_selection.entities.insert(copy.id);
+                doc.map.entities.push(copy);
+            }
+            for entity_index in 0..doc.map.entities.len() {
+                if entities.contains(&doc.map.entities[entity_index].id) {
+                    continue;
+                }
+                let picked: Vec<Solid> = doc.map.entities[entity_index]
+                    .solids
+                    .iter()
+                    .filter(|s| solids.contains(&s.id))
+                    .cloned()
+                    .collect();
+                for mut copy in picked {
+                    copy.translate(delta);
+                    copy.id = doc.map.next_id();
+                    for side in &mut copy.sides {
+                        side.id = doc.map.next_id();
+                    }
+                    new_selection.solids.insert(copy.id);
+                    doc.map.entities[entity_index].solids.push(copy);
+                }
+            }
+
+            let count = new_selection.len();
+            doc.selection = new_selection;
             count
         })
     }
@@ -799,7 +908,7 @@ impl Document {
             .and_then(|p| p.file_name())
             .map(|n| n.to_string_lossy().into_owned())
             .unwrap_or_else(|| "untitled".to_string());
-        if self.modified {
+        if self.is_modified() {
             format!("{name} *")
         } else {
             name

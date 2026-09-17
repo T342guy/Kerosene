@@ -50,7 +50,9 @@ pub mod contents {
     pub const MASK_SHOT: u32 = SOLID | MOVEABLE | WINDOW | GRATE;
     /// Everything that blocks line of sight.
     pub const MASK_OPAQUE: u32 = SOLID | MOVEABLE | OPAQUE;
-    /// Solid world only.
+    /// Everything solid to a thing with no clip brushes of its own -- the
+    /// same set as `MASK_SHOT`, kept as its own name for traces that mean
+    /// "the world" rather than "a bullet".
     pub const MASK_SOLID: u32 = SOLID | MOVEABLE | WINDOW | GRATE;
     /// Water and slime.
     pub const MASK_WATER: u32 = WATER | SLIME;
@@ -136,7 +138,9 @@ pub struct Face {
     pub texinfo: u32,
     /// Index into a displacement lump, or -1. Reserved.
     pub dispinfo: i32,
-    /// Byte offset into the lighting lump, or -1 for an unlit face.
+    /// Index of the face's first sample in the lighting lump (a sample, not
+    /// a byte: the lump is an array of `ColorRgbExp32`), or -1 for an unlit
+    /// face.
     pub lightmap_offset: i32,
     /// Lightmap origin in luxel space.
     pub lightmap_mins: [i32; 2],

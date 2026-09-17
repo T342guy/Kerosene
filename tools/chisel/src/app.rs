@@ -146,6 +146,8 @@ pub enum Discarding {
     New,
     /// Open a map from disk.
     Open(PathBuf),
+    /// Close the editor.
+    Quit,
 }
 
 pub struct ChiselApp {
@@ -200,6 +202,8 @@ pub struct ChiselApp {
     pub prompt: Option<NamePrompt>,
     /// Something that would throw away unsaved work, waiting to be confirmed.
     pub discarding: Option<Discarding>,
+    /// Set once a close has been agreed to; the host polls it.
+    quit: bool,
     /// In-progress property edits, held until the field is done with.
     ///
     /// Committing on every keystroke would push a whole undo snapshot per
@@ -308,6 +312,7 @@ impl ChiselApp {
             model_previews: std::collections::HashMap::new(),
             prompt: None,
             discarding: None,
+            quit: false,
             properties: None,
             property_window: None,
         }
@@ -361,15 +366,26 @@ impl ChiselApp {
     /// A new document has no path, and the old behaviour was to put "no path
     /// to save to" in the status bar and stop. That reads as ctrl-S doing
     /// nothing at all, which is precisely what it was doing.
-    pub fn save(&mut self, path: Option<PathBuf>) {
+    ///
+    /// Returns whether the map is now on disk. A save that turned into a
+    /// name prompt, or failed, is `false`, and a caller about to throw the
+    /// document away on the strength of it must not.
+    pub fn save(&mut self, path: Option<PathBuf>) -> bool {
         self.commit_properties();
+        self.commit_property_window();
         if path.is_none() && self.document.path.is_none() {
             self.begin_prompt(PromptKind::SaveAs);
-            return;
+            return false;
         }
         match self.document.save(path) {
-            Ok(path) => self.status = format!("saved {}", files::label(&path, &self.content_root)),
-            Err(e) => self.status = format!("could not save: {e}"),
+            Ok(path) => {
+                self.status = format!("saved {}", files::label(&path, &self.content_root));
+                true
+            }
+            Err(e) => {
+                self.status = format!("could not save: {e}");
+                false
+            }
         }
     }
 
@@ -501,7 +517,24 @@ impl ChiselApp {
                 self.status = "new map".into();
             }
             Discarding::Open(path) => self.open(path),
+            Discarding::Quit => self.quit = true,
         }
+    }
+
+    /// The window is being closed. `true` if it may close now; otherwise the
+    /// unsaved-changes question goes up and [`ChiselApp::wants_to_quit`]
+    /// carries the answer.
+    pub fn request_close(&mut self) -> bool {
+        if !self.document.is_modified() {
+            return true;
+        }
+        self.discarding = Some(Discarding::Quit);
+        false
+    }
+
+    /// Whether a close the editor was asked about has been agreed to.
+    pub fn wants_to_quit(&self) -> bool {
+        self.quit
     }
 
     /// The name field, and the "this will lose work" question.
@@ -626,12 +659,12 @@ impl ChiselApp {
             match decided {
                 Some(Decision::Save) => {
                     self.discarding = None;
-                    let had_path = self.document.path.is_some();
-                    self.save(None);
-                    // With no path the save turned into a name prompt, and
-                    // going ahead now would throw away the work it is asking
-                    // where to put.
-                    if had_path {
+                    // Only on a save that happened. With no path the save
+                    // turned into a name prompt, and a save that failed -- a
+                    // read-only file, a full disk -- put its reason in the
+                    // status bar; going ahead in either case would throw
+                    // away the very work the question was about.
+                    if self.save(None) {
                         self.discard_now(what)
                     }
                 }
@@ -753,6 +786,9 @@ impl ChiselApp {
             Redo,
             Save,
             SaveAs,
+            New,
+            SelectAll,
+            Duplicate,
             Browse,
             Delete,
             Cancel,
@@ -789,6 +825,15 @@ impl ChiselApp {
             }
             if i.consume_key(ctrl, Key::S) {
                 actions.push(Action::Save)
+            }
+            if i.consume_key(ctrl, Key::N) && !typing {
+                actions.push(Action::New)
+            }
+            if i.consume_key(ctrl, Key::A) && !typing {
+                actions.push(Action::SelectAll)
+            }
+            if i.consume_key(ctrl, Key::D) && !typing {
+                actions.push(Action::Duplicate)
             }
 
             if typing {
@@ -845,18 +890,38 @@ impl ChiselApp {
                 // ctrl-Z takes back the edit rather than the one before it.
                 Action::Undo => {
                     self.commit_properties();
+                    self.commit_property_window();
                     if let Some(label) = self.document.undo() {
                         self.status = format!("undid {label}");
                     }
                 }
                 Action::Redo => {
                     self.commit_properties();
+                    self.commit_property_window();
                     if let Some(label) = self.document.redo() {
                         self.status = format!("redid {label}");
                     }
                 }
-                Action::Save => self.save(None),
+                Action::Save => {
+                    self.save(None);
+                }
                 Action::SaveAs => self.begin_prompt(PromptKind::SaveAs),
+                Action::New => self.discard_or_ask(Discarding::New),
+                Action::SelectAll => {
+                    let n = self.document.select_all();
+                    self.status = format!("selected {n}");
+                }
+                Action::Duplicate => {
+                    // Offset by one grid step so the copy is visibly a copy
+                    // rather than a second brush hidden inside the first.
+                    let step = self.document.grid.size;
+                    let n = self
+                        .document
+                        .duplicate_selection(Vec3::new(step, step, 0.0));
+                    if n > 0 {
+                        self.status = format!("duplicated {n}; drag to place");
+                    }
+                }
                 Action::Browse => self.browsing = Some(Browsing::Material),
                 Action::Delete => {
                     let n = self.document.delete_selection();
@@ -885,7 +950,7 @@ impl ChiselApp {
         egui::TopBottomPanel::top("menu").show(ctx, |ui| {
             egui::MenuBar::new().ui(ui, |ui| {
                 ui.menu_button("file", |ui| {
-                    if ui.button("new").clicked() {
+                    if ui.button("new             ctrl-N").clicked() {
                         self.discard_or_ask(Discarding::New);
                         ui.close();
                     }
@@ -932,6 +997,12 @@ impl ChiselApp {
                         None => "not saved anywhere yet".to_string(),
                     };
                     ui.label(RichText::new(where_it_is).size(11.0).weak());
+
+                    ui.separator();
+                    if ui.button("quit").clicked() {
+                        self.discard_or_ask(Discarding::Quit);
+                        ui.close();
+                    }
                 });
 
                 ui.menu_button("edit", |ui| {
@@ -941,19 +1012,52 @@ impl ChiselApp {
                         .add_enabled(self.document.undo_depth() > 0, egui::Button::new(label))
                         .clicked()
                     {
-                        self.document.undo();
+                        // The same steps the keyboard shortcut takes, so a
+                        // half-typed property becomes its own undo step here
+                        // too rather than the *next* one.
+                        self.commit_properties();
+                        self.commit_property_window();
+                        if let Some(label) = self.document.undo() {
+                            self.status = format!("undid {label}");
+                        }
                         ui.close();
                     }
                     if ui
                         .add_enabled(self.document.redo_depth() > 0, egui::Button::new("redo"))
                         .clicked()
                     {
-                        self.document.redo();
+                        self.commit_properties();
+                        self.commit_property_window();
+                        if let Some(label) = self.document.redo() {
+                            self.status = format!("redid {label}");
+                        }
                         ui.close();
                     }
                     ui.separator();
+                    if ui.button("select all      ctrl-A").clicked() {
+                        let n = self.document.select_all();
+                        self.status = format!("selected {n}");
+                        ui.close();
+                    }
+                    if ui
+                        .add_enabled(
+                            !self.document.selection.is_empty(),
+                            egui::Button::new("duplicate       ctrl-D"),
+                        )
+                        .clicked()
+                    {
+                        let step = self.document.grid.size;
+                        let n = self
+                            .document
+                            .duplicate_selection(Vec3::new(step, step, 0.0));
+                        self.status = format!("duplicated {n}; drag to place");
+                        ui.close();
+                    }
                     if ui.button("delete").clicked() {
-                        self.document.delete_selection();
+                        let n = self.document.delete_selection();
+                        if n > 0 {
+                            self.status = format!("deleted {n}")
+                        }
                         ui.close();
                     }
                     ui.separator();
@@ -1743,11 +1847,14 @@ impl ChiselApp {
                 });
             });
 
+        // Whatever is in the fields goes into the map before the window
+        // goes: a value typed and then dismissed with the close button was
+        // otherwise lost, with no undo step to bring it back.
+        if commit || !open {
+            self.commit_property_window();
+        }
         if !open {
             self.property_window = None;
-        }
-        if commit {
-            self.commit_property_window();
         }
     }
 
@@ -2651,6 +2758,15 @@ impl ChiselApp {
 
     fn start_compile(&mut self, settings: CompileSettings) {
         self.commit_properties();
+        self.commit_property_window();
+        // One at a time: a second pipeline over the same files would race
+        // the first for the `.kerobsp`, and the first's log would vanish
+        // with its channel.
+        if self.compile.as_ref().is_some_and(|job| !job.finished) {
+            self.status = "already compiling; wait for it to finish".into();
+            self.show_compile = true;
+            return;
+        }
         // The compilers read files, so the map has to be on disk first --
         // and compiling something other than what was saved would be a
         // genuinely confusing bug to chase.

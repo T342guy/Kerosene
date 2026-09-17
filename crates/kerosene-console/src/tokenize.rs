@@ -49,7 +49,7 @@ fn push_trimmed(out: &mut Vec<String>, current: &mut String) {
 /// Split one command line into arguments.
 ///
 /// Quotes group words and are stripped from the result, so
-/// `hostname "The Refinery"` yields `["hostname", "The Void"]`.
+/// `hostname "The Refinery"` yields `["hostname", "The Refinery"]`.
 pub fn tokenize(line: &str) -> Vec<String> {
     let mut out = Vec::new();
     let mut current = String::new();

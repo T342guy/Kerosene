@@ -107,6 +107,16 @@ impl Archive {
         let data_size = u64::from_le_bytes(header[28..36].try_into().unwrap());
 
         let file_len = file.metadata().map_err(io)?.len();
+        // Checked before the tree is allocated: the size is the file's own
+        // claim, and a 40-byte file may claim four gigabytes.
+        if HEADER_SIZE.saturating_add(tree_size as u64) > file_len {
+            return Err(ArchiveError::Malformed {
+                path: name,
+                detail: format!(
+                    "directory claims {tree_size} bytes of tree but the file holds {file_len}"
+                ),
+            });
+        }
         if data_offset.saturating_add(data_size) > file_len {
             return Err(ArchiveError::Malformed {
                 path: name,
@@ -162,6 +172,16 @@ impl Archive {
                     detail: format!("entry {epath:?} points outside the data blob"),
                 });
             }
+            // The writer folds and normalises every name, so an entry that is
+            // not already in that form was not written by it. Refusing it here
+            // is what lets `unpack` join an entry onto a directory: a name that
+            // climbs, or is absolute, never gets that far.
+            if key(&epath).as_deref() != Some(epath.as_str()) {
+                return Err(ArchiveError::Malformed {
+                    path: name,
+                    detail: format!("entry {epath:?} is not a normalised virtual path"),
+                });
+            }
             entries.push(Entry {
                 path: epath,
                 crc,
@@ -196,9 +216,12 @@ impl Archive {
     }
 
     fn find(&self, vpath: &str) -> Option<&Entry> {
+        // Entries are stored folded, so the lookup folds too: the module
+        // promises `Maps/X` and `maps/x` are the same file whichever way in.
+        let folded = key(vpath)?;
         let i = self
             .entries
-            .binary_search_by(|e| e.path.as_str().cmp(vpath))
+            .binary_search_by(|e| e.path.as_str().cmp(&folded))
             .ok()?;
         Some(&self.entries[i])
     }
@@ -212,7 +235,9 @@ impl Archive {
         let Some(entry) = self.find(vpath) else {
             return Ok(None);
         };
-        let mut file = self.file.lock().expect("archive handle poisoned");
+        // A panic on another thread mid-read leaves the handle usable; the
+        // next seek puts it right.
+        let mut file = self.file.lock().unwrap_or_else(|e| e.into_inner());
         let io = |source| ArchiveError::Io {
             path: self.source.clone(),
             source,
@@ -267,6 +292,10 @@ impl ArchiveBuilder {
     /// Stage a file. A repeated path replaces the earlier content.
     pub fn add(&mut self, vpath: &str, data: Vec<u8>) -> Result<()> {
         let key = key(vpath).ok_or_else(|| ArchiveError::BadPath(vpath.to_string()))?;
+        // The directory records a path's length in two bytes.
+        if key.len() > u16::MAX as usize {
+            return Err(ArchiveError::BadPath(vpath.to_string()));
+        }
         self.files.insert(key, data);
         Ok(())
     }
@@ -313,6 +342,12 @@ impl ArchiveBuilder {
         }
         let data_size = offset;
         let data_offset = HEADER_SIZE + tree.len() as u64;
+        if tree.len() > u32::MAX as usize {
+            return Err(ArchiveError::Malformed {
+                path: name,
+                detail: format!("directory of {} bytes does not fit the format", tree.len()),
+            });
+        }
 
         let mut header = Vec::with_capacity(HEADER_SIZE as usize);
         header.extend_from_slice(&MAGIC);
@@ -398,6 +433,8 @@ mod tests {
             5000
         );
         assert!(a.read("nothing/here").unwrap().is_none());
+        // And however the name is capitalised on the way out.
+        assert!(a.read("Maps/Kero_Start.kerobsp").unwrap().is_some());
         let _ = std::fs::remove_file(&out);
     }
 
@@ -501,6 +538,54 @@ mod tests {
         ArchiveBuilder::new().write(&out).unwrap();
         let a = Archive::open(&out).unwrap();
         assert!(a.is_empty());
+        let _ = std::fs::remove_file(&out);
+    }
+
+    #[test]
+    fn a_header_claiming_a_huge_tree_is_rejected_before_allocation() {
+        let out = tmp("hugetree.vault");
+        let mut b = ArchiveBuilder::new();
+        b.add("a.txt", b"x".to_vec()).unwrap();
+        b.write(&out).unwrap();
+        let mut bytes = std::fs::read(&out).unwrap();
+        bytes[16..20].copy_from_slice(&u32::MAX.to_le_bytes());
+        std::fs::write(&out, &bytes).unwrap();
+        assert!(matches!(
+            Archive::open(&out),
+            Err(ArchiveError::Malformed { .. })
+        ));
+        let _ = std::fs::remove_file(&out);
+    }
+
+    #[test]
+    fn an_entry_that_climbs_out_of_the_tree_is_rejected() {
+        // Hand-build a directory whose one entry is `../evil`: the writer
+        // would never produce it, and the reader must not believe it.
+        let out = tmp("climb.vault");
+        let epath = b"../evil";
+        let data = b"boo";
+        let mut tree = Vec::new();
+        tree.extend_from_slice(&(epath.len() as u16).to_le_bytes());
+        tree.extend_from_slice(epath);
+        tree.extend_from_slice(&crc32(data).to_le_bytes());
+        tree.extend_from_slice(&0u64.to_le_bytes());
+        tree.extend_from_slice(&(data.len() as u64).to_le_bytes());
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(&MAGIC);
+        bytes.extend_from_slice(&VERSION.to_le_bytes());
+        bytes.extend_from_slice(&0u32.to_le_bytes());
+        bytes.extend_from_slice(&1u32.to_le_bytes());
+        bytes.extend_from_slice(&(tree.len() as u32).to_le_bytes());
+        bytes.extend_from_slice(&(HEADER_SIZE + tree.len() as u64).to_le_bytes());
+        bytes.extend_from_slice(&(data.len() as u64).to_le_bytes());
+        bytes.extend_from_slice(&0u32.to_le_bytes());
+        bytes.extend_from_slice(&tree);
+        bytes.extend_from_slice(data);
+        std::fs::write(&out, &bytes).unwrap();
+        assert!(matches!(
+            Archive::open(&out),
+            Err(ArchiveError::Malformed { .. })
+        ));
         let _ = std::fs::remove_file(&out);
     }
 }

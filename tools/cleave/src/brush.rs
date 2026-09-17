@@ -83,7 +83,7 @@ impl BrushWork {
         warnings: &mut Vec<Warning>,
     ) -> Option<BrushWork> {
         let mut sides = Vec::with_capacity(solid.sides.len());
-        let mut face_contents: Vec<u32> = Vec::new();
+        let mut face_contents: Vec<(u32, bool)> = Vec::new();
 
         for side in &solid.sides {
             let Some(plane) = side.plane() else {
@@ -103,7 +103,7 @@ impl BrushWork {
                 });
             }
             let flags = material::flags_for(&side.material);
-            face_contents.push(flags.contents);
+            face_contents.push((flags.contents, material::is_known_tool(&side.material)));
             sides.push(SideWork {
                 plane: planes.insert(plane),
                 material: side.material.clone(),
@@ -134,7 +134,7 @@ impl BrushWork {
             // The entity's class wins: a trigger_multiple is a trigger no
             // matter what its faces are textured with.
             Some(c) => c,
-            None => resolve_contents(&face_contents),
+            None => resolve_contents_of(face_contents.iter().copied()),
         };
 
         let mut brush = BrushWork {
@@ -282,7 +282,26 @@ impl BrushWork {
 
         // The cross-section of the brush by the cutting plane. If there is
         // none, the classification above was float noise and the brush really
-        // does lie on one side.
+        // does lie on one side -- *which* side is the one it reaches
+        // furthest into, as Quake's SplitBrush decides it. Always answering
+        // "front" filed a brush a hair in front and a foot behind into the
+        // wrong child, and its collision into the wrong leaf.
+        let whole_on_one_side = || {
+            let (mut furthest_front, mut furthest_back) = (0.0f32, 0.0f32);
+            for side in &self.sides {
+                let Some(w) = &side.winding else { continue };
+                for &p in &w.points {
+                    let d = plane.distance_to(p);
+                    furthest_front = furthest_front.max(d);
+                    furthest_back = furthest_back.max(-d);
+                }
+            }
+            if furthest_front >= furthest_back {
+                (Some(self.clone()), None)
+            } else {
+                (None, Some(self.clone()))
+            }
+        };
         let mut mid = Winding::base_for_plane(&plane);
         for side in &self.sides {
             if side.plane == plane_index || side.plane == (plane_index ^ 1) {
@@ -290,11 +309,11 @@ impl BrushWork {
             }
             match mid.clipped(&planes.get(side.plane).flipped(), ON_EPSILON) {
                 Some(next) => mid = next,
-                None => return (Some(self.clone()), None),
+                None => return whole_on_one_side(),
             }
         }
         if mid.is_tiny() {
-            return (Some(self.clone()), None);
+            return whole_on_one_side();
         }
 
         let make = |extra_plane: u32| -> Option<BrushWork> {
@@ -332,14 +351,37 @@ impl BrushWork {
 /// is what the designer was reaching for; painting one face of a block with
 /// `tools/clip` is how you say "this whole block is a clip brush".
 pub fn resolve_contents(face_contents: &[u32]) -> u32 {
+    resolve_contents_of(face_contents.iter().map(|&c| (c, false)))
+}
+
+/// [`resolve_contents`] for faces that may have *asked* for empty contents.
+///
+/// Each face is its contents and whether its material spoke for itself. A
+/// hint or skip face says `EMPTY` and means it; a plain world face says
+/// `SOLID` only because nothing more specific applied. When every face is
+/// one of the former the brush is genuinely empty -- a vis hint is not a
+/// wall -- and the "nothing said anything, so solid" fallback must not fire.
+pub fn resolve_contents_of(faces: impl IntoIterator<Item = (u32, bool)>) -> u32 {
     use kerosene_bsp::contents as c;
     let mut combined = 0u32;
-    for &f in face_contents {
-        if f != c::SOLID {
-            combined |= f;
+    let mut any = false;
+    let mut all_explicitly_empty = true;
+    for (contents, explicit) in faces {
+        any = true;
+        if contents != c::SOLID {
+            combined |= contents;
+        }
+        if !(explicit && contents == c::EMPTY) {
+            all_explicitly_empty = false;
         }
     }
-    if combined == 0 { c::SOLID } else { combined }
+    if combined == 0 && any && all_explicitly_empty {
+        c::EMPTY
+    } else if combined == 0 {
+        c::SOLID
+    } else {
+        combined
+    }
 }
 
 #[cfg(test)]
@@ -367,6 +409,19 @@ mod tests {
         assert_eq!(b.contents, kerosene_bsp::contents::SOLID);
         assert_eq!(b.bounds.min, Vec3::ZERO);
         assert_eq!(b.bounds.max, Vec3::splat(64.0));
+    }
+
+    #[test]
+    fn a_hint_brush_is_empty_not_an_invisible_wall() {
+        // Regression: all-EMPTY faces used to fall into the "nothing said
+        // anything, so solid" default, and a vis hint blocked the player.
+        let mut solid = cube(0.0, 64.0, "tools/skip");
+        solid.sides[0].material = "tools/hint".to_string();
+        let (b, _, _) = build(&solid);
+        assert_eq!(b.contents, kerosene_bsp::contents::EMPTY);
+        // But one ordinary face still makes a wall, as it always did.
+        let (b, _, _) = build(&cube(0.0, 64.0, "dev/grid"));
+        assert_eq!(b.contents, kerosene_bsp::contents::SOLID);
     }
 
     #[test]

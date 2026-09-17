@@ -26,6 +26,40 @@ pub mod root;
 pub mod toolchain;
 
 pub use archive::{Archive, ArchiveBuilder, ArchiveError, crc32};
+
+/// Write a file so that a crash mid-write leaves the old one intact.
+///
+/// The bytes go to a sibling temporary file, are flushed to disk, and are
+/// then renamed over the target -- an atomic replacement on every platform
+/// the engine runs on. For a map somebody spent a day on, or a compiled BSP
+/// that a later tool is about to rewrite in place, a truncated file is the
+/// worst outcome a save can have, and this is the cheap way to rule it out.
+pub fn write_atomic(path: &Path, data: &[u8]) -> std::io::Result<()> {
+    use std::io::Write;
+    let dir = path.parent().filter(|p| !p.as_os_str().is_empty());
+    let file_name = path
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "file".to_string());
+    // The process id keeps two writers of one target from sharing a scratch
+    // file; the leading dot keeps a directory listing from offering it.
+    let tmp_name = format!(".{file_name}.{}.tmp", std::process::id());
+    let tmp = match dir {
+        Some(dir) => dir.join(tmp_name),
+        None => PathBuf::from(tmp_name),
+    };
+    let result = (|| {
+        let mut file = std::fs::File::create(&tmp)?;
+        file.write_all(data)?;
+        file.sync_all()?;
+        drop(file);
+        std::fs::rename(&tmp, path)
+    })();
+    if result.is_err() {
+        let _ = std::fs::remove_file(&tmp);
+    }
+    result
+}
 pub use path::{extension, normalize, parent, with_extension};
 pub use project::Project;
 pub use root::Found;
@@ -266,7 +300,20 @@ impl Vfs {
 
     /// Every file under `dir`, across all layers, deduplicated and sorted.
     pub fn list(&self, dir: &str, ext: Option<&str>) -> Vec<String> {
-        let key = normalize(dir).unwrap_or_default();
+        // An empty directory means the root; a directory that does not
+        // normalise -- one that climbs -- means nothing, not the root.
+        let key = if dir.trim_matches(['/', '\\']).is_empty() {
+            String::new()
+        } else {
+            match normalize(dir) {
+                Some(key) => key,
+                None => return Vec::new(),
+            }
+        };
+        // Paths on disk are folded before the extension is compared, so the
+        // wanted extension is folded too, or `Some("KEROMAT")` matches nothing.
+        let ext = ext.map(str::to_ascii_lowercase);
+        let ext = ext.as_deref();
         let mut out: BTreeSet<String> = BTreeSet::new();
         for sp in &self.paths {
             match &sp.layer {

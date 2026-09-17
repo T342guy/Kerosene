@@ -25,8 +25,13 @@ pub struct AudioSystem {
     mixer: Arc<Mutex<Mixer>>,
     #[cfg(feature = "audio")]
     device: Option<kerosene_audio::device::AudioDevice>,
+    /// The listener and volume, settable without the mixer's lock.
+    control: Arc<kerosene_audio::MixerControl>,
     /// What went wrong opening a device, said once.
     pub status: String,
+    /// Warnings already given, so a bad entity is one line and not one per
+    /// trigger.
+    warned: std::collections::HashSet<String>,
 }
 
 impl Default for AudioSystem {
@@ -38,12 +43,16 @@ impl Default for AudioSystem {
 impl AudioSystem {
     /// A mixer with no device behind it.
     pub fn silent() -> AudioSystem {
+        let mixer = Mixer::new(HEADLESS_RATE);
+        let control = mixer.control();
         AudioSystem {
             bank: SoundBank::new(),
-            mixer: Arc::new(Mutex::new(Mixer::new(HEADLESS_RATE))),
+            mixer: Arc::new(Mutex::new(mixer)),
+            control,
             #[cfg(feature = "audio")]
             device: None,
             status: "no audio device".to_string(),
+            warned: std::collections::HashSet::new(),
         }
     }
 
@@ -54,12 +63,15 @@ impl AudioSystem {
             match kerosene_audio::device::AudioDevice::open() {
                 Ok(device) => {
                     let mixer = Arc::clone(device.mixer());
+                    let control = mixer.lock().unwrap_or_else(|e| e.into_inner()).control();
                     let status = format!("{} at {} Hz", device.name(), device.sample_rate());
                     AudioSystem {
                         bank: SoundBank::new(),
                         mixer,
+                        control,
                         device: Some(device),
                         status,
+                        warned: std::collections::HashSet::new(),
                     }
                 }
                 Err(e) => {
@@ -96,6 +108,13 @@ impl AudioSystem {
         &self.mixer
     }
 
+    /// Log a warning the first time it is given, and not again.
+    pub fn warn_once(&mut self, message: String) {
+        if self.warned.insert(message.clone()) {
+            log::warn!("{message}");
+        }
+    }
+
     /// Do something with the mixer.
     ///
     /// A poisoned lock is recovered from rather than propagated: the audio
@@ -106,15 +125,17 @@ impl AudioSystem {
     }
 
     /// Point the ears at the player.
+    ///
+    /// Through the mixer's control handle, not its lock: this runs every
+    /// tick, and taking the lock the audio callback needs was a dropped
+    /// block whenever the two coincided.
     pub fn set_listener(&self, position: Vec3, basis: Basis) {
-        self.with_mixer(|mixer| {
-            mixer.listener.position = position;
-            mixer.listener.basis = basis;
-        });
+        self.control
+            .set_listener(kerosene_audio::Listener { position, basis });
     }
 
     pub fn set_volume(&self, volume: f32) {
-        self.with_mixer(|mixer| mixer.volume = volume.clamp(0.0, 1.0));
+        self.control.set_volume(volume);
     }
 
     pub fn stop_all(&self) {
@@ -171,15 +192,22 @@ impl AudioSystem {
             return None;
         };
 
+        // A compiled file says where its loop is; that is half of why the
+        // format exists, and it is kept rather than dropped on the floor.
         let decoded = if path.ends_with(kerosene_audio::compiled::EXTENSION) {
-            kerosene_audio::compiled::decode(&bytes).map(|(sound, _)| sound)
+            kerosene_audio::compiled::decode(&bytes).map(|(sound, info)| {
+                let region = (!info.looping.is_empty())
+                    .then_some((info.looping.start as usize, info.looping.end as usize));
+                (sound, region)
+            })
         } else {
-            kerosene_audio::wav::decode(&bytes)
+            kerosene_audio::wav::decode(&bytes).map(|sound| (sound, None))
         };
         match decoded {
-            Ok(sound) => {
+            Ok((sound, region)) => {
                 let sound = Arc::new(sound);
                 self.bank.insert(name, Arc::clone(&sound));
+                self.bank.set_loop_region(name, region);
                 Some(sound)
             }
             Err(e) => {

@@ -412,6 +412,9 @@ fn two_sources_with_the_same_name_are_refused_rather_than_racing() {
         "{:?}",
         batch.failed[0]
     );
+    // And *refused*: neither is compiled, so nothing was chosen for them.
+    assert!(batch.compiled.is_empty(), "{:?}", batch.compiled);
+    assert!(!sound.join("click.keroaud").exists());
 }
 
 #[test]
