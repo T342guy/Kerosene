@@ -16,8 +16,10 @@
 use crate::Options;
 use crate::build::Script;
 use anyhow::Result;
-use egui::{Color32, Pos2, Rect, Sense, Stroke, StrokeKind, Vec2};
+use egui::{Pos2, Rect, Sense, Stroke, StrokeKind, Vec2};
 use kerosene_audio::compiled::{Encoding, Loop};
+use kerosene_ui::theme::{self, colors, icons};
+use kerosene_ui::widgets;
 use kerosene_audio::wav::Sound;
 use kerosene_audio::{Mixer, SoundHandle, SoundParams};
 use std::path::{Path, PathBuf};
@@ -360,33 +362,52 @@ impl kerosene_ui::App for Timbre {
             self.stop();
         }
 
-        egui::TopBottomPanel::top("bar").show(ctx, |ui| {
-            ui.horizontal(|ui| {
-                ui.heading("Timbre");
-                ui.separator();
-                if ui.button("rescan").clicked() {
-                    self.rescan();
-                }
-                if ui.button("compile all").clicked() {
-                    self.compile_all();
-                }
-                ui.separator();
-                ui.label(format!("{} sound(s)", self.entries.len()));
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    ui.label(egui::RichText::new(&self.audio_status).weak());
+        egui::TopBottomPanel::top("bar")
+            .exact_height(32.0)
+            .frame(
+                egui::Frame::new()
+                    .fill(colors::BG_PANEL)
+                    .inner_margin(egui::Margin::symmetric(8, 4)),
+            )
+            .show(ctx, |ui| {
+                ui.horizontal_centered(|ui| {
+                    ui.label(theme::icon(icons::SPEAKER_HIGH).color(colors::ACCENT));
+                    ui.label(egui::RichText::new("Timbre").strong());
+                    ui.add_space(8.0);
+                    if widgets::icon_button(ui, icons::ARROW_CLOCKWISE, "rescan the sound tree").clicked() {
+                        self.rescan();
+                    }
+                    if ui
+                        .button(format!("{}  compile all", icons::PLAY))
+                        .on_hover_text("Compile every sound that needs it.")
+                        .clicked()
+                    {
+                        self.compile_all();
+                    }
+                    ui.add_space(8.0);
+                    ui.label(theme::caption(format!("{} sound(s)", self.entries.len())));
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        ui.label(theme::caption(&self.audio_status));
+                    });
                 });
             });
-        });
 
-        egui::TopBottomPanel::bottom("status").show(ctx, |ui| {
-            ui.horizontal(|ui| {
-                ui.label(if self.status.is_empty() {
-                    "ready"
-                } else {
-                    &self.status
+        egui::TopBottomPanel::bottom("status")
+            .exact_height(24.0)
+            .frame(
+                egui::Frame::new()
+                    .fill(colors::BG_HEADER)
+                    .inner_margin(egui::Margin::symmetric(8, 3)),
+            )
+            .show(ctx, |ui| {
+                ui.horizontal_centered(|ui| {
+                    ui.label(theme::mono(if self.status.is_empty() {
+                        "ready"
+                    } else {
+                        &self.status
+                    }));
                 });
             });
-        });
 
         self.file_list(ctx);
         self.detail(ctx);
@@ -398,15 +419,21 @@ impl Timbre {
         egui::SidePanel::left("files")
             .resizable(true)
             .default_width(260.0)
+            .frame(
+                egui::Frame::new()
+                    .fill(colors::BG_PANEL)
+                    .inner_margin(egui::Margin::symmetric(8, 6)),
+            )
             .show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label(theme::icon(icons::MAGNIFYING_GLASS).color(colors::TEXT_MUTED));
+                    ui.add(
+                        egui::TextEdit::singleline(&mut self.filter)
+                            .hint_text("search")
+                            .desired_width(f32::INFINITY),
+                    );
+                });
                 ui.add_space(4.0);
-                ui.add(
-                    egui::TextEdit::singleline(&mut self.filter)
-                        .hint_text("search")
-                        .desired_width(f32::INFINITY),
-                );
-                ui.add_space(4.0);
-                ui.separator();
 
                 let filter = self.filter.to_lowercase();
                 let mut choose = None;
@@ -418,15 +445,18 @@ impl Timbre {
                         let selected = self.selected == Some(i);
                         // The dot says whether a compiled form exists at all,
                         // which is the one thing worth seeing without clicking.
-                        let mark = if entry.error.is_some() {
-                            "!"
+                        let (mark, colour) = if entry.error.is_some() {
+                            (icons::WARNING, colors::ERR)
                         } else if entry.compiled {
-                            "\u{2022}"
+                            (icons::CHECK_CIRCLE, colors::OK)
                         } else {
-                            "\u{25e6}"
+                            (icons::CIRCLE, colors::TEXT_MUTED)
                         };
-                        let label = format!("{mark}  {}", entry.name);
-                        if ui.selectable_label(selected, label).clicked() {
+                        let row = ui.horizontal(|ui| {
+                            ui.label(theme::icon(mark).size(12.0).color(colour));
+                            ui.selectable_label(selected, theme::mono(&entry.name).size(12.0))
+                        });
+                        if row.inner.clicked() {
                             choose = Some(i);
                         }
                     }
@@ -453,7 +483,7 @@ impl Timbre {
             ui.heading(&name);
 
             if let Some(error) = entry.error.clone() {
-                ui.colored_label(Color32::from_rgb(220, 110, 100), error);
+                ui.colored_label(colors::ERR, error);
                 return;
             }
             let Some(loaded) = &entry.loaded else { return };
@@ -476,7 +506,7 @@ impl Timbre {
             );
             if source_format.is_lossy() {
                 ui.colored_label(
-                    Color32::from_rgb(228, 186, 92),
+                    colors::WARN,
                     "already lossy: compiling this further compounds the artifacts rather than \
                      cancelling them. A lossless source makes a better build.",
                 );
@@ -497,7 +527,7 @@ impl Timbre {
         let (response, painter) =
             ui.allocate_painter(Vec2::new(ui.available_width(), height), Sense::click());
         let rect = response.rect;
-        painter.rect_filled(rect, 2.0, Color32::from_rgb(18, 22, 26));
+        painter.rect_filled(rect, 2.0, colors::BG_FIELD);
 
         let Some(entry) = self.entries.get(index) else {
             return;
@@ -525,13 +555,13 @@ impl Timbre {
             painter.rect_filled(
                 Rect::from_min_max(Pos2::new(x0, rect.top()), Pos2::new(x1, rect.bottom())),
                 0.0,
-                Color32::from_rgba_unmultiplied(90, 140, 200, 28),
+                colors::INFO.gamma_multiply(0.12),
             );
         }
 
         painter.line_segment(
             [Pos2::new(rect.left(), mid), Pos2::new(rect.right(), mid)],
-            Stroke::new(1.0_f32, Color32::from_rgb(40, 48, 56)),
+            Stroke::new(1.0_f32, colors::BORDER),
         );
 
         for (i, &(low, high)) in loaded.envelope.iter().enumerate() {
@@ -540,9 +570,9 @@ impl Timbre {
             // is what a gain slider needs to tell you and a number cannot.
             let clipped = high >= 0.999 || low <= -0.999;
             let colour = if clipped {
-                Color32::from_rgb(226, 96, 88)
+                colors::ERR
             } else {
-                Color32::from_rgb(120, 190, 150)
+                colors::OK
             };
             painter.line_segment(
                 [
@@ -558,14 +588,14 @@ impl Timbre {
             let x = rect.left() + rect.width() * at;
             painter.line_segment(
                 [Pos2::new(x, rect.top()), Pos2::new(x, rect.bottom())],
-                Stroke::new(1.5_f32, Color32::from_rgb(240, 220, 130)),
+                Stroke::new(1.5_f32, colors::ACCENT),
             );
         }
 
         painter.rect_stroke(
             rect,
             2.0,
-            Stroke::new(1.0_f32, Color32::from_rgb(48, 56, 64)),
+            Stroke::new(1.0_f32, colors::BORDER),
             StrokeKind::Inside,
         );
     }
@@ -583,7 +613,7 @@ impl Timbre {
         });
         if peak >= 0.999 {
             ui.colored_label(
-                Color32::from_rgb(226, 96, 88),
+                colors::ERR,
                 "clipping: samples are hitting full scale and will distort",
             );
         }
@@ -718,24 +748,24 @@ impl Timbre {
 fn meter_bar(ui: &mut egui::Ui, level: f32, width: f32) {
     let (response, painter) = ui.allocate_painter(Vec2::new(width, 14.0), Sense::hover());
     let rect = response.rect;
-    painter.rect_filled(rect, 2.0, Color32::from_rgb(24, 28, 33));
+    painter.rect_filled(rect, 2.0, colors::BG_FIELD);
 
     let level = level.clamp(0.0, 1.0);
     if level > 0.0 {
         let filled = Rect::from_min_size(rect.min, Vec2::new(rect.width() * level, rect.height()));
         let colour = if level >= 0.999 {
-            Color32::from_rgb(226, 96, 88)
+            colors::ERR
         } else if level > 0.9 {
-            Color32::from_rgb(228, 186, 92)
+            colors::WARN
         } else {
-            Color32::from_rgb(120, 190, 150)
+            colors::OK
         };
         painter.rect_filled(filled, 2.0, colour);
     }
     painter.rect_stroke(
         rect,
         2.0,
-        Stroke::new(1.0_f32, Color32::from_rgb(48, 56, 64)),
+        Stroke::new(1.0_f32, colors::BORDER),
         StrokeKind::Inside,
     );
 }
