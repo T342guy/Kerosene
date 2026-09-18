@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
 //! Brush solids and their faces.
 
+use crate::editor::{EditorData, kv_get, kv_remove, kv_set, unknown_pairs};
 use crate::texture::{TextureAxis, default_axes_for_plane};
 use crate::{DEFAULT_LIGHTMAP_SCALE, WalkmapRule, read_id};
 use kerosene_kv::{KeyValues, Vec3Value};
@@ -45,9 +46,40 @@ pub struct Side {
     pub smoothing_groups: u32,
     /// How this face participates in the NPC walkmap. See [`WalkmapRule`].
     pub walkmap: WalkmapRule,
+    /// Every other key the face carries. The format defines the keys above;
+    /// a game, a compiler pass or a person may want one it does not, and
+    /// those round-trip here rather than being dropped.
+    pub properties: Vec<(String, String)>,
 }
 
+/// The keys [`Side::from_kv`] reads into typed fields; anything else is a
+/// property.
+const SIDE_KEYS: &[&str] = &[
+    "id",
+    "plane",
+    "material",
+    "uaxis",
+    "vaxis",
+    "rotation",
+    "lightmapscale",
+    "smoothing_groups",
+    "walkmap",
+];
+
 impl Side {
+    pub fn get(&self, key: &str) -> Option<&str> {
+        kv_get(&self.properties, key)
+    }
+
+    pub fn set(&mut self, key: &str, value: impl Into<String>) -> &mut Self {
+        kv_set(&mut self.properties, key, value.into());
+        self
+    }
+
+    pub fn remove(&mut self, key: &str) -> bool {
+        kv_remove(&mut self.properties, key)
+    }
+
     /// A face on the given plane, with default world-aligned texture axes.
     pub fn from_plane(id: u32, plane: Plane, material: &str) -> Side {
         let (uaxis, vaxis) = default_axes_for_plane(&plane, 0.25);
@@ -61,6 +93,7 @@ impl Side {
             lightmap_scale: DEFAULT_LIGHTMAP_SCALE,
             smoothing_groups: 0,
             walkmap: WalkmapRule::Allow,
+            properties: Vec::new(),
         }
     }
 
@@ -113,6 +146,7 @@ impl Side {
                 .get("walkmap")
                 .map(WalkmapRule::parse)
                 .unwrap_or_default(),
+            properties: unknown_pairs(kv, SIDE_KEYS),
         })
     }
 
@@ -147,6 +181,9 @@ impl Side {
         // that matter in noise.
         if self.walkmap != WalkmapRule::Allow {
             kv.push("walkmap", self.walkmap.as_str());
+        }
+        for (k, v) in &self.properties {
+            kv.push(k.clone(), v.clone());
         }
         kv
     }
@@ -191,11 +228,35 @@ fn points_for_plane(plane: &Plane) -> [Vec3; 3] {
 pub struct Solid {
     pub id: u32,
     pub sides: Vec<Side>,
+    /// Key-values on the brush itself. The format needs none; the compiler
+    /// reads a few (`detail`, `section`) and the editor shows them all.
+    pub properties: Vec<(String, String)>,
+    /// VisGroups, group, colour, comments: what the editor keeps and the
+    /// compiler ignores.
+    pub editor: EditorData,
 }
 
 impl Solid {
     pub fn new(id: u32, sides: Vec<Side>) -> Self {
-        Self { id, sides }
+        Self {
+            id,
+            sides,
+            properties: Vec::new(),
+            editor: EditorData::default(),
+        }
+    }
+
+    pub fn get(&self, key: &str) -> Option<&str> {
+        kv_get(&self.properties, key)
+    }
+
+    pub fn set(&mut self, key: &str, value: impl Into<String>) -> &mut Self {
+        kv_set(&mut self.properties, key, value.into());
+        self
+    }
+
+    pub fn remove(&mut self, key: &str) -> bool {
+        kv_remove(&mut self.properties, key)
     }
 
     /// An axis-aligned box brush -- what the block tool produces.
@@ -234,11 +295,12 @@ impl Solid {
                     lightmap_scale: DEFAULT_LIGHTMAP_SCALE,
                     smoothing_groups: 0,
                     walkmap: WalkmapRule::Allow,
+                    properties: Vec::new(),
                 }
             })
             .collect();
 
-        Solid { id: 0, sides }
+        Solid::new(0, sides)
     }
 
     /// A face on the plane through three points, oriented to face `outward`.
@@ -268,6 +330,7 @@ impl Solid {
             lightmap_scale: DEFAULT_LIGHTMAP_SCALE,
             smoothing_groups: 0,
             walkmap: WalkmapRule::Allow,
+            properties: Vec::new(),
         })
     }
 
@@ -339,7 +402,7 @@ impl Solid {
             id += 1;
         }
 
-        let solid = Solid { id: 0, sides };
+        let solid = Solid::new(0, sides);
         solid.validate().ok()?;
         Some(solid)
     }
@@ -397,7 +460,7 @@ impl Solid {
             sides.push(Self::facing(i as u32 + 2, [a, b, apex], outward, material)?);
         }
 
-        let solid = Solid { id: 0, sides };
+        let solid = Solid::new(0, sides);
         solid.validate().ok()?;
         Some(solid)
     }
@@ -582,14 +645,28 @@ impl Solid {
         for side_kv in kv.blocks("side") {
             sides.push(Side::from_kv(side_kv)?);
         }
-        Ok(Solid { id, sides })
+        Ok(Solid {
+            id,
+            sides,
+            properties: unknown_pairs(kv, &["id"]),
+            editor: kv
+                .block("editor")
+                .map(EditorData::from_kv)
+                .unwrap_or_default(),
+        })
     }
 
     pub(crate) fn to_kv(&self) -> KeyValues {
         let mut kv = KeyValues::new("solid");
         kv.push_value("id", self.id);
+        for (k, v) in &self.properties {
+            kv.push(k.clone(), v.clone());
+        }
         for side in &self.sides {
             kv.push_block(side.to_kv());
+        }
+        if let Some(editor) = self.editor.to_kv() {
+            kv.push_block(editor);
         }
         kv
     }
@@ -679,6 +756,27 @@ mod tests {
         );
         assert!(!c.contains_point(Vec3::new(60.0, 60.0, 32.0)));
         assert!(c.contains_point(Vec3::new(8.0, 8.0, 32.0)));
+    }
+
+    #[test]
+    fn unknown_keys_on_a_solid_and_its_faces_round_trip() {
+        let mut c = cube64();
+        c.set("detail", "1");
+        c.sides[0].set("nodraw_hint", "yes");
+        c.editor.color = Some([1, 2, 3]);
+        let kv = c.to_kv();
+        let again = Solid::from_kv(&kv).unwrap();
+        assert_eq!(again.get("detail"), Some("1"));
+        assert_eq!(again.sides[0].get("nodraw_hint"), Some("yes"));
+        assert_eq!(again.editor.color, Some([1, 2, 3]));
+        assert_eq!(again, c);
+        // A known key is a field, never a property, whatever its case.
+        assert!(
+            again.sides[0]
+                .properties
+                .iter()
+                .all(|(k, _)| k != "material")
+        );
     }
 
     #[test]

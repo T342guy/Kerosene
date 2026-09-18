@@ -35,11 +35,13 @@
 //! do CSG at all. The cost is that a solid's actual polygons only exist once
 //! something computes them -- see [`Solid::windings`].
 
+pub mod editor;
 mod entity;
 mod solid;
 pub mod texture;
 mod walk;
 
+pub use editor::{Cordon, EditorData, Group, ObjectId, VisGroup};
 pub use entity::{Connection, Entity, ParseConnectionError};
 pub use solid::{Side, Solid, SolidError};
 pub use texture::{TextureAxis, default_axes_for_plane, rotate_axes};
@@ -92,6 +94,13 @@ pub struct Map {
     /// separate models.
     pub world: Entity,
     pub entities: Vec<Entity>,
+    /// The editor's visgroup tree. Objects name their groups by id in their
+    /// [`EditorData`].
+    pub visgroups: Vec<VisGroup>,
+    /// The editor's groups. Flat; membership is by id on each object.
+    pub groups: Vec<Group>,
+    /// A box the editor and compiler restrict themselves to, when active.
+    pub cordon: Option<Cordon>,
     /// Highest id handed out so far, so [`Map::next_id`] never collides.
     next_id: u32,
 }
@@ -112,6 +121,9 @@ impl Map {
             editor_version: 100,
             world,
             entities: Vec::new(),
+            visgroups: Vec::new(),
+            groups: Vec::new(),
+            cordon: None,
             next_id: 2,
         }
     }
@@ -180,11 +192,21 @@ impl Map {
             entities.push(Entity::from_kv(kv)?);
         }
 
+        let visgroups = root
+            .block("visgroups")
+            .map(|vg| vg.blocks("visgroup").map(VisGroup::from_kv).collect())
+            .unwrap_or_default();
+        let groups = root.blocks("group").map(Group::from_kv).collect();
+        let cordon = root.block("cordon").and_then(Cordon::from_kv);
+
         let mut map = Map {
             format_version,
             editor_version,
             world,
             entities,
+            visgroups,
+            groups,
+            cordon,
             next_id: 1,
         };
         map.reseed_next_id();
@@ -216,6 +238,16 @@ impl Map {
                 }
             }
         }
+        for g in &mut self.groups {
+            fill(&mut g.id);
+        }
+        fn fill_visgroups(groups: &mut [VisGroup], fill: &mut impl FnMut(&mut u32)) {
+            for g in groups {
+                fill(&mut g.id);
+                fill_visgroups(&mut g.children, fill);
+            }
+        }
+        fill_visgroups(&mut self.visgroups, &mut fill);
         self.next_id = next;
     }
 
@@ -225,16 +257,27 @@ impl Map {
     /// with ids that came from the file.
     pub fn reseed_next_id(&mut self) {
         let mut max = 0;
-        for e in self.all_entities() {
-            max = max.max(e.id);
-            for s in &e.solids {
-                max = max.max(s.id);
-                for side in &s.sides {
-                    max = max.max(side.id);
-                }
-            }
+        for id in self.all_ids() {
+            max = max.max(id);
         }
         self.next_id = max + 1;
+    }
+
+    /// Every id in the map: entities, solids, sides, groups and visgroups.
+    fn all_ids(&self) -> Vec<u32> {
+        let mut ids = Vec::new();
+        for e in self.all_entities() {
+            ids.push(e.id);
+            for s in &e.solids {
+                ids.push(s.id);
+                ids.extend(s.sides.iter().map(|side| side.id));
+            }
+        }
+        ids.extend(self.groups.iter().map(|g| g.id));
+        for root in &self.visgroups {
+            ids.extend(root.walk().iter().map(|(g, _)| g.id));
+        }
+        ids
     }
 
     /// Reject duplicate ids.
@@ -244,14 +287,8 @@ impl Map {
     /// baffling behaviour much later, so it is caught at load.
     fn check_unique_ids(&self) -> Result<(), MapError> {
         let mut seen: HashMap<u32, usize> = HashMap::new();
-        for e in self.all_entities() {
-            *seen.entry(e.id).or_default() += 1;
-            for s in &e.solids {
-                *seen.entry(s.id).or_default() += 1;
-                for side in &s.sides {
-                    *seen.entry(side.id).or_default() += 1;
-                }
-            }
+        for id in self.all_ids() {
+            *seen.entry(id).or_default() += 1;
         }
         // The lowest offending id, so the report is the same every load.
         match seen
@@ -308,9 +345,22 @@ impl Map {
         vi.push_value("editorversion", self.editor_version);
         vi.push_value("formatversion", self.format_version);
         root.push_block(vi);
+        if !self.visgroups.is_empty() {
+            let mut vg = KeyValues::new("visgroups");
+            for g in &self.visgroups {
+                vg.push_block(g.to_kv());
+            }
+            root.push_block(vg);
+        }
         root.push_block(self.world.to_kv("world"));
         for e in &self.entities {
             root.push_block(e.to_kv("entity"));
+        }
+        for g in &self.groups {
+            root.push_block(g.to_kv());
+        }
+        if let Some(cordon) = &self.cordon {
+            root.push_block(cordon.to_kv());
         }
         root.to_document()
     }
@@ -350,6 +400,150 @@ impl Map {
             .chain(self.entities.iter_mut())
             .flat_map(|e| e.solids.iter_mut())
             .find(|s| s.id == id)
+    }
+
+    /// Give fresh ids to a solid and its sides, for a brush the editor made
+    /// by cutting another one up.
+    pub fn assign_ids(&mut self, solid: &mut Solid) {
+        solid.id = self.next_id();
+        for side in &mut solid.sides {
+            side.id = self.next_id();
+        }
+    }
+
+    // ---- editor metadata -------------------------------------------------
+
+    /// Every object the editor can address, in map order.
+    pub fn object_ids(&self) -> Vec<ObjectId> {
+        let mut ids: Vec<ObjectId> = self
+            .world
+            .solids
+            .iter()
+            .map(|s| ObjectId::Solid(s.id))
+            .collect();
+        for e in &self.entities {
+            ids.push(ObjectId::Entity(e.id));
+            ids.extend(e.solids.iter().map(|s| ObjectId::Solid(s.id)));
+        }
+        ids
+    }
+
+    pub fn editor_data(&self, id: ObjectId) -> Option<&EditorData> {
+        match id {
+            ObjectId::Solid(id) => self.find_solid(id).map(|s| &s.editor),
+            ObjectId::Entity(id) => self.entities.iter().find(|e| e.id == id).map(|e| &e.editor),
+        }
+    }
+
+    pub fn editor_data_mut(&mut self, id: ObjectId) -> Option<&mut EditorData> {
+        match id {
+            ObjectId::Solid(id) => self.find_solid_mut(id).map(|s| &mut s.editor),
+            ObjectId::Entity(id) => self
+                .entities
+                .iter_mut()
+                .find(|e| e.id == id)
+                .map(|e| &mut e.editor),
+        }
+    }
+
+    /// The entity a solid belongs to, or `None` for a world brush.
+    pub fn owner_of_solid(&self, solid: u32) -> Option<&Entity> {
+        self.entities
+            .iter()
+            .find(|e| e.solids.iter().any(|s| s.id == solid))
+    }
+
+    /// Every visgroup, depth first, with its depth.
+    pub fn walk_visgroups(&self) -> Vec<(&VisGroup, usize)> {
+        self.visgroups.iter().flat_map(|g| g.walk()).collect()
+    }
+
+    pub fn visgroup(&self, id: u32) -> Option<&VisGroup> {
+        self.visgroups.iter().find_map(|g| g.find(id))
+    }
+
+    pub fn visgroup_mut(&mut self, id: u32) -> Option<&mut VisGroup> {
+        self.visgroups.iter_mut().find_map(|g| g.find_mut(id))
+    }
+
+    /// Create a visgroup, under `parent` when given, and return its id.
+    pub fn add_visgroup(&mut self, name: &str, parent: Option<u32>) -> u32 {
+        let id = self.next_id();
+        let group = VisGroup::new(id, name);
+        match parent.and_then(|p| self.visgroup_mut(p)) {
+            Some(parent) => parent.children.push(group),
+            None => self.visgroups.push(group),
+        }
+        id
+    }
+
+    /// Delete a visgroup. Its children move up to where it was, and every
+    /// object that was in it forgets it.
+    pub fn remove_visgroup(&mut self, id: u32) -> bool {
+        fn take(groups: &mut Vec<VisGroup>, id: u32) -> Option<VisGroup> {
+            if let Some(i) = groups.iter().position(|g| g.id == id) {
+                let removed = groups.remove(i);
+                let children = removed.children.clone();
+                for (offset, child) in children.into_iter().enumerate() {
+                    groups.insert(i + offset, child);
+                }
+                return Some(removed);
+            }
+            groups.iter_mut().find_map(|g| take(&mut g.children, id))
+        }
+        let Some(_) = take(&mut self.visgroups, id) else {
+            return false;
+        };
+        for object in self.object_ids() {
+            if let Some(data) = self.editor_data_mut(object) {
+                data.remove_from_visgroup(id);
+            }
+        }
+        true
+    }
+
+    /// Whether a visgroup is shown: it and every ancestor must be visible.
+    /// An id that names no visgroup is treated as visible, so a stale
+    /// membership hides nothing.
+    pub fn is_visgroup_visible(&self, id: u32) -> bool {
+        fn visible_in(groups: &[VisGroup], id: u32) -> Option<bool> {
+            for g in groups {
+                if g.id == id {
+                    return Some(g.visible);
+                }
+                if let Some(below) = visible_in(&g.children, id) {
+                    return Some(g.visible && below);
+                }
+            }
+            None
+        }
+        visible_in(&self.visgroups, id).unwrap_or(true)
+    }
+
+    /// The objects in a visgroup.
+    pub fn visgroup_members(&self, id: u32) -> Vec<ObjectId> {
+        self.object_ids()
+            .into_iter()
+            .filter(|&o| self.editor_data(o).is_some_and(|d| d.in_visgroup(id)))
+            .collect()
+    }
+
+    /// The objects in a group.
+    pub fn group_members(&self, id: u32) -> Vec<ObjectId> {
+        self.object_ids()
+            .into_iter()
+            .filter(|&o| self.editor_data(o).is_some_and(|d| d.group == Some(id)))
+            .collect()
+    }
+
+    /// The visgroups marked as streamed sections, depth first -- the order
+    /// the compiler numbers sections in, so section `n` is `sections()[n - 1]`
+    /// (section 0 is the unassigned world).
+    pub fn sections(&self) -> Vec<&VisGroup> {
+        self.walk_visgroups()
+            .into_iter()
+            .filter_map(|(g, _)| g.stream.then_some(g))
+            .collect()
     }
 }
 
@@ -492,6 +686,107 @@ world { "id" "1" "classname" "worldspawn"
 }"#;
         let map = Map::parse(src).unwrap();
         assert_eq!(map.validate().len(), 2);
+    }
+
+    #[test]
+    fn editor_blocks_round_trip_and_are_absent_when_unused() {
+        let mut map = Map::parse(SAMPLE).unwrap();
+        let plain = map.to_text();
+        assert!(
+            !plain
+                .lines()
+                .any(|l| matches!(l.trim(), "visgroups" | "editor" | "group" | "cordon")),
+            "a map that uses none of the editor blocks must not grow any"
+        );
+
+        let cave = map.add_visgroup("Cave", None);
+        let pool = map.add_visgroup("Pool", Some(cave));
+        map.visgroup_mut(pool).unwrap().stream = true;
+        map.visgroup_mut(cave).unwrap().visible = false;
+        let solid = map.world.solids[0].id;
+        map.editor_data_mut(ObjectId::Solid(solid))
+            .unwrap()
+            .add_to_visgroup(pool);
+        let group = map.next_id();
+        map.groups.push(Group {
+            id: group,
+            editor: EditorData::default(),
+        });
+        map.editor_data_mut(ObjectId::Entity(9)).unwrap().group = Some(group);
+        map.editor_data_mut(ObjectId::Entity(9)).unwrap().comments = "spawn".into();
+        map.cordon = Some(Cordon {
+            bounds: Aabb::new(Vec3::ZERO, Vec3::splat(128.0)),
+            active: true,
+        });
+
+        let text = map.to_text();
+        let again = Map::parse(&text).unwrap();
+        assert_eq!(again.visgroups, map.visgroups);
+        assert_eq!(again.groups, map.groups);
+        assert_eq!(again.cordon, map.cordon);
+        assert_eq!(again.world.solids[0].editor.visgroups, vec![pool]);
+        assert_eq!(again.entities[0].editor.group, Some(group));
+        assert_eq!(again.entities[0].editor.comments, "spawn");
+        assert_eq!(again.to_text(), text, "writing must be stable");
+
+        // The editor block is not a property: it must not reach the game.
+        assert!(
+            again.entities[0]
+                .properties
+                .iter()
+                .all(|(k, _)| k != "comments")
+        );
+
+        assert_eq!(again.visgroup_members(pool), vec![ObjectId::Solid(solid)]);
+        assert_eq!(again.group_members(group), vec![ObjectId::Entity(9)]);
+        assert_eq!(again.sections().len(), 1);
+        assert!(
+            !again.is_visgroup_visible(pool),
+            "a child is hidden by its hidden parent"
+        );
+        assert!(again.is_visgroup_visible(9999), "a stale id hides nothing");
+    }
+
+    #[test]
+    fn removing_a_visgroup_reparents_children_and_strips_members() {
+        let mut map = Map::parse(SAMPLE).unwrap();
+        let cave = map.add_visgroup("Cave", None);
+        let pool = map.add_visgroup("Pool", Some(cave));
+        let solid = map.world.solids[0].id;
+        let data = map.editor_data_mut(ObjectId::Solid(solid)).unwrap();
+        data.add_to_visgroup(cave);
+        data.add_to_visgroup(pool);
+
+        assert!(map.remove_visgroup(cave));
+        assert!(!map.remove_visgroup(cave));
+        assert_eq!(map.visgroups.len(), 1);
+        assert_eq!(map.visgroups[0].id, pool, "the child moved up");
+        assert_eq!(map.world.solids[0].editor.visgroups, vec![pool]);
+    }
+
+    #[test]
+    fn visgroup_and_group_ids_share_the_map_id_space() {
+        let mut map = Map::parse(SAMPLE).unwrap();
+        let vg = map.add_visgroup("A", None);
+        let text = map.to_text();
+        let again = Map::parse(&text).unwrap();
+        assert!(again.all_ids().contains(&vg));
+        let colliding = text.replacen(&format!("\"id\" \"{vg}\""), "\"id\" \"9\"", 1);
+        assert!(matches!(
+            Map::parse(&colliding),
+            Err(MapError::DuplicateId { id: 9, .. })
+        ));
+    }
+
+    #[test]
+    fn the_shipped_map_survives_a_round_trip_unchanged() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../content/maps/kero_start.keromap");
+        let text = std::fs::read_to_string(path).unwrap();
+        let map = Map::parse(&text).unwrap();
+        let again = Map::parse(&map.to_text()).unwrap();
+        assert_eq!(again.to_text(), map.to_text());
+        assert_eq!(again.solid_count(), map.solid_count());
     }
 
     #[test]

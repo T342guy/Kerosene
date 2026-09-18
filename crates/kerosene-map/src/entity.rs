@@ -2,6 +2,7 @@
 //! Entities and their I/O connections.
 
 use crate::MapError;
+use crate::editor::EditorData;
 use crate::solid::{Solid, SolidError};
 use crate::{plain_properties, read_id, vec3_to_kv};
 use kerosene_kv::{KeyValues, Vec3Value};
@@ -136,6 +137,10 @@ pub struct Entity {
     /// makes it a brush entity like `func_door`.
     pub solids: Vec<Solid>,
     pub connections: Vec<Connection>,
+    /// What the editor keeps about the entity and the game never sees:
+    /// visgroups, group, colour, comments. Not in `properties`, so it never
+    /// reaches the compiled entity lump.
+    pub editor: EditorData,
 }
 
 impl Entity {
@@ -145,6 +150,7 @@ impl Entity {
             properties: vec![("classname".to_string(), classname.to_string())],
             solids: Vec::new(),
             connections: Vec::new(),
+            editor: EditorData::default(),
         }
     }
 
@@ -296,6 +302,10 @@ impl Entity {
             properties,
             solids,
             connections,
+            editor: kv
+                .block("editor")
+                .map(EditorData::from_kv)
+                .unwrap_or_default(),
         })
     }
 
@@ -314,6 +324,9 @@ impl Entity {
                 conn.push(c.output.clone(), c.to_value());
             }
             kv.push_block(conn);
+        }
+        if let Some(editor) = self.editor.to_kv() {
+            kv.push_block(editor);
         }
         kv
     }

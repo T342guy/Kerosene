@@ -88,6 +88,55 @@ Faces carry no UVs. They carry two *texture axes* — world vectors a point is
 projected onto — which is what makes texturing feel the way it does in a brush
 editor: drag a brush and the texture stays locked to world space.
 
+**Any object can carry any key.** An entity is a bag of `"key" "value"` pairs
+and always was; a `solid` and a `side` are too. The keys the format defines
+(`plane`, `material`, the axes, and so on) become typed fields; every other
+pair round-trips untouched, so a key the game or a compiler pass invents
+later, or one a person types into Chisel's key-value editor, is never
+silently dropped. Cleave reads two on a solid: `"detail" "1"` compiles the
+brush as detail without tying it to `func_detail`, and `"section" "name"`
+puts it in a streamed section by name. Brush and face keys never reach the
+compiled map; a brush that should mean something to the game is tied to an
+entity, as in Source.
+
+**The editor's own blocks.** What Chisel needs to remember that the game does
+not is kept out of the properties so it can never leak into the compiled
+entity lump. Every solid and entity may carry an `editor` block, and the root
+may carry `visgroups`, any number of `group` blocks, and a `cordon`:
+
+```
+visgroups
+{
+    visgroup
+    {
+        "name"    "Cave"
+        "id"      "40"
+        "color"   "90 200 120"
+        "visible" "0"
+        "stream"  "1"
+        visgroup { "name" "Pool" "id" "41" "color" "120 170 255" }
+    }
+}
+solid
+{
+    "id" "2"
+    side { ... }
+    editor { "visgroupid" "41" "groupid" "50" "color" "220 30 30" "comments" "back stairs" }
+}
+group  { "id" "50" }
+cordon { "mins" "-512 -512 0" "maxs" "512 512 256" "active" "1" }
+```
+
+VisGroups nest, and hiding a parent hides its children. A visgroup with
+`"stream" "1"` is also a *section*: Cleave tags its brushes with it and the
+engine streams the section's geometry in and out around the player (see
+`.kerobsp` below). Groups are flat: objects that share a `groupid` select
+together. `"visible" "0"` in an object's `editor` block is quick-hide. Every
+one of these blocks is omitted when it would say nothing, so a map that uses
+none of them is byte-for-byte the map it was before they existed, and a
+reader that predates them skips them. Visgroup and group ids share the
+map's one id space with entities, solids and sides.
+
 ## `.kerobsp` — compiled maps
 
 A header (`KROS`, a version, a 20-slot lump directory) followed by flat arrays
