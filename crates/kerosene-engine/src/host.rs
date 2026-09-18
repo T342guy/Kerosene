@@ -46,13 +46,47 @@ struct Gfx {
     egui_renderer: egui_wgpu::Renderer,
 }
 
+/// The GPU side of one section: its mesh, its buffers and materials, and
+/// the frame bind group that carries its lightmap atlas.
+struct SectionGpu {
+    mesh: WorldMesh,
+    resources: MapResources,
+    frame_bind_group: wgpu::BindGroup,
+}
+
+/// What a worker thread hands back: a section's CPU-side data, ready to
+/// upload, stamped with the load generation it was built for.
+struct BuiltSection {
+    generation: u64,
+    section: usize,
+    atlas: LightmapAtlas,
+    mesh: WorldMesh,
+}
+
 /// Geometry for the currently loaded map.
 struct LoadedMap {
     /// The engine's load generation these resources were built from.
     generation: u64,
-    mesh: WorldMesh,
-    resources: MapResources,
-    frame_bind_group: wgpu::BindGroup,
+    /// Per section; `None` while not resident. Section 0, the world, is
+    /// built with the map and never dropped.
+    sections: Vec<Option<SectionGpu>>,
+    /// Sections a worker is building right now.
+    building: std::collections::HashSet<usize>,
+    tx: std::sync::mpsc::Sender<BuiltSection>,
+    rx: std::sync::mpsc::Receiver<BuiltSection>,
+}
+
+impl LoadedMap {
+    fn world(&self) -> Option<&SectionGpu> {
+        self.sections.first().and_then(Option::as_ref)
+    }
+
+    fn loaded(&self) -> impl Iterator<Item = (usize, &SectionGpu)> {
+        self.sections
+            .iter()
+            .enumerate()
+            .filter_map(|(i, s)| s.as_ref().map(|s| (i, s)))
+    }
 }
 
 struct App {
@@ -375,6 +409,7 @@ impl App {
         if current != loaded {
             self.rebuild_map();
         }
+        self.stream_sections();
 
         self.draw(real_dt);
 
@@ -398,38 +433,31 @@ impl App {
             return;
         };
 
-        // Baked at unit exposure: `mat_exposure` is applied by the shader,
-        // per frame, so it is live and is counted once. Folding it in here
-        // as well squared it, and froze half of it at load time.
-        let atlas = LightmapAtlas::build(&level.bsp, 1.0);
         // Models are per map: a `.keromdl` that failed to load, and was then
         // compiled, gets its retry on the next load rather than on restart.
         self.model_cache.clear();
-        let mesh = WorldMesh::build(&level.bsp, &atlas);
-        let resources = MapResources::upload(
-            &gfx.device,
-            &gfx.queue,
-            &gfx.renderer,
-            &mesh,
-            &atlas,
-            &self.engine.vfs,
-        );
-        let frame_bind_group = gfx
-            .renderer
-            .create_frame_bind_group(&gfx.device, &resources.lightmap_view);
-
-        for missing in &resources.missing_materials {
-            self.engine
-                .console
-                .warn(format!("missing material: {missing}"));
-        }
-        self.engine.console.print(format!(
+        let bsp = &level.bsp;
+        // The world section, with the map. Baked at unit exposure:
+        // `mat_exposure` is applied by the shader, per frame, so it is live
+        // and is counted once. Folding it in here as well squared it, and
+        // froze half of it at load time.
+        let atlas = LightmapAtlas::build_for(bsp, 1.0, |f| bsp.face_section(f) == 0);
+        let mesh = WorldMesh::build_for(bsp, &atlas, |f| bsp.face_section(f) == 0);
+        let summary = format!(
             "{} surfaces, {} triangles, {} materials, lightmap atlas {:.0}% full",
             mesh.surfaces.len(),
             mesh.triangle_count(),
             mesh.materials.len(),
             atlas.occupancy() * 100.0
-        ));
+        );
+        let world = upload_section(gfx, &self.engine.vfs, mesh, &atlas);
+
+        for missing in &world.resources.missing_materials {
+            self.engine
+                .console
+                .warn(format!("missing material: {missing}"));
+        }
+        self.engine.console.print(summary);
         if atlas.overflowed > 0 {
             self.engine.console.warn(format!(
                 "{} faces did not fit the lightmap atlas and draw unlit; \
@@ -438,12 +466,92 @@ impl App {
             ));
         }
 
+        let count = bsp.section_count();
+        let mut sections: Vec<Option<SectionGpu>> = (0..count).map(|_| None).collect();
+        sections[0] = Some(world);
+        let (tx, rx) = std::sync::mpsc::channel();
         self.map = Some(LoadedMap {
             generation: self.engine.load_generation(),
-            mesh,
-            resources,
-            frame_bind_group,
+            sections,
+            building: std::collections::HashSet::new(),
+            tx,
+            rx,
         });
+    }
+
+    /// Build, upload and drop streamed sections as the engine's decision
+    /// changes. Building happens on a worker thread from the shared BSP;
+    /// uploading happens here, where the device is.
+    fn stream_sections(&mut self) {
+        let (Some(gfx), Some(map), Some(level)) =
+            (&self.gfx, self.map.as_mut(), &self.engine.level)
+        else {
+            return;
+        };
+        let streaming = &level.streaming;
+        if streaming.is_static() {
+            return;
+        }
+
+        // Start what is wanted and not yet under way.
+        for section in 1..map.sections.len() {
+            let wanted = streaming.state(section) == crate::streaming::SectionState::Wanted;
+            if wanted && map.sections[section].is_none() && !map.building.contains(&section) {
+                map.building.insert(section);
+                let bsp = Arc::clone(&level.bsp);
+                let tx = map.tx.clone();
+                let generation = map.generation;
+                std::thread::spawn(move || {
+                    let keep = |f: usize| bsp.face_section(f) as usize == section;
+                    let atlas = LightmapAtlas::build_for(&bsp, 1.0, keep);
+                    let mesh = WorldMesh::build_for(&bsp, &atlas, keep);
+                    // The receiver is gone when the map has been replaced;
+                    // the work is simply discarded.
+                    let _ = tx.send(BuiltSection {
+                        generation,
+                        section,
+                        atlas,
+                        mesh,
+                    });
+                });
+            }
+        }
+
+        // Drop what is no longer resident.
+        for section in 1..map.sections.len() {
+            if streaming.state(section) == crate::streaming::SectionState::Unloaded
+                && map.sections[section].is_some()
+            {
+                map.sections[section] = None;
+                self.engine
+                    .console
+                    .developer(format!("section {section} unloaded"));
+            }
+        }
+
+        // Take delivery of what the workers finished.
+        let mut arrived = Vec::new();
+        while let Ok(built) = map.rx.try_recv() {
+            map.building.remove(&built.section);
+            if built.generation != map.generation {
+                continue;
+            }
+            if streaming.state(built.section) != crate::streaming::SectionState::Wanted {
+                continue;
+            }
+            self.engine.console.developer(format!(
+                "section {} loaded: {} surfaces, {} triangles",
+                built.section,
+                built.mesh.surfaces.len(),
+                built.mesh.triangle_count()
+            ));
+            let gpu = upload_section(gfx, &self.engine.vfs, built.mesh, &built.atlas);
+            map.sections[built.section] = Some(gpu);
+            arrived.push(built.section);
+        }
+        for section in arrived {
+            self.engine.section_loaded(section);
+        }
     }
 
     fn draw(&mut self, real_dt: f32) {
@@ -550,6 +658,11 @@ impl App {
         if self.engine.console.int("phys_debug") >= 1 {
             debug_lines.extend(self.engine.physics.debug_lines());
         }
+        if self.engine.console.int("r_stream_debug") >= 1
+            && let Some(level) = &self.engine.level
+        {
+            debug_lines.extend(section_debug_lines(&level.streaming));
+        }
         if self.engine.console.int("snd_acoustics_debug") >= 2
             && let Some(level) = &self.engine.level
         {
@@ -623,40 +736,54 @@ impl App {
                 occlusion_query_set: None,
             });
 
-            if let (Some(map), Some(level)) = (&self.map, &self.engine.level)
-                && self.engine.console.bool("r_drawworld")
+            if let (Some(map), Some(level), Some(world)) = (
+                &self.map,
+                &self.engine.level,
+                self.map.as_ref().and_then(LoadedMap::world),
+            ) && self.engine.console.bool("r_drawworld")
             {
                 let novis = self.engine.console.bool("r_novis");
-                let visible = if novis {
-                    // Every surface, models included: `r_novis` means
-                    // "cull nothing", and the models are drawn below.
-                    map.mesh.world_surfaces()
-                } else {
-                    map.mesh
-                        .visible_surfaces(&level.bsp, camera.position, &camera.frustum())
-                };
-                self.stats = gfx.renderer.draw_world(
-                    &mut pass,
-                    &map.frame_bind_group,
-                    &map.resources,
-                    &map.mesh,
-                    &visible,
-                );
+                let frustum = camera.frustum();
+                // Every resident section, each with its own lightmap atlas
+                // and so its own frame bind group.
+                self.stats = FrameStats::default();
+                for (_, section) in map.loaded() {
+                    let visible = if novis {
+                        // Every surface, models included: `r_novis` means
+                        // "cull nothing", and the models are drawn below.
+                        section.mesh.world_surfaces()
+                    } else {
+                        section
+                            .mesh
+                            .visible_surfaces(&level.bsp, camera.position, &frustum)
+                    };
+                    let drawn = gfx.renderer.draw_world(
+                        &mut pass,
+                        &section.frame_bind_group,
+                        &section.resources,
+                        &section.mesh,
+                        &visible,
+                    );
+                    self.stats.draw_calls += drawn.draw_calls;
+                    self.stats.triangles += drawn.triangles;
+                    self.stats.surfaces_drawn += drawn.surfaces_drawn;
+                    self.stats.surfaces_total += drawn.surfaces_total;
+                    self.stats.cluster = drawn.cluster;
+                }
 
                 // Then the brush entities, each where it has got to.
                 // They are not in the world's PVS -- their leaves are
                 // their own -- so a leaf walk cannot find them, which is
                 // why every door in every map used to be invisible.
-                let frustum = camera.frustum();
                 for (model, pose) in &brush_models {
-                    if !novis && !map.mesh.model_is_visible(*model, *pose, &frustum) {
+                    if !novis && !world.mesh.model_is_visible(*model, *pose, &frustum) {
                         continue;
                     }
                     let drawn = gfx.renderer.draw_model(
                         &mut pass,
-                        &map.frame_bind_group,
-                        &map.resources,
-                        &map.mesh,
+                        &world.frame_bind_group,
+                        &world.resources,
+                        &world.mesh,
                         *model,
                     );
                     self.stats.draw_calls += drawn.draw_calls;
@@ -669,7 +796,7 @@ impl App {
                     if let Some(model) = self.model_cache.get(name).and_then(Option::as_ref) {
                         let drawn = gfx.renderer.draw_studio_model(
                             &mut pass,
-                            &map.frame_bind_group,
+                            &world.frame_bind_group,
                             model,
                             *slot,
                         );
@@ -681,7 +808,7 @@ impl App {
                 // The physics debug overlay, drawn last so it sits on top.
                 if let Some(buffer) = &line_buffer {
                     gfx.renderer
-                        .draw_lines(&mut pass, &map.frame_bind_group, buffer, line_count);
+                        .draw_lines(&mut pass, &world.frame_bind_group, buffer, line_count);
                 }
 
                 self.stats.cluster = level.bsp.point_cluster(camera.position);
@@ -734,6 +861,75 @@ impl App {
 ///
 /// A free function rather than a method so it can borrow the graphics state
 /// and the console at once without the whole `App` going along with it.
+/// Upload one section's mesh and atlas to the device.
+fn upload_section(
+    gfx: &Gfx,
+    vfs: &kerosene_vfs::Vfs,
+    mesh: WorldMesh,
+    atlas: &LightmapAtlas,
+) -> SectionGpu {
+    let resources = MapResources::upload(&gfx.device, &gfx.queue, &gfx.renderer, &mesh, atlas, vfs);
+    let frame_bind_group = gfx
+        .renderer
+        .create_frame_bind_group(&gfx.device, &resources.lightmap_view);
+    SectionGpu {
+        mesh,
+        resources,
+        frame_bind_group,
+    }
+}
+
+/// Each streamed section's bounds as a wire box: green loaded, yellow on
+/// its way, red unloaded.
+fn section_debug_lines(streaming: &crate::streaming::Streaming) -> Vec<crate::physics::DebugLine> {
+    use crate::streaming::SectionState;
+    let mut lines = Vec::new();
+    for section in 1..streaming.section_count() {
+        let b = streaming.bounds(section);
+        if b.is_empty() {
+            continue;
+        }
+        let color = match streaming.state(section) {
+            SectionState::Loaded => [0.2, 1.0, 0.3],
+            SectionState::Wanted => [1.0, 0.9, 0.2],
+            SectionState::Unloaded => [1.0, 0.25, 0.25],
+        };
+        let c = |x: f32, y: f32, z: f32| kerosene_math::Vec3::new(x, y, z);
+        let (lo, hi) = (b.min, b.max);
+        let corners = [
+            c(lo.x, lo.y, lo.z),
+            c(hi.x, lo.y, lo.z),
+            c(hi.x, hi.y, lo.z),
+            c(lo.x, hi.y, lo.z),
+            c(lo.x, lo.y, hi.z),
+            c(hi.x, lo.y, hi.z),
+            c(hi.x, hi.y, hi.z),
+            c(lo.x, hi.y, hi.z),
+        ];
+        for (a, b) in [
+            (0, 1),
+            (1, 2),
+            (2, 3),
+            (3, 0),
+            (4, 5),
+            (5, 6),
+            (6, 7),
+            (7, 4),
+            (0, 4),
+            (1, 5),
+            (2, 6),
+            (3, 7),
+        ] {
+            lines.push(crate::physics::DebugLine {
+                a: corners[a],
+                b: corners[b],
+                color,
+            });
+        }
+    }
+    lines
+}
+
 fn draw_console(
     gfx: &mut Gfx,
     encoder: &mut wgpu::CommandEncoder,

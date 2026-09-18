@@ -71,6 +71,12 @@ impl LightmapAtlas {
     /// the exponent in [`ColorRgbExp32`] -- so something has to map it, and
     /// doing it here keeps the shader simple.
     pub fn build(bsp: &Bsp, exposure: f32) -> LightmapAtlas {
+        Self::build_for(bsp, exposure, |_| true)
+    }
+
+    /// Pack the lit faces `keep` accepts -- one streamed section's, so each
+    /// section carries its own atlas and can be dropped with it.
+    pub fn build_for(bsp: &Bsp, exposure: f32, keep: impl Fn(usize) -> bool) -> LightmapAtlas {
         let mut atlas = LightmapAtlas {
             pixels: vec![0u8; (ATLAS_SIZE * ATLAS_SIZE * 4) as usize],
             rects: vec![None; bsp.faces.len()],
@@ -81,6 +87,7 @@ impl LightmapAtlas {
         // Tallest first, so shelves are filled by pieces of similar height and
         // little vertical space is wasted.
         let mut order: Vec<usize> = (0..bsp.faces.len())
+            .filter(|&i| keep(i))
             .filter(|&i| bsp.faces[i].lightmap_offset >= 0)
             .filter(|&i| bsp.faces[i].lightmap_size[0] > 0 && bsp.faces[i].lightmap_size[1] > 0)
             .collect();

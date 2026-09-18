@@ -46,6 +46,9 @@ pub struct PhysicsProps {
     movers: HashMap<usize, Mover>,
     /// Static world body count, for reporting.
     static_bodies: usize,
+    /// The static hulls of each streamed section, present while the
+    /// section is resident. Section 0 is the world and is always here.
+    section_bodies: Vec<Vec<Body>>,
     /// The player, as the simulation sees them.
     player: Option<PlayerBody>,
     /// Model names that would not load, so a prop with a missing `.keromdl`
@@ -74,6 +77,7 @@ impl PhysicsProps {
             props: HashMap::new(),
             movers: HashMap::new(),
             static_bodies: 0,
+            section_bodies: Vec::new(),
             player: None,
             missing_models: std::collections::HashSet::new(),
         }
@@ -91,31 +95,8 @@ impl PhysicsProps {
     /// only to specific actors and are skipped entirely.
     pub fn build_static_world(&mut self, bsp: &Bsp, entities: &EntityWorld) {
         self.static_bodies = 0;
-        for (i, brush) in bsp.brushes.iter().enumerate() {
-            if brush.contents & contents::SOLID == 0 {
-                continue;
-            }
-            if brush.contents & contents::MOVEABLE != 0 {
-                continue;
-            }
-            if brush.contents & (contents::PLAYER_CLIP | contents::MONSTER_CLIP) != 0 {
-                continue;
-            }
-
-            let Some(points) = brush_vertices(bsp, brush) else {
-                continue;
-            };
-            // Static hulls live in world coordinates already.
-            if self
-                .rigid
-                .add_static_hull(&points, Vec3::ZERO, Quat::IDENTITY)
-                .is_none()
-            {
-                log::debug!("physics: skipped degenerate world brush {i}");
-            } else {
-                self.static_bodies += 1;
-            }
-        }
+        self.section_bodies = vec![Vec::new(); bsp.section_count()];
+        self.add_section_hulls(bsp, 0);
 
         // Moving brush entities. Each gets a static hull (or several, for a
         // door built from multiple brushes) placed at its current pose, and
@@ -166,6 +147,79 @@ impl PhysicsProps {
                 self.movers.insert(model, Mover { bodies, pivot });
             }
         }
+    }
+
+    /// The static hulls of one section.
+    fn add_section_hulls(&mut self, bsp: &Bsp, section: usize) {
+        let mut bodies = Vec::new();
+        for (i, brush) in bsp.brushes.iter().enumerate() {
+            if bsp.brush_section(i) as usize != section {
+                continue;
+            }
+            if brush.contents & contents::SOLID == 0 {
+                continue;
+            }
+            if brush.contents & contents::MOVEABLE != 0 {
+                continue;
+            }
+            if brush.contents & (contents::PLAYER_CLIP | contents::MONSTER_CLIP) != 0 {
+                continue;
+            }
+
+            let Some(points) = brush_vertices(bsp, brush) else {
+                continue;
+            };
+            // Static hulls live in world coordinates already.
+            match self
+                .rigid
+                .add_static_hull(&points, Vec3::ZERO, Quat::IDENTITY)
+            {
+                Some(body) => bodies.push(body),
+                None => log::debug!("physics: skipped degenerate world brush {i}"),
+            }
+        }
+        self.static_bodies += bodies.len();
+        if let Some(slot) = self.section_bodies.get_mut(section) {
+            *slot = bodies;
+        }
+    }
+
+    fn remove_section_hulls(&mut self, section: usize) {
+        let Some(bodies) = self.section_bodies.get_mut(section) else {
+            return;
+        };
+        for body in bodies.drain(..) {
+            self.rigid.destroy_body(body);
+            self.static_bodies -= 1;
+        }
+    }
+
+    /// Bring the section hulls in step with what is resident: hulls for a
+    /// section the moment it is wanted, since a prop may be about to land
+    /// on it, and none once it is unloaded.
+    pub fn sync_sections(&mut self, bsp: &Bsp, streaming: &crate::streaming::Streaming) {
+        if self.section_bodies.len() != bsp.section_count() {
+            self.section_bodies.resize(bsp.section_count(), Vec::new());
+        }
+        for section in 1..bsp.section_count() {
+            let has = !self.section_bodies[section].is_empty();
+            let wants = streaming.is_resident(section);
+            if wants && !has {
+                self.add_section_hulls(bsp, section);
+            } else if !wants && has {
+                self.remove_section_hulls(section);
+            }
+        }
+    }
+
+    /// Where every prop that is still moving is: the points that hold a
+    /// streamed section loaded.
+    pub fn awake_prop_positions(&self) -> Vec<Vec3> {
+        self.props
+            .values()
+            .filter(|p| self.rigid.is_awake(p.body))
+            .map(|p| self.rigid.body_transform(p.body).0)
+            .collect()
     }
 
     /// Create bodies for props that just appeared, drop bodies whose entity is

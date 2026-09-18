@@ -165,11 +165,23 @@ impl WorldMesh {
     /// contiguous run of the index buffer, which is what lets the whole world
     /// draw in as many calls as it has materials.
     pub fn build(bsp: &Bsp, atlas: &LightmapAtlas) -> WorldMesh {
+        Self::build_for(bsp, atlas, |_| true)
+    }
+
+    /// The drawable form of the faces `keep` accepts: one streamed section.
+    ///
+    /// Brush models are only mapped when their faces are kept, so a mesh
+    /// built for a section other than the world has no models to draw --
+    /// doors are never streamed.
+    pub fn build_for(bsp: &Bsp, atlas: &LightmapAtlas, keep: impl Fn(usize) -> bool) -> WorldMesh {
         let mut mesh = WorldMesh::default();
 
         // Group faces by material first.
         let mut by_material: Vec<(String, Vec<usize>)> = Vec::new();
         for face_index in 0..bsp.faces.len() {
+            if !keep(face_index) {
+                continue;
+            }
             let ti = bsp.texinfo.get(bsp.faces[face_index].texinfo as usize);
             // Nodraw faces should never have reached the file, but a
             // hand-edited map might carry one.

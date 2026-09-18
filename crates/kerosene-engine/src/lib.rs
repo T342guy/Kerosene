@@ -24,6 +24,7 @@ pub mod host;
 pub mod input;
 pub mod physics;
 pub mod scripting;
+pub mod streaming;
 
 pub use collision::{LevelCollision, Mover};
 pub use engine::{Engine, EngineConfig, Level, PlayerState};

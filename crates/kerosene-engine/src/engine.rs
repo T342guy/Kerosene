@@ -136,7 +136,11 @@ pub fn explain_missing_map(vfs: &Vfs, name: &str, why: &VfsError) -> String {
 /// A loaded level.
 pub struct Level {
     pub name: String,
-    pub bsp: Bsp,
+    /// Shared with the host's section builder, which works on it off the
+    /// main thread.
+    pub bsp: std::sync::Arc<Bsp>,
+    /// Which streamed sections are resident. See [`crate::streaming`].
+    pub streaming: crate::streaming::Streaming,
     /// What the sky is tinted, from the map's `light_environment`.
     ///
     /// Kept on the level rather than read per frame: it cannot change while a
@@ -425,7 +429,7 @@ impl Engine {
                 }
                 Some((
                     model,
-                    brush_pose(level.map(|l| &l.bsp), model, e.origin, e.angles),
+                    brush_pose(level.map(|l| &*l.bsp), model, e.origin, e.angles),
                 ))
             })
             .collect()
@@ -467,6 +471,8 @@ impl Engine {
         // Static world geometry, so rigid-body props have something to land
         // on. Built before `bsp` moves into `level`.
         self.physics = PhysicsProps::new();
+        // Only the world section's hulls now; the streamed sections' come
+        // and go with them.
         self.physics.build_static_world(&bsp, &self.entities);
         self.console.developer(format!(
             "  physics: {} static hulls, {} movers",
@@ -475,9 +481,23 @@ impl Engine {
         ));
 
         let sky_color = self.sky_color_from_map();
+        let streaming = crate::streaming::Streaming::new(&bsp);
+        if !streaming.is_static() {
+            self.console.print(format!(
+                "{} streamed sections: {}",
+                bsp.section_count() - 1,
+                bsp.sections
+                    .iter()
+                    .skip(1)
+                    .map(|s| s.name.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ));
+        }
         self.level = Some(Level {
             name: name.to_string(),
-            bsp,
+            bsp: std::sync::Arc::new(bsp),
+            streaming,
             sky_color,
         });
         self.load_generation += 1;
@@ -777,6 +797,7 @@ impl Engine {
             self.physics
                 .sync_and_step(dt, &mut self.entities, &self.vfs);
         }
+        self.update_streaming(dt);
 
         // Only when a script asked for it: the snapshot a hook reads is
         // O(entities) to build, and most maps define no tick hook at all.
@@ -832,6 +853,42 @@ impl Engine {
     ///
     /// A forced preset wins over the map, so a designer can audition a hall
     /// without compiling one. A map with no acoustics is dry.
+    /// Decide which sections should be resident, and keep the physics
+    /// hulls in step with the answer. The host reads the same answer to
+    /// build and drop the GPU data.
+    fn update_streaming(&mut self, dt: f32) {
+        let Some(level) = self.level.as_mut() else {
+            return;
+        };
+        if level.streaming.is_static() {
+            return;
+        }
+        let cluster = level.bsp.point_cluster(self.player.movement.origin);
+        let keep_alive = self.physics.awake_prop_positions();
+        let enabled = self.console.bool("sv_stream");
+        let linger = self.console.float("sv_stream_linger").max(0.0);
+        if level
+            .streaming
+            .update(&level.bsp, cluster, &keep_alive, dt, enabled, linger)
+        {
+            self.physics.sync_sections(&level.bsp, &level.streaming);
+        }
+    }
+
+    /// The streaming state of the loaded level, for the host.
+    pub fn streaming(&self) -> Option<&crate::streaming::Streaming> {
+        self.level.as_ref().map(|l| &l.streaming)
+    }
+
+    /// The host finished building a section's GPU data.
+    pub fn section_loaded(&mut self, section: usize) {
+        if let Some(level) = self.level.as_mut()
+            && level.streaming.mark_loaded(section)
+        {
+            self.physics.sync_sections(&level.bsp, &level.streaming);
+        }
+    }
+
     fn update_acoustics(&mut self) {
         let eye = self.player.movement.eye_position();
         let basis = self.player.view_angles.vectors();
@@ -1494,6 +1551,24 @@ fn register_cvars(console: &mut Console) {
         "0",
         ConVarFlags::CHEAT,
         "Draw physics prop collision boxes. 1 boxes, 2 boxes and bodies.",
+    );
+    console.register_cvar(
+        "sv_stream",
+        "1",
+        ConVarFlags::ARCHIVE,
+        "Load and unload streamed sections around the player. 0 keeps every section loaded.",
+    );
+    console.register_cvar(
+        "sv_stream_linger",
+        "3",
+        ConVarFlags::ARCHIVE,
+        "Seconds a section stays loaded after the player can no longer see into it.",
+    );
+    console.register_cvar(
+        "r_stream_debug",
+        "0",
+        ConVarFlags::CHEAT,
+        "Draw each streamed section's bounds: green loaded, yellow loading, red unloaded.",
     );
     console.register_cvar_ranged(
         "phys_hold_distance",
