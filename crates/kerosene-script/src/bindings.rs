@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
 //! What a script can call.
 //!
 //! The whole API, in one file, on purpose. A scripting surface that is spread

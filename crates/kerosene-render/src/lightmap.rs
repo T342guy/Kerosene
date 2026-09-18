@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
 //! Packing per-face lightmaps into one atlas.
 //!
 //! Every lit face carries its own small grid of luxels. Uploading them as

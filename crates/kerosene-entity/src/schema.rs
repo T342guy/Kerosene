@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
 //! Entity class definitions -- what an editor needs to show for a class.
 //!
 //! The engine reads whatever keys a map happens to carry: an entity is a bag

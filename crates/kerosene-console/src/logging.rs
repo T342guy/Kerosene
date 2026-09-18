@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
 //! Where the game's log lines go.
 //!
 //! Two things used to be true at once: the console kept a scrollback of

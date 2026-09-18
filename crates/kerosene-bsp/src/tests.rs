@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
 use super::*;
 
 /// A minimal but structurally complete map: one plane splitting space into an

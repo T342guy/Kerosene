@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
 //! The virtual filesystem: search paths and mounted archives.
 //!
 //! Source's filesystem lets a mod, the base game and a set of VPKs stack into

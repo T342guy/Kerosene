@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
 //! Radiance -- the Kerosene lighting compiler.
 //!
 //! Reads a compiled `.kerobsp`, bakes static lighting into every face, and writes

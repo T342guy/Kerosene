@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
 //! The whole acoustic chain, end to end: a map built in memory, compiled
 //! through Cleave, Umbra and Resonance, loaded by the engine, and listened
 //! to. Each stage has its own tests; this is the seam between them -- that

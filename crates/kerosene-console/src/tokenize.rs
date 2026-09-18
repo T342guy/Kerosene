@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
 //! Splitting console text into commands, and commands into arguments.
 //!
 //! Both operations have to respect quoting, because `say "hello; world"` is

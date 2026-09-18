@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
 //! Which section each brush belongs to, and the cordon.
 //!
 //! A section is a visgroup the designer marked as streamed; the engine loads

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
 //! Rooms built in memory, compiled, and listened to.
 //!
 //! The reference is Eyring's formula, which for a box is exact enough to

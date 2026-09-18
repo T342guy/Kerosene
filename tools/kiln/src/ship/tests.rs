@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
 use super::*;
 use crate::Stage;
 use kerosene_vfs::project::Project;
@@ -119,30 +119,38 @@ fn the_licence_texts_are_written_in_full() {
     let f = Fixture::new("licences");
     f.ship_with_binary().unwrap();
 
-    let lgpl = std::fs::read_to_string(f.dist().join("LICENSE-LGPL-3.0")).unwrap();
-    let mpl = std::fs::read_to_string(f.dist().join("LICENSE-MPL-2.0")).unwrap();
+    let gpl = std::fs::read_to_string(f.dist().join("LICENSE")).unwrap();
+    let exception = std::fs::read_to_string(f.dist().join("LICENSE-EXCEPTION")).unwrap();
 
     assert!(
-        lgpl.contains("GNU LESSER GENERAL PUBLIC LICENSE"),
-        "the LGPL, not a summary"
+        gpl.contains("GNU GENERAL PUBLIC LICENSE"),
+        "the GPL, not a summary"
     );
     assert!(
-        lgpl.contains("Version 3"),
-        "the LGPL-3.0 text must be complete enough to act on"
+        gpl.contains("Version 3, 29 June 2007"),
+        "the GPL-3.0 text must be complete enough to act on"
     );
     assert!(
-        mpl.contains("Mozilla Public License"),
-        "the MPL, not a summary"
+        exception.contains("KEROSENE EXCEPTION"),
+        "the exception, not a summary"
     );
     assert!(
-        mpl.contains("2.0"),
-        "the MPL-2.0 text must be complete enough to act on"
+        exception.contains("Additional permission: linking")
+            && exception.contains("Attribution Screen"),
+        "both halves of the exception: the permission and the requirements"
     );
-    // Both full texts ship, and the old GPL-only boilerplate filenames do not.
-    assert!(f.dist().join("LICENSE-LGPL-3.0").exists());
-    assert!(f.dist().join("LICENSE-MPL-2.0").exists());
-    assert!(!f.dist().join("COPYING").exists());
-    assert!(!f.dist().join("COPYING.LESSER").exists());
+    // The old dual-licence file names are gone, and so are the GPL boilerplate ones.
+    for stale in [
+        "LICENSE-LGPL-3.0",
+        "LICENSE-MPL-2.0",
+        "COPYING",
+        "COPYING.LESSER",
+    ] {
+        assert!(
+            !f.dist().join(stale).exists(),
+            "{stale} should not be written"
+        );
+    }
 }
 
 // ---- what must never land in it ---------------------------------------
@@ -245,24 +253,31 @@ fn shipping_a_stale_archive_is_refused_and_names_what_changed() {
     );
 }
 
-// ---- the licence notice is unconditional under both arms ------------
+// ---- the licence notice is unconditional -------------------------------
 
 #[test]
 fn the_notice_names_the_engine_and_disclaims_warranty() {
-    // Both arms ask that a program carrying Kerosene preserve the notice and
-    // point at the source; the README states the choice between them. There
-    // is no relinking clause under MPL-2.0, because it copies only at file
-    // level and never at the level of how the binary is linked.
+    // The exception asks that a program carrying Kerosene preserve the
+    // notice, point at the source and show an attribution screen; the README
+    // states the licence and those conditions so that a redistributor can
+    // read them without opening the full text.
     let f = Fixture::new("notice");
     f.ship_with_binary().unwrap();
 
     let readme = std::fs::read_to_string(f.dist().join("README.txt")).unwrap();
     assert!(readme.contains("Built with Kerosene"));
     assert!(
-        readme.contains("LGPL-3.0-or-later"),
-        "both arms must be stated: {readme}"
+        readme.contains("GNU General Public License") && readme.contains("Kerosene Exception"),
+        "the licence and the exception must both be named: {readme}"
     );
-    assert!(readme.contains("Mozilla Public License"));
+    assert!(
+        readme.contains("attribution screen"),
+        "the attribution screen is a condition of shipping: {readme}"
+    );
+    assert!(
+        readme.contains("modified from Kerosene"),
+        "a modified engine must say so: {readme}"
+    );
     assert!(readme.contains("NO WARRANTY"));
     assert!(
         readme.contains("pull request"),
@@ -271,6 +286,10 @@ fn the_notice_names_the_engine_and_disclaims_warranty() {
     assert!(
         readme.contains("Test Game"),
         "the game's own name belongs at the top: {readme}"
+    );
+    assert!(
+        readme.contains("https://github.com/t342guy/kerosene"),
+        "Kerosene's own source is the pointer that never rots: {readme}"
     );
     // The fonts travel inside any binary linking egui, which includes the
     // engine's console overlay, and their notices have to travel with them.

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
 //! The room: a feedback delay network that rings the way a space does.
 //!
 //! A real room is a sound bouncing between its walls, losing a little at

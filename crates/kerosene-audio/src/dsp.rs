@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
 //! The handful of building blocks every effect here is made of.
 //!
 //! Written out rather than pulled in, for the same reason the decoders are:

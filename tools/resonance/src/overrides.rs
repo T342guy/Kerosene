@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
 //! `env_acoustic_override`: the designer having the last word.
 //!
 //! The probe is right about geometry and materials and knows nothing about

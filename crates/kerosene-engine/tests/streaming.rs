@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
 //! Streamed sections, end to end: a map with a far room in a streamed
 //! visgroup is compiled with vis, loaded, and the section comes and goes as
 //! the player approaches and leaves.

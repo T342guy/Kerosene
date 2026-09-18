@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
 //! The toolset's `main`, as a function a game can call.
 //!
 //! `kerosene-tools` is this with the defaults. A game that wants an editor

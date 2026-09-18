@@ -1,71 +1,81 @@
 Kerosene
 Copyright (C) 2026 T342guy
 
-Kerosene is offered under a choice of two licences, and you may use it under
-either one. Both full texts are shipped alongside this notice:
-
-    LICENSE-LGPL-3.0    the GNU Lesser General Public License, version 3 or later
-    LICENSE-MPL-2.0     the Mozilla Public License, version 2.0
-
-Every source file records the choice:
-
-    SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
-
-This Source Code Form is subject to the terms of the Mozilla Public License,
-v. 2.0. If a copy of the MPL was not distributed with this file, You can obtain
-one at <https://mozilla.org/MPL/2.0/>.
-
-Kerosene is free software: you can redistribute it and/or modify it under the
-terms of the GNU Lesser General Public License as published by the Free Software
+Kerosene is free software: you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
 Foundation, either version 3 of the License, or (at your option) any later
-version. Kerosene is distributed in the hope that it will be useful, but
-WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
-FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for
-more details. You should have received a copy of the GNU Lesser General Public
-License along with Kerosene. If not, see <https://www.gnu.org/licenses/>.
+version, together with the additional terms in the Kerosene Exception. Both
+texts are shipped alongside this notice:
 
-How to use the two licences
----------------------------
+    LICENSE               the GNU General Public License, version 3
+    LICENSE-EXCEPTION     the Kerosene Exception, version 1.0: additional
+                          terms under section 7 of the GPL
 
-The licences are alternatives, not conditions stacked on top of each other.
-Pick the one that fits what you are doing; you do not have to satisfy both at
-once.
+Every source file records this:
 
-  * MPL-2.0 is weak, file-level copyleft. Change a Kerosene file and
-    distribute it, and that file must stay MPL-2.0; files you write yourself
-    -- your game code, levels, scripts, assets -- carry whatever terms you
-    like. There is no linking stage, so a closed-source game statically linked
-    to the engine owes nothing beyond this notice and a pointer to the source.
+    SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
 
-  * LGPL-3.0-or-later is stronger copyleft on the engine as a whole. If you
-    modify Kerosene and distribute your version, the modified engine must be
-    released under the LGPL. Code you write *against* the engine is not the
-    engine: the LGPL lets you keep it closed, provided the engine part can
-    still be replaced. Rust links statically, so that means shipping the
-    engine as a replaceable library or shipping your object files for
-    relinking -- real but ordinary work. The MPL arm exists precisely so that
-    anyone who finds that too much ceremony can take the other one.
+Kerosene is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
+A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+You should have received a copy of the GNU General Public License along with
+Kerosene. If not, see <https://www.gnu.org/licenses/>.
 
-Why offer both? So the choice is yours, not the project's. Take MPL-2.0 for
-the simplest possible shipping story; take the LGPL if you want the stronger
-guarantee that a modified engine stays open.
+What the exception does
+-----------------------
 
-Whichever you take, the project's preference is the same: if you change
-Kerosene itself, please contribute the change back as a pull request instead
-of releasing a modified Kerosene of your own. Use the updated engine, and the
-fix exists once, reviewed and maintained, rather than once per fork. Releasing
-a fork is permitted under either licence; a pull request is simply better for
-everyone who builds on Kerosene.
+The GPL on its own would make any program that links Kerosene a covered
+work, so a game built on it would have to be GPL too. The Kerosene Exception
+grants an additional permission that the GPL's section 7 allows: you may
+link Kerosene, statically or dynamically, into a game and convey the game
+under terms of your own. That permission has conditions, and the same
+section 7 lets the project attach a few requirements. Read LICENSE-EXCEPTION
+for the exact words; in short:
 
-A fork is welcome to carry a Kerosene-derived name ("Kerosene: Ultimate",
-"Kerosene NG") so that its lineage is plain. The licences govern the code;
-the name is a separate permission, granted on these conditions: publish the
-whole modified engine as source, not only the changed files; link to that
-source, and to Kerosene's, with the words "built from" or "modified from
-Kerosene" and the version diverged from, in the engine's own notice and in
-the notice of every game built on it; and say plainly that it is a
-derivative rather than the official Kerosene. A fork under any other name
-owes only what its licence says.
+  * A game built on Kerosene is yours. Your code, levels, scripts and assets
+    carry whatever terms you like, closed or open. What you owe: the engine
+    part of the game stays under the GPL with its source available, the
+    game carries a notice that it is built with Kerosene and says where the
+    engine source is, and it shows an attribution screen when it starts --
+    "Built with Kerosene", before or with its first interactive screen.
+    `kiln --ship` writes the licence texts and the notice for you.
+
+  * A modified engine is a modified Kerosene, whatever you call it and
+    wherever you put the changed files. If you convey it, alone or inside a
+    game, the whole modified engine is under the GPL with the exception; it
+    says plainly that it is "modified from Kerosene" or "built from
+    Kerosene", names the version or commit it diverged from, and links to
+    Kerosene's source -- in its own notice, in the notice of every game built
+    on it, and on the attribution screen of every game built on it. A game
+    shipped closed on a modified engine additionally publishes the complete
+    source of that engine where anyone can get it free of charge, not only
+    to the people who receive the game.
+
+  * The Kerosene name is not granted by the licence. A modified engine may
+    call itself Kerosene-something ("Kerosene: Ultimate", "Kerosene NG") only
+    if it does the above and publishes its whole source, as one engine
+    rather than as changed files, under the same terms. Any other name owes
+    only what the licence and the exception say.
+
+  * The attribution screen requirement is inherited: a modified engine must
+    keep it, so that every game on every descendant of Kerosene still shows
+    where it came from.
+
+Whichever of those you are, the project's preference is the same: if you
+change Kerosene itself, please contribute the change back as a pull request
+instead of releasing a modified Kerosene of your own. Use the updated engine,
+and the fix exists once, reviewed and maintained, rather than once per fork.
+
+Contributions
+-------------
+
+A patch to Kerosene is offered under the same terms the project uses:
+GPL-3.0-or-later WITH the Kerosene Exception. That matters more than it
+would for a plain GPL project, because the exception is an additional
+permission and a contribution offered under the GPL alone would carry no
+such permission, and the file it touched could no longer be linked into a
+closed game. There is no CLA; the SPDX line in every file records the terms,
+and sending a pull request against this repository is accepting them.
 
 Independent reimplementation
 ----------------------------

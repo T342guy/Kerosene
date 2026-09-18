@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
 //! Sound scripts: what a name means.
 //!
 //! A level fires `door/open`, and what that *is* -- which file, how loud, how

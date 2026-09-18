@@ -1,0 +1,131 @@
+              KEROSENE EXCEPTION TO THE GNU GENERAL PUBLIC LICENSE
+                                Version 1.0
+
+Additional terms under section 7 of the GNU General Public License, version
+3 or (at your option) any later version ("the GPL"), applying to Kerosene
+("the Program").
+
+Copyright (C) 2026 T342guy
+
+The Program is licensed under the GPL. The GPL's section 7 allows the
+copyright holders to supplement it with additional permissions, which relax
+its terms, and with a limited set of additional requirements. Section 1
+below is an additional permission; section 2 is a set of additional
+requirements of the kinds section 7 (b), (c), (d) and (e) of the GPL allow.
+Terms used here that the GPL defines -- "convey", "covered work",
+"Corresponding Source", "modify", "Appropriate Legal Notices" -- have the
+meanings the GPL gives them.
+
+
+0. Definitions.
+
+  "Kerosene Portion" of a work means every part of it that is the Program
+  or a modified version of the Program, including modified copies of the
+  Program's source files wherever they are placed.
+
+  "Independent Module" means a module that is not derived from the
+  Program's source files and that links with, is linked into, or otherwise
+  combines with a Kerosene Portion -- through its Rust API, its script
+  interface, its entity or console interfaces, or its file formats.
+
+  "Combined Work" means a work produced by combining a Kerosene Portion
+  with one or more Independent Modules.
+
+  "Attribution Screen" means the display described in section 2(e).
+
+
+1. Additional permission: linking.
+
+  As a special exception, the copyright holders of the Program give you
+  permission to combine a Kerosene Portion with Independent Modules,
+  statically or dynamically, and to convey the resulting Combined Work
+  under terms of your choice for the Independent Modules, provided that:
+
+  (a) the Kerosene Portion of the Combined Work, including every
+      modification made to it, is licensed under the GPL together with
+      these additional terms, and its Corresponding Source is provided as
+      the GPL requires for a covered work;
+
+  (b) the Combined Work carries a prominent notice that it is built with
+      Kerosene, names the licence of the Kerosene Portion, and states
+      where that Corresponding Source can be obtained;
+
+  (c) if the Kerosene Portion is a modified version of the Program, the
+      complete Corresponding Source of that modified version -- the whole
+      engine, not only the changed files -- is published where anyone can
+      obtain it free of charge, and the notice in (b) says where;
+
+  (d) the Combined Work displays the Attribution Screen; and
+
+  (e) section 2 is complied with.
+
+  An Independent Module remains yours; it does not become a covered work
+  by virtue of this combination. This permission does not extend to
+  conveying a Kerosene Portion on its own, or as an engine for others to
+  build on, under any terms other than the GPL with these additional
+  terms.
+
+  You may remove this permission from your copy, as section 7 of the GPL
+  allows; the requirements in section 2 remain.
+
+
+2. Additional requirements.
+
+  (a) Preservation of notices (GPL section 7(b)). Every copy of a covered
+      work and every Combined Work must preserve the Program's copyright
+      notices, the attribution and provenance statements in its NOTICE
+      file, and the statement that it is built with Kerosene together with
+      a pointer to the Program's source.
+
+  (b) Attribution and marking of modified versions (GPL section 7(b) and
+      7(c)). A modified version of the Program that you convey, alone or
+      in a Combined Work, must attribute the Program: in its own notice,
+      in the notice of every Combined Work built on it, and in its
+      Attribution Screen, it must say that it is "modified from Kerosene"
+      or "built from Kerosene", name the version or commit of the Program
+      it diverged from, and give the location of the Program's own source.
+      It must not be represented as the original Program, or as endorsed
+      by, affiliated with, or maintained by the Program's authors.
+
+  (c) Publicity (GPL section 7(d)). The names of the Program's authors and
+      contributors may not be used to endorse or promote a modified
+      version or a Combined Work without prior written permission.
+
+  (d) Trademarks and names (GPL section 7(e)). These terms grant no right
+      to use "Kerosene", or a name a reasonable person would take to be
+      derived from it, as the name of a modified version of the Program,
+      except that such a name may be used for a modified version that
+      (i) satisfies section 2(b), and (ii) publishes its complete
+      Corresponding Source, the whole engine, where anyone can obtain it
+      free of charge, under the GPL with these additional terms. A
+      modified version under any other name owes only what the GPL and
+      these terms otherwise require.
+
+  (e) Attribution Screen (GPL section 7(b): an author attribution in the
+      Appropriate Legal Notices). A covered work or Combined Work that
+      presents a graphical interface must, each time it starts and before
+      or together with its first interactive screen, display a screen
+      stating that it is built with Kerosene; if the Kerosene Portion is a
+      modified version of the Program, the screen states the modified
+      engine's name and that it is modified from Kerosene. The screen may
+      be brief and may be dismissed by the user, but it may not be
+      disabled, hidden, or made illegible. A modified version of the
+      Program must preserve this requirement, so that every work built on
+      it displays the same attribution to Kerosene. A work with no
+      graphical interface satisfies this section by printing the same
+      statement when it starts.
+
+
+3. General.
+
+  These terms apply equally under any later version of the GPL that the
+  Program is used under. They grant no rights to any third-party component
+  the Program contains or depends on; each keeps its own licence. If any
+  provision of section 2 is held not to be a permitted additional
+  requirement under the GPL, it is severed, and the remaining terms stand.
+
+  Every source file of the Program records these terms as
+
+      SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
+
+  and this file is the text that identifier refers to.

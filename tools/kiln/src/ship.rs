@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
 //! Assembling a distribution -- the step after the content is built.
 //!
 //! Everything up to here produces *content*: textures, models, maps, and a
@@ -17,7 +17,7 @@
 //!
 //! * **Shipping too much.** Sweeping the build directory into the archive
 //!   puts Chisel and the compilers in a player's hands. That is not merely
-//!   wasted space: the tools are ordinary copyleft binaries, so distributing
+//!   wasted space: the tools are ordinary GPL binaries, so distributing
 //!   one obliges you to distribute its source too. A game that ships no
 //!   compilers owes nobody anything for them, which is why [`ship`] copies a
 //!   named list of files rather than a directory, and why a test asserts that
@@ -31,9 +31,10 @@
 //!   my_game.keroproj   content = "content", so the game finds its own archive
 //!   content/
 //!     my_game.vault
-//!   LICENSE-LGPL-3.0   one arm of the licence, full text
-//!   LICENSE-MPL-2.0    the other arm, full text
-//!   README.txt         what this is, and the notices both licences ask for
+//!   LICENSE            the GNU General Public License, version 3, full text
+//!   LICENSE-EXCEPTION  the Kerosene Exception: the linking permission and
+//!                      the attribution terms, full text
+//!   README.txt         what this is, and the notices the licence asks for
 //! ```
 
 use crate::{Settings, slug};
@@ -48,13 +49,10 @@ use std::time::SystemTime;
 /// time, because `kiln` installed somewhere else still has to be able to
 /// write them, and a licence file that is missing when it matters is the
 /// whole failure this module exists to prevent.
-const MPL: &str = include_str!(concat!(
+const GPL: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../LICENSE"));
+const EXCEPTION: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
-    "/../../LICENSE-MPL-2.0"
-));
-const LGPL: &str = include_str!(concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/../../LICENSE-LGPL-3.0"
+    "/../../LICENSE-EXCEPTION"
 ));
 
 /// What was assembled.
@@ -106,7 +104,7 @@ pub(crate) fn ship_from(settings: &Settings, out: &Path, source: &Path) -> Resul
         archive: out
             .join("content")
             .join(archive.file_name().unwrap_or_default()),
-        notices: ["LICENSE-LGPL-3.0", "LICENSE-MPL-2.0", "README.txt"]
+        notices: ["LICENSE", "LICENSE-EXCEPTION", "README.txt"]
             .iter()
             .map(|n| out.join(n))
             .collect(),
@@ -128,13 +126,13 @@ pub(crate) fn ship_from(settings: &Settings, out: &Path, source: &Path) -> Resul
     copy(&archive, &shipped.archive)?;
 
     write_project(settings, &out.join(format!("{name}.keroproj")), &name)?;
-    std::fs::write(out.join("LICENSE-LGPL-3.0"), LGPL)?;
-    std::fs::write(out.join("LICENSE-MPL-2.0"), MPL)?;
+    std::fs::write(out.join("LICENSE"), GPL)?;
+    std::fs::write(out.join("LICENSE-EXCEPTION"), EXCEPTION)?;
     std::fs::write(out.join("README.txt"), readme(settings, &name))?;
 
     println!("  {} -> {}", source.display(), shipped.binary.display());
     println!("  {} -> {}", archive.display(), shipped.archive.display());
-    println!("  wrote LICENSE-LGPL-3.0, LICENSE-MPL-2.0 and README.txt");
+    println!("  wrote LICENSE, LICENSE-EXCEPTION and README.txt");
     Ok(shipped)
 }
 
@@ -265,13 +263,13 @@ fn write_project(settings: &Settings, path: &Path, name: &str) -> Result<()> {
     Ok(())
 }
 
-/// The notice both licences ask of a program that carries Kerosene.
+/// The notice the licence asks of a program that carries Kerosene.
 ///
 /// Written out in full rather than pointing at a URL, because the obligation
-/// travels with the copy and a link can rot. Kerosene is dual-licensed, so
-/// the README states both arms and the choice between them; a game that
-/// ships Kerosene under MPL-2.0 owes a notice and a pointer to the source,
-/// and under the LGPL must keep the engine replaceable.
+/// travels with the copy and a link can rot. It states the licence, what the
+/// Kerosene Exception asks of a game shipped under it -- engine source, this
+/// notice, the attribution screen, and the "modified from" line when the
+/// engine is not the stock one -- and disclaims the warranty.
 fn readme(settings: &Settings, name: &str) -> String {
     let title = settings.project.as_ref().map_or(name, |p| p.name.as_str());
     let mut out = String::new();
@@ -282,26 +280,30 @@ fn readme(settings: &Settings, name: &str) -> String {
     out.push_str("\n\nBuilt with Kerosene.\n\n");
 
     out.push_str(
-        "Kerosene is offered under a choice of two licences, and you may use it\n\
-         under either one:\n\n\
-         * LGPL-3.0-or-later -- the full terms are in LICENSE-LGPL-3.0. If you\n\
-           modify Kerosene and distribute your version, the modified engine must be\n\
-           released under the LGPL; code you write against the engine stays yours,\n\
-           provided the engine part can still be replaced.\n\n\
-         * MPL-2.0 -- the full terms are in LICENSE-MPL-2.0. File-level copyleft:\n\
-           it requires source for the files it covers, and it does not reach the\n\
-           rest of this program or the game that builds on it.\n\n\
-         Either way, if you change Kerosene itself, please contribute the change\n\
-         back as a pull request rather than releasing a modified Kerosene of your\n\
-         own, so the fix exists once for everyone. Kerosene comes with ABSOLUTELY\n\
-         NO WARRANTY.\n\n",
+        "Kerosene is licensed under the GNU General Public License, version 3 or\n\
+         (at your option) any later version, with the additional terms of the\n\
+         Kerosene Exception. The full texts are in LICENSE and LICENSE-EXCEPTION.\n\n\
+         The exception permits a program to link Kerosene and ship under its own\n\
+         terms, on conditions: the engine part of the program stays under the GPL\n\
+         with its source available; the program carries this notice; it shows an\n\
+         attribution screen when it starts; and if the engine has been modified,\n\
+         the whole modified engine says it is modified from Kerosene, names the\n\
+         version it diverged from, and is published as source where anyone can\n\
+         obtain it.\n\n\
+         If you change Kerosene itself, please contribute the change back as a\n\
+         pull request rather than releasing a modified Kerosene of your own, so\n\
+         the fix exists once for everyone.\n\n\
+         Kerosene comes with ABSOLUTELY NO WARRANTY.\n\n",
     );
 
     out.push_str("Engine source\n-------------\n\n");
     out.push_str(
         "The corresponding source for Kerosene must be available to everyone who\n\
          receives this program. If you are redistributing this build, say here where\n\
-         to obtain it.\n\n",
+         to obtain it. If the engine in this build is modified from Kerosene, also\n\
+         say which Kerosene version or commit it diverged from and where the\n\
+         complete source of the modified engine is published.\n\n\
+         Kerosene's own source: https://github.com/t342guy/kerosene\n\n",
     );
 
     out.push_str("Other notices\n-------------\n\n");

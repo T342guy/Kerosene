@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
 //! A fixed-width bit set, sized once and reused.
 //!
 //! Visibility is fundamentally "which of these N things can see which other N

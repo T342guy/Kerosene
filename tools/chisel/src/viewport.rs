@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
 //! Viewports: the panes a level is built in.
 //!
 //! Six are orthographic and axis-aligned -- top, bottom, front, back, left and
