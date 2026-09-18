@@ -3,8 +3,9 @@
 //!
 //! This is the analogue of Source's game DLL. `kerosene-entity` knows how to route
 //! an input and run a think; everything here decides what those inputs *mean*.
-//! The split is worth keeping strictly: nothing in this crate is required by
-//! the engine, and a different game would replace it wholesale.
+//! The split is kept strictly: the engine does not depend on this crate
+//! (only its tests do), and a game replaces or extends it by implementing
+//! `kerosene_engine::Game` -- `kerosene::game::Stock` is this crate as one.
 //!
 //! The classes implemented are the ones a level actually needs to be a level:
 //!

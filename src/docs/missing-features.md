@@ -200,13 +200,14 @@ for completeness.
 
 ## 8. UI and HUD
 
-- **In-game HUD / menus.** The only in-game overlay is the developer console.
-  No HUD, no main menu, no pause menu, no options screen, no dialogue boxes.
-- **Gameplay UI toolkit.** No widget system, layout, or theming for shipped
-  games. egui is used for tools and the console, not game UI, and the crate
-  named `kerosene-ui` is the tool window, not this. Even a minimal
-  immediate-mode layer of textured quads and an atlas font would unblock
-  menus, options and a HUD at once.
+- **In-game HUD / menus.** A game draws its own with egui through
+  `Game::ui`, over the world and under the console, with the pointer
+  reaching it whenever the mouse is not captured. Nothing is provided on
+  top of that: no main menu, pause menu, options screen or dialogue boxes
+  to reuse.
+- **Gameplay UI toolkit.** egui is what `Game::ui` gets, which is a real
+  widget system, but it looks like a tool; there is no theming, atlas font
+  or textured-quad layer for a game that wants to look like one.
 - **Localization.** No string tables or translation. Cheap now, painful to
   retrofit.
 - **Runtime text/font rendering** for gameplay. Only console and editor fonts.
@@ -241,7 +242,9 @@ for completeness.
   `logic_compare`, `math_remap`, `filter_activator_name` and `_class`,
   `env_fade`, `env_shake`, `trigger_gravity`, `point_viewcontrol`,
   `env_sprite`, `game_ui`. None of these are hard; each is a class in
-  `kerosene-game` and a row in the schema.
+  `kerosene-game` and a row in the schema -- or in a game's own crate, since
+  a game registers classes through the `Game` trait without touching the
+  engine.
 
 ## 11. Content and asset pipeline
 

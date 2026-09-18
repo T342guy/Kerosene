@@ -256,8 +256,10 @@ crates/
   kerosene-rigid      rigid-body props on Box3D (box3d-rust)
   kerosene-entity     entities, their fields, and the I/O event queue
   kerosene-render     the wgpu renderer, lightmap atlas, PVS culling
-  kerosene-engine     the host: ties it together, with and without a window
-  kerosene-game       entity classes — the game DLL analogue
+  kerosene-engine     the host: ties it together, with and without a window;
+                      the Game trait a game implements
+  kerosene-game       the stock entity classes — the game DLL analogue
+  kerosene            the engine as one crate: what a game depends on
 tools/
   chisel cleave umbra resonance radiance alchemy forge vault kiln
 apps/

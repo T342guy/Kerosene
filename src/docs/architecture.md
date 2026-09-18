@@ -91,7 +91,9 @@ flowchart TB
     n12["kerosene-game"] --> n11
     n14 --> n13 & n15
     n15 --> n16["kerosene-engine"]
-    n17 --> n16
+    n16 --> n18["kerosene"]
+    n12 --> n18
+    n18 --> n17
 
     n1@{ shape: rounded}
     n2@{ shape: rounded}
@@ -110,8 +112,28 @@ flowchart TB
 
 
 Nothing points upward. `kerosene-math` knows about nothing; `kerosene-engine` knows
-about everything. The tools sit off to the side, depending on the format crates
-but never on the engine.
+about everything except the game. The tools sit off to the side, depending on
+the format crates but never on the engine.
+
+`kerosene` is the facade: every crate above re-exported as a module, the stock
+game wrapped as `kerosene::game::Stock`, and `launch`. It is the one crate a
+game names, and the runtime binary is a call into it.
+
+### The game seam
+
+The engine has no game of its own. `kerosene-engine` defines a `Game` trait
+-- `classes`, `setup`, `map_loaded`, `pre_tick`, `tick`, `entity_request`,
+`console_request`, `wants_ui`, `ui` -- and runs whatever implements it, with
+`&mut Engine` in every hook. `kerosene-game` is the stock implementation's
+classes and knows nothing of the engine; the engine tests against it as a
+dev-dependency and `kerosene::game::Stock` is the type that joins the two.
+
+What used to be game code the engine called by name -- what a trigger does
+to the player, the everywhere flag on a sound -- is now an engine convention
+(`kerosene_engine::triggers`, `audio::SF_EVERYWHERE`) that any game's classes
+get by following the field names. The game is held outside the engine while
+a hook runs, which is what lets a hook take `&mut Engine`; the cost is that a
+hook cannot cause another hook, so a game changes maps with `request_map`.
 
 `kerosene-config` is not on the diagram because it sits to the side of all of
 it: a small crate on top of `kerosene-kv` that reads `engine.kconfig`,
@@ -332,8 +354,8 @@ is sections of one map, not an open world: everything is still one
 Entities are a bag of named fields rather than typed structs, because the
 meaningful fields belong to the *game*, not the engine. Classes are registered
 handlers — the same split Source draws between its engine and its game DLL.
-`kerosene-entity` knows how to route an input; `kerosene-game` decides what `Open`
-means.
+`kerosene-entity` knows how to route an input; the game -- `kerosene-game` for
+the stock classes, yours through the `Game` trait -- decides what `Open` means.
 
 Outputs become queued events even at zero delay, so an entity firing at itself
 cannot recurse into the stack, and ordering does not change when a delay is
