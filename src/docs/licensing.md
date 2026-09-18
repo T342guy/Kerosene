@@ -194,10 +194,11 @@ than a decision. The list is kept here because it is still the set of crates
 whose "Apache-2.0 only" status is worth knowing if anyone ever forks with
 different terms in mind.
 
-**Bundled fonts — `epaint_default_fonts`.** egui ships default typefaces
-under the SIL Open Font Licence 1.1 and the Ubuntu Font Licence 1.0. Those
-travel inside any binary linking egui, which here means Chisel and the
-engine's debug overlay. Both licences permit redistribution; both require
+**Bundled fonts — `epaint_default_fonts` and `egui-phosphor`.** egui ships
+default typefaces under the SIL Open Font Licence 1.1 and the Ubuntu Font
+Licence 1.0, and `egui-phosphor` (MIT OR Apache-2.0) embeds the Phosphor icon
+font, itself MIT. Those travel inside any binary linking egui, which here
+means the toolset and the engine's debug overlay. Both licences permit redistribution; both require
 their notices to be preserved, and OFL forbids selling the fonts on their
 own and imposes a Reserved Font Name rule if you *modify* a font. Shipping
 them unmodified inside an application is exactly the intended case. If you
@@ -330,10 +331,11 @@ same dual terms. Under MPL-2.0, distribute the corresponding source for any
 MPL files you modify. Under the LGPL, distribute modified tools under the
 LGPL. An unmodified tool ships with the notice and a pointer to the source.
 
-**Fonts, again, because it catches people.** Any binary linking egui — Chisel,
-Timbre, and the engine's debug overlay — carries OFL-1.1 and Ubuntu-Font-1.0
-typefaces inside it. Both licences are satisfied by shipping their notices
-alongside the binary. Neither conflicts with either arm, because the fonts are
+**Fonts, again, because it catches people.** Any binary linking egui — the
+toolset, and the engine's debug overlay — carries OFL-1.1 and Ubuntu-Font-1.0
+typefaces inside it, and the toolset carries the MIT Phosphor icon font too.
+All three licences are satisfied by shipping their notices alongside the
+binary. Neither conflicts with either arm, because the fonts are
 data travelling with the program rather than part of it.
 
 **And `smartstring`, for the same reason.** It is MPL-2.0 and it is inside the

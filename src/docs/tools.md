@@ -1,9 +1,18 @@
 # Tool reference
 
 One application, `kerosene-tools`. Open it with no arguments and you get one
-window holding every tool: the world editor, the sound editor, a build panel
-and an archive panel, switched with a rail down the left edge. None of it is
-the engine, and none of it depends on it.
+window holding every tool: a project page, the world editor, the sound editor,
+a build form and an archive form, switched with an activity bar of icons down
+the left edge (`ctrl-1` to `ctrl-5`), and one **output panel** along the
+bottom (`` ctrl-` ``) that every job -- a compile, a build, a pack -- logs
+into. It comes up on its own when a job starts. None of it is the engine, and
+none of it depends on it.
+
+The **project page** is where the window opens: which project this is, where
+its content is and how that was decided, how many maps, materials, models,
+sounds and scripts it holds, and the maps themselves with whether each has
+been compiled. Click a map to edit it; *new map*, *build everything* and
+*pack archive* are the three buttons.
 
 The same stages also run headless, as subcommands, so a script or build server
 can drive them without a screen: `kerosene-tools cleave map.keromap`, and so
@@ -44,8 +53,8 @@ should have done.
 A tab in the toolset window, and openable straight to a map:
 
 ```sh
-kerosene-tools                 # the toolset window, editor tab first
-kerosene-tools chisel [map.keromap] [--content <dir>]
+kerosene-tools                 # the toolset window, on the project page
+kerosene-tools chisel [map.keromap] [--content <dir>]   # straight to the editor
 ```
 
 **Finding the content.** Chisel needs the content root -- the tree holding
@@ -108,17 +117,31 @@ unsaved changes asks first, and offers to save. The title bar and the status
 bar both name the file, with a `*` when there are unsaved changes; a map with
 no file yet says `not saved` rather than showing an invented one.
 
-Four panes, each showing whichever view you point it at: 3D, or any of the six
-flat views -- top, bottom, front, back, left and right. Hammer's layout,
-because brush geometry is axis-aligned far more often than not and an
-orthographic view along an axis is the only way to place a vertex exactly
-without typing numbers. Click a pane's label to change what it shows; drag the
+**The layout is Hammer's.** A strip of tool icons down the left edge -- hover
+one for its name and key -- a toolbar row under the menu with the grid size,
+snap, how the 3D panes draw, the texture tool's modes and the compile button,
+and an inspector on the right with three tabs: **Object** (what is selected),
+**Tool** (the current tool's settings: the entity classes with a search box,
+the shape sliders) and **Materials** (the browser, docked). The tab follows
+the work -- a fresh selection brings up Object, picking the entity or shape
+tool brings up Tool -- and otherwise stays where it was put. The status bar
+along the bottom names the file, the selection's size, the pointer's place in
+the world, the grid, and what content was found.
+
+Four panes fill the middle, each showing whichever view you point it at: 3D,
+or any of the six flat views -- top, bottom, front, back, left and right.
+Brush geometry is axis-aligned far more often than not and an orthographic
+view along an axis is the only way to place a vertex exactly without typing
+numbers. Each pane has a header: its view is a menu there, its zoom or fly
+speed is written beside it, and the button at the right end (or a
+double-click on the header, or `shift-space`) makes it the only pane. Drag the
 bars between the panes to resize them.
 
 | Key | |
 |---|---|
 | `1` `2` `3` `4` `5` | select, block, entity, texture, shape tool |
-| `M` | the asset browser |
+| `M` | the material browser, as a window |
+| `Shift+Space` | maximise the active pane, or show four again |
 | `[` `]` | finer / coarser grid |
 | `Ctrl+Z` / `Ctrl+Shift+Z` | undo / redo |
 | `Ctrl+S` | save (asks for a name the first time) |
@@ -156,18 +179,20 @@ to ship, scale, theme and keep in step with the class list, and a dozen lines
 of geometry is none of those. Classes are matched by prefix, so a game that
 adds `light_dynamic` gets the right icon without anything here changing.
 
-**The asset browser** (`M`, or `view → browse materials...`) is a resizable
-window with names, folders and a search that matches words in any order — so
-`wood crate` and `crate wood` both find `props/crate_wood`. Materials show
-what each one does on hover, read from Cleave's table; models show a rendered
-preview, because a name is not a shape and `crate_wood` tells you nothing
-about whether it is the crate you want.
+**The asset browser** is the inspector's *Materials* tab, and also a window
+(`M`, or `view → browse materials...`) when a property field wants a model or
+the tab is not enough room. Names, folders, a size slider and a search that
+matches words in any order — so `wood crate` and `crate wood` both find
+`props/crate_wood`. Materials show what each one does on hover, read from
+Cleave's table; models show a rendered preview, because a name is not a shape
+and `crate_wood` tells you nothing about whether it is the crate you want.
+Clicking a material with something selected applies it.
 
 The old picker was a two-column strip of unlabelled 48-pixel swatches in a
 120-point panel, which is a keyhole rather than a browser. Worse, every swatch
 was drawn from a mip two from the end of the chain — a 2x2 image for a
 256-pixel texture — so every material in the list was the same grey smudge and
-the only way to tell two apart was to hover both. Swatches are now built from
+the only way to tell two apart was to hover both. Swatches are built from
 the smallest mip that is still bigger than the swatch, and a checkerboard
 looks like a checkerboard.
 
@@ -198,7 +223,7 @@ way you would with the block tool, and it fills it.
 
 The pane you draw in decides which way the shape stands: a cylinder drawn from
 above is a pillar, the same drag in the front view is a pipe lying across the
-room. Sides, arc and wall thickness are on the left, and only the ones the
+room. Sides, arc and wall thickness are on the Tool tab, and only the ones the
 chosen shape uses are shown. The preview draws the actual shape and the number
 of brushes it will cost, not the box it is being fitted into. A whole arch is
 one undo step.
@@ -246,9 +271,10 @@ luck. Anything with `angles` gets a facing arrow the same way.
 
 **Building a level.** Draw brushes with the block tool in a 2D view; they snap
 to the grid, outward, so a brush is never smaller than the rubber band. Pick a
-material from the left panel — picking one with something selected applies it.
-Place entities with the entity tool. Give brushes a type in the right panel to
-make them a door or a trigger. Wire outputs to inputs in the same panel.
+material from the Materials tab — picking one with something selected applies
+it. Place entities with the entity tool; its classes are on the Tool tab. Give
+brushes a type on the Object tab to make them a door or a trigger. Wire
+outputs to inputs in the same panel.
 
 **Wiring, as a sequence.** A `.keromap` stores wiring as a flat list of
 connections, which is the right thing to store and the wrong thing to show:
@@ -334,11 +360,13 @@ on double-click** (the default) or **always apply**. Shift always just
 selects, in every combination. The face editor only applies when a face is
 selected, so it simply has nothing to show for a whole-brush selection.
 
-**Compiling.** `map → compile` opens a window with the settings and three
-buttons: *compile* runs exactly what the window is showing, while *fast* and
-*full* apply a quality preset and leave every other choice alone. That
-distinction matters -- "build even if the map leaks" is not something a quality
-preset gets to forget.
+**Compiling.** The compile button on the toolbar (or `F9`) compiles fast and
+runs. `map → compile settings...` opens the settings with three buttons:
+*compile* runs exactly what the dialog is showing, while *fast* and *full*
+apply a quality preset and leave every other choice alone. That distinction
+matters -- "build even if the map leaks" is not something a quality preset
+gets to forget. The dialog closes when the compile starts; the log streams
+into the toolset's output panel, where it does not cover the map.
 
 A compile starts by running Alchemy over `content/art`, so a texture added or
 changed since the last build is compiled before the map that uses it, and the
@@ -599,7 +627,8 @@ merging them rounds off every corner of the model.
 
 ## Kiln — building a project
 
-The build panel in the toolset window, and also a headless stage:
+The Build tab in the toolset window -- stages as toggles, one button, and the
+log in the output panel -- and also a headless stage:
 
 ```sh
 kerosene-tools kiln                              # build everything, from here
@@ -656,7 +685,8 @@ not do for a release is the subject of
 
 ## Vault — content archives
 
-The archive panel in the toolset window, and also a headless stage:
+The Archive tab in the toolset window -- pack, verify and list, with the log
+in the output panel -- and also a headless stage:
 
 ```sh
 kerosene-tools vault pack content -o content/kerosene_content.vault [--ext kerotex] [--exclude tmp]
@@ -835,8 +865,13 @@ than a second implementation.
 
 ## Where the window comes from
 
-`kerosene-ui` is a window with egui in it and nothing else: winit's application
-handler, a wgpu surface, an egui integration and the frame loop that drives
-them. Implement `App`, call `run`. It exists because that is three hundred
-lines with nothing to do with any particular tool, and a second copy of them
-is a second place for a resize bug to live.
+`kerosene-ui` is a window with egui in it, and the look every tool shares:
+winit's application handler, a wgpu surface, an egui integration and the frame
+loop that drives them, plus `theme` (the palette, the spacing and the
+[Phosphor](https://phosphoricons.com/) icon font, installed once by `run`),
+`widgets` (tool buttons, tabs, sections, chips, menu items with their
+shortcuts on the right, a dialog) and `output` (the panel every job logs
+into). Implement `App`, call `run`. It exists because the window is three
+hundred lines with nothing to do with any particular tool, and a second copy
+of them is a second place for a resize bug to live -- and because a palette
+each tool chose for itself would be three palettes.

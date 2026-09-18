@@ -104,7 +104,7 @@ Day to day:
 
 ```sh
 cargo run --release -p kerosene-tools -- chisel content/maps/mg_intro.keromap
-kerosene-tools kiln                  # or the build panel, or F9 in Chisel
+kerosene-tools kiln                  # or the Build tab, or F9 in Chisel
 kerosene                             # loads startmap
 ```
 

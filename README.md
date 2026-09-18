@@ -56,9 +56,10 @@ door frames that are already right. See
 ## The tools
 
 One application, `kerosene-tools`. Open it with no arguments and you get one
-window holding every tool: the world editor, the sound editor, a build panel
-and an archive panel, switched with a rail down the left edge. None of it is
-the engine.
+window holding every tool: a project page, the world editor, the sound
+editor, a build form and an archive form, switched with an activity bar down
+the left edge, and one output panel every job logs into. None of it is the
+engine.
 
 | Tool | Does | Source analogue |
 |---|---|---|
@@ -120,7 +121,7 @@ no `+map`.
 
 Once the toolset is built, **`kerosene-tools kiln`** builds a project's
 content — textures, models, maps, and the archive — from anywhere, and the
-**build panel** in the toolset window does the same with a button. It is a
+**Build tab** in the toolset window does the same with a button. It is a
 program rather than a shell script because a script is not shipped: install
 the toolchain somewhere and the thing that knows how to use it would stay
 behind in a git checkout. `scripts/build-content.sh` is a wrapper that builds
