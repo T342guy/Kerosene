@@ -3,6 +3,7 @@
 //! popup draws, and the wiring editor both of them share.
 
 use super::*;
+use kerosene_ui::theme::{self, colors};
 
 /// A number that several faces may or may not agree on.
 ///
@@ -11,7 +12,7 @@ use super::*;
 /// Returns the new value only when the edit is finished, so dragging does not
 /// push an undo step per pixel.
 pub(super) fn number(ui: &mut egui::Ui, label: &str, shared: Option<f32>, speed: f32) -> Option<f32> {
-    ui.label(RichText::new(label).size(11.0).weak());
+    ui.label(theme::caption(label));
     let mut value = shared.unwrap_or(0.0) as f64;
     let mut widget = egui::DragValue::new(&mut value).speed(speed as f64);
     if shared.is_none() {
@@ -364,7 +365,7 @@ pub(super) fn outputs_editor(
                     ui.label(
                         RichText::new(format!("nothing happens on {other}"))
                             .size(10.0)
-                            .color(egui::Color32::from_rgb(240, 200, 90)),
+                            .color(colors::WARN),
                     );
                     if ui.small_button(format!("+ {other}")).clicked() {
                         add = Some(Connection::new(other, "", ""));
@@ -397,7 +398,7 @@ pub(super) fn outputs_editor(
                     *dirty |= r.changed;
                     commit |= r.finished;
 
-                    ui.label(RichText::new("on").size(11.0).weak());
+                    ui.label(theme::caption("on"));
                     let r = combo_or_text(
                         ui,
                         (scope, "tgt", index),
@@ -419,7 +420,7 @@ pub(super) fn outputs_editor(
 
                 ui.horizontal(|ui| {
                     ui.add_space(24.0);
-                    ui.label(RichText::new("after").size(10.0).weak());
+                    ui.label(theme::caption("after"));
                     let r = ui.add(
                         egui::DragValue::new(&mut connection.delay)
                             .speed(0.05)
@@ -429,7 +430,7 @@ pub(super) fn outputs_editor(
                     *dirty |= r.changed();
                     commit |= r.drag_stopped() || r.lost_focus();
 
-                    ui.label(RichText::new("with").size(10.0).weak());
+                    ui.label(theme::caption("with"));
                     let r = ui.add(
                         egui::TextEdit::singleline(&mut connection.parameter)
                             .desired_width(70.0)

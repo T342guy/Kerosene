@@ -2,117 +2,244 @@
 //! The inspector panel: faces, brushes and entities.
 
 use super::*;
+use kerosene_ui::theme::{self, colors, icons};
+use kerosene_ui::widgets;
 
 impl ChiselApp {
+    /// The panel on the right: what is selected, the tool's settings, and
+    /// the materials, as three tabs.
     pub(super) fn inspector(&mut self, ctx: &Context) {
+        self.follow_the_work();
+
+        egui::SidePanel::right("inspector")
+            .resizable(true)
+            .default_width(340.0)
+            .width_range(260.0..=600.0)
+            .frame(
+                egui::Frame::new()
+                    .fill(colors::BG_PANEL)
+                    .inner_margin(egui::Margin::symmetric(8, 6)),
+            )
+            .show(ctx, |ui| {
+                let mut tab = self.inspector_tab as usize;
+                widgets::tab_bar(
+                    ui,
+                    &[
+                        (icons::LIST_BULLETS, "Object"),
+                        (self.tool.kind.glyph(), "Tool"),
+                        (icons::PAINT_BUCKET, "Materials"),
+                    ],
+                    &mut tab,
+                );
+                self.inspector_tab = InspectorTab::from_index(tab);
+
+                match self.inspector_tab {
+                    InspectorTab::Object => self.object_tab(ui),
+                    InspectorTab::Tool => self.tool_tab(ui),
+                    InspectorTab::Materials => self.materials_tab(ui, ctx),
+                }
+            });
+    }
+
+    /// Switch tabs when the work moves: a fresh selection wants the Object
+    /// tab, picking the entity or shape tool wants its settings. Anything
+    /// else leaves the tab where it was put.
+    fn follow_the_work(&mut self) {
+        let selection = (
+            self.document.selection.solids.len(),
+            self.document.selection.entities.len(),
+            self.document.selected_face_count(),
+        );
+        let had_selection = self.inspector_seen != (0, 0, 0);
+        let has_selection = selection != (0, 0, 0);
+        if selection != self.inspector_seen && has_selection && !had_selection {
+            self.inspector_tab = InspectorTab::Object;
+        }
+        self.inspector_seen = selection;
+
+        if self.tool.kind != self.inspector_tool {
+            if matches!(self.tool.kind, ToolKind::Entity | ToolKind::Shape) {
+                self.inspector_tab = InspectorTab::Tool;
+            }
+            self.inspector_tool = self.tool.kind;
+        }
+    }
+
+    /// The tool's settings, and a word on how to use it.
+    fn tool_tab(&mut self, ui: &mut egui::Ui) {
+        ui.horizontal(|ui| {
+            ui.label(theme::icon(self.tool.kind.glyph()).color(colors::ACCENT));
+            ui.label(RichText::new(format!("{} tool", self.tool.kind.label())).strong());
+            ui.label(theme::mono(self.tool.kind.shortcut()).color(colors::TEXT_MUTED));
+        });
+        ui.label(theme::caption(self.tool.kind.describe()));
+        ui.add_space(4.0);
+
+        match self.tool.kind {
+            ToolKind::Entity => self.entity_panel(ui),
+            ToolKind::Shape => self.shape_panel(ui),
+            ToolKind::Texture => {
+                widgets::section(ui, "select", |ui| {
+                    for target in TextureTarget::all() {
+                        let selected = self.tool.texture_target == target;
+                        if ui
+                            .selectable_label(selected, target.label())
+                            .on_hover_text(target.describe())
+                            .clicked()
+                        {
+                            self.tool.texture_target = target;
+                        }
+                    }
+                });
+                widgets::section(ui, "apply", |ui| {
+                    for mode in TextureMode::all() {
+                        let selected = self.tool.texture_mode == mode;
+                        if ui
+                            .selectable_label(selected, mode.label())
+                            .on_hover_text(mode.describe())
+                            .clicked()
+                        {
+                            self.tool.texture_mode = mode;
+                        }
+                    }
+                    ui.label(theme::caption("T cycles these. Shift always just selects."));
+                });
+            }
+            ToolKind::Block => {
+                widgets::section(ui, "material", |ui| {
+                    ui.label(theme::mono(&self.document.current_material).color(colors::ACCENT));
+                    ui.label(theme::caption(
+                        "New brushes wear this. Pick another on the Materials tab.",
+                    ));
+                });
+                widgets::section(ui, "grid", |ui| {
+                    ui.label(theme::caption(format!(
+                        "Brushes snap outward to the grid, so one is never smaller than the \
+                         box you drew. The grid is {} now; [ and ] change it.",
+                        kerosene_math::units::length(self.document.grid.size)
+                    )));
+                });
+            }
+            ToolKind::Select => {
+                widgets::section(ui, "keys", |ui| {
+                    for (key, what) in [
+                        ("shift-click", "add to or take from the selection"),
+                        ("drag a grip", "resize; the opposite grip holds still"),
+                        ("ctrl-D", "duplicate one grid step over"),
+                        ("alt-enter", "object properties"),
+                        ("delete", "delete the selection"),
+                        ("escape", "clear the selection"),
+                    ] {
+                        ui.horizontal(|ui| {
+                            ui.label(theme::mono(key).color(colors::TEXT));
+                            ui.label(theme::caption(what));
+                        });
+                    }
+                });
+            }
+        }
+    }
+
+    /// What is selected, and everything about it.
+    fn object_tab(&mut self, ui: &mut egui::Ui) {
         let selected: Vec<u32> = self.document.selection.entities.iter().copied().collect();
         self.sync_properties(selected.first().copied());
 
-        egui::SidePanel::right("inspector")
-            .exact_width(320.0)
-            .show(ctx, |ui| {
-                ui.add_space(4.0);
-
-                // A face selection is what you are looking at when you have one,
-                // so it comes first.
-                if self.document.selected_face_count() > 0 {
-                    egui::ScrollArea::vertical()
-                        .auto_shrink([false, false])
-                        .show(ui, |ui| {
-                            self.face_panel(ui);
-                        });
-                    return;
-                }
-
-                // Brushes and brush entities are the same panel. What a brush
-                // *is* is a setting on it, not a separate ceremony called "tie to
-                // entity" that you have to go through before its settings exist.
-                let brush_entity = selected
-                    .first()
-                    .and_then(|id| self.document.find_entity(*id))
-                    .is_some_and(|e| e.is_brush_entity());
-                if brush_entity || !self.document.selection.solids.is_empty() {
-                    self.brush_panel(ui);
-                    return;
-                }
-
-                let Some(&id) = selected.first() else {
-                    self.brush_panel(ui);
-                    return;
-                };
-
-                let Some(entity) = self.document.find_entity(id) else {
-                    return;
-                };
-                let classname = entity.classname().to_string();
-                let is_brush_entity = entity.is_brush_entity();
-                let spec = self.schema.get(&classname).cloned();
-
-                // The thing a Source mapper looks for by name: one panel that
-                // shows and edits every key the object carries or the game reads
-                // for its class, with a widget suited to each key's type.
-                ui.label(RichText::new("object properties").weak().size(11.0));
-                ui.horizontal(|ui| {
-                    ui.label(RichText::new(&classname).monospace().strong());
-                    if spec.is_none() {
-                        ui.label(
-                            RichText::new("(no definition)")
-                                .color(egui::Color32::from_rgb(220, 160, 90)),
-                        )
-                        .on_hover_text(
-                            "No class definition describes this class, so only the keys it \
-                             already carries can be shown.",
-                        );
-                    }
+        // A face selection is what you are looking at when you have one,
+        // so it comes first.
+        if self.document.selected_face_count() > 0 {
+            egui::ScrollArea::vertical()
+                .auto_shrink([false, false])
+                .show(ui, |ui| {
+                    self.face_panel(ui);
                 });
-                if let Some(help) = spec
-                    .as_ref()
-                    .map(|s| s.help.as_str())
-                    .filter(|h| !h.is_empty())
-                {
-                    ui.label(RichText::new(help).size(11.0).weak());
-                }
-                if selected.len() > 1 {
-                    ui.label(
-                        RichText::new(format!(
-                            "{} entities selected -- editing the first",
-                            selected.len()
-                        ))
-                        .size(11.0)
-                        .weak(),
-                    );
-                }
-                // What it will do once the map is running, next to the keys that
-                // decide it -- and drawn in the 2D panes in the same colour.
-                if let Some(motion) = crate::motion::of_selection(&self.document) {
-                    ui.label(
-                        RichText::new(motion.label)
-                            .size(11.0)
-                            .color(draw::colors::MOTION),
-                    )
-                    .on_hover_text(
-                        "Drawn in the 2D panes: the arrow is the travel, the outline is \
-                     where it ends up.",
-                    );
-                }
-                ui.separator();
+            return;
+        }
 
-                egui::ScrollArea::vertical()
-                    .auto_shrink([false, false])
-                    .show(ui, |ui| {
-                        self.property_rows(ui);
-                        ui.add_space(6.0);
-                        self.outputs_section(ui, id, spec.as_ref());
+        // Brushes and brush entities are the same panel. What a brush
+        // *is* is a setting on it, not a separate ceremony called "tie to
+        // entity" that you have to go through before its settings exist.
+        let brush_entity = selected
+            .first()
+            .and_then(|id| self.document.find_entity(*id))
+            .is_some_and(|e| e.is_brush_entity());
+        if brush_entity || !self.document.selection.solids.is_empty() {
+            self.brush_panel(ui);
+            return;
+        }
 
-                        if is_brush_entity {
-                            ui.add_space(6.0);
-                            ui.separator();
-                            if ui.button("move brushes back to world").clicked() {
-                                let n = self.document.untie_to_world();
-                                self.status = format!("moved {n} brushes to the world");
-                            }
-                        }
-                    });
+        let Some(&id) = selected.first() else {
+            self.brush_panel(ui);
+            return;
+        };
+
+        let Some(entity) = self.document.find_entity(id) else {
+            return;
+        };
+        let classname = entity.classname().to_string();
+        let is_brush_entity = entity.is_brush_entity();
+        let spec = self.schema.get(&classname).cloned();
+
+        // The thing a Source mapper looks for by name: one panel that
+        // shows and edits every key the object carries or the game reads
+        // for its class, with a widget suited to each key's type.
+        ui.horizontal(|ui| {
+            let kind = crate::icons::Kind::of(&classname);
+            let (rect, _) = ui.allocate_exact_size(egui::vec2(16.0, 16.0), egui::Sense::hover());
+            crate::icons::draw(ui.painter(), rect.center(), 6.0, kind, kind.colour());
+            ui.label(RichText::new(&classname).monospace().strong());
+            if spec.is_none() {
+                ui.label(theme::warn("(no definition)")).on_hover_text(
+                    "No class definition describes this class, so only the keys it \
+                     already carries can be shown.",
+                );
+            }
+        });
+        if let Some(help) = spec
+            .as_ref()
+            .map(|s| s.help.as_str())
+            .filter(|h| !h.is_empty())
+        {
+            ui.label(theme::caption(help));
+        }
+        if selected.len() > 1 {
+            ui.label(theme::caption(format!(
+                "{} entities selected -- editing the first",
+                selected.len()
+            )));
+        }
+        // What it will do once the map is running, next to the keys that
+        // decide it -- and drawn in the 2D panes in the same colour.
+        if let Some(motion) = crate::motion::of_selection(&self.document) {
+            ui.label(
+                RichText::new(motion.label)
+                    .size(11.0)
+                    .color(draw::colors::MOTION),
+            )
+            .on_hover_text(
+                "Drawn in the 2D panes: the arrow is the travel, the outline is \
+                 where it ends up.",
+            );
+        }
+        ui.add_space(4.0);
+
+        egui::ScrollArea::vertical()
+            .auto_shrink([false, false])
+            .show(ui, |ui| {
+                widgets::section(ui, "properties", |ui| {
+                    self.property_rows(ui);
+                });
+                ui.add_space(6.0);
+                self.outputs_section(ui, id, spec.as_ref());
+
+                if is_brush_entity {
+                    ui.add_space(6.0);
+                    ui.separator();
+                    if ui.button("move brushes back to world").clicked() {
+                        let n = self.document.untie_to_world();
+                        self.status = format!("moved {n} brushes to the world");
+                    }
+                }
             });
     }
 
@@ -128,9 +255,15 @@ impl ChiselApp {
     pub(super) fn brush_panel(&mut self, ui: &mut egui::Ui) {
         use crate::brush::BrushInfo;
 
-        ui.label(RichText::new("object properties").strong());
         let Some(info) = BrushInfo::of_selection(&self.document) else {
-            ui.label(RichText::new("nothing selected").weak());
+            ui.add_space(12.0);
+            ui.vertical_centered(|ui| {
+                ui.label(theme::icon(icons::CURSOR).size(28.0).color(colors::BORDER));
+                ui.label(theme::caption("nothing selected"));
+                ui.label(theme::caption(
+                    "Click a brush or an entity in a pane. Right-click one for its object properties.",
+                ));
+            });
             return;
         };
         let current = self.document.selected_brush_class();
@@ -164,7 +297,7 @@ impl ChiselApp {
 
                 // The type, first, because it decides everything below it.
                 ui.add_space(4.0);
-                ui.label(RichText::new("type").size(11.0).weak());
+                ui.label(theme::section_title("type"));
                 let label = current
                     .as_ref()
                     .map_or("world geometry", |(_, c)| c.as_str());
@@ -201,7 +334,7 @@ impl ChiselApp {
                     .map(|s| s.help.as_str())
                     .filter(|h| !h.is_empty())
                 {
-                    ui.label(RichText::new(help).size(11.0).weak());
+                    ui.label(theme::caption(help));
                 }
 
                 ui.label(
@@ -259,11 +392,11 @@ impl ChiselApp {
                 // Materials last: they matter, but they are not what a brush is.
                 ui.add_space(6.0);
                 ui.separator();
-                ui.label(RichText::new("materials").size(11.0).weak());
+                ui.label(theme::section_title("materials"));
                 for (material, meaning) in info.material_meanings() {
                     ui.label(RichText::new(material).monospace().size(11.0))
                         .on_hover_text(meaning);
-                    ui.label(RichText::new(meaning).size(10.0).weak());
+                    ui.label(theme::caption(meaning));
                 }
                 if info.mixed_materials {
                     ui.label(
@@ -272,7 +405,7 @@ impl ChiselApp {
                          decides what the brush is",
                         )
                         .size(10.0)
-                        .color(egui::Color32::from_rgb(240, 200, 90)),
+                        .color(colors::WARN),
                     );
                 }
                 for unknown in info.unknown_tools() {
@@ -282,7 +415,7 @@ impl ChiselApp {
                          ordinary wall"
                         ))
                         .size(11.0)
-                        .color(draw::colors::LEAK),
+                        .color(colors::ERR),
                     );
                 }
             });
@@ -486,7 +619,7 @@ impl ChiselApp {
         // How the selected faces take part in the NPC walkmap. Set per face
         // here; the compiler folds these rules into the `.kerowalk` it writes
         // on every compile.
-        ui.label(RichText::new("walkmap").size(11.0).weak());
+        ui.label(theme::section_title("walkmap"));
         let rules: std::collections::BTreeSet<WalkmapRule> =
             specs.iter().map(|f| f.side.walkmap).collect();
         let current_rule = (rules.len() == 1).then(|| *rules.iter().next().unwrap());
@@ -503,7 +636,7 @@ impl ChiselApp {
             }
         });
         if rules.len() > 1 {
-            ui.label(RichText::new("selected faces differ").size(10.0).weak());
+            ui.label(theme::caption("selected faces differ"));
         }
 
         ui.separator();
@@ -521,7 +654,7 @@ impl ChiselApp {
 
         let mut edit: Option<(&'static str, FaceEdit)> = None;
 
-        ui.label(RichText::new("scale (units per texel)").size(11.0).weak());
+        ui.label(theme::section_title("scale (units per texel)"));
         ui.horizontal(|ui| {
             if let Some(value) = number(ui, "u", shared(|f| f.side.uaxis.scale), 0.01) {
                 edit = Some(("scale", FaceEdit::ScaleU(value)));
@@ -531,7 +664,7 @@ impl ChiselApp {
             }
         });
 
-        ui.label(RichText::new("shift (texels)").size(11.0).weak());
+        ui.label(theme::section_title("shift (texels)"));
         ui.horizontal(|ui| {
             if let Some(value) = number(ui, "u", shared(|f| f.side.uaxis.offset), 1.0) {
                 edit = Some(("shift", FaceEdit::ShiftU(value)));
@@ -542,7 +675,7 @@ impl ChiselApp {
         });
 
         ui.horizontal(|ui| {
-            ui.label(RichText::new("rotate").size(11.0).weak());
+            ui.label(theme::section_title("rotate"));
             for degrees in [-90.0f32, -15.0, 15.0, 90.0] {
                 if ui.small_button(format!("{degrees:+.0}")).clicked() {
                     edit = Some(("rotate", FaceEdit::Rotate(degrees)));
@@ -551,7 +684,7 @@ impl ChiselApp {
         });
 
         ui.separator();
-        ui.label(RichText::new("alignment").size(11.0).weak());
+        ui.label(theme::section_title("alignment"));
         ui.horizontal(|ui| {
             if ui
                 .button("world")
@@ -583,7 +716,7 @@ impl ChiselApp {
             }
         });
 
-        ui.label(RichText::new("justify").size(11.0).weak());
+        ui.label(theme::section_title("justify"));
         ui.horizontal(|ui| {
             for how in [
                 Justify::Left,
@@ -600,7 +733,7 @@ impl ChiselApp {
 
         ui.separator();
         ui.horizontal(|ui| {
-            ui.label(RichText::new("lightmap").size(11.0).weak());
+            ui.label(theme::section_title("lightmap"));
             if let Some(value) = number(ui, "ku/luxel", shared(|f| f.side.lightmap_scale), 0.5) {
                 edit = Some(("lightmap scale", FaceEdit::Lightmap(value)));
             }

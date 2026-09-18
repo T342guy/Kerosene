@@ -3,6 +3,7 @@
 //! Hammer-style Object Properties popup, and the right-click menu.
 
 use super::*;
+use kerosene_ui::theme;
 
 impl ChiselApp {
     pub(super) fn commit_properties(&mut self) {
@@ -157,7 +158,7 @@ impl ChiselApp {
                     ui.label(RichText::new(&classname).monospace().strong());
                 });
                 if !help.is_empty() {
-                    ui.label(RichText::new(&help).size(11.0).weak());
+                    ui.label(theme::caption(&help));
                 }
                 ui.separator();
 
@@ -248,7 +249,7 @@ impl ChiselApp {
     pub(super) fn property_window_footer(&mut self, ui: &mut egui::Ui) -> bool {
         let mut commit = false;
         ui.horizontal(|ui| {
-            ui.label(RichText::new("add").size(11.0).weak());
+            ui.label(theme::caption("add"));
             let window = self.property_window.as_mut().expect("checked above");
             let key = ui.add(
                 egui::TextEdit::singleline(&mut window.new_key)

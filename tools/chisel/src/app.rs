@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
 //! The editor's user interface.
 //!
-//! Hammer's layout, because it is the right one for the job: a toolbar down
-//! the left, an inspector on the right, a status bar along the bottom, and
-//! four viewports filling the middle -- 3D, top, front and side.
+//! Hammer's layout, because it is the right one for the job: a strip of tool
+//! icons down the left, a toolbar row under the menu, a tabbed inspector on
+//! the right, a status bar along the bottom, and four viewports filling the
+//! middle -- 3D, top, front and side.
 //!
 //! Everything here turns a gesture into a call on [`Document`] and draws the
 //! result. The decisions all live in the modules it calls.
@@ -163,6 +164,28 @@ pub enum Discarding {
     Quit,
 }
 
+/// The inspector's tabs.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum InspectorTab {
+    /// What is selected: an entity's keys, a brush's type, a face's texture.
+    #[default]
+    Object,
+    /// The current tool's settings: entity classes, shape sliders.
+    Tool,
+    /// The material browser, docked.
+    Materials,
+}
+
+impl InspectorTab {
+    fn from_index(index: usize) -> InspectorTab {
+        match index {
+            1 => InspectorTab::Tool,
+            2 => InspectorTab::Materials,
+            _ => InspectorTab::Object,
+        }
+    }
+}
+
 pub struct ChiselApp {
     pub document: Document,
     pub tool: Tool,
@@ -189,8 +212,18 @@ pub struct ChiselApp {
     pub vfs: kerosene_vfs::Vfs,
     /// How the 3D panes draw.
     pub shading: Shading,
-    /// Substring filter on the material browser.
-    pub material_filter: String,
+    /// Substring filter on the entity class list.
+    pub entity_filter: String,
+    /// Which of the inspector's tabs is showing.
+    pub inspector_tab: InspectorTab,
+    /// The selection as the inspector last saw it -- solids, entities, faces
+    /// -- so it can notice a fresh selection and show the Object tab.
+    inspector_seen: (usize, usize, usize),
+    /// The tool as the inspector last saw it, for the same reason.
+    inspector_tool: ToolKind,
+    /// Where the pointer is in the world, and in which pane, when it is over
+    /// a flat view. The status bar shows it.
+    pub pointer_world: Option<(usize, Vec3)>,
     /// Where the content tree came from, for the status bar to show. An
     /// editor with no content is nearly useless, so how it decided is worth
     /// having in front of you rather than in a log nobody reads.
@@ -313,7 +346,11 @@ impl ChiselApp {
             thumbnails: std::collections::HashMap::new(),
             vfs,
             shading: Shading::default(),
-            material_filter: String::new(),
+            entity_filter: String::new(),
+            inspector_tab: InspectorTab::Object,
+            inspector_seen: (0, 0, 0),
+            inspector_tool: ToolKind::Select,
+            pointer_world: None,
             content_note: String::new(),
             leak: crate::leak::LeakTrace::default(),
             split: egui::vec2(0.5, 0.5),
@@ -582,8 +619,9 @@ impl ChiselApp {
         self.shortcuts(ctx);
         self.menu_bar(ctx);
         self.toolbar(ctx);
-        self.inspector(ctx);
         self.status_bar(ctx);
+        self.tool_strip(ctx);
+        self.inspector(ctx);
         self.compile_window(ctx);
         self.browser_window(ctx);
         self.file_windows(ctx);
@@ -623,6 +661,7 @@ impl ChiselApp {
             Coarser,
             Compile,
             CycleTextureMode,
+            Maximise,
         }
 
         let mut actions = Vec::new();
@@ -707,6 +746,9 @@ impl ChiselApp {
             if i.consume_key(Modifiers::NONE, Key::T) {
                 actions.push(Action::CycleTextureMode)
             }
+            if i.consume_key(Modifiers::SHIFT, Key::Space) {
+                actions.push(Action::Maximise)
+            }
         });
 
         for action in actions {
@@ -763,6 +805,7 @@ impl ChiselApp {
                 Action::Finer => self.document.grid.finer(),
                 Action::Coarser => self.document.grid.coarser(),
                 Action::Compile => self.compile_now(Quality::Fast),
+                Action::Maximise => self.toggle_maximised(),
                 Action::CycleTextureMode => {
                     self.tool.texture_mode = self.tool.texture_mode.next();
                     self.status = format!("texture tool: {}", self.tool.texture_mode.label());
@@ -1876,5 +1919,96 @@ mod tests {
             "{outputs:?}"
         );
         assert_eq!(crate::wiring::opposite_of("OnTrue"), Some("OnFalse"));
+    }
+
+    // ---- the frame's furniture ------------------------------------------
+
+    #[test]
+    fn every_tool_draws_its_strip_toolbar_and_inspector_tabs() {
+        let (mut app, root) = app_in("frame-tools");
+        for kind in ToolKind::all() {
+            app.tool.set_kind(kind);
+            for tab in [
+                InspectorTab::Object,
+                InspectorTab::Tool,
+                InspectorTab::Materials,
+            ] {
+                app.inspector_tab = tab;
+                let output = draw_a_frame(&mut app);
+                assert!(!output.shapes.is_empty(), "{kind:?} on {tab:?}");
+            }
+        }
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn picking_the_entity_or_shape_tool_shows_the_tool_tab() {
+        let (mut app, root) = app_in("frame-follow");
+        app.inspector_tab = InspectorTab::Materials;
+        draw_a_frame(&mut app);
+        app.tool.set_kind(ToolKind::Entity);
+        draw_a_frame(&mut app);
+        assert_eq!(app.inspector_tab, InspectorTab::Tool);
+
+        // Looking at the materials again, then selecting something, brings
+        // the Object tab up -- but only on a *fresh* selection.
+        app.inspector_tab = InspectorTab::Materials;
+        draw_a_frame(&mut app);
+        let id = app.document.create_block(Vec3::ZERO, Vec3::splat(64.0));
+        app.document.selection.solids.insert(id);
+        draw_a_frame(&mut app);
+        assert_eq!(app.inspector_tab, InspectorTab::Object);
+        app.inspector_tab = InspectorTab::Tool;
+        draw_a_frame(&mut app);
+        assert_eq!(app.inspector_tab, InspectorTab::Tool, "left where it was put");
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn a_pane_can_be_maximised_and_put_back() {
+        let (mut app, root) = app_in("frame-maximise");
+        app.active = 2;
+        app.toggle_maximised();
+        assert_eq!(app.maximised, Some(2));
+        let output = draw_a_frame(&mut app);
+        assert!(!output.shapes.is_empty());
+        app.toggle_maximised();
+        assert_eq!(app.maximised, None);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn the_materials_tab_applies_to_the_selection() {
+        let (mut app, root) = app_with_a_brush("materials-tab");
+        let material = app.materials[1].clone();
+        app.apply_browsed(&Browsing::Material, &material);
+        assert_eq!(app.document.current_material, material);
+        let faces = app.document.map.world.solids[0].sides.iter();
+        assert!(faces.clone().all(|s| s.material == material), "applied to every face");
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn starting_a_compile_closes_the_settings_and_feeds_the_output_panel() {
+        let (mut app, root) = app_in("compile-output");
+        app.save(Some(root.join("maps/arena.keromap")));
+        app.show_compile = true;
+        app.compile_now(Quality::Fast);
+        assert!(!app.show_compile, "the dialog is done once the compile starts");
+        assert!(app.compiling() || app.compile_failed().is_some());
+        // Whatever the compilers made of it, the log is readable as lines.
+        for _ in 0..50 {
+            if let Some(job) = &mut app.compile {
+                job.poll();
+                if job.finished {
+                    break;
+                }
+            }
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+        let _ = app.output_lines();
+        app.compile = None;
+        let _ = std::fs::remove_dir_all(&root);
     }
 }

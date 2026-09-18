@@ -25,6 +25,8 @@ kerosene-bsp.workspace = true
 kerosene-asset.workspace = true
 kerosene-vfs.workspace = true
 kerosene-render.workspace = true
+# The theme and the widgets every tool in the window draws with.
+kerosene-ui.workspace = true
 kerosene-entity.workspace = true
 anyhow.workspace = true
 log.workspace = true

@@ -2,6 +2,9 @@
 //! Compiling: the settings dialog and what happens when a compile ends.
 
 use super::*;
+use kerosene_ui::output::{Level, Line};
+use kerosene_ui::theme::{self, colors, icons};
+use kerosene_ui::widgets;
 
 impl ChiselApp {
     /// Pick up whatever the compile left behind.
@@ -51,133 +54,180 @@ impl ChiselApp {
         };
     }
 
+    /// The compile log, as the toolset's output panel wants it.
+    ///
+    /// The log used to be in the compile window, which meant the window
+    /// covered the map while it compiled and the map was gone when the window
+    /// closed. The toolset draws every job's log in one panel at the bottom;
+    /// this is what it reads.
+    pub fn output_lines(&self) -> Vec<Line<'_>> {
+        let Some(job) = &self.compile else {
+            return Vec::new();
+        };
+        job.log
+            .iter()
+            .map(|message| match message {
+                CompileMessage::Stage(s) => Line::new(Level::Stage, format!("--- {s} ---")),
+                CompileMessage::Line(l) => Line::classified(l),
+                CompileMessage::Failed(e) => Line::new(Level::Error, format!("failed: {e}")),
+                CompileMessage::Finished(p) => {
+                    Line::new(Level::Ok, format!("done: {}", p.display()))
+                }
+            })
+            .collect()
+    }
+
+    /// Whether a compile is running now.
+    pub fn compiling(&self) -> bool {
+        self.compile.as_ref().is_some_and(|j| !j.finished)
+    }
+
+    /// `Some(true)` when the last compile failed, `Some(false)` when it
+    /// finished, `None` when there has not been one.
+    pub fn compile_failed(&self) -> Option<bool> {
+        self.compile
+            .as_ref()
+            .filter(|j| j.finished)
+            .map(|j| j.failed)
+    }
+
     pub(super) fn compile_window(&mut self, ctx: &Context) {
         if self.show_tools_check {
-            let mut open = true;
-            egui::Window::new("tools").open(&mut open).show(ctx, |ui| {
-                ui.label("Chisel runs the compilers as subcommands of this same toolset.");
-                ui.separator();
-                for (name, found) in available_tools() {
-                    ui.label(
-                        RichText::new(format!("{} {name}", if found { "found  " } else { "missing" }))
-                            .monospace()
-                            .color(if found { egui::Color32::LIGHT_GREEN } else { egui::Color32::LIGHT_RED }),
-                    );
-                }
-                ui.separator();
-                ui.label("Build them with: cargo build -p cleave -p umbra -p radiance -p kerosene-runtime");
-            });
-            self.show_tools_check = open;
+            let mut close = false;
+            let modal = widgets::dialog(
+                ctx,
+                "chisel-tools-check",
+                "Tools",
+                380.0,
+                |ui| {
+                    ui.label(theme::caption(
+                        "Chisel runs the compilers as subcommands of this same toolset.",
+                    ));
+                    ui.add_space(4.0);
+                    for (name, found) in available_tools() {
+                        ui.horizontal(|ui| {
+                            let (glyph, colour) = if found {
+                                (icons::CHECK_CIRCLE, colors::OK)
+                            } else {
+                                (icons::X_CIRCLE, colors::ERR)
+                            };
+                            ui.label(theme::icon(glyph).color(colour));
+                            ui.label(theme::mono(name).color(colour));
+                        });
+                    }
+                    ui.add_space(4.0);
+                    ui.label(theme::caption(
+                        "Build them with: cargo build -p kerosene-tools -p kerosene",
+                    ));
+                },
+                |ui| {
+                    if ui.button("close").clicked() {
+                        close = true;
+                    }
+                },
+            );
+            if close || modal.should_close() {
+                self.show_tools_check = false;
+            }
         }
 
         if !self.show_compile {
             return;
         }
-        let mut open = true;
-        // Collected inside the window and acted on after it, so the closure
+        // Collected inside the dialog and acted on after it, so the closure
         // does not need a second mutable borrow of the app.
         let mut start: Option<Option<Quality>> = None;
-        egui::Window::new("compile")
-            .open(&mut open)
-            .default_size([560.0, 380.0])
-            .show(ctx, |ui| {
-                let settings = &mut self.compile_settings;
-                ui.horizontal(|ui| {
-                    ui.checkbox(&mut settings.run_vis, "visibility");
-                    ui.checkbox(&mut settings.fast_vis, "fast");
-                    ui.checkbox(&mut settings.run_acoustics, "acoustics")
+        let mut close = false;
+        let running = self.compiling();
+        let last = self
+            .compile
+            .as_ref()
+            .filter(|j| j.finished && !j.failed)
+            .and_then(|j| j.output())
+            .map(|p| p.display().to_string());
+        let settings = &mut self.compile_settings;
+        let modal = widgets::dialog(
+            ctx,
+            "chisel-compile",
+            "Compile",
+            460.0,
+            |ui| {
+                widgets::section(ui, "stages", |ui| {
+                    ui.horizontal_wrapped(|ui| {
+                        ui.checkbox(&mut settings.run_vis, "visibility");
+                        ui.checkbox(&mut settings.fast_vis, "fast");
+                        ui.checkbox(&mut settings.run_acoustics, "acoustics")
+                            .on_hover_text(
+                                "Resonance: work out how each room sounds from its shape \
+                                 and materials, for the engine's reverb. Fast applies here \
+                                 too, with fewer rays per room.",
+                            );
+                        ui.checkbox(&mut settings.run_lighting, "lighting");
+                        ui.checkbox(&mut settings.run_after, "run after");
+                    });
+                });
+                widgets::section(ui, "lighting", |ui| {
+                    ui.horizontal(|ui| {
+                        ui.add(egui::Slider::new(&mut settings.samples, 1..=4).text("samples"));
+                        ui.add(egui::Slider::new(&mut settings.bounces, 0..=4).text("bounces"));
+                    });
+                });
+                widgets::section(ui, "before and after", |ui| {
+                    ui.checkbox(&mut settings.run_materials, "compile new materials first")
                         .on_hover_text(
-                            "Resonance: work out how each room sounds from its shape \
-                             and materials, for the engine's reverb. Fast applies here \
-                             too, with fewer rays per room.",
+                            "Runs Alchemy over the art tree, skipping anything already \
+                             compiled. Without it, a material that has never been through \
+                             Alchemy loads as the missing-material checkerboard.",
                         );
-                    ui.checkbox(&mut settings.run_lighting, "lighting");
-                    ui.checkbox(&mut settings.run_after, "run after");
-                });
-                ui.horizontal(|ui| {
-                    ui.add(egui::Slider::new(&mut settings.samples, 1..=4).text("samples"));
-                    ui.add(egui::Slider::new(&mut settings.bounces, 0..=4).text("bounces"));
-                });
-                ui.checkbox(&mut settings.run_materials, "compile new materials first")
-                    .on_hover_text(
-                        "Runs Alchemy over the art tree, skipping anything already \
-                         compiled. Without it, a material that has never been through \
-                         Alchemy loads as the missing-material checkerboard.",
-                    );
-                ui.checkbox(&mut settings.ignore_leaks, "build even if the map leaks")
-                    .on_hover_text(
-                        "A map that leaks has no sealed inside, so visibility is near \
-                         useless and light bleeds through walls. Cleave normally \
-                         refuses to build one. With this it builds anyway and writes a \
-                         .keroleak trace beside the map showing the way out.",
-                    );
-
-                ui.separator();
-                ui.horizontal(|ui| {
-                    let running = self.compile.as_ref().is_some_and(|j| !j.finished);
-                    if ui
-                        .add_enabled(!running, egui::Button::new("compile"))
-                        .on_hover_text("Compile with exactly the settings above.")
-                        .clicked()
-                    {
-                        start = Some(None);
-                    }
-                    if ui
-                        .add_enabled(!running, egui::Button::new("fast"))
-                        .clicked()
-                    {
-                        start = Some(Some(Quality::Fast));
-                    }
-                    if ui
-                        .add_enabled(!running, egui::Button::new("full"))
-                        .clicked()
-                    {
-                        start = Some(Some(Quality::Full));
-                    }
-                    if running {
-                        ui.spinner();
-                    }
-                    if let Some(path) = self
-                        .compile
-                        .as_ref()
-                        .filter(|j| j.finished && !j.failed)
-                        .and_then(|j| j.output())
-                    {
-                        ui.label(
-                            RichText::new(format!("built {}", path.display()))
-                                .size(11.0)
-                                .weak(),
+                    ui.checkbox(&mut settings.ignore_leaks, "build even if the map leaks")
+                        .on_hover_text(
+                            "A map that leaks has no sealed inside, so visibility is near \
+                             useless and light bleeds through walls. Cleave normally \
+                             refuses to build one. With this it builds anyway and writes a \
+                             .keroleak trace beside the map showing the way out.",
                         );
-                    }
                 });
-                ui.separator();
-
-                if let Some(job) = &self.compile {
-                    egui::ScrollArea::vertical()
-                        .stick_to_bottom(true)
-                        .show(ui, |ui| {
-                            for message in &job.log {
-                                let (text, color) = match message {
-                                    CompileMessage::Stage(s) => {
-                                        (format!("--- {s} ---"), egui::Color32::LIGHT_BLUE)
-                                    }
-                                    CompileMessage::Line(l) => (l.clone(), egui::Color32::GRAY),
-                                    CompileMessage::Failed(e) => {
-                                        (format!("failed: {e}"), egui::Color32::LIGHT_RED)
-                                    }
-                                    CompileMessage::Finished(p) => (
-                                        format!("done: {}", p.display()),
-                                        egui::Color32::LIGHT_GREEN,
-                                    ),
-                                };
-                                ui.label(RichText::new(text).monospace().size(11.0).color(color));
-                            }
-                        });
-                } else {
-                    ui.label("nothing has been compiled yet");
+                if running {
+                    ui.horizontal(|ui| {
+                        ui.add(egui::Spinner::new().size(12.0).color(colors::ACCENT));
+                        ui.label(theme::caption("compiling -- the log is in the output panel"));
+                    });
+                } else if let Some(path) = &last {
+                    ui.label(theme::caption(format!("last built {path}")));
                 }
-            });
-        self.show_compile = open;
+            },
+            |ui| {
+                if widgets::primary_button(
+                    ui,
+                    RichText::new(format!("{}  compile", icons::PLAY)).color(colors::ON_ACCENT),
+                )
+                .on_hover_text("Compile with exactly the settings above.")
+                .clicked()
+                {
+                    start = Some(None);
+                }
+                if ui
+                    .add_enabled(!running, egui::Button::new("full"))
+                    .on_hover_text("Full visibility and lighting, keeping every other choice.")
+                    .clicked()
+                {
+                    start = Some(Some(Quality::Full));
+                }
+                if ui
+                    .add_enabled(!running, egui::Button::new("fast"))
+                    .on_hover_text("Quick visibility and lighting, keeping every other choice.")
+                    .clicked()
+                {
+                    start = Some(Some(Quality::Fast));
+                }
+                if ui.button("close").clicked() {
+                    close = true;
+                }
+            },
+        );
+        if close || modal.should_close() {
+            self.show_compile = false;
+        }
         match start {
             Some(Some(quality)) => self.compile_now(quality),
             Some(None) => {
@@ -208,7 +258,6 @@ impl ChiselApp {
         // with its channel.
         if self.compile.as_ref().is_some_and(|job| !job.finished) {
             self.status = "already compiling; wait for it to finish".into();
-            self.show_compile = true;
             return;
         }
         // The compilers read files, so the map has to be on disk first --
@@ -236,7 +285,6 @@ impl ChiselApp {
                 problems.len(),
                 problems[0]
             );
-            self.show_compile = true;
             return;
         }
 
@@ -244,7 +292,9 @@ impl ChiselApp {
         settings.content_root = self.content_root.clone();
         self.compile_settings = settings.clone();
         self.compile = Some(CompileJob::start(&path, settings));
-        self.show_compile = true;
+        // The settings dialog has done its job; the log is in the output
+        // panel, where it does not cover the map.
+        self.show_compile = false;
         self.status = format!("compiling {}", path.display());
     }
 }

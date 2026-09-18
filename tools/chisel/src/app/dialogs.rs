@@ -2,6 +2,8 @@
 //! The modal questions: a name for the map, and whether to throw work away.
 
 use super::*;
+use kerosene_ui::theme::{self, colors, icons};
+use kerosene_ui::widgets;
 
 impl ChiselApp {
     /// The name field, and the "this will lose work" question.
@@ -15,71 +17,75 @@ impl ChiselApp {
             // A modal rather than a floating window: it dims what is behind
             // it and swallows the clicks, so nobody draws half a brush into a
             // map that is mid-way through being renamed.
-            let modal = egui::Modal::new(egui::Id::new("chisel-name-prompt")).show(ctx, |ui| {
-                ui.set_min_width(420.0);
-                ui.heading(kind.title());
-                ui.add_space(2.0);
-                ui.label(RichText::new("name").size(11.0).weak());
-                let mut output = egui::TextEdit::singleline(&mut name)
-                    .desired_width(f32::INFINITY)
-                    .hint_text("arena")
-                    .show(ui);
-                let field = &output.response;
-                if fresh {
-                    field.request_focus();
-                    // And with the whole name selected, so typing
-                    // replaces it. The field is filled in with the
-                    // current name because that is usually what is being
-                    // changed -- which makes "delete it first" the most
-                    // common thing the dialog asks of anyone.
-                    let all = egui::text::CCursorRange::two(
-                        egui::text::CCursor::new(0),
-                        egui::text::CCursor::new(name.chars().count()),
-                    );
-                    output.state.cursor.set_char_range(Some(all));
-                    output.state.clone().store(ui.ctx(), output.response.id);
-                }
-                if output.response.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter)) {
-                    confirm = true;
-                }
-
-                // What the name is about to mean, before it means it.
-                match files::resolve(&name, &self.content_root) {
-                    Ok(path) => {
-                        let label = files::label(&path, &self.content_root);
-                        let exists = path.exists();
-                        let note = if exists && kind == PromptKind::SaveAs {
-                            RichText::new(format!("{label}  -- overwrites the map already there"))
-                                .size(11.0)
-                                .color(egui::Color32::from_rgb(220, 170, 90))
-                        } else {
-                            RichText::new(label).size(11.0).weak()
-                        };
-                        ui.label(note);
-                    }
-                    Err(e) => {
-                        ui.label(
-                            RichText::new(e)
-                                .size(11.0)
-                                .color(egui::Color32::from_rgb(220, 110, 110)),
+            let modal = widgets::dialog(
+                ctx,
+                "chisel-name-prompt",
+                kind.title(),
+                420.0,
+                |ui| {
+                    ui.label(theme::caption("name"));
+                    let mut output = egui::TextEdit::singleline(&mut name)
+                        .desired_width(f32::INFINITY)
+                        .hint_text("arena")
+                        .show(ui);
+                    let field = &output.response;
+                    if fresh {
+                        field.request_focus();
+                        // And with the whole name selected, so typing
+                        // replaces it. The field is filled in with the
+                        // current name because that is usually what is being
+                        // changed -- which makes "delete it first" the most
+                        // common thing the dialog asks of anyone.
+                        let all = egui::text::CCursorRange::two(
+                            egui::text::CCursor::new(0),
+                            egui::text::CCursor::new(name.chars().count()),
                         );
+                        output.state.cursor.set_char_range(Some(all));
+                        output.state.clone().store(ui.ctx(), output.response.id);
                     }
-                }
-                if let Some(error) = &error {
-                    ui.label(RichText::new(error).color(egui::Color32::from_rgb(220, 110, 110)));
-                }
+                    let entered =
+                        output.response.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter));
 
-                ui.add_space(4.0);
-                ui.horizontal(|ui| {
-                    if ui.button(kind.verb()).clicked() {
+                    // What the name is about to mean, before it means it.
+                    match files::resolve(&name, &self.content_root) {
+                        Ok(path) => {
+                            let label = files::label(&path, &self.content_root);
+                            let exists = path.exists();
+                            let note = if exists && kind == PromptKind::SaveAs {
+                                theme::warn(format!(
+                                    "{label}  -- overwrites the map already there"
+                                ))
+                            } else {
+                                theme::caption(label)
+                            };
+                            ui.label(note);
+                        }
+                        Err(e) => {
+                            ui.label(theme::err(e));
+                        }
+                    }
+                    if let Some(error) = &error {
+                        ui.label(theme::err(error));
+                    }
+                    entered
+                },
+                |ui| {
+                    if widgets::primary_button(
+                        ui,
+                        RichText::new(kind.verb()).color(colors::ON_ACCENT),
+                    )
+                    .clicked()
+                    {
                         confirm = true
                     }
                     if ui.button("cancel").clicked() {
                         cancel = true
                     }
-                });
-            });
+                },
+            );
 
+            // Enter in the field is the same as the button.
+            confirm |= modal.inner.0;
             if let Some(prompt) = &mut self.prompt {
                 prompt.name = name;
             }
@@ -96,27 +102,37 @@ impl ChiselApp {
 
         if let Some(what) = self.discarding.clone() {
             let mut decided = None;
-            let modal = egui::Modal::new(egui::Id::new("chisel-unsaved")).show(ctx, |ui| {
-                ui.set_min_width(360.0);
-                ui.heading("unsaved changes");
-                ui.add_space(2.0);
-                ui.label(format!(
-                    "{} has changes that have not been saved.",
-                    self.document.title()
-                ));
-                ui.add_space(6.0);
-                ui.horizontal(|ui| {
-                    if ui.button("save first").clicked() {
-                        decided = Some(Decision::Save)
+            let modal = widgets::dialog(
+                ctx,
+                "chisel-unsaved",
+                "Unsaved changes",
+                360.0,
+                |ui| {
+                    ui.horizontal(|ui| {
+                        ui.label(theme::icon(icons::WARNING).size(20.0).color(colors::WARN));
+                        ui.label(format!(
+                            "{} has changes that have not been saved.",
+                            self.document.title()
+                        ));
+                    });
+                },
+                |ui| {
+                    if ui.button("cancel").clicked() {
+                        decided = Some(Decision::Cancel)
                     }
                     if ui.button("discard them").clicked() {
                         decided = Some(Decision::Discard)
                     }
-                    if ui.button("cancel").clicked() {
-                        decided = Some(Decision::Cancel)
+                    if widgets::primary_button(
+                        ui,
+                        RichText::new("save first").color(colors::ON_ACCENT),
+                    )
+                    .clicked()
+                    {
+                        decided = Some(Decision::Save)
                     }
-                });
-            });
+                },
+            );
             // Escape and a click outside both mean "no", which is the answer
             // that keeps the work.
             if modal.should_close() {

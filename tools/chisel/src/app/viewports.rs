@@ -2,10 +2,21 @@
 //! The four panes: layout, painting, and input.
 
 use super::*;
+use kerosene_ui::theme::{self, colors, icons};
+use kerosene_ui::widgets;
+
+/// The height of the strip across the top of each pane, in points.
+const PANE_HEADER: f32 = 22.0;
 
 impl ChiselApp {
     pub(super) fn viewports_panel(&mut self, ctx: &Context) {
-        egui::CentralPanel::default().show(ctx, |ui| {
+        egui::CentralPanel::default()
+            .frame(
+                egui::Frame::new()
+                    .fill(colors::BG_APP)
+                    .inner_margin(egui::Margin::same(3)),
+            )
+            .show(ctx, |ui| {
             let available = ui.available_rect_before_wrap();
 
             if let Some(index) = self.maximised {
@@ -65,9 +76,9 @@ impl ChiselApp {
                     bar,
                     0.0,
                     if lit {
-                        draw::colors::SELECTED
+                        colors::ACCENT
                     } else {
-                        draw::colors::GRID_MAJOR
+                        colors::BORDER
                     },
                 );
             }
@@ -75,61 +86,44 @@ impl ChiselApp {
     }
 
     pub(super) fn viewport_ui(&mut self, ui: &mut egui::Ui, index: usize, rect: egui::Rect) {
-        let response = ui.allocate_rect(rect, egui::Sense::click_and_drag());
-        self.viewports[index].size = (rect.width(), rect.height());
+        // A header strip across the top of the pane, and the view under it.
+        let header = egui::Rect::from_min_size(rect.min, egui::vec2(rect.width(), PANE_HEADER));
+        let body = egui::Rect::from_min_max(
+            egui::pos2(rect.min.x, rect.min.y + PANE_HEADER),
+            rect.max,
+        );
 
-        let painter = ui.painter_at(rect);
+        let response = ui.allocate_rect(body, egui::Sense::click_and_drag());
+        self.viewports[index].size = (body.width(), body.height());
+
+        let painter = ui.painter_at(body);
         let kind = self.viewports[index].kind;
 
         if kind.is_2d() {
             draw::draw_2d(
                 &painter,
-                rect,
+                body,
                 &self.viewports[index],
                 &self.document,
                 &self.tool,
                 &self.leak,
             );
         } else {
-            self.draw_preview(ui, &painter, index, rect);
+            self.draw_preview(ui, &painter, index, body);
         }
 
-        // The pane's label is a menu: any pane can show any view. Six flat
-        // views exist, and a layout that could only ever reach three of them
-        // was the reason to add the other three.
-        let header =
-            egui::Rect::from_min_size(rect.min + egui::vec2(4.0, 3.0), egui::vec2(112.0, 18.0));
-        let mut chosen = None;
-        ui.scope_builder(egui::UiBuilder::new().max_rect(header), |ui| {
-            ui.style_mut().visuals.override_text_color = Some(draw::colors::TEXT);
-            egui::ComboBox::from_id_salt(("view", index))
-                .selected_text(RichText::new(kind.label()).monospace().size(11.0))
-                .width(104.0)
-                .show_ui(ui, |ui| {
-                    for option in crate::viewport::ViewportKind::all() {
-                        if ui
-                            .selectable_label(option == kind, option.label())
-                            .clicked()
-                        {
-                            chosen = Some(option);
-                        }
-                    }
-                });
-        });
-        if let Some(option) = chosen {
-            self.viewports[index].set_kind(option);
-            self.status = format!("pane {} shows {}", index + 1, option.label());
-        }
+        self.pane_header(ui, index, header);
 
-        painter.rect_stroke(
+        let active = self.active == index;
+        ui.painter_at(rect).rect_stroke(
             rect,
             0.0,
             egui::Stroke::new(
                 1.0_f32,
-                if self.active == index {
-                    draw::colors::SELECTED
+                if active {
+                    colors::ACCENT
                 } else {
-                    draw::colors::GRID_MAJOR
+                    colors::BORDER
                 },
             ),
             egui::StrokeKind::Inside,
@@ -138,7 +132,117 @@ impl ChiselApp {
         if response.hovered() {
             self.active = index;
         }
-        self.viewport_input(index, rect, &response, ui);
+
+        // Where the pointer is in the world, for the status bar. Only a flat
+        // view can say; a 3D pane's pointer is a ray, not a point.
+        if kind.is_2d()
+            && let Some(pos) = response.hover_pos()
+        {
+            let depth = self
+                .document
+                .selection_bounds()
+                .map(|b| b.center()[kind.axes().2])
+                .unwrap_or(0.0);
+            let world = self.viewports[index].screen_to_world(
+                pos.x - body.min.x,
+                pos.y - body.min.y,
+                depth,
+            );
+            self.pointer_world = Some((index, world));
+        } else if self.pointer_world.is_some_and(|(i, _)| i == index) && !response.hovered() {
+            self.pointer_world = None;
+        }
+
+        self.viewport_input(index, body, &response, ui);
+    }
+
+    /// The strip along the top of a pane: which view it shows, how far in
+    /// it is, and a button to make it the only pane.
+    ///
+    /// The view's name is a menu: any pane can show any view. Six flat views
+    /// exist, and a layout that could only ever reach three of them was the
+    /// reason to add the other three.
+    fn pane_header(&mut self, ui: &mut egui::Ui, index: usize, header: egui::Rect) {
+        let kind = self.viewports[index].kind;
+        let active = self.active == index;
+
+        let strip = ui.interact(header, ui.id().with(("pane-header", index)), egui::Sense::click());
+        if strip.double_clicked() {
+            self.active = index;
+            self.toggle_maximised();
+        }
+        ui.painter_at(header).rect_filled(
+            header,
+            0.0,
+            if active {
+                colors::BG_HEADER
+            } else {
+                colors::BG_PANEL
+            },
+        );
+
+        let mut chosen = None;
+        let mut maximise = false;
+        ui.scope_builder(
+            egui::UiBuilder::new().max_rect(header.shrink2(egui::vec2(4.0, 1.0))),
+            |ui| {
+                ui.horizontal_centered(|ui| {
+                    ui.spacing_mut().item_spacing.x = 4.0;
+                    ui.spacing_mut().button_padding = egui::vec2(6.0, 1.0);
+                    egui::ComboBox::from_id_salt(("view", index))
+                        .selected_text(
+                            RichText::new(kind.label())
+                                .size(11.5)
+                                .color(if active { colors::ACCENT } else { colors::TEXT }),
+                        )
+                        .width(100.0)
+                        .show_ui(ui, |ui| {
+                            for option in crate::viewport::ViewportKind::all() {
+                                if ui
+                                    .selectable_label(option == kind, option.label())
+                                    .clicked()
+                                {
+                                    chosen = Some(option);
+                                }
+                            }
+                        });
+
+                    // How far in: a scale for a flat view, a speed for the 3D one.
+                    let detail = if kind.is_2d() {
+                        let zoom = self.viewports[index].zoom;
+                        let per_square = kerosene_math::units::length_short(self.document.grid.size);
+                        format!("{per_square} grid   {:.2} px/ku", zoom)
+                    } else {
+                        format!(
+                            "fly {}/s",
+                            kerosene_math::units::length_short(self.fly_speed)
+                        )
+                    };
+                    ui.label(theme::caption(detail));
+
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        let maximised = self.maximised == Some(index);
+                        let (glyph, tip) = if maximised {
+                            (icons::CORNERS_IN, "show four panes  (shift-space)")
+                        } else {
+                            (icons::CORNERS_OUT, "maximise this pane  (shift-space)")
+                        };
+                        if widgets::icon_button(ui, glyph, tip).clicked() {
+                            maximise = true;
+                        }
+                    });
+                });
+            },
+        );
+
+        if let Some(option) = chosen {
+            self.viewports[index].set_kind(option);
+            self.status = format!("pane {} shows {}", index + 1, option.label());
+        }
+        if maximise {
+            self.active = index;
+            self.toggle_maximised();
+        }
     }
 
     /// A click in a 3D pane.
