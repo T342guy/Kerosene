@@ -295,7 +295,7 @@ impl Engine {
         let Some(entity) = self.entities.get(id) else {
             return;
         };
-        let everywhere = entity.has_spawnflag(kerosene_game::sound::SF_EVERYWHERE);
+        let everywhere = entity.has_spawnflag(crate::audio::SF_EVERYWHERE);
         let origin = entity.origin;
         // `volume` is what it is called. `health` is what Source calls it, and
         // is still read so a map that says so is not silently ignored.

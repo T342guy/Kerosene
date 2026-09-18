@@ -19,6 +19,12 @@ use kerosene_math::{Basis, Vec3};
 use kerosene_vfs::Vfs;
 use std::sync::{Arc, Mutex};
 
+/// Spawnflag 2 on a sound entity: heard flat, wherever the listener is,
+/// rather than placed at the entity. Read by [`Engine::play_entity_sound`]
+/// (crate::Engine::play_entity_sound), so it is an engine convention that any
+/// game's sound class can use; the stock `ambient_generic` does.
+pub const SF_EVERYWHERE: u32 = 2;
+
 /// The sample rate used when there is no device to ask.
 const HEADLESS_RATE: u32 = 48_000;
 

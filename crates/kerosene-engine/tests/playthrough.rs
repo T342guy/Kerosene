@@ -276,7 +276,7 @@ fn walking_into_a_trigger_opens_the_door_in_front_of_it() {
         let hull = state.hull();
         let player_box = Aabb::new(state.origin + hull.mins, state.origin + hull.maxs);
         let inside = trigger_bounds.intersects(&player_box);
-        kerosene_game::triggers::update_touch(&mut entities, trigger, inside, None);
+        kerosene_engine::triggers::update_touch(&mut entities, trigger, inside, None);
 
         let world = LevelCollision::new(&bsp, &entities);
         player_move(&mut state, &input, &params, &world, TICK);

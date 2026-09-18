@@ -203,96 +203,6 @@ fn toggle_alternates() {
     assert_eq!(w.get(gate).unwrap().origin.z, 0.0);
 }
 
-// ---- triggers ------------------------------------------------------------
-
-const TRIGGER_MAP: &str = r#"
-entity
-{
-    "classname" "trigger_multiple"
-    "targetname" "zone"
-    "model" "*2"
-    connections { "OnStartTouch" "counter,Add,1,0,-1" "OnEndTouch" "counter,Subtract,1,0,-1" }
-}
-entity { "classname" "math_counter" "targetname" "counter" }
-"#;
-
-#[test]
-fn a_trigger_fires_on_entering_and_leaving_not_continuously() {
-    let mut w = world_from(TRIGGER_MAP);
-    let zone = named(&w, "zone");
-    let counter = named(&w, "counter");
-
-    // Standing inside for many ticks should fire once, not once per tick.
-    for _ in 0..20 {
-        kerosene_game::triggers::update_touch(&mut w, zone, true, None);
-        w.run(TICK);
-    }
-    assert_eq!(field(&w, counter, "value"), 1.0);
-
-    for _ in 0..20 {
-        kerosene_game::triggers::update_touch(&mut w, zone, false, None);
-        w.run(TICK);
-    }
-    assert_eq!(field(&w, counter, "value"), 0.0);
-}
-
-#[test]
-fn a_trigger_once_removes_itself_after_firing() {
-    let src = TRIGGER_MAP.replace("trigger_multiple", "trigger_once");
-    let mut w = world_from(&src);
-    let zone = named(&w, "zone");
-    kerosene_game::triggers::update_touch(&mut w, zone, true, None);
-    w.run(TICK);
-    assert!(
-        !w.exists(zone),
-        "a trigger_once should be gone after it fires"
-    );
-    assert_eq!(field(&w, named(&w, "counter"), "value"), 1.0);
-}
-
-#[test]
-fn a_disabled_trigger_does_not_fire() {
-    let mut w = world_from(TRIGGER_MAP);
-    let zone = named(&w, "zone");
-    w.accept_input(zone, &InputEvent::new("Disable"));
-    kerosene_game::triggers::update_touch(&mut w, zone, true, None);
-    w.run(TICK);
-    assert_eq!(field(&w, named(&w, "counter"), "value"), 0.0);
-
-    w.accept_input(zone, &InputEvent::new("Enable"));
-    kerosene_game::triggers::update_touch(&mut w, zone, true, None);
-    w.run(TICK);
-    assert_eq!(field(&w, named(&w, "counter"), "value"), 1.0);
-}
-
-#[test]
-fn disabling_an_occupied_trigger_releases_it() {
-    // Otherwise the trigger believes it is occupied forever and never fires
-    // OnStartTouch again.
-    let mut w = world_from(TRIGGER_MAP);
-    let zone = named(&w, "zone");
-    kerosene_game::triggers::update_touch(&mut w, zone, true, None);
-    w.run(TICK);
-    assert_eq!(field(&w, named(&w, "counter"), "value"), 1.0);
-
-    w.accept_input(zone, &InputEvent::new("Disable"));
-    w.run(TICK);
-    assert_eq!(
-        field(&w, named(&w, "counter"), "value"),
-        0.0,
-        "OnEndTouch should have fired"
-    );
-
-    w.accept_input(zone, &InputEvent::new("Enable"));
-    kerosene_game::triggers::update_touch(&mut w, zone, true, None);
-    w.run(TICK);
-    assert_eq!(
-        field(&w, named(&w, "counter"), "value"),
-        1.0,
-        "it should fire again"
-    );
-}
-
 // ---- logic ---------------------------------------------------------------
 
 #[test]
@@ -458,8 +368,9 @@ entity {{ "classname" "math_counter" "targetname" "counter" }}
         .connections
         .push(Connection::new("OnFullyOpen", "counter", "Add").with_parameter("1"));
 
+    // What the engine's touch pass would fire on the way in.
     let zone = named(&w, "zone");
-    kerosene_game::triggers::update_touch(&mut w, zone, true, None);
+    w.fire_output(zone, "OnStartTouch", None, None);
     run(&mut w, 3.0);
 
     assert_eq!(

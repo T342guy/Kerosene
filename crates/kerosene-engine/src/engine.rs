@@ -1008,7 +1008,7 @@ impl Engine {
                 .get(id)
                 .is_some_and(|e| e.fields.bool("disabled", false));
             if inside && live {
-                hurt += kerosene_game::triggers::hurt_per_second(&self.entities, id) * dt;
+                hurt += crate::triggers::hurt_per_second(&self.entities, id) * dt;
                 let was = self
                     .entities
                     .get(id)
@@ -1017,7 +1017,7 @@ impl Engine {
                     entered.push(id)
                 }
             }
-            kerosene_game::triggers::update_touch(&mut self.entities, id, inside, player_entity);
+            crate::triggers::update_touch(&mut self.entities, id, inside, player_entity);
         }
 
         // Volumes that act on the player when they arrive rather than while
@@ -1039,7 +1039,7 @@ impl Engine {
 
     /// Act on a trigger the player has just entered.
     fn enter_trigger(&mut self, id: EntityId) {
-        if let Some((dir, speed)) = kerosene_game::triggers::push_of(&self.entities, id) {
+        if let Some((dir, speed)) = crate::triggers::push_of(&self.entities, id) {
             // Added to what the player already had, so running onto a pad
             // carries your speed with you instead of replacing it. Leaving
             // the ground explicitly, or the next tick's ground check would
@@ -1048,7 +1048,7 @@ impl Engine {
             self.player.movement.on_ground = false;
         }
 
-        if let Some(target) = kerosene_game::triggers::teleport_target(&self.entities, id) {
+        if let Some(target) = crate::triggers::teleport_target(&self.entities, id) {
             let destination = self
                 .entities
                 .find_by_name(&target)

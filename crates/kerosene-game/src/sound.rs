@@ -25,6 +25,10 @@ use kerosene_entity::{ClassDef, ClassRegistry, EntityId, EntityWorld, Value, hos
 /// Spawnflag 1: start playing as soon as the map does.
 pub const SF_START_SILENT: u32 = 1;
 /// Spawnflag 2: heard flat, wherever the listener is.
+///
+/// The engine reads this flag itself when it plays an entity's sound, so the
+/// value is fixed there (`kerosene_engine::audio::SF_EVERYWHERE`); this copy
+/// is for the schema and for anything in this crate that sets it.
 pub const SF_EVERYWHERE: u32 = 2;
 
 pub fn register(registry: &mut ClassRegistry) {
