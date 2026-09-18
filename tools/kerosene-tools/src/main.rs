@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
 //! `kerosene-tools` -- the Kerosene toolset.
 //!
-//! Run with no subcommand it opens the one window that holds every tool: the
-//! world editor, the sound editor, a build panel and an archive panel, with a
-//! rail down the left edge to switch between them. That is the developer's
-//! door into the engine.
+//! Run with no subcommand it opens the one window that holds every tool: a
+//! project page, the world editor, the sound editor, a build form and an
+//! archive form, with an activity bar of icons down the left edge to switch
+//! between them and an output panel along the bottom that every job logs
+//! into. That is the developer's door into the engine.
 //!
 //! The stages also run headless, as subcommands, for scripts and build
 //! servers:
@@ -111,7 +112,7 @@ fn print_usage() {
     println!("Kerosene toolset -- the editor and every compiler, in one application.");
     println!();
     println!("usage:");
-    println!("  kerosene-tools                          open the toolset window");
+    println!("  kerosene-tools                          open the toolset window, on the project page");
     println!("  kerosene-tools chisel [map.keromap]     open the editor");
     println!("  kerosene-tools timbre                   open the sound editor");
     println!();

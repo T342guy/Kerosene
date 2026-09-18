@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
 //! The Kerosene toolset, as a library.
 //!
-//! The whole toolset is one GUI application ([`toolset::Toolset`]): the world
-//! editor, the sound editor, a build panel and an archive panel behind one
-//! window. The same stages are also exposed as headless subcommands, so a
+//! The whole toolset is one GUI application ([`toolset::Toolset`]): a project
+//! page, the world editor, the sound editor, a build form and an archive form
+//! behind one window, with one output panel for every job's log. The same stages are also exposed as headless subcommands, so a
 //! script or build server can drive them without a screen.
 //!
 //! The engine knows nothing about any of this. That boundary is what lets a
@@ -12,6 +12,7 @@
 
 pub mod init;
 pub mod panels;
+pub mod project;
 pub mod toolset;
 
 pub use toolset::{Launch, Tab, Toolset, run_gui};

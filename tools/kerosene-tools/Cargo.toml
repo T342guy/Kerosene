@@ -6,9 +6,9 @@ rust-version.workspace = true
 license.workspace = true
 authors.workspace = true
 
-# The whole toolset: one GUI application with the editor, the sound editor, a
-# build panel and an archive panel behind one window, plus the same stages as
-# headless subcommands for scripts and build servers.
+# The whole toolset: one GUI application with a project page, the editor, the
+# sound editor, a build form and an archive form behind one window, plus the
+# same stages as headless subcommands for scripts and build servers.
 #
 # It depends on the tools' libraries, never on the engine: the boundary is the
 # same one that used to separate the programs from the runtime.
