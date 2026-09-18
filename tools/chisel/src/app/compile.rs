@@ -190,7 +190,9 @@ impl ChiselApp {
                 if running {
                     ui.horizontal(|ui| {
                         ui.add(egui::Spinner::new().size(12.0).color(colors::ACCENT));
-                        ui.label(theme::caption("compiling -- the log is in the output panel"));
+                        ui.label(theme::caption(
+                            "compiling -- the log is in the output panel",
+                        ));
                     });
                 } else if let Some(path) = &last {
                     ui.label(theme::caption(format!("last built {path}")));

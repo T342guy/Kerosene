@@ -11,7 +11,12 @@ use kerosene_ui::theme::{self, colors};
 /// face's value -- which is how you overwrite the other five by accident.
 /// Returns the new value only when the edit is finished, so dragging does not
 /// push an undo step per pixel.
-pub(super) fn number(ui: &mut egui::Ui, label: &str, shared: Option<f32>, speed: f32) -> Option<f32> {
+pub(super) fn number(
+    ui: &mut egui::Ui,
+    label: &str,
+    shared: Option<f32>,
+    speed: f32,
+) -> Option<f32> {
     ui.label(theme::caption(label));
     let mut value = shared.unwrap_or(0.0) as f64;
     let mut widget = egui::DragValue::new(&mut value).speed(speed as f64);

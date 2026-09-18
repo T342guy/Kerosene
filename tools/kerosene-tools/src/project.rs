@@ -151,7 +151,12 @@ impl ProjectPanel {
         &self.content_root
     }
 
-    pub fn ui(&mut self, ctx: &egui::Context, building: bool, packing: bool) -> Option<ProjectAction> {
+    pub fn ui(
+        &mut self,
+        ctx: &egui::Context,
+        building: bool,
+        packing: bool,
+    ) -> Option<ProjectAction> {
         let mut action = None;
         egui::CentralPanel::default()
             .frame(
@@ -220,25 +225,31 @@ impl ProjectPanel {
             {
                 action = Some(ProjectAction::NewMap);
             }
-            let build = egui::Button::new(egui::RichText::new(if building {
-                format!("{}  Building...", icons::CIRCLE_NOTCH)
-            } else {
-                format!("{}  Build everything", icons::HAMMER)
-            })
-            .size(13.0));
+            let build = egui::Button::new(
+                egui::RichText::new(if building {
+                    format!("{}  Building...", icons::CIRCLE_NOTCH)
+                } else {
+                    format!("{}  Build everything", icons::HAMMER)
+                })
+                .size(13.0),
+            );
             if ui
                 .add_enabled(!building, build)
-                .on_hover_text("Every stage, over the whole tree: kiln. The Build tab picks stages.")
+                .on_hover_text(
+                    "Every stage, over the whole tree: kiln. The Build tab picks stages.",
+                )
                 .clicked()
             {
                 action = Some(ProjectAction::Build);
             }
-            let pack = egui::Button::new(egui::RichText::new(if packing {
-                format!("{}  Packing...", icons::CIRCLE_NOTCH)
-            } else {
-                format!("{}  Pack archive", icons::ARCHIVE)
-            })
-            .size(13.0));
+            let pack = egui::Button::new(
+                egui::RichText::new(if packing {
+                    format!("{}  Packing...", icons::CIRCLE_NOTCH)
+                } else {
+                    format!("{}  Pack archive", icons::ARCHIVE)
+                })
+                .size(13.0),
+            );
             if ui
                 .add_enabled(!packing, pack)
                 .on_hover_text("Write the .vault the game ships with: vault pack.")

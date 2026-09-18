@@ -813,7 +813,6 @@ impl ChiselApp {
             }
         }
     }
-
 }
 /// Models offered where a key holds one.
 fn scan_models(root: &std::path::Path) -> Vec<String> {
@@ -1960,7 +1959,11 @@ mod tests {
         assert_eq!(app.inspector_tab, InspectorTab::Object);
         app.inspector_tab = InspectorTab::Tool;
         draw_a_frame(&mut app);
-        assert_eq!(app.inspector_tab, InspectorTab::Tool, "left where it was put");
+        assert_eq!(
+            app.inspector_tab,
+            InspectorTab::Tool,
+            "left where it was put"
+        );
 
         let _ = std::fs::remove_dir_all(&root);
     }
@@ -1985,7 +1988,10 @@ mod tests {
         app.apply_browsed(&Browsing::Material, &material);
         assert_eq!(app.document.current_material, material);
         let faces = app.document.map.world.solids[0].sides.iter();
-        assert!(faces.clone().all(|s| s.material == material), "applied to every face");
+        assert!(
+            faces.clone().all(|s| s.material == material),
+            "applied to every face"
+        );
         let _ = std::fs::remove_dir_all(&root);
     }
 
@@ -1995,7 +2001,10 @@ mod tests {
         app.save(Some(root.join("maps/arena.keromap")));
         app.show_compile = true;
         app.compile_now(Quality::Fast);
-        assert!(!app.show_compile, "the dialog is done once the compile starts");
+        assert!(
+            !app.show_compile,
+            "the dialog is done once the compile starts"
+        );
         assert!(app.compiling() || app.compile_failed().is_some());
         // Whatever the compilers made of it, the log is readable as lines.
         for _ in 0..50 {

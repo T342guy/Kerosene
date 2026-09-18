@@ -45,10 +45,14 @@ fn decode(bytes: &[u8]) -> Result<Icon, png::DecodingError> {
 
     let rgba = match info.color_type {
         png::ColorType::Rgba => buffer,
-        png::ColorType::Rgb => buffer.chunks(3).flat_map(|p| [p[0], p[1], p[2], 255]).collect(),
-        png::ColorType::GrayscaleAlpha => {
-            buffer.chunks(2).flat_map(|p| [p[0], p[0], p[0], p[1]]).collect()
-        }
+        png::ColorType::Rgb => buffer
+            .chunks(3)
+            .flat_map(|p| [p[0], p[1], p[2], 255])
+            .collect(),
+        png::ColorType::GrayscaleAlpha => buffer
+            .chunks(2)
+            .flat_map(|p| [p[0], p[0], p[0], p[1]])
+            .collect(),
         png::ColorType::Grayscale => buffer.iter().flat_map(|&g| [g, g, g, 255]).collect(),
         png::ColorType::Indexed => {
             return Err(png::DecodingError::LimitsExceeded);

@@ -37,7 +37,13 @@ pub enum Tab {
 }
 
 impl Tab {
-    const ALL: [Tab; 5] = [Tab::Project, Tab::Editor, Tab::Sound, Tab::Build, Tab::Archive];
+    const ALL: [Tab; 5] = [
+        Tab::Project,
+        Tab::Editor,
+        Tab::Sound,
+        Tab::Build,
+        Tab::Archive,
+    ];
 
     fn name(self) -> &'static str {
         match self {
@@ -152,11 +158,7 @@ impl Toolset {
         let project = found.as_ref().and_then(|f| f.project.as_ref());
         Ok(Toolset {
             tab: launch.tab,
-            project: ProjectPanel::new(
-                root.clone(),
-                project,
-                kerosene_vfs::root::describe(&found),
-            ),
+            project: ProjectPanel::new(root.clone(), project, kerosene_vfs::root::describe(&found)),
             editor,
             sound,
             sound_note,
@@ -196,7 +198,9 @@ impl Toolset {
                 let running = [
                     false,
                     self.editor.compiling(),
-                    self.sound.as_ref().is_some_and(|s| s.wants_continuous_redraw()),
+                    self.sound
+                        .as_ref()
+                        .is_some_and(|s| s.wants_continuous_redraw()),
                     self.build.running(),
                     self.archive.running(),
                 ];
@@ -236,10 +240,7 @@ impl Toolset {
                             .strong()
                             .color(colors::TEXT_MUTED),
                     )
-                    .on_hover_text(format!(
-                        "{name}\n{}",
-                        self.project.content_root().display()
-                    ));
+                    .on_hover_text(format!("{name}\n{}", self.project.content_root().display()));
                 });
             });
     }
@@ -268,13 +269,23 @@ impl Toolset {
             },
             Source {
                 name: SOURCES[SOURCE_BUILD],
-                lines: self.build.job.as_ref().map(|j| j.lines()).unwrap_or_default(),
+                lines: self
+                    .build
+                    .job
+                    .as_ref()
+                    .map(|j| j.lines())
+                    .unwrap_or_default(),
                 running: running[SOURCE_BUILD],
                 failed: self.build.job.as_ref().and_then(|j| j.outcome()),
             },
             Source {
                 name: SOURCES[SOURCE_ARCHIVE],
-                lines: self.archive.job.as_ref().map(|j| j.lines()).unwrap_or_default(),
+                lines: self
+                    .archive
+                    .job
+                    .as_ref()
+                    .map(|j| j.lines())
+                    .unwrap_or_default(),
                 running: running[SOURCE_ARCHIVE],
                 failed: self.archive.job.as_ref().and_then(|j| j.outcome()),
             },
@@ -450,10 +461,8 @@ mod tests {
 
     /// A toolset over an empty directory: no project, no content.
     fn toolset_in(name: &str) -> (Toolset, PathBuf) {
-        let root = std::env::temp_dir().join(format!(
-            "kerosene-toolset-{name}-{}",
-            std::process::id()
-        ));
+        let root =
+            std::env::temp_dir().join(format!("kerosene-toolset-{name}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&root);
         std::fs::create_dir_all(&root).unwrap();
         let toolset = Toolset::open(Launch {

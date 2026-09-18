@@ -17,81 +17,92 @@ impl ChiselApp {
                     .inner_margin(egui::Margin::same(3)),
             )
             .show(ctx, |ui| {
-            let available = ui.available_rect_before_wrap();
+                let available = ui.available_rect_before_wrap();
 
-            if let Some(index) = self.maximised {
-                self.viewport_ui(ui, index, available);
-                return;
-            }
-
-            // Panes divide at a draggable fraction rather than at the middle.
-            // Half of laying out a level is looking at one view closely and
-            // the others only for reference.
-            self.split.x = self.split.x.clamp(0.1, 0.9);
-            self.split.y = self.split.y.clamp(0.1, 0.9);
-            let cut = egui::pos2(
-                available.min.x + available.width() * self.split.x,
-                available.min.y + available.height() * self.split.y,
-            );
-            let half = SPLITTER * 0.5;
-            let (l, r) = (available.min.x, available.max.x);
-            let (t, b) = (available.min.y, available.max.y);
-            let rects = [
-                egui::Rect::from_min_max(egui::pos2(l, t), egui::pos2(cut.x - half, cut.y - half)),
-                egui::Rect::from_min_max(egui::pos2(cut.x + half, t), egui::pos2(r, cut.y - half)),
-                egui::Rect::from_min_max(egui::pos2(l, cut.y + half), egui::pos2(cut.x - half, b)),
-                egui::Rect::from_min_max(egui::pos2(cut.x + half, cut.y + half), egui::pos2(r, b)),
-            ];
-            for (index, rect) in rects.into_iter().enumerate() {
-                self.viewport_ui(ui, index, rect);
-            }
-
-            // Registered after the panes so they take the pointer first: a
-            // splitter a viewport can steal the drag from is one that only
-            // works some of the time.
-            let vertical =
-                egui::Rect::from_min_max(egui::pos2(cut.x - half, t), egui::pos2(cut.x + half, b));
-            let horizontal =
-                egui::Rect::from_min_max(egui::pos2(l, cut.y - half), egui::pos2(r, cut.y + half));
-            for (bar, axis) in [(vertical, 0usize), (horizontal, 1usize)] {
-                let response =
-                    ui.interact(bar, ui.id().with(("splitter", axis)), egui::Sense::drag());
-                if response.hovered() || response.dragged() {
-                    ui.ctx().set_cursor_icon(if axis == 0 {
-                        egui::CursorIcon::ResizeHorizontal
-                    } else {
-                        egui::CursorIcon::ResizeVertical
-                    });
+                if let Some(index) = self.maximised {
+                    self.viewport_ui(ui, index, available);
+                    return;
                 }
-                if response.dragged() {
-                    let (delta, extent) = if axis == 0 {
-                        (response.drag_delta().x, available.width())
-                    } else {
-                        (response.drag_delta().y, available.height())
-                    };
-                    self.split[axis] = (self.split[axis] + delta / extent.max(1.0)).clamp(0.1, 0.9);
-                }
-                let lit = response.hovered() || response.dragged();
-                ui.painter().rect_filled(
-                    bar,
-                    0.0,
-                    if lit {
-                        colors::ACCENT
-                    } else {
-                        colors::BORDER
-                    },
+
+                // Panes divide at a draggable fraction rather than at the middle.
+                // Half of laying out a level is looking at one view closely and
+                // the others only for reference.
+                self.split.x = self.split.x.clamp(0.1, 0.9);
+                self.split.y = self.split.y.clamp(0.1, 0.9);
+                let cut = egui::pos2(
+                    available.min.x + available.width() * self.split.x,
+                    available.min.y + available.height() * self.split.y,
                 );
-            }
-        });
+                let half = SPLITTER * 0.5;
+                let (l, r) = (available.min.x, available.max.x);
+                let (t, b) = (available.min.y, available.max.y);
+                let rects = [
+                    egui::Rect::from_min_max(
+                        egui::pos2(l, t),
+                        egui::pos2(cut.x - half, cut.y - half),
+                    ),
+                    egui::Rect::from_min_max(
+                        egui::pos2(cut.x + half, t),
+                        egui::pos2(r, cut.y - half),
+                    ),
+                    egui::Rect::from_min_max(
+                        egui::pos2(l, cut.y + half),
+                        egui::pos2(cut.x - half, b),
+                    ),
+                    egui::Rect::from_min_max(
+                        egui::pos2(cut.x + half, cut.y + half),
+                        egui::pos2(r, b),
+                    ),
+                ];
+                for (index, rect) in rects.into_iter().enumerate() {
+                    self.viewport_ui(ui, index, rect);
+                }
+
+                // Registered after the panes so they take the pointer first: a
+                // splitter a viewport can steal the drag from is one that only
+                // works some of the time.
+                let vertical = egui::Rect::from_min_max(
+                    egui::pos2(cut.x - half, t),
+                    egui::pos2(cut.x + half, b),
+                );
+                let horizontal = egui::Rect::from_min_max(
+                    egui::pos2(l, cut.y - half),
+                    egui::pos2(r, cut.y + half),
+                );
+                for (bar, axis) in [(vertical, 0usize), (horizontal, 1usize)] {
+                    let response =
+                        ui.interact(bar, ui.id().with(("splitter", axis)), egui::Sense::drag());
+                    if response.hovered() || response.dragged() {
+                        ui.ctx().set_cursor_icon(if axis == 0 {
+                            egui::CursorIcon::ResizeHorizontal
+                        } else {
+                            egui::CursorIcon::ResizeVertical
+                        });
+                    }
+                    if response.dragged() {
+                        let (delta, extent) = if axis == 0 {
+                            (response.drag_delta().x, available.width())
+                        } else {
+                            (response.drag_delta().y, available.height())
+                        };
+                        self.split[axis] =
+                            (self.split[axis] + delta / extent.max(1.0)).clamp(0.1, 0.9);
+                    }
+                    let lit = response.hovered() || response.dragged();
+                    ui.painter().rect_filled(
+                        bar,
+                        0.0,
+                        if lit { colors::ACCENT } else { colors::BORDER },
+                    );
+                }
+            });
     }
 
     pub(super) fn viewport_ui(&mut self, ui: &mut egui::Ui, index: usize, rect: egui::Rect) {
         // A header strip across the top of the pane, and the view under it.
         let header = egui::Rect::from_min_size(rect.min, egui::vec2(rect.width(), PANE_HEADER));
-        let body = egui::Rect::from_min_max(
-            egui::pos2(rect.min.x, rect.min.y + PANE_HEADER),
-            rect.max,
-        );
+        let body =
+            egui::Rect::from_min_max(egui::pos2(rect.min.x, rect.min.y + PANE_HEADER), rect.max);
 
         let response = ui.allocate_rect(body, egui::Sense::click_and_drag());
         self.viewports[index].size = (body.width(), body.height());
@@ -166,7 +177,11 @@ impl ChiselApp {
         let kind = self.viewports[index].kind;
         let active = self.active == index;
 
-        let strip = ui.interact(header, ui.id().with(("pane-header", index)), egui::Sense::click());
+        let strip = ui.interact(
+            header,
+            ui.id().with(("pane-header", index)),
+            egui::Sense::click(),
+        );
         if strip.double_clicked() {
             self.active = index;
             self.toggle_maximised();
@@ -190,11 +205,11 @@ impl ChiselApp {
                     ui.spacing_mut().item_spacing.x = 4.0;
                     ui.spacing_mut().button_padding = egui::vec2(6.0, 1.0);
                     egui::ComboBox::from_id_salt(("view", index))
-                        .selected_text(
-                            RichText::new(kind.label())
-                                .size(11.5)
-                                .color(if active { colors::ACCENT } else { colors::TEXT }),
-                        )
+                        .selected_text(RichText::new(kind.label()).size(11.5).color(if active {
+                            colors::ACCENT
+                        } else {
+                            colors::TEXT
+                        }))
                         .width(100.0)
                         .show_ui(ui, |ui| {
                             for option in crate::viewport::ViewportKind::all() {
@@ -210,7 +225,8 @@ impl ChiselApp {
                     // How far in: a scale for a flat view, a speed for the 3D one.
                     let detail = if kind.is_2d() {
                         let zoom = self.viewports[index].zoom;
-                        let per_square = kerosene_math::units::length_short(self.document.grid.size);
+                        let per_square =
+                            kerosene_math::units::length_short(self.document.grid.size);
                         format!("{per_square} grid   {:.2} px/ku", zoom)
                     } else {
                         format!(

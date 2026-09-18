@@ -131,7 +131,9 @@ impl ChiselApp {
                     "What the block tool draws with, and what a click here puts on the selection.",
                 );
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if widgets::icon_button(ui, icons::ARROW_SQUARE_OUT, "open in a window  (M)").clicked() {
+                if widgets::icon_button(ui, icons::ARROW_SQUARE_OUT, "open in a window  (M)")
+                    .clicked()
+                {
                     self.browsing = Some(Browsing::Material);
                 }
                 if widgets::icon_button(ui, icons::ARROW_CLOCKWISE, "reload textures").clicked() {

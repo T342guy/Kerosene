@@ -18,10 +18,10 @@ use crate::build::Script;
 use anyhow::Result;
 use egui::{Pos2, Rect, Sense, Stroke, StrokeKind, Vec2};
 use kerosene_audio::compiled::{Encoding, Loop};
-use kerosene_ui::theme::{self, colors, icons};
-use kerosene_ui::widgets;
 use kerosene_audio::wav::Sound;
 use kerosene_audio::{Mixer, SoundHandle, SoundParams};
+use kerosene_ui::theme::{self, colors, icons};
+use kerosene_ui::widgets;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
@@ -374,7 +374,9 @@ impl kerosene_ui::App for Timbre {
                     ui.label(theme::icon(icons::SPEAKER_HIGH).color(colors::ACCENT));
                     ui.label(egui::RichText::new("Timbre").strong());
                     ui.add_space(8.0);
-                    if widgets::icon_button(ui, icons::ARROW_CLOCKWISE, "rescan the sound tree").clicked() {
+                    if widgets::icon_button(ui, icons::ARROW_CLOCKWISE, "rescan the sound tree")
+                        .clicked()
+                    {
                         self.rescan();
                     }
                     if ui
@@ -569,11 +571,7 @@ impl Timbre {
             // Anything that reached full scale is drawn in red, because that
             // is what a gain slider needs to tell you and a number cannot.
             let clipped = high >= 0.999 || low <= -0.999;
-            let colour = if clipped {
-                colors::ERR
-            } else {
-                colors::OK
-            };
+            let colour = if clipped { colors::ERR } else { colors::OK };
             painter.line_segment(
                 [
                     Pos2::new(x, mid - high.clamp(-1.0, 1.0) * half),

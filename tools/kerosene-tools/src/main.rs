@@ -112,7 +112,9 @@ fn print_usage() {
     println!("Kerosene toolset -- the editor and every compiler, in one application.");
     println!();
     println!("usage:");
-    println!("  kerosene-tools                          open the toolset window, on the project page");
+    println!(
+        "  kerosene-tools                          open the toolset window, on the project page"
+    );
     println!("  kerosene-tools chisel [map.keromap]     open the editor");
     println!("  kerosene-tools timbre                   open the sound editor");
     println!();

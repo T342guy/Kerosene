@@ -29,10 +29,16 @@ impl ToolKind {
     pub(super) fn describe(self) -> &'static str {
         match self {
             ToolKind::Select => "Click to select; drag to move. Shift adds to the selection.",
-            ToolKind::Block => "Drag a box in a 2D pane to make a brush, snapped outward to the grid.",
+            ToolKind::Block => {
+                "Drag a box in a 2D pane to make a brush, snapped outward to the grid."
+            }
             ToolKind::Entity => "Click in a pane to place the chosen entity class.",
-            ToolKind::Texture => "Click a face in the 3D pane to select it; the inspector edits how its material sits.",
-            ToolKind::Shape => "Drag a box in a 2D pane and fill it with a wedge, cylinder, cone, arch or stairs.",
+            ToolKind::Texture => {
+                "Click a face in the 3D pane to select it; the inspector edits how its material sits."
+            }
+            ToolKind::Shape => {
+                "Drag a box in a 2D pane and fill it with a wedge, cylinder, cone, arch or stairs."
+            }
         }
     }
 }
@@ -163,7 +169,10 @@ impl ChiselApp {
                         for target in TextureTarget::all() {
                             let selected = self.tool.texture_target == target;
                             if ui
-                                .selectable_label(selected, RichText::new(target.label()).size(12.0))
+                                .selectable_label(
+                                    selected,
+                                    RichText::new(target.label()).size(12.0),
+                                )
                                 .on_hover_text(target.describe())
                                 .clicked()
                             {
@@ -198,11 +207,15 @@ impl ChiselApp {
                         let button = ui
                             .add_enabled(
                                 !compiling,
-                                egui::Button::new(RichText::new(label).size(12.0).color(colors::ON_ACCENT))
-                                    .fill(colors::ACCENT)
-                                    .stroke(egui::Stroke::NONE),
+                                egui::Button::new(
+                                    RichText::new(label).size(12.0).color(colors::ON_ACCENT),
+                                )
+                                .fill(colors::ACCENT)
+                                .stroke(egui::Stroke::NONE),
                             )
-                            .on_hover_text("Compile (fast) and run.  F9\nmap -> compile... for the settings.");
+                            .on_hover_text(
+                                "Compile (fast) and run.  F9\nmap -> compile... for the settings.",
+                            );
                         if button.clicked() {
                             self.compile_now(Quality::Fast);
                         }
@@ -226,7 +239,8 @@ impl ChiselApp {
                         if widgets::icon_button(ui, glyph, tip).clicked() {
                             self.toggle_maximised();
                         }
-                        if widgets::icon_button(ui, icons::CROSSHAIR, "frame everything").clicked() {
+                        if widgets::icon_button(ui, icons::CROSSHAIR, "frame everything").clicked()
+                        {
                             self.frame_all();
                         }
                     });
@@ -363,10 +377,8 @@ impl ChiselApp {
                         // The same icon the viewport will draw, so the list
                         // and the map read as the same thing.
                         let item = ui.horizontal(|ui| {
-                            let (rect, _) = ui.allocate_exact_size(
-                                egui::vec2(16.0, 16.0),
-                                egui::Sense::hover(),
-                            );
+                            let (rect, _) = ui
+                                .allocate_exact_size(egui::vec2(16.0, 16.0), egui::Sense::hover());
                             crate::icons::draw(
                                 ui.painter(),
                                 rect.center(),

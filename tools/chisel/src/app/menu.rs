@@ -32,10 +32,11 @@ impl ChiselApp {
                         } else {
                             colors::TEXT_MUTED
                         });
-                        ui.label(title).on_hover_text(match self.document.path.as_deref() {
-                            Some(path) => path.display().to_string(),
-                            None => "not saved anywhere yet".to_string(),
-                        });
+                        ui.label(title)
+                            .on_hover_text(match self.document.path.as_deref() {
+                                Some(path) => path.display().to_string(),
+                                None => "not saved anywhere yet".to_string(),
+                            });
                     });
                 });
             });
@@ -99,8 +100,7 @@ impl ChiselApp {
     fn edit_menu(&mut self, ui: &mut egui::Ui) {
         let undo = self.document.undo_label().map(str::to_string);
         let label = undo.map_or("Undo".to_string(), |l| format!("Undo {l}"));
-        if menu_item_enabled(ui, self.document.undo_depth() > 0, &label, Some("ctrl-Z")).clicked()
-        {
+        if menu_item_enabled(ui, self.document.undo_depth() > 0, &label, Some("ctrl-Z")).clicked() {
             self.undo();
             ui.close();
         }

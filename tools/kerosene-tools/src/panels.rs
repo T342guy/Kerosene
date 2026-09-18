@@ -265,8 +265,9 @@ impl BuildPanel {
                     }
                 });
                 ui.add_space(4.0);
-                ui.checkbox(&mut self.fast, "fast")
-                    .on_hover_text("Skip full visibility and lighting. For iterating, not shipping.");
+                ui.checkbox(&mut self.fast, "fast").on_hover_text(
+                    "Skip full visibility and lighting. For iterating, not shipping.",
+                );
             });
 
             ui.add_space(10.0);
@@ -296,7 +297,11 @@ impl BuildPanel {
             if let Some(job) = &mut self.job {
                 job.poll();
             }
-            outcome_line(ui, self.job.as_ref(), "run a build; its log goes to the output panel");
+            outcome_line(
+                ui,
+                self.job.as_ref(),
+                "run a build; its log goes to the output panel",
+            );
         });
         if start {
             self.start();
@@ -355,7 +360,10 @@ impl ArchivePanel {
                 ui.label(theme::mono(archive.display().to_string()));
                 match size {
                     Some(bytes) => {
-                        ui.label(theme::caption(format!("{:.1} MB", bytes as f64 / 1_048_576.0)));
+                        ui.label(theme::caption(format!(
+                            "{:.1} MB",
+                            bytes as f64 / 1_048_576.0
+                        )));
                     }
                     None => {
                         ui.label(theme::caption("not written yet"));

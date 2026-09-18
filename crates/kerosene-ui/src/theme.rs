@@ -191,7 +191,9 @@ pub fn ok(text: impl Into<String>) -> RichText {
 
 /// An icon glyph on its own, sized to sit beside text.
 pub fn icon(glyph: &str) -> RichText {
-    RichText::new(glyph).family(FontFamily::Proportional).size(14.0)
+    RichText::new(glyph)
+        .family(FontFamily::Proportional)
+        .size(14.0)
 }
 
 #[cfg(test)]

@@ -191,7 +191,11 @@ impl OutputPanel {
                         };
                         let text = egui::RichText::new(format!("{mark} {}", source.name))
                             .size(12.0)
-                            .color(if current { egui::Color32::WHITE } else { colour });
+                            .color(if current {
+                                egui::Color32::WHITE
+                            } else {
+                                colour
+                            });
                         if ui.selectable_label(current, text).clicked() {
                             self.selected = index;
                         }

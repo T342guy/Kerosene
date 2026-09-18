@@ -171,12 +171,8 @@ impl ChiselApp {
                         if compiling {
                             ui.add(egui::Spinner::new().size(11.0).color(colors::ACCENT));
                         }
-                        ui.label(
-                            theme::mono(&self.status)
-                                .color(colors::TEXT)
-                                .size(11.0),
-                        )
-                        .on_hover_text(&self.status);
+                        ui.label(theme::mono(&self.status).color(colors::TEXT).size(11.0))
+                            .on_hover_text(&self.status);
                     });
                 });
             });
@@ -187,7 +183,11 @@ impl ChiselApp {
 fn segment(ui: &mut egui::Ui, glyph: &str, text: &str, colour: egui::Color32) -> egui::Response {
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing.x = 3.0;
-        ui.label(theme::icon(glyph).size(12.0).color(colour.gamma_multiply(0.8)));
+        ui.label(
+            theme::icon(glyph)
+                .size(12.0)
+                .color(colour.gamma_multiply(0.8)),
+        );
         ui.label(theme::mono(text).size(11.0).color(colour));
     })
     .response

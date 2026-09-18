@@ -7,7 +7,9 @@
 //! editor's tool strip and the toolset's activity bar are the same widget
 //! rather than two that nearly match.
 
-use egui::{Align, Color32, CornerRadius, FontFamily, FontId, Layout, Response, Sense, Stroke, Ui, Vec2};
+use egui::{
+    Align, Color32, CornerRadius, FontFamily, FontId, Layout, Response, Sense, Stroke, Ui, Vec2,
+};
 
 use crate::theme::{self, colors};
 
@@ -207,8 +209,11 @@ pub fn tab_bar(ui: &mut Ui, tabs: &[(&str, &str)], selected: &mut usize) -> bool
     });
     let rule = ui.available_rect_before_wrap();
     let y = ui.cursor().min.y;
-    ui.painter()
-        .hline(rule.min.x..=rule.max.x, y, Stroke::new(1.0_f32, colors::BORDER));
+    ui.painter().hline(
+        rule.min.x..=rule.max.x,
+        y,
+        Stroke::new(1.0_f32, colors::BORDER),
+    );
     ui.add_space(4.0);
     changed
 }
@@ -325,7 +330,11 @@ mod tests {
             section(ui, "grid", |ui| {
                 ui.label("body");
             });
-            tab_bar(ui, &[("", "Object"), (theme::icons::CUBE, "Tool")], &mut tab);
+            tab_bar(
+                ui,
+                &[("", "Object"), (theme::icons::CUBE, "Tool")],
+                &mut tab,
+            );
             chip(ui, "textures", &mut on);
             menu_item(ui, "save", Some("ctrl-S"));
             fact(ui, "content", "/tmp");

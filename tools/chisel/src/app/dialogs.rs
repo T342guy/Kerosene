@@ -52,9 +52,7 @@ impl ChiselApp {
                             let label = files::label(&path, &self.content_root);
                             let exists = path.exists();
                             let note = if exists && kind == PromptKind::SaveAs {
-                                theme::warn(format!(
-                                    "{label}  -- overwrites the map already there"
-                                ))
+                                theme::warn(format!("{label}  -- overwrites the map already there"))
                             } else {
                                 theme::caption(label)
                             };
