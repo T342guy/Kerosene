@@ -28,6 +28,7 @@ pub mod engine;
 pub mod game;
 pub mod host;
 pub mod input;
+pub mod launch;
 pub mod physics;
 pub mod scripting;
 pub mod streaming;

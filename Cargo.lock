@@ -1605,16 +1605,9 @@ name = "kerosene-runtime"
 version = "0.1.0-prealpha.4"
 dependencies = [
  "anyhow",
- "clap",
- "env_logger",
- "kerosene-config",
- "kerosene-console",
  "kerosene-engine",
  "kerosene-entity",
  "kerosene-game",
- "kerosene-math",
- "kerosene-vfs",
- "log",
 ]
 
 [[package]]
