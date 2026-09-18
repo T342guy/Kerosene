@@ -490,6 +490,33 @@ mod tests {
     }
 
     #[test]
+    fn a_games_schema_and_runtime_reach_the_editor() {
+        let (_, root) = toolset_in("game-schema");
+        let toolset = Toolset::open(Launch {
+            tab: Tab::Editor,
+            content: Some(root.clone()),
+            schema: vec![r#"class { "name" "item_pickup" "base" "Entity" "base" "Point" }"#],
+            runtime: Some(kerosene_vfs::toolchain::Runtime::Binary(PathBuf::from(
+                "/x/mygame",
+            ))),
+            ..Default::default()
+        })
+        .unwrap();
+        let spec = toolset
+            .editor
+            .schema
+            .get("item_pickup")
+            .expect("the game's class");
+        assert!(spec.key("origin").is_some(), "with the engine's bases");
+        assert!(toolset.editor.schema.get("func_door").is_some());
+        assert_eq!(
+            toolset.editor.compile_settings.runtime,
+            kerosene_vfs::toolchain::Runtime::Binary(PathBuf::from("/x/mygame"))
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
     fn a_project_naming_a_game_package_is_what_f9_launches() {
         let (_, root) = toolset_in("game-key");
         std::fs::write(

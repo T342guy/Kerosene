@@ -232,8 +232,15 @@ fn an_explicit_content_directory_still_beats_a_project_file() {
     .unwrap();
 
     let asked = dir.join("what/i/asked/for");
+    std::fs::create_dir_all(&asked).unwrap();
     let found = find(Some(&asked), Some(&dir.join("maps/x.keromap"))).unwrap();
     assert_eq!(found.root, asked);
+    // The project is still read for what else it says, without moving the
+    // root: a game package named there is what the tools launch.
+    assert!(
+        found.project.is_some(),
+        "the project above the explicit directory is carried along"
+    );
 
     let _ = std::fs::remove_dir_all(&dir);
 }

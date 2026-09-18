@@ -83,7 +83,18 @@ pub fn find(explicit: Option<&Path>, map: Option<&Path>) -> Option<Found> {
     if let Some(dir) = explicit {
         // An explicit path is taken at its word even if it looks wrong: being
         // overruled by a guess is worse than being told the answer is empty.
-        return Some(Found::guessed(dir.to_path_buf(), "given with --content"));
+        // The project file above it is still read, for what it says beyond
+        // where the content is -- the start map, the game package -- but it
+        // does not get to move the root.
+        return Some(Found {
+            root: dir.to_path_buf(),
+            why: "given with --content",
+            // Made absolute first: climbing from a relative `content` would
+            // run out of path after one step.
+            project: climb_for_project(
+                &std::path::absolute(dir).unwrap_or_else(|_| dir.to_path_buf()),
+            ),
+        });
     }
 
     let map_dir = map.and_then(|m| m.parent()).map(Path::to_path_buf);
