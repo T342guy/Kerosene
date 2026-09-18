@@ -29,12 +29,14 @@ mod dialogs;
 mod menu;
 mod panel;
 mod properties;
+mod report;
 mod status;
 mod toolbar;
 mod transform;
 mod viewports;
 mod visgroups;
 mod widgets;
+pub use report::{EntityReport, ReportKind, ReportRow};
 pub use transform::{TransformDialog, TransformMode};
 
 use widgets::*;
@@ -283,6 +285,8 @@ pub struct ChiselApp {
     hollow_thickness: f32,
     /// The transform dialog's state.
     transform: TransformDialog,
+    pub report: EntityReport,
+    pub show_history: bool,
 }
 
 /// A rendered 3D pane and the state it was rendered from.
@@ -518,6 +522,8 @@ impl ChiselApp {
             show_transform: false,
             hollow_thickness: 16.0,
             transform: TransformDialog::default(),
+            report: EntityReport::default(),
+            show_history: false,
         }
     }
 
@@ -780,6 +786,8 @@ impl ChiselApp {
         self.file_windows(ctx);
         self.hollow_window(ctx);
         self.transform_window(ctx);
+        self.report_window(ctx);
+        self.history_window(ctx);
         self.property_window_ui(ctx);
         self.viewports_panel(ctx);
     }
@@ -831,6 +839,7 @@ impl ChiselApp {
             FlipVertical,
             Rotate90,
             AlignToGrid,
+            Report,
         }
 
         let mut actions = Vec::new();
@@ -898,6 +907,9 @@ impl ChiselApp {
             }
             if i.consume_key(ctrl, Key::B) && !typing {
                 actions.push(Action::AlignToGrid)
+            }
+            if i.consume_key(ctrl | Modifiers::SHIFT, Key::E) && !typing {
+                actions.push(Action::Report)
             }
 
             if typing {
@@ -1037,6 +1049,7 @@ impl ChiselApp {
                 Action::FlipVertical => self.flip(false),
                 Action::Rotate90 => self.rotate_90(),
                 Action::AlignToGrid => self.align_to_grid(),
+                Action::Report => self.report.open = !self.report.open,
                 Action::CycleTextureMode => {
                     self.tool.texture_mode = self.tool.texture_mode.next();
                     self.status = format!("texture tool: {}", self.tool.texture_mode.label());
@@ -1798,6 +1811,64 @@ mod tests {
         app.apply_transform();
         let z = app.document.map.find_solid(id).unwrap().bounds().max.z;
         assert!((z - 64.0).abs() < 1e-3, "{z}");
+    }
+
+    #[test]
+    fn the_entity_report_lists_finds_and_flags_dangling_wiring() {
+        let mut app = app_with_shipped_content();
+        app.document = starter_document();
+        let door = app.document.create_entity("func_door", Vec3::ZERO);
+        let button = app
+            .document
+            .create_entity("func_button", Vec3::new(64.0, 0.0, 0.0));
+        app.document
+            .find_entity_mut(door)
+            .unwrap()
+            .set("targetname", "door1");
+        app.document
+            .find_entity_mut(button)
+            .unwrap()
+            .connect(Connection::new("OnPressed", "door1", "Open"))
+            .connect(Connection::new("OnPressed", "lift_nobody_made", "Open"))
+            .connect(Connection::new("OnPressed", "!activator", "Kill"));
+
+        let rows = app.report_rows();
+        assert!(rows.iter().any(|r| r.id == door && r.targetname == "door1"));
+        let b = rows.iter().find(|r| r.id == button).unwrap();
+        assert_eq!(b.dangling, vec!["OnPressed -> lift_nobody_made"]);
+
+        app.report.filter = "DOOR".into();
+        let rows = app.report_rows();
+        assert!(rows.iter().all(|r| r.classname.contains("door")));
+        app.report.filter.clear();
+        app.report.problems_only = true;
+        let rows = app.report_rows();
+        assert_eq!(rows.iter().map(|r| r.id).collect::<Vec<_>>(), vec![button]);
+
+        app.go_to_entity(door);
+        assert!(app.document.selection.entities.contains(&door));
+        assert_eq!(app.document.selection.len(), 1);
+
+        // It draws.
+        app.report.open = true;
+        app.show_history = true;
+        let ctx = Context::default();
+        let _ = ctx.run(egui::RawInput::default(), |ctx| app.ui(ctx));
+    }
+
+    #[test]
+    fn the_history_walks_the_undo_stack_by_depth() {
+        let mut app = app_with_shipped_content();
+        app.document = starter_document();
+        let before = app.document.undo_depth();
+        app.document.create_block(Vec3::ZERO, Vec3::splat(16.0));
+        app.document.create_block(Vec3::ZERO, Vec3::splat(32.0));
+        app.document.create_block(Vec3::ZERO, Vec3::splat(48.0));
+        assert_eq!(app.document.undo_labels().len(), before + 3);
+        assert_eq!(app.document.undo_to(before + 1), -2);
+        assert_eq!(app.document.redo_labels().len(), 2);
+        assert_eq!(app.document.undo_to(before + 3), 2);
+        assert!(app.document.redo_labels().is_empty());
     }
 
     #[test]

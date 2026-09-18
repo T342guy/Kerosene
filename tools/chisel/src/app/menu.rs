@@ -143,6 +143,20 @@ impl ChiselApp {
             self.open_property_window();
             ui.close();
         }
+        if menu_item(ui, "Entity report...", Some("ctrl-shift-E"))
+            .on_hover_text("Every entity, filterable, with the wiring that points at nothing.")
+            .clicked()
+        {
+            self.report.open = true;
+            ui.close();
+        }
+        if menu_item(ui, "History...", None)
+            .on_hover_text("The undo stack, with names; click a step to go back to it.")
+            .clicked()
+        {
+            self.show_history = true;
+            ui.close();
+        }
     }
 
     fn map_menu(&mut self, ui: &mut egui::Ui) {

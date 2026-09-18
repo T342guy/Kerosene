@@ -182,6 +182,29 @@ impl Document {
         self.undo.last().map(|s| s.label.0.as_str())
     }
 
+    /// Every undoable step, oldest first.
+    pub fn undo_labels(&self) -> Vec<&str> {
+        self.undo.iter().map(|s| s.label.0.as_str()).collect()
+    }
+
+    /// Every redoable step, next-to-redo first.
+    pub fn redo_labels(&self) -> Vec<&str> {
+        self.redo.iter().rev().map(|s| s.label.0.as_str()).collect()
+    }
+
+    /// Undo or redo until the undo stack is `depth` deep. Returns how far
+    /// it moved: negative for steps undone, positive for steps redone.
+    pub fn undo_to(&mut self, depth: usize) -> i32 {
+        let mut moved = 0;
+        while self.undo.len() > depth && self.undo().is_some() {
+            moved -= 1;
+        }
+        while self.undo.len() < depth && self.redo().is_some() {
+            moved += 1;
+        }
+        moved
+    }
+
     /// Run an edit, recording it in the history.
     ///
     /// The snapshot is taken *before* the closure runs, so undo restores the
