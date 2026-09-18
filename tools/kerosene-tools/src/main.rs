@@ -54,7 +54,7 @@ fn main() -> Result<()> {
         "timbre" if opens_sound_window(&args[1..]) => run_gui(Launch {
             tab: Tab::Sound,
             content: first_content_flag(&args[1..]),
-            map: None,
+            ..Default::default()
         }),
         other => run_subcommand(other, args[1..].to_vec()),
     }
@@ -84,6 +84,7 @@ fn parse_editor_launch(args: &[String]) -> Launch {
         tab: Tab::Editor,
         content,
         map,
+        ..Default::default()
     }
 }
 

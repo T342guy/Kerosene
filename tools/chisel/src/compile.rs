@@ -11,6 +11,7 @@
 //! editor stays responsive and the log appears as it happens rather than all
 //! at once at the end. A compile of a real level takes minutes.
 
+use kerosene_vfs::toolchain::{self, Runtime};
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -41,6 +42,9 @@ pub struct CompileSettings {
     pub ignore_leaks: bool,
     /// Launch the engine on the result.
     pub run_after: bool,
+    /// Which engine: the stock runtime beside the tools, or the project's
+    /// own game package, built first.
+    pub runtime: Runtime,
 }
 
 impl Default for CompileSettings {
@@ -56,6 +60,7 @@ impl Default for CompileSettings {
             bounces: 1,
             ignore_leaks: false,
             run_after: true,
+            runtime: Runtime::default(),
         }
     }
 }
@@ -290,21 +295,36 @@ fn run_compile(
         && let Some(name) = compiled.file_stem().and_then(|s| s.to_str())
     {
         let _ = sender.send(CompileMessage::Stage(format!("launching {name}")));
-        // Detached, so the editor does not block on the game and closing
-        // the game does not take the editor with it. The content root is
-        // handed over explicitly: the editor already knows which tree
-        // this map belongs to, and letting the game work it out again --
-        // from a working directory it inherited from the editor, which
-        // inherited it from a shell -- is how a map compiled here comes
-        // to be launched against a content tree somewhere else.
-        let _ = tool_command("kerosene")
-            .arg("--content")
-            .arg(&settings.content_root)
-            .arg("+map")
-            .arg(name)
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .spawn();
+        // A game package is built first, as a debug build: F9 is the
+        // edit-compile-play loop and a release build every press would be
+        // most of the wait. Cargo's lines go to the output panel like a
+        // compiler's do.
+        let mut log = |line: &str| {
+            let _ = sender.send(CompileMessage::Line(line.to_string()));
+        };
+        match runtime_command(&settings.runtime, &mut log) {
+            // Detached, so the editor does not block on the game and
+            // closing the game does not take the editor with it. The
+            // content root is handed over explicitly: the editor already
+            // knows which tree this map belongs to, and letting the game
+            // work it out again -- from a working directory it inherited
+            // from the editor, which inherited it from a shell -- is how a
+            // map compiled here comes to be launched against a content tree
+            // somewhere else.
+            Ok(mut command) => {
+                let _ = command
+                    .arg("--content")
+                    .arg(&settings.content_root)
+                    .arg("+map")
+                    .arg(name)
+                    .stdout(Stdio::null())
+                    .stderr(Stdio::null())
+                    .spawn();
+            }
+            Err(e) => {
+                let _ = sender.send(CompileMessage::Line(format!("could not launch: {e:#}")));
+            }
+        }
     }
 
     Ok(())
@@ -376,17 +396,16 @@ fn stage(tool: &str, args: &[String], sender: &Sender<CompileMessage>) -> Result
 /// running one means re-invoking ourselves with the subcommand first.
 const COMPILERS: &[&str] = &["cleave", "umbra", "resonance", "radiance"];
 
-/// Build a command for one of the pieces the compile pipeline needs.
+/// A command that runs the game, building it first if it is a package.
+pub fn runtime_command(runtime: &Runtime, log: &mut dyn FnMut(&str)) -> anyhow::Result<Command> {
+    toolchain::resolve(runtime, toolchain::Profile::Debug, log)
+}
+
+/// Build a command for one of the compilers.
 ///
-/// The compilers are subcommands of this same executable. The engine runtime
-/// is still its own binary, found beside us and then on PATH.
+/// They are subcommands of this same executable. The game is not: see
+/// [`runtime_command`].
 pub fn tool_command(name: &str) -> Command {
-    if name == "kerosene" {
-        return match tool_path(name) {
-            Some(path) => Command::new(path),
-            None => Command::new(name),
-        };
-    }
     if COMPILERS.contains(&name) {
         let exe = std::env::current_exe().unwrap_or_else(|_| PathBuf::from("kerosene-tools"));
         let mut command = Command::new(exe);
@@ -398,43 +417,19 @@ pub fn tool_command(name: &str) -> Command {
     Command::new(name)
 }
 
-/// Where a sibling *binary* lives, if it is next to this executable.
-///
-/// Used for the runtime, which is not a subcommand of the toolset.
-pub fn tool_path(name: &str) -> Option<PathBuf> {
-    let exe = std::env::current_exe().ok()?;
-    let dir = exe.parent()?;
-    let candidate = dir.join(if cfg!(windows) {
-        format!("{name}.exe")
-    } else {
-        name.to_string()
-    });
-    candidate.is_file().then_some(candidate)
-}
-
 /// Which of the tools Chisel needs are actually present.
 ///
 /// Reported in the compile dialog, because "nothing happened when I pressed
 /// compile" is otherwise a mystery. The compilers are always present -- they
-/// are this binary -- and only the engine runtime is looked up.
-pub fn available_tools() -> Vec<(&'static str, bool)> {
-    ["cleave", "umbra", "resonance", "radiance", "kerosene"]
+/// are this binary -- and only the game is looked up, described as what it
+/// is: a sibling binary, a path, or a package to build.
+pub fn available_tools(runtime: &Runtime) -> Vec<(String, bool)> {
+    let mut found: Vec<(String, bool)> = COMPILERS
         .iter()
-        .map(|&name| {
-            let found = if COMPILERS.contains(&name) {
-                true
-            } else {
-                tool_path(name).is_some()
-                    || Command::new(name)
-                        .arg("--help")
-                        .stdout(Stdio::null())
-                        .stderr(Stdio::null())
-                        .status()
-                        .is_ok()
-            };
-            (name, found)
-        })
-        .collect()
+        .map(|&name| (name.to_string(), true))
+        .collect();
+    found.push((runtime.describe(), runtime.is_available()));
+    found
 }
 
 #[cfg(test)]

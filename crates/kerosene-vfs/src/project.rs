@@ -16,7 +16,8 @@
 //!     "name"     "My Mod"
 //!     "content"  "content"
 //!     "startmap" "mm_intro"
-//!     "game"     "my-mod"
+//!     "game"     "my-mod"        // the Cargo package that is the game
+//!     "bin"      "mymod"         // its binary, when not named after the package
 //!
 //!     // The tree to create, if the standard one is not wanted. Repeat the
 //!     // key rather than separating with commas.
@@ -50,12 +51,16 @@ pub struct Project {
     /// that is a library of maps has no one answer, and inventing one would
     /// be worse than admitting it.
     pub start_map: Option<String>,
-    /// The Cargo package whose binary *is* the game, for `kiln --ship`.
+    /// The Cargo package whose binary *is* the game.
     ///
-    /// A project that only holds content has none, and ships the engine's own
-    /// runtime instead. Naming a package is what turns a content tree into a
-    /// game somebody can be handed.
+    /// A project that only holds content has none, and runs and ships the
+    /// engine's own runtime instead. Naming a package is what turns a content
+    /// tree into a game somebody can be handed: `kiln --ship` builds it, and
+    /// the editor builds and launches it on F9.
     pub game: Option<String>,
+    /// The name of that package's binary, when it is not the package's own
+    /// name -- a package `my-game` with `[[bin]] name = "mygame"`.
+    pub bin: Option<String>,
     /// The directories the content tree is made of, when the project says.
     ///
     /// The tree is created on first run from [`root::CONTENT_DIRS`], which is
@@ -120,6 +125,11 @@ impl Project {
                 .map(str::to_string),
             game: block
                 .get("game")
+                .map(str::trim)
+                .filter(|g| !g.is_empty())
+                .map(str::to_string),
+            bin: block
+                .get("bin")
                 .map(str::trim)
                 .filter(|g| !g.is_empty())
                 .map(str::to_string),

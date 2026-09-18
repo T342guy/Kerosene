@@ -104,7 +104,7 @@ impl ChiselApp {
                         "Chisel runs the compilers as subcommands of this same toolset.",
                     ));
                     ui.add_space(4.0);
-                    for (name, found) in available_tools() {
+                    for (name, found) in available_tools(&self.compile_settings.runtime) {
                         ui.horizontal(|ui| {
                             let (glyph, colour) = if found {
                                 (icons::CHECK_CIRCLE, colors::OK)
@@ -112,12 +112,12 @@ impl ChiselApp {
                                 (icons::X_CIRCLE, colors::ERR)
                             };
                             ui.label(theme::icon(glyph).color(colour));
-                            ui.label(theme::mono(name).color(colour));
+                            ui.label(theme::mono(&name).color(colour));
                         });
                     }
                     ui.add_space(4.0);
                     ui.label(theme::caption(
-                        "Build them with: cargo build -p kerosene-tools -p kerosene",
+                        "Build them with: cargo build -p kerosene-tools -p kerosene-runtime",
                     ));
                 },
                 |ui| {

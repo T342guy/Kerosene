@@ -38,8 +38,8 @@
 
 use crate::{Settings, slug};
 use anyhow::{Context, Result, bail};
+use kerosene_vfs::toolchain;
 use std::path::{Path, PathBuf};
-use std::process::Stdio;
 use std::time::SystemTime;
 
 /// The licence texts, compiled in.
@@ -207,64 +207,38 @@ fn collect_newer(dir: &Path, skip: &Path, when: SystemTime, out: &mut Vec<PathBu
 /// names none is a content tree, and what it ships is the engine's own
 /// runtime -- which is already built and sitting beside `kiln`.
 fn game_binary(settings: &Settings) -> Result<PathBuf> {
-    let Some(package) = settings.project.as_ref().and_then(|p| p.game.as_deref()) else {
-        return kerosene_vfs::toolchain::path("kerosene").context(
+    let runtime = toolchain::Runtime::for_project(settings.project.as_ref());
+    match runtime {
+        toolchain::Runtime::Package {
+            name,
+            bin,
+            project_dir,
+        } => {
+            if settings.dry_run {
+                println!("  would run: cargo build --release -p {name}");
+                return toolchain::built_binary(
+                    &project_dir,
+                    bin.as_deref().unwrap_or(&name),
+                    toolchain::Profile::Release,
+                )
+                .with_context(|| format!("{name} has not been built in release yet"));
+            }
+            println!("  building {name}");
+            let mut log = |line: &str| println!("  {line}");
+            toolchain::build_package(
+                &project_dir,
+                &name,
+                bin.as_deref(),
+                toolchain::Profile::Release,
+                &mut log,
+            )
+        }
+        _ => toolchain::path(toolchain::RUNTIME).context(
             "no `game` key in the project and no `kerosene` beside kiln, so there is \
              nothing to ship. Add `\"game\" \"<cargo package>\"` to the .keroproj, \
              or run kiln from beside the engine.",
-        );
-    };
-
-    let from = settings
-        .project
-        .as_ref()
-        .and_then(|p| p.path.parent())
-        .unwrap_or(Path::new("."))
-        .to_path_buf();
-
-    if settings.dry_run {
-        println!("  would run: cargo build --release -p {package}");
-    } else {
-        println!("  building {package}");
-        let status = std::process::Command::new("cargo")
-            .args(["build", "--release", "-p", package])
-            .current_dir(&from)
-            .stdout(Stdio::inherit())
-            .stderr(Stdio::inherit())
-            .status()
-            .context("running cargo. A project with a `game` key is built from source.")?;
-        if !status.success() {
-            bail!("cargo build -p {package} failed ({status})");
-        }
+        ),
     }
-
-    built_binary(&from, package).with_context(|| {
-        format!(
-            "cargo built {package}, but its binary is not under any target/release above {}",
-            from.display()
-        )
-    })
-}
-
-/// Where cargo left the binary, by climbing for the workspace's target/.
-///
-/// Cheaper and less brittle than parsing `cargo metadata`, which would need a
-/// JSON dependency to answer a question a directory walk answers.
-fn built_binary(from: &Path, package: &str) -> Option<PathBuf> {
-    let file = if cfg!(windows) {
-        format!("{package}.exe")
-    } else {
-        package.to_string()
-    };
-    let mut at = Some(from);
-    while let Some(dir) = at {
-        let candidate = dir.join("target").join("release").join(&file);
-        if candidate.is_file() {
-            return Some(candidate);
-        }
-        at = dir.parent();
-    }
-    None
 }
 
 /// Write the project file the shipped game reads.

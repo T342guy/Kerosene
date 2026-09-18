@@ -95,6 +95,10 @@ pub struct Launch {
     pub content: Option<PathBuf>,
     /// A map to open in the editor, when named on the command line.
     pub map: Option<PathBuf>,
+    /// Which binary is the game, when the caller knows: a game that
+    /// re-hosts the toolset names its own package. `None` asks the project
+    /// file, and falls back to the stock runtime.
+    pub runtime: Option<kerosene_vfs::toolchain::Runtime>,
 }
 
 /// The jobs whose logs the output panel shows, in the order it lists them.
@@ -141,6 +145,14 @@ impl Toolset {
         let mut editor = ChiselApp::new(root.clone());
         editor.content_note = kerosene_vfs::root::describe(&found);
         editor.compile_settings.content_root = root.clone();
+        // F9 runs the project's own game when it names one; the stock
+        // runtime otherwise. Decided here, once, so the editor's compile
+        // dialog can say which before anyone presses the key.
+        let project = found.as_ref().and_then(|f| f.project.as_ref());
+        editor.compile_settings.runtime = launch
+            .runtime
+            .clone()
+            .unwrap_or_else(|| kerosene_vfs::toolchain::Runtime::for_project(project));
         if let Some(map) = launch.map {
             editor.open(map);
         } else if found.is_none() {
@@ -155,7 +167,6 @@ impl Toolset {
             Err(e) => (None, format!("could not open the sound editor: {e:#}")),
         };
 
-        let project = found.as_ref().and_then(|f| f.project.as_ref());
         Ok(Toolset {
             tab: launch.tab,
             project: ProjectPanel::new(root.clone(), project, kerosene_vfs::root::describe(&found)),
@@ -468,10 +479,36 @@ mod tests {
         let toolset = Toolset::open(Launch {
             tab: Tab::Project,
             content: Some(root.clone()),
-            map: None,
+            ..Default::default()
         })
         .unwrap();
         (toolset, root)
+    }
+
+    #[test]
+    fn a_project_naming_a_game_package_is_what_f9_launches() {
+        let (_, root) = toolset_in("game-key");
+        std::fs::write(
+            root.join("mine.keroproj"),
+            "project { \"name\" \"Mine\" \"content\" \".\" \"game\" \"my-game\" }",
+        )
+        .unwrap();
+        // Found through the map, the way a double-clicked map is: an
+        // explicit --content is taken at its word and reads no project.
+        let map = root.join("maps").join("mine.keromap");
+        std::fs::create_dir_all(map.parent().unwrap()).unwrap();
+        std::fs::write(&map, chisel::app::starter_document().map.to_text()).unwrap();
+        let toolset = Toolset::open(Launch {
+            tab: Tab::Editor,
+            map: Some(map),
+            ..Default::default()
+        })
+        .unwrap();
+        match &toolset.editor.compile_settings.runtime {
+            kerosene_vfs::toolchain::Runtime::Package { name, .. } => assert_eq!(name, "my-game"),
+            other => panic!("expected the project's package, got {other:?}"),
+        }
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
