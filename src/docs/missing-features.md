@@ -258,7 +258,10 @@ for completeness.
   skeletal or morph import.
 - **Model LOD generation.** None.
 - **Terrain tooling.** Brushes only; no heightmap terrain or terrain editor.
-- **Level streaming / world partition.** One monolithic `.kerobsp` per map.
+- ~~**Level streaming / world partition.**~~ Sections: a visgroup marked as
+  streamed is loaded and unloaded around the player by potential
+  visibility (see [`architecture.md`](architecture.md#streamed-sections)).
+  Still one `.kerobsp` per map, compiled and lit as one; not an open world.
 - **Visibility control for the mapper.** No `func_areaportal`, no hint or
   skip brushes, no occluders, so there is no way to steer Umbra on a level
   it gets wrong.
@@ -328,27 +331,29 @@ Chisel:
 
 - **3D lighting preview** (acknowledged). Baked lighting is not visible
   until compile and run.
-- **VisGroups.** Nothing hides a set of brushes. Past a couple of hundred the
-  map is unreadable in the 2D panes. The first thing to add.
+- ~~**VisGroups.**~~ Fixed: a VisGroups tab with nested user groups and
+  automatic ones, quick-hide, groups, and object colours.
 - **Autosave and recovery.** None. A crash loses the session.
 - **Recent files.** None.
-- **Cordon.** No way to compile a region of a map.
-- **Carve.** Hollow exists; carve does not.
+- ~~**Cordon.**~~ Fixed: a box that limits what is shown and what Cleave
+  compiles, sealed by its own walls.
+- ~~**Carve.**~~ Fixed, along with hollow and a clip tool.
 - **Instances / prefabs** (section 11) and a prefab library in the browser.
-- **Entity report.** No list of every entity in the map, filterable by class.
-- **Check for problems.** Leak detection exists; there is no dialog that
-  finds dangling I/O targets, an output aimed at nothing, a missing texture
-  or an entity with no name that something targets.
-- **Undo history panel.** Undo works; nothing shows it.
+- ~~**Entity report.**~~ Fixed: filterable, and it marks outputs aimed at
+  nothing.
+- **Check for problems.** Leak detection exists and the entity report finds
+  dangling I/O; there is still no one dialog for a missing texture or an
+  entity with no name that something targets.
+- ~~**Undo history panel.**~~ Fixed: `Edit → History...`.
 - **Vertex/edge editing.** Brushes are plane-defined; no direct vertex
   manipulation.
 - **Texture painting.** No brush-based texture painting or blending.
 - **Walkmap visualization.** The rule-tint view exists, but there is no
   in-editor preview of the compiled walkmap faces versus what Cleave will
   actually emit.
-- **Multi-entity editing.** The Object Properties dialog edits one entity:
-  its class keys, its object properties and its output wiring. Selecting
-  several and setting a key across all of them is not possible.
+- ~~**Multi-entity editing.**~~ Fixed: the Object tab and the properties
+  window edit every selected entity, brush or face together, with a key
+  they disagree on marked and left alone until typed over.
 - **Play-in-editor.** F9 launches the engine. Launching it as a child with a
   socket and syncing the camera back would be most of what Unity's play
   button is worth.
@@ -401,7 +406,8 @@ Deliberately not:
 
 - A scene graph, a shader graph, a material graph.
 - Heightmap terrain.
-- Open-world streaming.
+- Open-world streaming. Sections of one map stream; a world of many maps
+  does not.
 - A garbage-collected scripting runtime. Rhai is small on purpose.
 - Character tooling: animation state machines, IK, retargeting, until a game
   in a genre that needs them exists.
@@ -439,8 +445,8 @@ shooter or immersive sim, cheapest first.
    solver's regression fixture, and is the ghost system for genre 3.
 4. **A game UI layer and save/load.** Menus, an options screen, a HUD,
    ghosts, state across map transitions -- all wait on these two.
-5. **Chisel: VisGroups, autosave, instances.** What makes the second real
-   map editable.
+5. **Chisel: autosave, instances.** VisGroups are in; these two are what
+   remains of making the second real map editable.
 6. **Weapons and damage.** Hitscan, ammo, `OnDamaged`, decals for the holes.
 7. **Steam, Workshop first.** The one thing here no engine of this size can
    match, and the architecture was built for it.

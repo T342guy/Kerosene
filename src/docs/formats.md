@@ -139,7 +139,7 @@ map's one id space with entities, solids and sides.
 
 ## `.kerobsp` — compiled maps
 
-A header (`KROS`, a version, a 20-slot lump directory) followed by flat arrays
+A header (`KROS`, a version, a 24-slot lump directory) followed by flat arrays
 of `#[repr(C)]` records. Every record is padding-free, so loading a lump is a
 bounds check and a cast rather than a parse.
 
@@ -158,6 +158,8 @@ bounds check and a cast rather than a parse.
 | lighting | Baked lightmap samples |
 | acoustics | One record per room: how long sound lingers there, per band |
 | acoustic_leafs | One `u16` per leaf: which room it is in |
+| sections | The streamed sections: a name and bounds for each; section 0 is the world |
+| face_sections, brush_sections | One `u16` per face and per brush: which section it is in |
 
 **The surfedge indirection.** A face's vertices are reached through a run of
 *surfedges*, each a signed index into the edge lump — negative meaning "walk
@@ -183,6 +185,15 @@ a leaf count. The second is one `u16` per leaf naming its room, `0xFFFF` for a
 leaf in none. An empty acoustics lump is a map Resonance has not run on, the
 same way an empty visibility lump is a map without vis; the engine plays it
 dry and says so.
+
+**Sections.** Version 2 added four slots for the streamed sections and
+kept one spare. A section is a visgroup the designer marked as streamed;
+Cleave numbers them in tree order after the world and tags every world
+face and brush with its number. The engine keeps the tree, the entities
+and the traces whole and streams each section's render mesh, lightmap
+atlas and rigid-body hulls as the player moves. A compile always writes the
+lumps -- one section, every face in it, for a map with no streamed groups
+-- and a version 1 file is refused with a message to recompile.
 
 Every index in the file is validated at load. A dangling one becomes an
 out-of-bounds read deep inside the renderer, where the cause is invisible.

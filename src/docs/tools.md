@@ -120,9 +120,10 @@ no file yet says `not saved` rather than showing an invented one.
 **The layout is Hammer's.** A strip of tool icons down the left edge -- hover
 one for its name and key -- a toolbar row under the menu with the grid size,
 snap, how the 3D panes draw, the texture tool's modes and the compile button,
-and an inspector on the right with three tabs: **Object** (what is selected),
+and an inspector on the right with four tabs: **Object** (what is selected),
 **Tool** (the current tool's settings: the entity classes with a search box,
-the shape sliders) and **Materials** (the browser, docked). The tab follows
+the shape sliders), **Materials** (the browser, docked) and **VisGroups**
+(what is shown; see below). The tab follows
 the work -- a fresh selection brings up Object, picking the entity or shape
 tool brings up Tool -- and otherwise stays where it was put. The status bar
 along the bottom names the file, the selection's size, the pointer's place in
@@ -139,8 +140,19 @@ bars between the panes to resize them.
 
 | Key | |
 |---|---|
-| `1` `2` `3` `4` `5` | select, block, entity, texture, shape tool |
+| `1` `2` `3` `4` `5` `6` | select, block, entity, texture, shape, clip tool |
 | `M` | the material browser, as a window |
+| `Alt+Enter` | object properties, as a window |
+| `Ctrl+Shift+E` | the entity report |
+| `Ctrl+G` / `Ctrl+U` | group / ungroup the selection |
+| `H` / `Ctrl+H` / `U` | hide the selection / hide everything else / unhide all |
+| `Ctrl+Shift+G` | a new visgroup of the selection |
+| `Enter` (clip tool) | cut along the laid line; `6` again cycles what is kept |
+| `Ctrl+Shift+C` / `Ctrl+Shift+H` | carve / hollow |
+| `Ctrl+M` | transform: rotate, scale or move by numbers |
+| `R` | rotate 90 degrees about the axis the pane looks along |
+| `Ctrl+L` / `Ctrl+I` | flip horizontally / vertically |
+| `Ctrl+B` | align the selection to the grid |
 | `Shift+Space` | maximise the active pane, or show four again |
 | `[` `]` | finer / coarser grid |
 | `Ctrl+Z` / `Ctrl+Shift+Z` | undo / redo |
@@ -206,6 +218,82 @@ a small brush, it is a hole in the world that compiles cleanly. The preview
 shows the shape it will become and its new size while you drag. The texture
 stays put in world space rather than stretching, so making a wall twice as
 wide tiles the bricks twice instead of drawing bricks twice the size.
+
+**Key-values on anything.** Every object in a map -- an entity, a brush, a
+face -- carries key-values, and the Object tab edits whatever is selected.
+An entity shows every key its class reads, set or not, with a widget for
+each (a colour picker for a colour, a dropdown for a choice, checkboxes for
+flags); a brush or a face shows the keys it carries, and `+ add a key` puts
+any key at all on any of them. The `{ }` toggle is Hammer's SmartEdit
+switched off: every key as plain text, only the keys the object actually
+has. Selecting several things edits them together: a key they agree on
+shows its value, a key they disagree on says *differs* and is left alone on
+every one of them unless you type over it, which is how one speed lands on
+six doors at once. With nothing selected the tab shows the world's own keys
+(the sky, the level title). `Alt+Enter` opens the same editor as a window,
+which is where the add-a-key row and the wiring editor live when there is
+no room in the tab. A brush's keys mean nothing to the game -- a brush that
+should do something is tied to an entity -- but two of them mean something
+to the compiler: `detail 1` keeps a brush out of the vis tree, `section
+<name>` puts it in a streamed section. Under the keys sit the editor's own
+notes: a colour to draw the object in, and comments.
+
+**Groups and VisGroups.** `Ctrl+G` groups the selection, and from then on
+a click on any member takes the whole group -- unless the toolbar's
+*select whole groups* toggle is off, which is how you nudge one thing in a
+group. `Ctrl+U` ungroups. VisGroups are named sets you can hide together:
+select the things that make up a room and press `Ctrl+Shift+G`, name it,
+and the VisGroups tab has a checkbox that makes the room vanish from every
+pane -- not drawn, not clickable, not in select-all -- and a colour every
+member is drawn in while it is shown. VisGroups nest (right-click one for
+*new child*), and a hidden parent hides its children. Below the user's
+groups the tab lists the automatic ones, made from what the map holds:
+every entity, every world brush, every tool brush, every class that is
+placed. Untick *light* and the lights are gone until you tick it back.
+`H` hides the selection outright, `Ctrl+H` hides everything but it, and `U`
+brings back whatever was hidden that way. The status bar counts what is
+hidden, because a hidden brush that is still there is the classic way to
+compile something you cannot see. Hiding is an edit: `Ctrl+Z` undoes it.
+
+A visgroup marked with the stack icon is a **streamed section**: the
+engine loads and unloads its geometry around the player. See
+[architecture](architecture.md#streamed-sections) for what that does and
+does not do.
+
+**The cordon.** The box icon on the toolbar turns the cordon on: only what
+is inside the box is shown, and only what is inside is compiled -- Cleave
+seals the box with its own walls, so a corner of a large map compiles and
+runs on its own in seconds. The arrows icon beside it puts the box's grips
+in place of the selection's so it can be dragged to size in a 2D pane. The
+box is drawn dashed in red, dimmer when it is off, and it is saved with the
+map.
+
+**Clip, carve and hollow.** The clip tool (`6`) is how a wall gets a
+doorway or a slab gets a bevel: drag a line across the selection in a 2D
+pane, and the cut is the plane through that line running along the axis
+the pane looks down. An arrow on the line shows which side is *front*;
+`6` again cycles between keeping both halves, the front or the back, and
+`Enter` cuts. The new face wears the material of the face most nearly
+facing the same way, aligned as that one is. **Carve** (`Ctrl+Shift+C`)
+takes the selected brushes out of every world brush they overlap and then
+deletes them -- a doorway through a wall in one step, at the cost of the
+wall becoming four brushes. **Hollow** (`Ctrl+Shift+H`) turns a brush into
+walls of a given thickness, mitred at the corners so no two overlap; a
+negative thickness builds the walls outward around it. A room is a hollowed
+box. All three keep a brush's keys and visgroups on every piece.
+
+**Transform.** `Ctrl+M` rotates, scales or moves the selection by numbers,
+about its centre or the world origin; `R` is a quarter turn about the axis
+the active pane looks along; `Ctrl+L` and `Ctrl+I` flip it; `Ctrl+B` moves
+it so its lowest corner sits on the grid. Rotation turns the texture with
+the brush so a surface keeps its texel, the way moving does.
+
+**The entity report** (`Ctrl+Shift+E`) lists every entity in the map: filter
+by class or name, point or brush, click one to select and frame it in every
+pane, double-click for its properties. It marks every output aimed at a name
+no entity has, which is otherwise found by playing the map and wondering
+why the door did not open. `Edit → History...` is the undo stack with names
+on it; click a step to go back to it.
 
 **Shapes that are not boxes.** A brush is a convex solid and no convex solid
 is curved, so an archway cannot be one brush. It is several, arranged to read
@@ -778,6 +866,7 @@ the thing they set it for.
 | `cl_fov` `sensitivity` `m_yaw` `m_pitch` | view and mouse |
 | `r_drawworld` `r_fullbright` `r_lightmap` `r_novis` | rendering toggles (cheat) |
 | `r_speeds` | per-frame culling and draw statistics |
+| `sv_stream` `sv_stream_linger` `r_stream_debug` | streamed sections: on/off, seconds a section lingers, draw their bounds |
 | `mat_exposure` | overall brightness |
 | `volume` `snd_reverb` `snd_reverb_preset` | sound; see [`audio.md`](audio.md#how-a-room-sounds) |
 | `developer` | verbosity; `2` also traces entity I/O |

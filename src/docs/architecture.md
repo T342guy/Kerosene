@@ -290,8 +290,42 @@ vertex shader through a uniform with a dynamic offset. That displacement comes
 from the same fields the collision code traces against, so what you see and
 what you walk into are the same thing by construction.
 
-Lightmaps pack into one atlas, so the world draws in as many calls as it has
-materials rather than one per face.
+Lightmaps pack into one atlas per section, so a section draws in as many
+calls as it has materials rather than one per face.
+
+### Streamed sections
+
+A map can be more than one machine wants resident at once. Chisel lets the
+designer mark a visgroup as *streamed*; Cleave numbers those visgroups as
+sections after the always-loaded world (section 0) and tags every world
+face and brush with its section. At runtime `kerosene_engine::streaming`
+decides, once a tick, which sections should be resident:
+
+- the world, always;
+- any section with a face in a cluster the player's cluster can **hear** —
+  the PAS, which is the PVS flooded one doorway further. A room therefore
+  starts loading a doorway before it can be seen, and that doorway is the
+  margin that hides the build;
+- any section an awake physics prop is inside, so a crate thrown into the
+  next room does not fall through a floor that has since gone.
+
+A section that stops being wanted lingers `sv_stream_linger` seconds
+before it is dropped, so pacing over a threshold does not thrash. With no
+vis data, with the player outside the world, or with `sv_stream 0`,
+everything is wanted.
+
+What streams is the expensive part and only that: each section's render
+mesh and lightmap atlas, built on a worker thread from the shared BSP and
+uploaded on the main thread, and its rigid-body hulls. The BSP tree, the
+entity list, the player's traces and entity I/O are whole whatever is
+loaded — the tree is small, the traces have to work everywhere, and a
+`logic_relay` in an unloaded room still fires. Brush entities are never
+streamed: a door is drawn and collided with wherever it has moved to. This
+is sections of one map, not an open world: everything is still one
+`.kerobsp`, compiled and lit as one.
+
+`r_stream_debug 1` draws each section's bounds in the colour of its state.
+`content/maps/two_rooms.keromap` is a small map with two streamed rooms.
 
 ### Entities
 
