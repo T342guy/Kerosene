@@ -380,6 +380,7 @@ dependencies = [
  "kerosene-map",
  "kerosene-math",
  "kerosene-render",
+ "kerosene-ui",
  "kerosene-vfs",
  "log",
 ]
