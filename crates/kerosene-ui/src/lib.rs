@@ -15,6 +15,11 @@
 //! nothing to do with any particular tool, and a second copy of them is a
 //! second place for a resize bug to live.
 //!
+//! It is also where the toolset's look lives: [`theme`] is the palette, the
+//! spacing and the icon font every tool draws with, [`widgets`] the handful
+//! of controls they share, and [`output`] the panel their jobs log into. A
+//! tool that draws with these looks like the others without trying to.
+//!
 //! Implement [`App`], call [`run`]:
 //!
 //! ```no_run
@@ -26,6 +31,10 @@
 //! }
 //! kerosene_ui::run("Hello", (1024, 768), Hello).unwrap();
 //! ```
+
+pub mod output;
+pub mod theme;
+pub mod widgets;
 
 use anyhow::Result;
 use std::sync::Arc;
@@ -312,7 +321,7 @@ async fn create_gfx(event_loop: &ActiveEventLoop, title: &str, size: (u32, u32))
     surface.configure(&device, &config);
 
     let context = egui::Context::default();
-    context.set_visuals(egui::Visuals::dark());
+    theme::install(&context);
     let egui_state = egui_winit::State::new(
         context,
         egui::ViewportId::ROOT,

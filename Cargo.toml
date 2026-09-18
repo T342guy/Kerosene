@@ -78,6 +78,10 @@ winit       = "0.30"
 egui        = "0.32"
 egui-wgpu   = "0.32"
 egui-winit  = { version = "0.32", default-features = false, features = ["links", "wayland", "x11"] }
+# Icon font for the tools. MIT OR Apache-2.0, and the only thing in the tree
+# that looks like a UI asset; kept behind kerosene-ui so every tool draws the
+# same glyphs.
+egui-phosphor = "0.10"
 pollster    = "0.4"
 # Scripting. Pure Rust, no C toolchain, and small enough to embed without the
 # engine becoming a host for someone else's runtime.
