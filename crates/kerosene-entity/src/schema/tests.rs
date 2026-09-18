@@ -198,3 +198,67 @@ fn an_empty_file_is_an_empty_schema_rather_than_an_error() {
     let schema = Schema::parse("// nothing here\n").unwrap();
     assert!(schema.is_empty());
 }
+
+#[test]
+fn check_names_every_disagreement_between_a_registry_and_a_schema() {
+    use crate::{ClassDef, ClassRegistry};
+
+    let mut registry = ClassRegistry::new();
+    registry.register(
+        ClassDef::new("item_pickup")
+            .input("Pickup", |_, _, _| true)
+            .output("OnPickup"),
+    );
+    registry.register(ClassDef::new("npc_guard"));
+    registry.register_common_input("Kill", |_, _, _| true);
+
+    let schema = Schema::parse(
+        r#"
+base  { "name" "Entity" input { "name" "Kill" } }
+class { "name" "item_pickup" "base" "Entity"
+        input  { "name" "Pickup" }
+        input  { "name" "Drop" }
+        output { "name" "OnDrop" } }
+class { "name" "item_ghost" "base" "Entity" }
+"#,
+    )
+    .unwrap();
+
+    let problems = check(&registry, &schema);
+    let has = |needle: &str| problems.iter().any(|p| p.contains(needle));
+    assert!(has("`npc_guard` is registered but not described"));
+    assert!(has("`item_ghost` is described but not registered"));
+    assert!(has("`item_pickup.Drop` is offered but nothing handles it"));
+    assert!(has("`item_pickup.OnPickup` is fired but not offered"));
+    assert!(has("`item_pickup.OnDrop` is offered but never fired"));
+    assert_eq!(problems.len(), 5, "{problems:#?}");
+
+    let agreed = Schema::parse(
+        r#"
+base  { "name" "Entity" input { "name" "Kill" } }
+class { "name" "item_pickup" "base" "Entity" input { "name" "Pickup" } output { "name" "OnPickup" } }
+class { "name" "npc_guard" "base" "Entity" }
+"#,
+    )
+    .unwrap();
+    assert!(check(&registry, &agreed).is_empty());
+}
+
+#[test]
+fn a_schema_parsed_after_another_inherits_its_bases() {
+    let stock =
+        Schema::parse(r#"base { "name" "Point" key { "name" "origin" "type" "vec3" } }"#).unwrap();
+    let game = Schema::parse_after(
+        r#"class { "name" "npc_guard" "base" "Point" }"#,
+        Some(&stock),
+    )
+    .unwrap();
+    assert!(game.get("npc_guard").unwrap().key("origin").is_some());
+    assert!(Schema::parse(r#"class { "name" "npc_guard" "base" "Point" }"#).is_err());
+    // Merged, the bases travel too.
+    let mut all = stock;
+    all.merge(game);
+    let mod_ =
+        Schema::parse_after(r#"class { "name" "npc_dog" "base" "Point" }"#, Some(&all)).unwrap();
+    assert!(mod_.get("npc_dog").unwrap().key("origin").is_some());
+}

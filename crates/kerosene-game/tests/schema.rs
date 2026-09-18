@@ -7,142 +7,19 @@
 //! designer wires up something the editor offered and the map silently does
 //! nothing.
 //!
-//! So both directions are checked. Every class, input and output the game
-//! registers must be offered by the schema, and everything the schema offers
-//! must exist in the game.
+//! So both directions are checked, by `kerosene_entity::schema::check` --
+//! the same function a game runs over its own classes and schema.
 
 use kerosene_entity::{ClassKind, Schema};
-use std::collections::BTreeSet;
 
 fn schema() -> Schema {
     Schema::parse(kerosene_game::schema::BUILTIN).expect("the embedded schema must parse")
 }
 
 #[test]
-fn every_registered_class_is_described() {
-    let schema = schema();
-    let registry = kerosene_game::registry();
-    let missing: Vec<&str> = registry
-        .class_names()
-        .into_iter()
-        .filter(|name| schema.get(name).is_none())
-        .collect();
-    assert!(
-        missing.is_empty(),
-        "these classes exist in the game but not in the built-in schema, \
-         so Chisel would show no properties for them: {missing:?}"
-    );
-}
-
-#[test]
-fn every_described_class_exists() {
-    let schema = schema();
-    let registry = kerosene_game::registry();
-    let unknown: Vec<&str> = schema
-        .classes()
-        .iter()
-        .map(|c| c.name.as_str())
-        .filter(|name| !registry.is_registered(name))
-        .collect();
-    assert!(
-        unknown.is_empty(),
-        "the schema offers classes the game does not implement, so placing one \
-         would produce an entity that does nothing: {unknown:?}"
-    );
-}
-
-#[test]
-fn every_input_the_game_handles_is_offered() {
-    let schema = schema();
-    let registry = kerosene_game::registry();
-    let common: BTreeSet<&str> = registry.common_inputs().into_iter().collect();
-
-    let mut missing = Vec::new();
-    for name in registry.class_names() {
-        let Some(spec) = schema.get(name) else {
-            continue;
-        };
-        let def = registry.get(name).expect("just listed");
-        for (input, _) in &def.inputs {
-            if !spec.has_input(input) {
-                missing.push(format!("{name}.{input}"));
-            }
-        }
-        // The universal inputs have to reach every class, which in the schema
-        // means every class inherits the base that carries them.
-        for input in &common {
-            if !spec.has_input(input) {
-                missing.push(format!("{name}.{input} (common)"));
-            }
-        }
-    }
-    assert!(
-        missing.is_empty(),
-        "inputs the game handles but the schema does not offer: {missing:#?}"
-    );
-}
-
-#[test]
-fn every_input_the_schema_offers_is_handled() {
-    let schema = schema();
-    let registry = kerosene_game::registry();
-    let mut unknown = Vec::new();
-    for spec in schema.classes() {
-        for input in &spec.inputs {
-            if registry.find_input(&spec.name, &input.name).is_none() {
-                unknown.push(format!("{}.{}", spec.name, input.name));
-            }
-        }
-    }
-    assert!(
-        unknown.is_empty(),
-        "the schema offers inputs nothing handles, so wiring one up would do nothing: {unknown:#?}"
-    );
-}
-
-#[test]
-fn outputs_agree_in_both_directions() {
-    let schema = schema();
-    let registry = kerosene_game::registry();
-    let common: BTreeSet<&str> = registry.common_outputs().into_iter().collect();
-
-    let mut missing = Vec::new();
-    for name in registry.class_names() {
-        let Some(spec) = schema.get(name) else {
-            continue;
-        };
-        let def = registry.get(name).expect("just listed");
-        for output in def.outputs.iter().copied().chain(common.iter().copied()) {
-            if !spec.has_output(output) {
-                missing.push(format!("{name}.{output}"));
-            }
-        }
-    }
-    assert!(
-        missing.is_empty(),
-        "outputs the game fires but the schema does not offer: {missing:#?}"
-    );
-
-    let mut unknown = Vec::new();
-    for spec in schema.classes() {
-        let Some(def) = registry.get(&spec.name) else {
-            continue;
-        };
-        for output in &spec.outputs {
-            let known = def
-                .outputs
-                .iter()
-                .any(|o| o.eq_ignore_ascii_case(&output.name))
-                || common.iter().any(|o| o.eq_ignore_ascii_case(&output.name));
-            if !known {
-                unknown.push(format!("{}.{}", spec.name, output.name));
-            }
-        }
-    }
-    assert!(
-        unknown.is_empty(),
-        "the schema offers outputs the game never fires: {unknown:#?}"
-    );
+fn the_schema_and_the_registry_agree() {
+    let problems = kerosene_entity::schema::check(&kerosene_game::registry(), &schema());
+    assert!(problems.is_empty(), "{problems:#?}");
 }
 
 #[test]

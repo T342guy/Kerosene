@@ -10,11 +10,13 @@
 //! game ship as just the runtime and an archive; the toolset is a developer's
 //! tool, never a player's.
 
+pub mod entry;
 pub mod init;
 pub mod panels;
 pub mod project;
 pub mod toolset;
 
+pub use entry::{Options, main_with};
 pub use toolset::{Launch, Tab, Toolset, run_gui};
 
 /// The headless subcommands, in the order help prints them.

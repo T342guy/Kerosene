@@ -78,9 +78,11 @@ pub mod game {
     }
 }
 
-/// The toolset as a library, behind the `tools` feature.
+/// The toolset as a library, behind the `tools` feature: a game's own
+/// `mygame-tools` binary is `kerosene::tools::main_with(Options { .. })`.
 #[cfg(feature = "tools")]
 pub mod tools {
+    pub use chisel;
     pub use kerosene_tools::*;
 }
 

@@ -232,16 +232,31 @@ impl ClassSpec {
 pub struct Schema {
     classes: Vec<ClassSpec>,
     index: BTreeMap<String, usize>,
+    /// The bases this schema's classes were built from, kept so a schema
+    /// parsed *after* this one can inherit from them.
+    bases: BTreeMap<String, ClassSpec>,
 }
 
 impl Schema {
     pub fn parse(text: &str) -> Result<Schema, SchemaError> {
+        Schema::parse_after(text, None)
+    }
+
+    /// Parse with another schema's bases available to inherit from.
+    ///
+    /// A game's own definitions, or a mod's file on disk, say
+    /// `"base" "Point"` and mean the engine's `Point`; without this each
+    /// file would have to carry a copy of every base it uses, and the
+    /// copies would drift.
+    pub fn parse_after(text: &str, earlier: Option<&Schema>) -> Result<Schema, SchemaError> {
         let kv = KeyValues::parse(text)?;
 
         // Bases first: a class may inherit from one defined later in the file,
         // and requiring otherwise would make the file order matter for the
-        // wrong reason.
-        let mut bases: BTreeMap<String, ClassSpec> = BTreeMap::new();
+        // wrong reason. The earlier schema's bases come first, so this
+        // file's own definition of a name wins.
+        let mut bases: BTreeMap<String, ClassSpec> =
+            earlier.map(|e| e.bases.clone()).unwrap_or_default();
         for block in kv.blocks("base") {
             let spec = parse_class_body(block, "base")?;
             bases.insert(spec.name.to_ascii_lowercase(), spec);
@@ -278,6 +293,7 @@ impl Schema {
 
             schema.push(spec);
         }
+        schema.bases = bases;
         Ok(schema)
     }
 
@@ -294,11 +310,13 @@ impl Schema {
         }
     }
 
-    /// Fold another schema into this one, later definitions winning.
+    /// Fold another schema into this one, later definitions winning, and
+    /// its bases with it.
     pub fn merge(&mut self, other: Schema) {
         for spec in other.classes {
             self.push(spec);
         }
+        self.bases.extend(other.bases);
     }
 
     pub fn get(&self, classname: &str) -> Option<&ClassSpec> {
@@ -325,6 +343,82 @@ impl Schema {
             .map(|c| c.name.as_str())
             .collect()
     }
+}
+
+/// Every way a schema and a class registry disagree, as sentences.
+///
+/// A schema is what the editor offers; a registry is what the game does.
+/// Nothing at runtime reads the schema, so the two drift the first time
+/// someone adds an input and forgets the other side -- and the failure is
+/// a designer wiring up something the editor offered that silently does
+/// nothing. Both directions are checked: every class, input and output the
+/// registry has must be offered, and everything offered must exist. An
+/// empty answer means they agree; a game's own test asserts exactly that.
+pub fn check(registry: &crate::ClassRegistry, schema: &Schema) -> Vec<String> {
+    let mut problems = Vec::new();
+    let common_inputs = registry.common_inputs();
+    let common_outputs = registry.common_outputs();
+
+    for name in registry.class_names() {
+        let Some(spec) = schema.get(name) else {
+            problems.push(format!(
+                "class `{name}` is registered but not described, so the editor shows no properties for it"
+            ));
+            continue;
+        };
+        let def = registry.get(name).expect("just listed");
+        for (input, _) in &def.inputs {
+            if !spec.has_input(input) {
+                problems.push(format!("input `{name}.{input}` is handled but not offered"));
+            }
+        }
+        // The universal inputs have to reach every class, which in the
+        // schema means every class inherits the base that carries them.
+        for input in &common_inputs {
+            if !spec.has_input(input) {
+                problems.push(format!(
+                    "common input `{name}.{input}` is not offered; inherit the base that carries it"
+                ));
+            }
+        }
+        for output in def.outputs.iter().chain(common_outputs.iter()) {
+            if !spec.has_output(output) {
+                problems.push(format!("output `{name}.{output}` is fired but not offered"));
+            }
+        }
+    }
+
+    for spec in schema.classes() {
+        let Some(def) = registry.get(&spec.name) else {
+            problems.push(format!(
+                "class `{}` is described but not registered, so placing one gives an entity that does nothing",
+                spec.name
+            ));
+            continue;
+        };
+        for input in &spec.inputs {
+            if registry.find_input(&spec.name, &input.name).is_none() {
+                problems.push(format!(
+                    "input `{}.{}` is offered but nothing handles it",
+                    spec.name, input.name
+                ));
+            }
+        }
+        for output in &spec.outputs {
+            let known = def
+                .outputs
+                .iter()
+                .chain(common_outputs.iter())
+                .any(|o| o.eq_ignore_ascii_case(&output.name));
+            if !known {
+                problems.push(format!(
+                    "output `{}.{}` is offered but never fired",
+                    spec.name, output.name
+                ));
+            }
+        }
+    }
+    problems
 }
 
 fn merge_keys(into: &mut Vec<KeySpec>, from: Vec<KeySpec>) {

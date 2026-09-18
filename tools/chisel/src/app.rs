@@ -460,9 +460,15 @@ struct PropertyWindow {
 
 impl ChiselApp {
     pub fn new(content_root: PathBuf) -> ChiselApp {
+        ChiselApp::with_schema(content_root, &[])
+    }
+
+    /// An editor that also knows a game's own classes: `schema` is their
+    /// `.kerodef` text, as [`classes::load_with`] takes it.
+    pub fn with_schema(content_root: PathBuf, schema: &[&str]) -> ChiselApp {
         let materials = scan_materials(&content_root);
         let models = scan_models(&content_root);
-        let loaded = classes::load(&content_root);
+        let loaded = classes::load_with(&content_root, schema);
         let status = loaded.summary();
         let mut vfs = kerosene_vfs::Vfs::new();
         vfs.add_directory(&content_root, "GAME");

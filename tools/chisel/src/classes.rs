@@ -64,8 +64,21 @@ fn display(path: &Path) -> String {
 /// definitions. Files found on disk are merged in sorted path order and a
 /// later definition of a class replaces an earlier one, so a mod can drop its
 /// own file in beside the game's and override a class without editing it.
+/// Each later file may inherit from the bases of everything before it, so
+/// `"base" "Point"` in a mod's file means the engine's `Point`.
 pub fn load(content_root: &Path) -> Loaded {
-    let schema = match Schema::parse(kerosene_game::schema::BUILTIN) {
+    load_with(content_root, &[])
+}
+
+/// [`load`], with a game's own definitions after the built-in ones.
+///
+/// `builtin` is the `.kerodef` text of each game the editor is compiled
+/// for -- what a game hands over when it re-hosts the toolset -- parsed
+/// after the stock schema and before anything on disk, so a file in the
+/// tree can still override a class of the game's the same way it can one
+/// of the engine's.
+pub fn load_with(content_root: &Path, builtin: &[&str]) -> Loaded {
+    let mut schema = match Schema::parse(kerosene_game::schema::BUILTIN) {
         Ok(schema) => schema,
         Err(e) => {
             return Loaded {
@@ -75,6 +88,16 @@ pub fn load(content_root: &Path) -> Loaded {
             };
         }
     };
+    let mut errors = Vec::new();
+    for (i, text) in builtin.iter().enumerate() {
+        if text.trim().is_empty() {
+            continue;
+        }
+        match Schema::parse_after(text, Some(&schema)) {
+            Ok(extra) => schema.merge(extra),
+            Err(e) => errors.push(format!("game schema {}: {e}", i + 1)),
+        }
+    }
 
     let mut files = Vec::new();
     collect(content_root, &mut files);
@@ -83,11 +106,11 @@ pub fn load(content_root: &Path) -> Loaded {
     let mut loaded = Loaded {
         schema,
         files: Vec::new(),
-        errors: Vec::new(),
+        errors,
     };
     for path in files {
         match std::fs::read_to_string(&path) {
-            Ok(text) => match Schema::parse(&text) {
+            Ok(text) => match Schema::parse_after(&text, Some(&loaded.schema)) {
                 Ok(schema) => {
                     loaded.schema.merge(schema);
                     loaded.files.push(path);
@@ -132,6 +155,43 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         dir
+    }
+
+    #[test]
+    fn a_games_own_schema_sits_between_the_stock_one_and_the_disk() {
+        let dir = scratch("game-schema");
+        std::fs::write(
+            dir.join("mod.kerodef"),
+            r#"class { "name" "item_pickup" "help" "the mod's version" }"#,
+        )
+        .unwrap();
+        let game = r#"
+class { "name" "item_pickup" "base" "Point" "help" "the game's version"
+        key { "name" "item" "label" "Item" "type" "string" } }
+class { "name" "npc_guard" "base" "Point" }
+"#;
+        let loaded = load_with(&dir, &[game, ""]);
+        assert!(loaded.errors.is_empty(), "{:?}", loaded.errors);
+        assert!(
+            loaded.schema.get("func_door").is_some(),
+            "stock classes stay"
+        );
+        let guard = loaded
+            .schema
+            .get("npc_guard")
+            .expect("the game's are added");
+        assert!(
+            guard.key("origin").is_some(),
+            "and inherit the engine's bases"
+        );
+        assert_eq!(
+            loaded.schema.get("item_pickup").unwrap().help,
+            "the mod's version",
+            "a file on disk still overrides the game"
+        );
+        let bad = load_with(&dir, &["class { "]);
+        assert!(bad.errors.iter().any(|e| e.starts_with("game schema 1:")));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

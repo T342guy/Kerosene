@@ -95,6 +95,10 @@ pub struct Launch {
     pub content: Option<PathBuf>,
     /// A map to open in the editor, when named on the command line.
     pub map: Option<PathBuf>,
+    /// The `.kerodef` text of a game's own classes, shown in the editor
+    /// after the stock ones. What a game hands over when it re-hosts the
+    /// toolset; empty for the stock one.
+    pub schema: Vec<&'static str>,
     /// Which binary is the game, when the caller knows: a game that
     /// re-hosts the toolset names its own package. `None` asks the project
     /// file, and falls back to the stock runtime.
@@ -142,7 +146,7 @@ impl Toolset {
 
         // The editor opens on the found tree, or a starter room when there is
         // no content at all -- same behaviour as the standalone editor had.
-        let mut editor = ChiselApp::new(root.clone());
+        let mut editor = ChiselApp::with_schema(root.clone(), &launch.schema);
         editor.content_note = kerosene_vfs::root::describe(&found);
         editor.compile_settings.content_root = root.clone();
         // F9 runs the project's own game when it names one; the stock
