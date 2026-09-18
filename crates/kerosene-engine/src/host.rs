@@ -13,6 +13,7 @@
 //! draw 240 smooth frames of a 64 Hz simulation, not simulate 240 times.
 
 use crate::engine::{Engine, EngineConfig, report_unhandled, take_console_requests};
+use crate::game::Game;
 use crate::input::InputSystem;
 use crate::physics::is_physics_prop;
 use kerosene_console::ConsoleUi;
@@ -106,14 +107,19 @@ struct App {
     model_cache: HashMap<String, Option<GpuModel>>,
 }
 
-/// Start the engine with a window.
+/// Start the engine with a window and no game.
 pub fn run(config: EngineConfig) -> anyhow::Result<()> {
+    run_with(config, Box::new(()))
+}
+
+/// Start the engine with a window, running `game`.
+pub fn run_with(config: EngineConfig, game: Box<dyn Game>) -> anyhow::Result<()> {
     let event_loop = EventLoop::new()?;
     // Poll rather than Wait: a game redraws continuously.
     event_loop.set_control_flow(ControlFlow::Poll);
 
     let mut app = App {
-        engine: Engine::new(&config),
+        engine: Engine::with_game(&config, game),
         config,
         input: InputSystem::new(),
         gfx: None,
@@ -128,6 +134,12 @@ pub fn run(config: EngineConfig) -> anyhow::Result<()> {
 
     event_loop.run_app(&mut app)?;
     Ok(())
+}
+
+impl App {
+    fn game_wants_ui(&self) -> bool {
+        self.engine.game().is_some_and(|g| g.wants_ui())
+    }
 }
 
 impl ApplicationHandler for App {
@@ -174,8 +186,11 @@ impl ApplicationHandler for App {
 
         // egui gets first refusal on everything else while the console is
         // open, and the game sees nothing: a console you cannot type an `n`
-        // into without walking forward is not a console.
-        if self.console_ui.open
+        // into without walking forward is not a console. The game's own UI
+        // gets the same only while the mouse is free: a HUD drawn during
+        // play must never be able to eat a movement key.
+        let game_ui = !self.mouse_captured && self.game_wants_ui();
+        if (self.console_ui.open || game_ui)
             && let Some(gfx) = &mut self.gfx
         {
             let response = gfx.egui_state.on_window_event(&gfx.window, &event);
@@ -815,13 +830,13 @@ impl App {
             }
         }
 
-        if self.console_ui.open {
-            draw_console(
+        if self.console_ui.open || self.engine.game().is_some_and(|g| g.wants_ui()) {
+            draw_ui(
                 gfx,
                 &mut encoder,
                 &view,
                 &mut self.console_ui,
-                &mut self.engine.console,
+                &mut self.engine,
             );
         }
 
@@ -930,16 +945,27 @@ fn section_debug_lines(streaming: &crate::streaming::Streaming) -> Vec<crate::ph
     lines
 }
 
-fn draw_console(
+/// The UI layer: the game's, then the console over it.
+///
+/// One egui frame for both, so the console can still be dropped over a
+/// game menu and the two never fight for the pointer.
+fn draw_ui(
     gfx: &mut Gfx,
     encoder: &mut wgpu::CommandEncoder,
     view: &wgpu::TextureView,
     console_ui: &mut ConsoleUi,
-    console: &mut kerosene_console::Console,
+    engine: &mut Engine,
 ) {
     let input = gfx.egui_state.take_egui_input(&gfx.window);
     let output = gfx.egui.run(input, |ctx| {
-        crate::console_ui::draw(ctx, console_ui, console);
+        engine.with_game_mut(|game, engine| {
+            if game.wants_ui() {
+                game.ui(engine, ctx);
+            }
+        });
+        if console_ui.open {
+            crate::console_ui::draw(ctx, console_ui, &mut engine.console);
+        }
     });
     gfx.egui_state
         .handle_platform_output(&gfx.window, output.platform_output);
@@ -959,7 +985,7 @@ fn draw_console(
     {
         let mut pass = encoder
             .begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("console"),
+                label: Some("ui"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view,
                     resolve_target: None,

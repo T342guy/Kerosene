@@ -10,6 +10,7 @@ authors.workspace = true
 kerosene-engine.workspace = true
 kerosene-vfs.workspace = true
 kerosene-game.workspace = true
+kerosene-entity.workspace = true
 kerosene-console.workspace = true
 kerosene-config.workspace = true
 kerosene-math.workspace = true

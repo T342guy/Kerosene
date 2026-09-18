@@ -5,8 +5,13 @@
 //!   kerosene-vfs  ->  content            kerosene-console -> convars and commands
 //!   kerosene-bsp  ->  the compiled map   kerosene-entity  -> entities and their I/O
 //!   kerosene-physics -> how you move     kerosene-render  -> what you see
-//!   kerosene-game    -> what things do
+//!   your [`Game`]    -> what things do
 //! ```
+//!
+//! The engine has no game of its own. A game is a type implementing
+//! [`Game`], handed to [`Engine::with_game`] or [`host::run_with`]; the
+//! sample game in `kerosene-game` is one such type and the engine is built
+//! and tested without it.
 //!
 //! The split that matters most is between [`engine::Engine`] and [`host`].
 //! `Engine` is the whole simulation and needs no display: a dedicated server
@@ -20,6 +25,7 @@ pub mod audio;
 pub mod collision;
 pub mod console_ui;
 pub mod engine;
+pub mod game;
 pub mod host;
 pub mod input;
 pub mod physics;
@@ -29,4 +35,5 @@ pub mod triggers;
 
 pub use collision::{LevelCollision, Mover};
 pub use engine::{Engine, EngineConfig, Level, PlayerState};
+pub use game::Game;
 pub use input::{HeldActions, InputState, InputSystem};

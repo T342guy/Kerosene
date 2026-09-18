@@ -277,9 +277,18 @@ impl Engine {
                         self.console.warn("Sleep: not a physics prop");
                     }
                 }
-                other => self
-                    .console
-                    .warn(format!("unknown entity request `{other}`")),
+                _ => {
+                    // A kind the engine does not know may be one of the
+                    // game's own: its class handlers have no other way to
+                    // reach it.
+                    let claimed = self
+                        .with_game_mut(|game, engine| game.entity_request(engine, &request))
+                        .unwrap_or(false);
+                    if !claimed {
+                        self.console
+                            .warn(format!("unknown entity request `{}`", request.kind));
+                    }
+                }
             }
         }
     }

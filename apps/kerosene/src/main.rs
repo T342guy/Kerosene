@@ -16,10 +16,23 @@
 //! and the engine is structured so that it needs nothing from the renderer.
 
 use anyhow::Result;
+use kerosene_engine::Game;
 use kerosene_engine::engine::{Engine, EngineConfig, report_unhandled, take_console_requests};
 use kerosene_engine::input::InputState;
 use kerosene_math::Angles;
 use std::path::PathBuf;
+
+/// The stock game: the classes in `kerosene-game`, nothing more.
+struct Stock;
+
+impl Game for Stock {
+    fn classes(&self, registry: &mut kerosene_entity::ClassRegistry) {
+        kerosene_game::register(registry);
+    }
+    fn schema(&self) -> &'static str {
+        kerosene_game::schema::BUILTIN
+    }
+}
 
 fn main() -> Result<()> {
     // The engine's own relay rather than env_logger: everything logged
@@ -107,13 +120,13 @@ fn main() -> Result<()> {
 
     match parsed.headless_ticks {
         Some(ticks) => run_headless(config, ticks),
-        None => kerosene_engine::host::run(config),
+        None => kerosene_engine::host::run_with(config, Box::new(Stock)),
     }
 }
 
 /// Run the simulation with no display.
 fn run_headless(config: EngineConfig, ticks: u64) -> Result<()> {
-    let mut engine = Engine::new(&config);
+    let mut engine = Engine::with_game(&config, Box::new(Stock));
     engine.console.run_buffered();
     let unclaimed = take_console_requests(&mut engine);
     report_unhandled(&mut engine, unclaimed);

@@ -3,6 +3,8 @@
 //! visgroup is compiled with vis, loaded, and the section comes and goes as
 //! the player approaches and leaves.
 
+mod common;
+
 use cleave::{CompileOptions, compile};
 use kerosene_bsp::{Bsp, VisBuilder};
 use kerosene_engine::engine::{Engine, EngineConfig};
@@ -91,7 +93,7 @@ fn engine_on(bsp: &Bsp) -> Engine {
     let dir = std::env::temp_dir().join(format!("kerosene-stream-{}", std::process::id()));
     std::fs::create_dir_all(dir.join("maps")).unwrap();
     std::fs::write(dir.join("maps/hall.kerobsp"), bsp.to_bytes()).unwrap();
-    let mut engine = Engine::new(&EngineConfig {
+    let mut engine = common::stock(&EngineConfig {
         content_paths: vec![dir],
         ..Default::default()
     });

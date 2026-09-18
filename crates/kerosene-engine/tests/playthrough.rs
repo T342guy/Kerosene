@@ -6,6 +6,8 @@
 //! the only place the seams between them show. Every crate can pass its own
 //! tests and still not add up to a level you can walk around.
 
+mod common;
+
 use cleave::{CompileOptions, compile};
 use kerosene_bsp::Bsp;
 use kerosene_engine::collision::LevelCollision;
@@ -310,7 +312,7 @@ fn a_trigger_volume_does_not_block_the_player() {
 
 #[test]
 fn the_engine_loads_and_ticks_a_compiled_map() {
-    use kerosene_engine::engine::{Engine, EngineConfig};
+    use kerosene_engine::engine::EngineConfig;
 
     // Write the compiled map somewhere the engine's VFS can find it.
     let dir = std::env::temp_dir().join(format!("kerosene-test-{}", std::process::id()));
@@ -318,7 +320,7 @@ fn the_engine_loads_and_ticks_a_compiled_map() {
     let bsp = build(&corridor_map(true, true));
     std::fs::write(dir.join("maps/testmap.kerobsp"), bsp.to_bytes()).unwrap();
 
-    let mut engine = Engine::new(&EngineConfig {
+    let mut engine = common::stock(&EngineConfig {
         content_paths: vec![dir.clone()],
         ..Default::default()
     });
@@ -356,7 +358,7 @@ fn the_engine_loads_and_ticks_a_compiled_map() {
 
 #[test]
 fn a_physics_prop_falls_and_comes_to_rest_on_the_floor() {
-    use kerosene_engine::engine::{Engine, EngineConfig};
+    use kerosene_engine::engine::EngineConfig;
 
     let dir = std::env::temp_dir().join(format!("kerosene-phys-{}", std::process::id()));
     std::fs::create_dir_all(dir.join("maps")).unwrap();
@@ -369,7 +371,7 @@ fn a_physics_prop_falls_and_comes_to_rest_on_the_floor() {
     )
     .unwrap();
 
-    let mut engine = Engine::new(&EngineConfig {
+    let mut engine = common::stock(&EngineConfig {
         content_paths: vec![dir.clone()],
         ..Default::default()
     });
@@ -408,7 +410,7 @@ fn a_physics_prop_falls_and_comes_to_rest_on_the_floor() {
 
 #[test]
 fn a_prop_rests_on_a_func_detail_pillar() {
-    use kerosene_engine::engine::{Engine, EngineConfig};
+    use kerosene_engine::engine::EngineConfig;
 
     let dir = std::env::temp_dir().join(format!("kerosene-detail-{}", std::process::id()));
     std::fs::create_dir_all(dir.join("maps")).unwrap();
@@ -430,7 +432,7 @@ fn a_prop_rests_on_a_func_detail_pillar() {
     )
     .unwrap();
 
-    let mut engine = Engine::new(&EngineConfig {
+    let mut engine = common::stock(&EngineConfig {
         content_paths: vec![dir.clone()],
         ..Default::default()
     });
@@ -457,7 +459,7 @@ fn a_prop_rests_on_a_func_detail_pillar() {
 
 #[test]
 fn a_prop_rests_on_a_closed_moving_brush() {
-    use kerosene_engine::engine::{Engine, EngineConfig};
+    use kerosene_engine::engine::EngineConfig;
 
     let dir = std::env::temp_dir().join(format!("kerosene-mover-{}", std::process::id()));
     std::fs::create_dir_all(dir.join("maps")).unwrap();
@@ -480,7 +482,7 @@ fn a_prop_rests_on_a_closed_moving_brush() {
     )
     .unwrap();
 
-    let mut engine = Engine::new(&EngineConfig {
+    let mut engine = common::stock(&EngineConfig {
         content_paths: vec![dir.clone()],
         ..Default::default()
     });
@@ -508,7 +510,7 @@ fn a_prop_rests_on_a_closed_moving_brush() {
 
 #[test]
 fn the_player_is_blocked_by_a_physics_prop() {
-    use kerosene_engine::engine::{Engine, EngineConfig};
+    use kerosene_engine::engine::EngineConfig;
 
     let dir = std::env::temp_dir().join(format!("kerosene-propcol-{}", std::process::id()));
     std::fs::create_dir_all(dir.join("maps")).unwrap();
@@ -521,7 +523,7 @@ fn the_player_is_blocked_by_a_physics_prop() {
     )
     .unwrap();
 
-    let mut engine = Engine::new(&EngineConfig {
+    let mut engine = common::stock(&EngineConfig {
         content_paths: vec![dir.clone()],
         ..Default::default()
     });
@@ -564,7 +566,7 @@ fn the_player_is_blocked_by_a_physics_prop() {
 
 #[test]
 fn the_player_can_pick_up_and_drop_a_prop() {
-    use kerosene_engine::engine::{Engine, EngineConfig};
+    use kerosene_engine::engine::EngineConfig;
 
     let dir = std::env::temp_dir().join(format!("kerosene-pickup-{}", std::process::id()));
     std::fs::create_dir_all(dir.join("maps")).unwrap();
@@ -587,7 +589,7 @@ fn the_player_can_pick_up_and_drop_a_prop() {
     )
     .unwrap();
 
-    let mut engine = Engine::new(&EngineConfig {
+    let mut engine = common::stock(&EngineConfig {
         content_paths: vec![dir.clone()],
         ..Default::default()
     });
@@ -649,7 +651,7 @@ fn the_player_can_pick_up_and_drop_a_prop() {
 
 #[test]
 fn an_unpickable_prop_cannot_be_scooped_up() {
-    use kerosene_engine::engine::{Engine, EngineConfig};
+    use kerosene_engine::engine::EngineConfig;
     use kerosene_entity::Value;
 
     let dir = std::env::temp_dir().join(format!("kerosene-unpickable-{}", std::process::id()));
@@ -671,7 +673,7 @@ fn an_unpickable_prop_cannot_be_scooped_up() {
     )
     .unwrap();
 
-    let mut engine = Engine::new(&EngineConfig {
+    let mut engine = common::stock(&EngineConfig {
         content_paths: vec![dir.clone()],
         ..Default::default()
     });
@@ -709,7 +711,7 @@ fn an_unpickable_prop_cannot_be_scooped_up() {
 
 #[test]
 fn a_carried_prop_turns_to_face_the_player() {
-    use kerosene_engine::engine::{Engine, EngineConfig};
+    use kerosene_engine::engine::EngineConfig;
 
     let dir = std::env::temp_dir().join(format!("kerosene-face-{}", std::process::id()));
     std::fs::create_dir_all(dir.join("maps")).unwrap();
@@ -730,7 +732,7 @@ fn a_carried_prop_turns_to_face_the_player() {
     )
     .unwrap();
 
-    let mut engine = Engine::new(&EngineConfig {
+    let mut engine = common::stock(&EngineConfig {
         content_paths: vec![dir.clone()],
         ..Default::default()
     });
@@ -784,7 +786,7 @@ fn a_carried_prop_turns_to_face_the_player() {
 
 #[test]
 fn a_carried_prop_cannot_be_pushed_through_a_wall() {
-    use kerosene_engine::engine::{Engine, EngineConfig};
+    use kerosene_engine::engine::EngineConfig;
 
     let dir = std::env::temp_dir().join(format!("kerosene-wall-{}", std::process::id()));
     std::fs::create_dir_all(dir.join("maps")).unwrap();
@@ -805,7 +807,7 @@ fn a_carried_prop_cannot_be_pushed_through_a_wall() {
     )
     .unwrap();
 
-    let mut engine = Engine::new(&EngineConfig {
+    let mut engine = common::stock(&EngineConfig {
         content_paths: vec![dir.clone()],
         ..Default::default()
     });
@@ -878,7 +880,7 @@ fn physics_engine(
     name: &str,
     pillar: bool,
 ) -> (kerosene_engine::engine::Engine, std::path::PathBuf) {
-    use kerosene_engine::engine::{Engine, EngineConfig};
+    use kerosene_engine::engine::EngineConfig;
     let dir = std::env::temp_dir().join(format!(
         "kerosene-{name}-{}-{:?}",
         std::process::id(),
@@ -903,7 +905,7 @@ fn physics_engine(
         cube_model().to_bytes(),
     )
     .unwrap();
-    let mut engine = Engine::new(&EngineConfig {
+    let mut engine = common::stock(&EngineConfig {
         content_paths: vec![dir.clone()],
         ..Default::default()
     });
@@ -1100,7 +1102,7 @@ fn a_carried_prop_shoves_another_one_instead_of_passing_into_it() {
     // long as it was held. It went through other props without touching them,
     // and it sat at the hold point as though welded there. Steering it by
     // velocity leaves it an ordinary body: it shoves what it meets.
-    use kerosene_engine::engine::{Engine, EngineConfig};
+    use kerosene_engine::engine::EngineConfig;
     use kerosene_entity::Value;
 
     let dir = std::env::temp_dir().join(format!(
@@ -1136,7 +1138,7 @@ fn a_carried_prop_shoves_another_one_instead_of_passing_into_it() {
     )
     .unwrap();
 
-    let mut engine = Engine::new(&EngineConfig {
+    let mut engine = common::stock(&EngineConfig {
         content_paths: vec![dir.clone()],
         ..Default::default()
     });
@@ -1211,7 +1213,7 @@ fn a_carried_prop_gives_way_when_it_meets_something_it_cannot_move() {
     // the reach trace that pulls the hold point back only knows about world
     // brushes, so a prop is something it cannot see. Whatever keeps the
     // carried prop out of it has to be the simulation itself.
-    use kerosene_engine::engine::{Engine, EngineConfig};
+    use kerosene_engine::engine::EngineConfig;
     use kerosene_entity::Value;
 
     let dir = std::env::temp_dir().join(format!(
@@ -1245,7 +1247,7 @@ fn a_carried_prop_gives_way_when_it_meets_something_it_cannot_move() {
     )
     .unwrap();
 
-    let mut engine = Engine::new(&EngineConfig {
+    let mut engine = common::stock(&EngineConfig {
         content_paths: vec![dir.clone()],
         ..Default::default()
     });
@@ -1385,7 +1387,7 @@ fn engine_with_a_carried_prop(
     std::path::PathBuf,
     kerosene_entity::EntityId,
 ) {
-    use kerosene_engine::engine::{Engine, EngineConfig};
+    use kerosene_engine::engine::EngineConfig;
     use kerosene_entity::Value;
 
     let dir = std::env::temp_dir().join(format!(
@@ -1412,7 +1414,7 @@ fn engine_with_a_carried_prop(
     )
     .unwrap();
 
-    let mut engine = Engine::new(&EngineConfig {
+    let mut engine = common::stock(&EngineConfig {
         content_paths: vec![dir.clone()],
         ..Default::default()
     });
@@ -1692,9 +1694,9 @@ fn the_console_draws_a_long_log_and_scrolls_back_through_it() {
     // handed only the lines already on screen, so it had nothing to scroll and
     // the wheel did nothing. The lines it shows have to actually move when the
     // view is scrolled back.
-    use kerosene_engine::engine::{Engine, EngineConfig};
+    use kerosene_engine::engine::EngineConfig;
 
-    let mut engine = Engine::new(&EngineConfig::default());
+    let mut engine = common::stock(&EngineConfig::default());
     engine.console.execute("cvarlist");
     engine.console.run_buffered();
     let total = engine.console.log_len();
@@ -1745,9 +1747,9 @@ fn the_newest_console_line_is_drawn_above_the_prompt_rather_than_under_it() {
     // left `item_spacing` out of the row height, so it ran several lines over.
     // Those lines were drawn under the input field, where the newest output --
     // the reason anyone opens a console -- could not be read.
-    use kerosene_engine::engine::{Engine, EngineConfig};
+    use kerosene_engine::engine::EngineConfig;
 
-    let mut engine = Engine::new(&EngineConfig::default());
+    let mut engine = common::stock(&EngineConfig::default());
     for i in 0..200 {
         engine.console.print(format!("line number {i}"));
     }
@@ -1812,9 +1814,9 @@ fn cvarlist_lists_the_physics_convars_along_with_everything_else() {
     // the console could only be scrolled with page up. This pins the half that
     // is about the list rather than about the window: if a convar is
     // registered, `cvarlist` names it.
-    use kerosene_engine::engine::{Engine, EngineConfig};
+    use kerosene_engine::engine::EngineConfig;
 
-    let mut engine = Engine::new(&EngineConfig::default());
+    let mut engine = common::stock(&EngineConfig::default());
     engine.console.execute("cvarlist");
     engine.console.run_buffered();
     let listed: String = engine
@@ -1857,11 +1859,11 @@ fn what_the_engine_logs_reaches_the_console() {
     // invisible from inside the game -- and the console, the one place anyone
     // would look, showed nothing.
     use kerosene_console::{LogLevel, LogRelay};
-    use kerosene_engine::engine::{Engine, EngineConfig};
+    use kerosene_engine::engine::EngineConfig;
     use log::Log;
 
     let relay = std::sync::Arc::new(LogRelay::detached(log::LevelFilter::Debug));
-    let mut engine = Engine::new(&EngineConfig {
+    let mut engine = common::stock(&EngineConfig {
         log: Some(std::sync::Arc::clone(&relay)),
         content_paths: vec![],
         ..Default::default()
@@ -1894,10 +1896,10 @@ fn the_console_does_not_repeat_its_own_output() {
     // it too. Without the target check that line would come straight back and
     // appear twice.
     use kerosene_console::LogRelay;
-    use kerosene_engine::engine::{Engine, EngineConfig};
+    use kerosene_engine::engine::EngineConfig;
 
     let relay = std::sync::Arc::new(LogRelay::detached(log::LevelFilter::Debug));
-    let mut engine = Engine::new(&EngineConfig {
+    let mut engine = common::stock(&EngineConfig {
         log: Some(std::sync::Arc::clone(&relay)),
         content_paths: vec![],
         ..Default::default()
@@ -1919,7 +1921,7 @@ fn the_console_does_not_repeat_its_own_output() {
 /// An engine with a map and a script file on disk, since both are read
 /// through the VFS.
 fn engine_with_script(script: &str) -> (kerosene_engine::engine::Engine, std::path::PathBuf) {
-    use kerosene_engine::engine::{Engine, EngineConfig};
+    use kerosene_engine::engine::EngineConfig;
 
     let dir = std::env::temp_dir().join(format!(
         "kerosene-script-{}-{:?}",
@@ -1933,7 +1935,7 @@ fn engine_with_script(script: &str) -> (kerosene_engine::engine::Engine, std::pa
     std::fs::write(dir.join("maps/testmap.kerobsp"), bsp.to_bytes()).unwrap();
     std::fs::write(dir.join("scripts/testmap.keroscript"), script).unwrap();
 
-    let engine = Engine::new(&EngineConfig {
+    let engine = common::stock(&EngineConfig {
         content_paths: vec![dir.clone()],
         ..Default::default()
     });
@@ -1954,13 +1956,13 @@ fn a_maps_script_loads_with_it_and_its_start_hook_runs() {
 
 #[test]
 fn a_map_with_no_script_is_silent_rather_than_an_error() {
-    use kerosene_engine::engine::{Engine, EngineConfig};
+    use kerosene_engine::engine::EngineConfig;
     let dir = std::env::temp_dir().join(format!("kerosene-noscript-{}", std::process::id()));
     std::fs::create_dir_all(dir.join("maps")).unwrap();
     let bsp = build(&corridor_map(true, true));
     std::fs::write(dir.join("maps/testmap.kerobsp"), bsp.to_bytes()).unwrap();
 
-    let mut engine = Engine::new(&EngineConfig {
+    let mut engine = common::stock(&EngineConfig {
         content_paths: vec![dir.clone()],
         ..Default::default()
     });
@@ -2270,7 +2272,7 @@ fn the_mixer_runs_whether_or_not_there_is_a_sound_card() {
 
 /// An engine whose content tree has a sound in it.
 fn engine_with_sound() -> (kerosene_engine::engine::Engine, std::path::PathBuf) {
-    use kerosene_engine::engine::{Engine, EngineConfig};
+    use kerosene_engine::engine::EngineConfig;
 
     let dir = std::env::temp_dir().join(format!(
         "kerosene-audio-{}-{:?}",
@@ -2291,7 +2293,7 @@ fn engine_with_sound() -> (kerosene_engine::engine::Engine, std::path::PathBuf) 
     )
     .unwrap();
 
-    let engine = Engine::new(&EngineConfig {
+    let engine = common::stock(&EngineConfig {
         content_paths: vec![dir.clone()],
         ..Default::default()
     });
@@ -2546,7 +2548,7 @@ fn corridor_with_button() -> Map {
 }
 
 fn engine_with(map: &Map, name: &str) -> (kerosene_engine::engine::Engine, std::path::PathBuf) {
-    use kerosene_engine::engine::{Engine, EngineConfig};
+    use kerosene_engine::engine::EngineConfig;
 
     let dir = std::env::temp_dir().join(format!(
         "kerosene-use-{name}-{}-{:?}",
@@ -2557,7 +2559,7 @@ fn engine_with(map: &Map, name: &str) -> (kerosene_engine::engine::Engine, std::
     std::fs::create_dir_all(dir.join("maps")).unwrap();
     std::fs::write(dir.join("maps/testmap.kerobsp"), build(map).to_bytes()).unwrap();
 
-    let mut engine = Engine::new(&EngineConfig {
+    let mut engine = common::stock(&EngineConfig {
         content_paths: vec![dir.clone()],
         ..Default::default()
     });
@@ -3421,7 +3423,7 @@ fn a_name_in_the_wrong_case_still_finds_the_file() {
 
 #[test]
 fn archived_settings_and_bindings_come_back_through_config_cfg() {
-    use kerosene_engine::engine::{Engine, EngineConfig};
+    use kerosene_engine::engine::EngineConfig;
     let dir = std::env::temp_dir().join(format!(
         "kerosene-config-{}-{:?}",
         std::process::id(),
@@ -3435,7 +3437,7 @@ fn archived_settings_and_bindings_come_back_through_config_cfg() {
     };
 
     // A session sets a couple of things and writes its config on the way out.
-    let mut engine = Engine::new(&config);
+    let mut engine = common::stock(&config);
     engine.console.run_buffered();
     engine.console.execute("sensitivity 7.5");
     let text = engine.config_text("bind \"f\" \"+use\"");
@@ -3444,7 +3446,7 @@ fn archived_settings_and_bindings_come_back_through_config_cfg() {
     engine.vfs.write("cfg/config.cfg", text.as_bytes()).unwrap();
 
     // The next session reads it back before anything else runs.
-    let mut again = Engine::new(&config);
+    let mut again = common::stock(&config);
     again.console.run_buffered();
     assert_eq!(again.console.float("sensitivity"), 7.5);
     let requests = kerosene_engine::engine::take_console_requests(&mut again);

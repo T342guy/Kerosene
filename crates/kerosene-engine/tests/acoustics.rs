@@ -5,6 +5,8 @@
 //! the room the compiler wrote is the room the engine hears, and that a wall
 //! the compiler saw is a wall the mixer muffles.
 
+mod common;
+
 use cleave::{CompileOptions, compile};
 use kerosene_audio::{ReverbParams, SoundParams};
 use kerosene_bsp::{Bsp, VisBuilder};
@@ -260,7 +262,7 @@ fn engine_with(bsp: &Bsp) -> (Engine, std::path::PathBuf) {
     ));
     std::fs::create_dir_all(dir.join("maps")).unwrap();
     std::fs::write(dir.join("maps/acoustics.kerobsp"), bsp.to_bytes()).unwrap();
-    let mut engine = Engine::new(&EngineConfig {
+    let mut engine = common::stock(&EngineConfig {
         content_paths: vec![dir.clone()],
         ..Default::default()
     });

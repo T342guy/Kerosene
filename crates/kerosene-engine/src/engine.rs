@@ -13,12 +13,13 @@
 
 use crate::acoustics;
 use crate::collision::{LevelCollision, PlayerCollision};
+use crate::game::Game;
 use crate::input::InputState;
 use crate::physics::PhysicsProps;
 use kerosene_audio::ReverbParams;
 use kerosene_bsp::{Bsp, contents};
 use kerosene_console::{ConVarFlags, Console, requests};
-use kerosene_entity::{EntityId, EntityWorld, Value};
+use kerosene_entity::{ClassRegistry, EntityId, EntityWorld, Value};
 use kerosene_math::{Aabb, Angles, Pose, Quat, Vec3};
 use kerosene_physics::{MoveInput, MoveParams, MoveState};
 use kerosene_vfs::{Vfs, VfsError};
@@ -190,6 +191,12 @@ pub struct Engine {
     pub vfs: Arc<Vfs>,
     pub level: Option<Level>,
     pub entities: EntityWorld,
+    /// The classes every entity world is built with: the game's, asked for
+    /// once, so a map load never needs the game object itself.
+    registry: Arc<ClassRegistry>,
+    /// The game. `None` only while one of its hooks is running -- see
+    /// [`crate::game`] for why.
+    pub(crate) game: Option<Box<dyn Game>>,
     /// Rigid-body props and the static world they rest on.
     pub physics: PhysicsProps,
     pub player: PlayerState,
@@ -270,7 +277,18 @@ impl Default for PlayerState {
 }
 
 impl Engine {
+    /// An engine with no game: no entity classes beyond what the engine
+    /// itself needs, nothing on any hook. What tests and a bare server use.
     pub fn new(config: &EngineConfig) -> Engine {
+        Engine::with_game(config, Box::new(()))
+    }
+
+    /// An engine running `game`.
+    ///
+    /// The game is asked for its classes here and set up after the console
+    /// exists but before the saved settings, the autoexec and the command
+    /// line run, so anything it registers is usable from all three.
+    pub fn with_game(config: &EngineConfig, mut game: Box<dyn Game>) -> Engine {
         let mut vfs = Vfs::new();
         for dir in &config.content_paths {
             vfs.add_directory(dir, "GAME");
@@ -326,7 +344,10 @@ impl Engine {
             });
         }
 
-        let entities = EntityWorld::new(kerosene_game::registry());
+        let mut registry = ClassRegistry::new();
+        game.classes(&mut registry);
+        let registry = Arc::new(registry);
+        let entities = EntityWorld::new(registry.clone());
 
         let mut engine = Engine {
             console,
@@ -340,6 +361,8 @@ impl Engine {
             vfs,
             level: None,
             entities,
+            registry,
+            game: None,
             physics: PhysicsProps::new(),
             player: PlayerState::default(),
             held_prop: None,
@@ -354,6 +377,9 @@ impl Engine {
 
         let vfs = engine.vfs.clone();
         engine.audio.load_scripts(&vfs);
+
+        game.setup(&mut engine);
+        engine.game = Some(game);
 
         // Saved settings first, then the person's own autoexec, then the
         // command line -- so each later one can overrule the one before it.
@@ -463,7 +489,7 @@ impl Engine {
 
         // A fresh entity world per map: nothing from the last one should
         // survive, and a stale handle must not resolve.
-        self.entities = EntityWorld::new(kerosene_game::registry());
+        self.entities = EntityWorld::new(self.registry.clone());
         self.entities.set_trace(self.console.int("developer") >= 2);
         let count = self.entities.load_from_bsp(&bsp)?;
         self.console.print(format!("{count} entities"));
@@ -516,6 +542,7 @@ impl Engine {
         // request in during spawn.
         self.take_entity_requests();
         self.call_script_hook(kerosene_script::hooks::MAP_START, vec![]);
+        self.with_game_mut(|game, engine| game.map_loaded(engine));
         Ok(())
     }
 
@@ -651,6 +678,8 @@ impl Engine {
         // mid-map starts tracing entity I/O at once.
         self.entities.set_trace(self.console.int("developer") >= 2);
 
+        self.with_game_mut(|game, engine| game.pre_tick(engine, input, dt));
+
         if let Some(level) = &self.level {
             // Rebuilt each tick: a door that moved since the last one has to
             // block where it is now, not where it was -- and so does a prop
@@ -722,6 +751,7 @@ impl Engine {
         self.update_triggers(dt);
         self.entities.run(dt);
         self.take_entity_requests();
+        self.with_game_mut(|game, engine| game.tick(engine, input, dt));
 
         // Rigid-body props: give new ones bodies, simulate, and write each
         // body's pose back so the renderer draws it where the physics put it.
@@ -1905,10 +1935,17 @@ pub fn take_console_requests(engine: &mut Engine) -> Vec<(String, String)> {
 /// open -- so that an unrecognised request is still said out loud rather than
 /// dropped on the floor.
 pub fn report_unhandled(engine: &mut Engine, requests: Vec<(String, String)>) {
-    for (kind, _) in requests {
-        engine
-            .console
-            .warn(format!("unknown host request `{kind}`"));
+    for (kind, payload) in requests {
+        // The game's own commands leave requests of their own; it gets the
+        // first refusal on anything the engine and the host did not know.
+        let claimed = engine
+            .with_game_mut(|game, engine| game.console_request(engine, &kind, &payload))
+            .unwrap_or(false);
+        if !claimed {
+            engine
+                .console
+                .warn(format!("unknown host request `{kind}`"));
+        }
     }
 }
 
