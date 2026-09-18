@@ -13,3 +13,5 @@ kerosene-kv.workspace = true
 # "vulkan" has to mean a real backend, so the mapping lives next to the enum.
 wgpu.workspace = true
 log.workspace = true
+# The window icon is a PNG compiled into the binary.
+png.workspace = true

@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Kerosene
+Comment=The Kerosene toolset: world editor, sound editor, build and archive
+Exec=kerosene-tools
+Icon=kerosene
+Terminal=false
+Categories=Development;Game;
+StartupWMClass=kerosene

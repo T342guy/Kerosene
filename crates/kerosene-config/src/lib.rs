@@ -26,6 +26,7 @@
 use std::path::Path;
 
 pub mod gpu;
+pub mod icon;
 mod renderer;
 #[cfg(test)]
 mod tests;

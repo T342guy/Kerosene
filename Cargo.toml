@@ -82,6 +82,9 @@ egui-winit  = { version = "0.32", default-features = false, features = ["links",
 # that looks like a UI asset; kept behind kerosene-ui so every tool draws the
 # same glyphs.
 egui-phosphor = "0.10"
+# Decodes the window icon. Already in the tree under `image`; the engine
+# links this one crate rather than all of `image` for one picture.
+png         = "0.18"
 pollster    = "0.4"
 # Scripting. Pure Rust, no C toolchain, and small enough to embed without the
 # engine becoming a host for someone else's runtime.

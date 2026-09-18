@@ -875,3 +875,11 @@ into). Implement `App`, call `run`. It exists because the window is three
 hundred lines with nothing to do with any particular tool, and a second copy
 of them is a second place for a resize bug to live -- and because a palette
 each tool chose for itself would be three palettes.
+
+**The window icon** is the Kerosene mark from `.github/Images/`, compiled
+into every binary that opens a window (`kerosene_config::icon`) and set on
+the window. X11, Windows and macOS show it from there. Wayland does not let a
+window carry its own icon: the compositor shows the icon of the `.desktop`
+file whose name matches the window's app id, which is `kerosene`.
+`scripts/install-desktop.sh` installs that entry and the icon set under
+`~/.local` for the current user; `--uninstall` takes them out again.

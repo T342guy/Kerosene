@@ -273,7 +273,26 @@ impl Host {
 async fn create_gfx(event_loop: &ActiveEventLoop, title: &str, size: (u32, u32)) -> Result<Gfx> {
     let attributes = Window::default_attributes()
         .with_title(title)
+        .with_window_icon(kerosene_config::icon::window_icon().and_then(|icon| {
+            winit::window::Icon::from_rgba(icon.rgba, icon.width, icon.height).ok()
+        }))
         .with_inner_size(winit::dpi::LogicalSize::new(size.0, size.1));
+    // Wayland ignores an icon set on the window: the compositor shows the
+    // icon of the .desktop file whose name matches the app id. Naming the
+    // window "kerosene" is what makes a `kerosene.desktop` apply, and on X11
+    // the same string is the WM_CLASS.
+    #[cfg(target_os = "linux")]
+    let attributes = {
+        // Both traits have a `with_name`; each applies to its own backend
+        // and is a no-op on the other, so both are set.
+        winit::platform::wayland::WindowAttributesExtWayland::with_name(
+            winit::platform::x11::WindowAttributesExtX11::with_name(
+                attributes, "kerosene", "kerosene",
+            ),
+            "kerosene",
+            "kerosene",
+        )
+    };
     let window = Arc::new(event_loop.create_window(attributes)?);
 
     // Tools share the engine's renderer default (Vulkan), falling back to
