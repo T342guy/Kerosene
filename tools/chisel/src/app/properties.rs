@@ -7,64 +7,94 @@ use kerosene_ui::theme;
 
 impl ChiselApp {
     pub(super) fn commit_properties(&mut self) {
-        let Some(edit) = self.properties.as_mut() else {
-            return;
-        };
-        if !edit.dirty {
-            return;
-        }
-        edit.dirty = false;
-        let (id, rows, connections) = (edit.entity, edit.rows.clone(), edit.connections.clone());
-        self.document.apply("edit properties", |doc| {
-            if let Some(entity) = doc.find_entity_mut(id) {
-                inspector::apply(entity, &rows);
-                entity.connections = connections;
-            }
-        });
-        let revision = self.document.revision();
         if let Some(edit) = self.properties.as_mut() {
-            edit.revision = revision;
+            edit.commit(&mut self.document, "edit properties");
+        }
+        if let Some(edit) = self.brush_properties.as_mut() {
+            edit.commit(&mut self.document, "edit brush keys");
+        }
+    }
+
+    // ---- what gets edited -----------------------------------------------
+
+    /// What the key-value editors edit, given the selection.
+    ///
+    /// Faces when any are selected; otherwise entities -- the selected ones
+    /// and the brush entities the selected brushes belong to; otherwise the
+    /// selected brushes themselves; and with nothing selected, the world,
+    /// which is where the skybox and the like live.
+    pub(super) fn properties_targets(&self) -> Vec<TargetId> {
+        let selection = &self.document.selection;
+        if !selection.faces.is_empty() {
+            let mut faces: Vec<(u32, u32)> = selection.faces.iter().copied().collect();
+            faces.sort_unstable();
+            return faces
+                .into_iter()
+                .map(|(solid, side)| TargetId::Face(solid, side))
+                .collect();
+        }
+        let mut entities: Vec<u32> = selection.entities.iter().copied().collect();
+        for &solid in &selection.solids {
+            if let Some(owner) = self.document.map.owner_of_solid(solid)
+                && !entities.contains(&owner.id)
+            {
+                entities.push(owner.id);
+            }
+        }
+        if !entities.is_empty() {
+            entities.sort_unstable();
+            return entities.into_iter().map(TargetId::Entity).collect();
+        }
+        let mut solids: Vec<u32> = selection.solids.iter().copied().collect();
+        if !solids.is_empty() {
+            solids.sort_unstable();
+            return solids.into_iter().map(TargetId::Solid).collect();
+        }
+        vec![TargetId::Entity(self.document.map.world.id)]
+    }
+
+    /// The selected brushes, for their own keys, when the main editor is
+    /// on the entity they belong to.
+    pub(super) fn brush_targets(&self) -> Vec<TargetId> {
+        let mut solids: Vec<u32> = self.document.selection.solids.iter().copied().collect();
+        solids.sort_unstable();
+        solids.into_iter().map(TargetId::Solid).collect()
+    }
+
+    /// A short description of a target list for a heading: `func_door`,
+    /// `3 entities`, `2 brushes`, `1 face`.
+    pub(super) fn describe_targets(&self, targets: &[TargetId]) -> String {
+        let plural = |n: usize, one: &str, many: &str| {
+            if n == 1 {
+                format!("1 {one}")
+            } else {
+                format!("{n} {many}")
+            }
+        };
+        match targets {
+            [] => "nothing".to_string(),
+            [TargetId::Entity(id)] => self
+                .document
+                .find_entity(*id)
+                .map(|e| e.classname().to_string())
+                .unwrap_or_default(),
+            [TargetId::Solid(_)] => "brush".to_string(),
+            [TargetId::Face(..)] => "face".to_string(),
+            many => match many[0] {
+                TargetId::Entity(_) => plural(many.len(), "entity", "entities"),
+                TargetId::Solid(_) => plural(many.len(), "brush", "brushes"),
+                TargetId::Face(..) => plural(many.len(), "face", "faces"),
+            },
         }
     }
 
     // ---- the object properties popup ------------------------------------
 
-    /// Which entity the Object Properties popup should edit, given the
-    /// selection: the selected entity, the brush entity the selected brushes
-    /// belong to, or `worldspawn` for plain world brushes.
-    pub(super) fn properties_target(&self) -> Option<u32> {
-        if let Some(&id) = self.document.selection.entities.iter().next() {
-            return Some(id);
-        }
-        if self.document.selection.solids.is_empty() {
-            return None;
-        }
-        if let Some((id, _)) = self.document.selected_brush_class() {
-            return Some(id);
-        }
-        Some(self.document.map.world.id)
-    }
-
     /// Open the popup on the current selection.
     pub(super) fn open_property_window(&mut self) {
-        let Some(entity) = self.properties_target() else {
-            self.status = "select something to see its object properties".into();
-            return;
-        };
-        let (rows, connections) = {
-            let e = self
-                .document
-                .find_entity(entity)
-                .expect("the target entity exists");
-            let spec = self.schema.get(e.classname());
-            (inspector::rows(spec, e), e.connections.clone())
-        };
+        let targets = self.properties_targets();
         self.property_window = Some(PropertyWindow {
-            entity,
-            rows,
-            dirty: false,
-            revision: self.document.revision(),
-            connections,
+            edit: PropertyEdit::build(&self.document, &self.schema, targets),
             new_key: String::new(),
             new_value: String::new(),
             #[cfg(test)]
@@ -73,54 +103,32 @@ impl ChiselApp {
     }
 
     /// Keep the popup's buffer in step with the document: refresh after an
-    /// undo or an edit made elsewhere, and close when its entity disappears.
+    /// undo or an edit made elsewhere, and close when its object disappears.
     pub(super) fn sync_property_window(&mut self) {
         let Some(window) = self.property_window.as_ref() else {
             return;
         };
-        let id = window.entity;
         let revision = self.document.revision();
-        if window.revision == revision || window.dirty {
+        if window.edit.revision == revision || window.edit.dirty || window.edit.editor_dirty {
             return;
         }
-        if self.document.find_entity(id).is_none() {
+        if !window.edit.still_valid(&self.document, &self.schema) {
             self.property_window = None;
             return;
         }
-        let (rows, connections) = {
-            let e = self.document.find_entity(id).expect("checked above");
-            let spec = self.schema.get(e.classname());
-            (inspector::rows(spec, e), e.connections.clone())
-        };
+        let targets = window.edit.targets.clone();
+        let edit = PropertyEdit::build(&self.document, &self.schema, targets);
         if let Some(window) = self.property_window.as_mut() {
-            window.rows = rows;
-            window.connections = connections;
-            window.revision = revision;
-            window.dirty = false;
+            window.edit = edit;
         }
     }
 
     /// Write the popup's buffer back into the map.
     pub(super) fn commit_property_window(&mut self) {
-        let Some(window) = self.property_window.as_ref() else {
-            return;
-        };
-        if !window.dirty {
-            return;
-        }
-        let id = window.entity;
-        let rows = window.rows.clone();
-        let connections = window.connections.clone();
-        self.document.apply("edit object properties", |doc| {
-            if let Some(entity) = doc.find_entity_mut(id) {
-                inspector::apply(entity, &rows);
-                entity.connections = connections;
-            }
-        });
-        let revision = self.document.revision();
         if let Some(window) = self.property_window.as_mut() {
-            window.dirty = false;
-            window.revision = revision;
+            window
+                .edit
+                .commit(&mut self.document, "edit object properties");
         }
     }
 
@@ -140,11 +148,13 @@ impl ChiselApp {
             .default_width(520.0)
             .default_height(420.0)
             .show(ctx, |ui| {
-                let (classname, help) = {
+                let (title, classname, help) = {
                     let window = self.property_window.as_ref().expect("checked above");
-                    let classname = self
-                        .document
-                        .find_entity(window.entity)
+                    let title = self.describe_targets(&window.edit.targets);
+                    let classname = window
+                        .edit
+                        .single_entity()
+                        .and_then(|id| self.document.find_entity(id))
                         .map(|e| e.classname().to_string())
                         .unwrap_or_default();
                     let help = self
@@ -152,10 +162,13 @@ impl ChiselApp {
                         .get(&classname)
                         .map(|s| s.help.clone())
                         .unwrap_or_default();
-                    (classname, help)
+                    (title, classname, help)
                 };
                 ui.horizontal(|ui| {
-                    ui.label(RichText::new(&classname).monospace().strong());
+                    ui.label(RichText::new(&title).monospace().strong());
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        raw_toggle(ui, &mut self.raw_keys);
+                    });
                 });
                 if !help.is_empty() {
                     ui.label(theme::caption(&help));
@@ -207,45 +220,64 @@ impl ChiselApp {
             .as_ref()
             .map(|window| {
                 window
+                    .edit
                     .connections
                     .iter()
                     .map(|c| inspector::inputs_for_target(&self.schema, &self.document, &c.target))
                     .collect()
             })
             .unwrap_or_default();
+        let raw = self.raw_keys;
 
         egui::ScrollArea::vertical()
             .auto_shrink([false, false])
             .show(ui, |ui| {
                 let window = self.property_window.as_mut().expect("checked above");
-                if property_grid(ui, window, &self.materials, &self.models) {
-                    commit = true;
+                let grid = property_grid(
+                    ui,
+                    "object-properties",
+                    &mut window.edit,
+                    raw,
+                    &self.materials,
+                    &self.models,
+                );
+                commit |= grid.commit;
+                #[cfg(test)]
+                {
+                    window.narrowest_value = grid.narrowest;
+                }
+
+                if window.edit.has_editor_data() {
+                    ui.add_space(6.0);
+                    commit |= editor_data_rows(ui, "popup", &mut window.edit);
                 }
 
                 // The other half of Hammer's dialog. Keyvalues say what an
                 // entity is; outputs say what it does, and an editor that only
                 // shows the first half means reaching for the docked panel to
                 // finish every job the popup started.
-                let mut dirty = window.dirty;
-                if outputs_editor(
-                    ui,
-                    "popup",
-                    &mut window.connections,
-                    &outputs,
-                    &help_for,
-                    &targets,
-                    &inputs_for,
-                    &mut dirty,
-                ) {
-                    commit = true;
+                if window.edit.single_entity().is_some() {
+                    let mut dirty = window.edit.dirty;
+                    if outputs_editor(
+                        ui,
+                        "popup",
+                        &mut window.edit.connections,
+                        &outputs,
+                        &help_for,
+                        &targets,
+                        &inputs_for,
+                        &mut dirty,
+                    ) {
+                        commit = true;
+                    }
+                    window.edit.dirty = dirty;
                 }
-                window.dirty = dirty;
             });
 
         commit
     }
 
-    /// The add-a-key row: any keyvalue, on any brush or entity.
+    /// The add-a-key row: any keyvalue, on any brush, face or entity.
     pub(super) fn property_window_footer(&mut self, ui: &mut egui::Ui) -> bool {
         let mut commit = false;
         ui.horizontal(|ui| {
@@ -266,32 +298,53 @@ impl ChiselApp {
             {
                 let name = window.new_key.trim().to_string();
                 if !name.is_empty() {
-                    if let Some(row) = window
-                        .rows
-                        .iter_mut()
-                        .find(|r| r.key.eq_ignore_ascii_case(&name))
-                    {
-                        row.value = Some(window.new_value.clone());
-                    } else {
-                        window.rows.push(PropertyRow {
-                            key: name.clone(),
-                            label: name.clone(),
-                            kind: KeyKind::String,
-                            help: String::new(),
-                            choices: Vec::new(),
-                            default: String::new(),
-                            value: Some(window.new_value.clone()),
-                            described: false,
-                        });
-                    }
+                    let value = window.new_value.clone();
+                    add_key(&mut window.edit, &name, value);
                     window.new_key.clear();
                     window.new_value.clear();
-                    window.dirty = true;
                     commit = true;
                 }
             }
         });
         commit
+    }
+
+    /// Point the main edit buffer at whatever is selected now.
+    pub(super) fn sync_properties(&mut self, targets: Vec<TargetId>) {
+        let revision = self.document.revision();
+        if let Some(edit) = self.properties.as_ref() {
+            // Same targets, and nothing has changed underneath a buffer that
+            // is not mid-edit: leave it alone. Rebuilding every frame would
+            // throw away what is being typed.
+            if edit.targets == targets
+                && (edit.dirty || edit.editor_dirty || edit.revision == revision)
+            {
+                return;
+            }
+        }
+        // Moving on commits what was in flight; an edit is not lost by
+        // clicking somewhere else, which is what a person expects.
+        if let Some(edit) = self.properties.as_mut() {
+            edit.commit(&mut self.document, "edit properties");
+        }
+        self.properties = (!targets.is_empty())
+            .then(|| PropertyEdit::build(&self.document, &self.schema, targets));
+    }
+
+    /// The same, for the brushes of a brush entity.
+    pub(super) fn sync_brush_properties(&mut self, targets: Vec<TargetId>) {
+        let revision = self.document.revision();
+        if let Some(edit) = self.brush_properties.as_ref()
+            && edit.targets == targets
+            && (edit.dirty || edit.editor_dirty || edit.revision == revision)
+        {
+            return;
+        }
+        if let Some(edit) = self.brush_properties.as_mut() {
+            edit.commit(&mut self.document, "edit brush keys");
+        }
+        self.brush_properties = (!targets.is_empty())
+            .then(|| PropertyEdit::build(&self.document, &self.schema, targets));
     }
 
     /// Pick whatever is at a pane point and select it, used by right-click.
@@ -338,9 +391,8 @@ impl ChiselApp {
 
     /// The right-click menu in a viewport.
     pub(super) fn context_menu(&mut self, ui: &mut egui::Ui) {
-        let has_target = self.properties_target().is_some();
         if ui
-            .add_enabled(has_target, egui::Button::new("Object Properties…"))
+            .add(egui::Button::new("Object Properties…"))
             .on_hover_text("Every key this object reads, and room to add your own")
             .clicked()
         {
@@ -383,35 +435,5 @@ impl ChiselApp {
                 ui.close();
             }
         }
-    }
-
-    /// Point the edit buffer at whatever is selected now.
-    pub(super) fn sync_properties(&mut self, id: Option<u32>) {
-        let revision = self.document.revision();
-        match self.properties.as_ref() {
-            // Same entity, and nothing has changed underneath a buffer that is
-            // not mid-edit: leave it alone. Rebuilding every frame would throw
-            // away what is being typed.
-            Some(edit) if Some(edit.entity) == id && (edit.dirty || edit.revision == revision) => {
-                return;
-            }
-            None if id.is_none() => return,
-            _ => {}
-        }
-        // Moving on commits what was in flight; an edit is not lost by
-        // clicking somewhere else, which is what a person expects.
-        self.commit_properties();
-        let revision = self.document.revision();
-        self.properties = id.and_then(|id| {
-            let entity = self.document.find_entity(id)?;
-            let spec = self.schema.get(entity.classname());
-            Some(PropertyEdit {
-                entity: id,
-                rows: inspector::rows(spec, entity),
-                connections: entity.connections.clone(),
-                dirty: false,
-                revision,
-            })
-        });
     }
 }

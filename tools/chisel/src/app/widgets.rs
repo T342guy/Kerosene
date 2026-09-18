@@ -96,13 +96,13 @@ pub(super) fn property_widget(
 
         // Clearing a key is how you go back to the game's default, so it needs
         // to be reachable. Only offered when there is something to clear.
-        if row.is_set()
+        if (row.is_set() || row.mixed)
             && ui
                 .small_button("clear")
                 .on_hover_text("Remove this key")
                 .clicked()
         {
-            row.value = None;
+            row.set(None);
             out.changed = true;
             out.finished = true;
         }
@@ -128,6 +128,24 @@ pub(super) fn property_value_widget(
         browse: false,
     };
     let id = (salt, index, row.key.as_str());
+
+    // Several objects, and they disagree: whatever widget the key wants,
+    // showing one object's value in it is how the others get overwritten
+    // by accident. A blank field that says so, until someone types.
+    if row.mixed {
+        let mut text = String::new();
+        let r = ui.add(
+            egui::TextEdit::singleline(&mut text)
+                .desired_width(190.0)
+                .hint_text("differs"),
+        );
+        if r.changed() {
+            row.set(Some(text));
+            out.changed = true;
+        }
+        return out;
+    }
+
     match row.kind {
         KeyKind::Boolean => {
             let mut on = matches!(row.text().trim(), "1" | "true" | "yes");
@@ -293,6 +311,9 @@ pub(super) fn property_value_widget(
             }
             out.finished |= r.lost_focus();
         }
+    }
+    if out.changed {
+        row.dirty = true;
     }
 
     out
@@ -516,24 +537,43 @@ const KEY_COLUMN: f32 = 150.0;
 /// that is a column of values, they want to be a column.
 const VALUE_FIELD: f32 = 90.0;
 
-/// The grid of key/value rows inside the object properties popup.
+/// What the grid did this frame.
+pub(super) struct GridOutcome {
+    /// Something asked to be written back.
+    pub(super) commit: bool,
+    /// Narrowest value field drawn, for the layout test.
+    #[allow(dead_code)]
+    pub(super) narrowest: f32,
+}
+
+/// The grid of key/value rows: the object properties popup, and the docked
+/// tab in raw mode.
 ///
-/// Four columns: the key (editable for keys the schema does not know), the
-/// value widget, the type, and a clear button for returning to the game's
-/// default. Returns whether anything asked to be written back.
+/// Four columns: the key (editable for keys the schema does not know, and
+/// for every key in raw mode), the value widget, the type, and a clear button
+/// for returning to the game's default. In raw mode only the keys the object
+/// carries are listed, as plain text -- Hammer with SmartEdit off.
 pub(super) fn property_grid(
     ui: &mut egui::Ui,
-    window: &mut PropertyWindow,
+    salt: &'static str,
+    edit: &mut PropertyEdit,
+    raw: bool,
     materials: &[String],
     models: &[String],
-) -> bool {
-    if window.rows.is_empty() {
-        ui.label(RichText::new("no properties to edit — add one below").weak());
-        return false;
+) -> GridOutcome {
+    let mut out = GridOutcome {
+        commit: false,
+        narrowest: f32::INFINITY,
+    };
+    let shown = edit
+        .rows
+        .iter()
+        .filter(|r| !raw || r.is_set() || r.mixed)
+        .count();
+    if shown == 0 {
+        ui.label(RichText::new("no keys yet -- add one below").weak());
+        return out;
     }
-    let mut commit = false;
-    #[cfg(test)]
-    let mut narrowest = f32::INFINITY;
     // Rows rather than an `egui::Grid`, which cannot lay this out.
     //
     // A grid caps each cell at the width its column measured last frame, and
@@ -543,7 +583,10 @@ pub(super) fn property_grid(
     // keeps the column narrow: the fields collapsed to 48pt and stayed there.
     // A plain row hands the widgets the real width, and a fixed key column
     // keeps the values lined up, which is all the grid was wanted for.
-    for (index, row) in window.rows.iter_mut().enumerate() {
+    for (index, row) in edit.rows.iter_mut().enumerate() {
+        if raw && !(row.is_set() || row.mixed) {
+            continue;
+        }
         let stripe = if index % 2 == 1 {
             ui.visuals().faint_bg_color
         } else {
@@ -562,7 +605,7 @@ pub(super) fn property_grid(
                         egui::vec2(KEY_COLUMN, ui.spacing().interact_size.y),
                         egui::Layout::left_to_right(egui::Align::Center),
                         |ui| {
-                            if row.described {
+                            if row.described && !raw {
                                 let label = ui.add(
                                     egui::Label::new(
                                         RichText::new(&row.label).monospace().size(11.0).color(
@@ -595,60 +638,142 @@ pub(super) fn property_grid(
                                 );
                                 if r.changed() {
                                     row.key = key.clone();
-                                    row.label = key;
-                                    window.dirty = true;
+                                    if !row.described {
+                                        row.label = key;
+                                    }
+                                    row.dirty = true;
+                                    edit.dirty = true;
                                 }
-                                commit |= r.lost_focus();
+                                out.commit |= r.lost_focus();
                             }
                         },
                     );
 
-                    // Column 2: the value widget, typed by the schema.
+                    // Column 2: the value widget, typed by the schema -- or
+                    // plain text in raw mode.
                     let value_x0 = ui.cursor().min.x;
-                    let r = property_value_widget(
-                        ui,
-                        "object-properties",
-                        index,
-                        row,
-                        materials,
-                        models,
-                    );
+                    let r = if raw && !row.mixed {
+                        let mut text = row.text().to_string();
+                        let r = ui.add(
+                            egui::TextEdit::singleline(&mut text)
+                                .desired_width(190.0)
+                                .font(egui::TextStyle::Monospace),
+                        );
+                        if r.changed() {
+                            row.set(Some(text));
+                        }
+                        WidgetResult {
+                            changed: r.changed(),
+                            finished: r.lost_focus(),
+                            browse: false,
+                        }
+                    } else {
+                        property_value_widget(ui, salt, index, row, materials, models)
+                    };
                     // What the field actually got, as opposed to what it asked
                     // for. The two came apart badly once and nothing caught it.
-                    #[cfg(test)]
-                    {
-                        narrowest = narrowest.min(ui.cursor().min.x - value_x0);
-                    }
-                    #[cfg(not(test))]
-                    let _ = value_x0;
+                    out.narrowest = out.narrowest.min(ui.cursor().min.x - value_x0);
                     if r.changed {
-                        window.dirty = true;
+                        edit.dirty = true;
                     }
-                    commit |= r.finished;
+                    out.commit |= r.finished;
 
                     // What kind of value it is, then the way back to the
                     // game's default. Both sit at the right-hand end so the
                     // fields between them stay aligned.
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if row.is_set()
+                        if (row.is_set() || row.mixed)
                             && ui
                                 .small_button("clear")
                                 .on_hover_text("Remove this key")
                                 .clicked()
                         {
-                            row.value = None;
-                            window.dirty = true;
-                            commit = true;
+                            row.set(None);
+                            edit.dirty = true;
+                            out.commit = true;
                         }
-                        ui.label(RichText::new(row.kind.name()).size(10.0).weak());
+                        if !raw {
+                            ui.label(RichText::new(row.kind.name()).size(10.0).weak());
+                        }
                     });
                 });
             });
     }
-    #[cfg(test)]
+    out
+}
+
+/// The SmartEdit switch.
+pub(super) fn raw_toggle(ui: &mut egui::Ui, raw: &mut bool) {
+    kerosene_ui::widgets::icon_toggle(
+        ui,
+        kerosene_ui::theme::icons::BRACKETS_CURLY,
+        "Raw keys: every key as plain text, only the keys the object carries. \
+         Off, the game's definition picks a widget for each key.",
+        raw,
+    );
+}
+
+/// Put a key on the buffer, or overwrite it if it is there.
+pub(super) fn add_key(edit: &mut PropertyEdit, name: &str, value: String) {
+    match edit
+        .rows
+        .iter_mut()
+        .find(|r| r.key.eq_ignore_ascii_case(name))
     {
-        window.narrowest_value = narrowest;
+        Some(row) => row.set(Some(value)),
+        None => {
+            let mut row = PropertyRow::custom(name, Some(value));
+            row.dirty = true;
+            row.original_key.clear();
+            edit.rows.push(row);
+        }
     }
+    edit.dirty = true;
+}
+
+/// The editor block: comments and an outline colour. Returns whether the
+/// edit is finished and wants committing.
+pub(super) fn editor_data_rows(ui: &mut egui::Ui, salt: &str, edit: &mut PropertyEdit) -> bool {
+    let mut commit = false;
+    ui.label(theme::section_title("editor"));
+    ui.horizontal(|ui| {
+        ui.label(theme::caption("colour"));
+        let mut on = edit.color.is_some();
+        if ui
+            .checkbox(&mut on, "")
+            .on_hover_text("Draw this object's outline in its own colour")
+            .changed()
+        {
+            edit.color = on.then_some([220, 120, 60]);
+            edit.editor_dirty = true;
+            commit = true;
+        }
+        if let Some(mut rgb) = edit.color {
+            if ui.color_edit_button_srgb(&mut rgb).changed() {
+                edit.color = Some(rgb);
+                edit.editor_dirty = true;
+            }
+            // The picker closes when the pointer leaves it; that is the end
+            // of the edit.
+            if ui.input(|i| i.pointer.any_released()) && edit.editor_dirty {
+                commit = true;
+            }
+        }
+    });
+    ui.horizontal(|ui| {
+        ui.label(theme::caption("comments"));
+        let r = ui.add(
+            egui::TextEdit::multiline(&mut edit.comments)
+                .id_salt((salt, "comments"))
+                .desired_rows(1)
+                .desired_width(f32::INFINITY)
+                .hint_text("notes for whoever edits this next"),
+        );
+        if r.changed() {
+            edit.editor_dirty = true;
+        }
+        commit |= r.lost_focus() && edit.editor_dirty;
+    });
     commit
 }
 

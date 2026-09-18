@@ -142,16 +142,22 @@ impl ChiselApp {
 
     /// What is selected, and everything about it.
     fn object_tab(&mut self, ui: &mut egui::Ui) {
-        let selected: Vec<u32> = self.document.selection.entities.iter().copied().collect();
-        self.sync_properties(selected.first().copied());
+        let targets = self.properties_targets();
+        self.sync_properties(targets.clone());
 
         // A face selection is what you are looking at when you have one,
-        // so it comes first.
+        // so it comes first, with the faces' own keys under it.
         if self.document.selected_face_count() > 0 {
+            self.brush_properties = None;
             egui::ScrollArea::vertical()
                 .auto_shrink([false, false])
                 .show(ui, |ui| {
                     self.face_panel(ui);
+                    ui.add_space(6.0);
+                    let title = format!("key values on {}", self.describe_targets(&targets));
+                    widgets::section(ui, &title, |ui| {
+                        self.property_rows(ui, false);
+                    });
                 });
             return;
         }
@@ -159,25 +165,30 @@ impl ChiselApp {
         // Brushes and brush entities are the same panel. What a brush
         // *is* is a setting on it, not a separate ceremony called "tie to
         // entity" that you have to go through before its settings exist.
-        let brush_entity = selected
-            .first()
-            .and_then(|id| self.document.find_entity(*id))
-            .is_some_and(|e| e.is_brush_entity());
+        let brush_entity = targets.iter().any(|t| {
+            matches!(t, TargetId::Entity(id)
+                if self.document.find_entity(*id).is_some_and(|e| e.is_brush_entity()))
+        });
         if brush_entity || !self.document.selection.solids.is_empty() {
             self.brush_panel(ui);
             return;
         }
+        self.brush_properties = None;
 
-        let Some(&id) = selected.first() else {
+        if self.document.selection.is_empty() {
             self.brush_panel(ui);
             return;
-        };
+        }
 
+        let Some(TargetId::Entity(id)) = targets.first().copied() else {
+            return;
+        };
         let Some(entity) = self.document.find_entity(id) else {
             return;
         };
         let classname = entity.classname().to_string();
         let is_brush_entity = entity.is_brush_entity();
+        let multi = targets.len() > 1;
         let spec = self.schema.get(&classname).cloned();
 
         // The thing a Source mapper looks for by name: one panel that
@@ -187,26 +198,35 @@ impl ChiselApp {
             let kind = crate::icons::Kind::of(&classname);
             let (rect, _) = ui.allocate_exact_size(egui::vec2(16.0, 16.0), egui::Sense::hover());
             crate::icons::draw(ui.painter(), rect.center(), 6.0, kind, kind.colour());
-            ui.label(RichText::new(&classname).monospace().strong());
-            if spec.is_none() {
+            if multi {
+                ui.label(
+                    RichText::new(self.describe_targets(&targets))
+                        .monospace()
+                        .strong(),
+                )
+                .on_hover_text(
+                    "Every key is shown for all of them. One they disagree on says so, \
+                     and is left alone unless you type over it.",
+                );
+            } else {
+                ui.label(RichText::new(&classname).monospace().strong());
+            }
+            if spec.is_none() && !multi {
                 ui.label(theme::warn("(no definition)")).on_hover_text(
                     "No class definition describes this class, so only the keys it \
                      already carries can be shown.",
                 );
             }
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                raw_toggle(ui, &mut self.raw_keys);
+            });
         });
         if let Some(help) = spec
             .as_ref()
             .map(|s| s.help.as_str())
-            .filter(|h| !h.is_empty())
+            .filter(|h| !h.is_empty() && !multi)
         {
             ui.label(theme::caption(help));
-        }
-        if selected.len() > 1 {
-            ui.label(theme::caption(format!(
-                "{} entities selected -- editing the first",
-                selected.len()
-            )));
         }
         // What it will do once the map is running, next to the keys that
         // decide it -- and drawn in the 2D panes in the same colour.
@@ -227,10 +247,12 @@ impl ChiselApp {
             .auto_shrink([false, false])
             .show(ui, |ui| {
                 widgets::section(ui, "properties", |ui| {
-                    self.property_rows(ui);
+                    self.property_rows(ui, false);
                 });
-                ui.add_space(6.0);
-                self.outputs_section(ui, id, spec.as_ref());
+                if !multi {
+                    ui.add_space(6.0);
+                    self.outputs_section(ui, id, spec.as_ref());
+                }
 
                 if is_brush_entity {
                     ui.add_space(6.0);
@@ -256,6 +278,7 @@ impl ChiselApp {
         use crate::brush::BrushInfo;
 
         let Some(info) = BrushInfo::of_selection(&self.document) else {
+            self.brush_properties = None;
             ui.add_space(12.0);
             ui.vertical_centered(|ui| {
                 ui.label(theme::icon(icons::CURSOR).size(28.0).color(colors::BORDER));
@@ -264,6 +287,23 @@ impl ChiselApp {
                     "Click a brush or an entity in a pane. Right-click one for its object properties.",
                 ));
             });
+            // With nothing selected the world's own keys are what there is
+            // to edit: the sky, and whatever else the game reads off it.
+            ui.add_space(12.0);
+            egui::ScrollArea::vertical()
+                .auto_shrink([false, false])
+                .show(ui, |ui| {
+                    widgets::section(ui, "map properties", |ui| {
+                        ui.horizontal(|ui| {
+                            ui.label(theme::mono("worldspawn"));
+                            ui.with_layout(
+                                egui::Layout::right_to_left(egui::Align::Center),
+                                |ui| raw_toggle(ui, &mut self.raw_keys),
+                            );
+                        });
+                        self.property_rows(ui, false);
+                    });
+                });
             return;
         };
         let current = self.document.selected_brush_class();
@@ -271,10 +311,15 @@ impl ChiselApp {
             .as_ref()
             .and_then(|(_, c)| self.schema.get(c).cloned());
 
-        // The entity being edited, so the shared property and output widgets
-        // point at the right thing whether a brush or its entity was clicked.
-        let entity_id = current.as_ref().map(|(id, _)| *id);
-        self.sync_properties(entity_id);
+        // The main buffer is on the entity when there is one and on the
+        // brushes themselves when there is not; a brush entity's brushes
+        // get their own keys under the entity's.
+        if current.is_some() {
+            let brushes = self.brush_targets();
+            self.sync_brush_properties(brushes);
+        } else {
+            self.brush_properties = None;
+        }
 
         let mut change: Option<Option<String>> = None;
         egui::ScrollArea::vertical()
@@ -297,7 +342,12 @@ impl ChiselApp {
 
                 // The type, first, because it decides everything below it.
                 ui.add_space(4.0);
-                ui.label(theme::section_title("type"));
+                ui.horizontal(|ui| {
+                    ui.label(theme::section_title("type"));
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        raw_toggle(ui, &mut self.raw_keys);
+                    });
+                });
                 let label = current
                     .as_ref()
                     .map_or("world geometry", |(_, c)| c.as_str());
@@ -358,13 +408,18 @@ impl ChiselApp {
                     (None, _) => {
                         ui.label(
                             RichText::new(
-                                "World geometry has no settings: it is a wall, and the compiler \
-                             builds it into the level itself. Give it a type above to make \
-                             it a door, a trigger or a platform.",
+                                "World geometry is a wall: the compiler builds it into the \
+                             level itself. Give it a type above to make it a door, a trigger \
+                             or a platform. Its own keys are for the compiler and for you: \
+                             `detail` keeps it out of the vis tree, `section` names the \
+                             streamed section it belongs to.",
                             )
                             .size(11.0)
                             .weak(),
                         );
+                        ui.add_space(4.0);
+                        ui.label(theme::section_title("key values"));
+                        self.property_rows(ui, false);
                     }
                     (Some(_), None) => {
                         ui.label(
@@ -372,6 +427,7 @@ impl ChiselApp {
                                 .weak()
                                 .size(11.0),
                         );
+                        self.property_rows(ui, false);
                     }
                     (Some(_), Some(spec)) if spec.keys.is_empty() && spec.outputs.is_empty() => {
                         ui.label(
@@ -382,11 +438,29 @@ impl ChiselApp {
                             .size(11.0)
                             .weak(),
                         );
+                        self.property_rows(ui, false);
                     }
                     (Some((id, _)), Some(spec)) => {
-                        self.property_rows(ui);
-                        self.outputs_section(ui, *id, Some(spec));
+                        self.property_rows(ui, false);
+                        if !self.properties.as_ref().is_some_and(|e| e.is_multi()) {
+                            self.outputs_section(ui, *id, Some(spec));
+                        }
                     }
+                }
+                if self.brush_properties.is_some() {
+                    ui.add_space(6.0);
+                    egui::CollapsingHeader::new(theme::caption(format!(
+                        "keys on the {} themselves",
+                        if info.brushes == 1 {
+                            "brush"
+                        } else {
+                            "brushes"
+                        }
+                    )))
+                    .id_salt("brush-keys")
+                    .show(ui, |ui| {
+                        self.property_rows(ui, true);
+                    });
                 }
 
                 // Materials last: they matter, but they are not what a brush is.
@@ -424,61 +498,70 @@ impl ChiselApp {
             let said = class.clone().unwrap_or_else(|| "world geometry".into());
             if self.document.set_brush_class(class.as_deref()) {
                 self.status = format!("now {said}");
-                // The buffer is pointed at whatever the change produced.
-                let now = self.document.selected_brush_class().map(|(id, _)| id);
+                // The buffers are pointed at whatever the change produced.
                 self.properties = None;
+                self.brush_properties = None;
+                let now = self.properties_targets();
                 self.sync_properties(now);
             }
         }
     }
 
-    /// One widget per key the class defines, typed by the schema.
-    pub(super) fn property_rows(&mut self, ui: &mut egui::Ui) {
-        let Some(edit) = self.properties.as_mut() else {
-            return;
-        };
-        if edit.rows.is_empty() {
-            ui.label(RichText::new("this class has no settings").weak());
-            return;
-        }
-
+    /// One widget per key the class defines, typed by the schema -- or, in
+    /// raw mode, the keys the object carries as plain text. `brushes` picks
+    /// the buffer for a brush entity's own brushes.
+    pub(super) fn property_rows(&mut self, ui: &mut egui::Ui, brushes: bool) {
+        let raw = self.raw_keys;
         let materials = &self.materials;
         let models = &self.models;
+        let edit = if brushes {
+            self.brush_properties.as_mut()
+        } else {
+            self.properties.as_mut()
+        };
+        let Some(edit) = edit else {
+            return;
+        };
         let mut commit = false;
-
         let mut browse: Option<(usize, String)> = None;
-        for (index, row) in edit.rows.iter_mut().enumerate() {
-            let response = property_widget(ui, index, row, materials, models);
-            if response.browse {
-                browse = Some((index, row.text().to_string()));
-            }
-            if response.changed {
-                edit.dirty = true;
-            }
-            // Discrete widgets are done the moment they change; text and
-            // number fields are done when they are left.
-            if response.finished {
-                commit = true;
+
+        if raw {
+            let salt = if brushes { "dock-brushes" } else { "dock" };
+            commit |= property_grid(ui, salt, edit, true, materials, models).commit;
+        } else if edit.rows.is_empty() {
+            ui.label(RichText::new("no keys yet").weak());
+        } else {
+            for (index, row) in edit.rows.iter_mut().enumerate() {
+                let response = property_widget(ui, index, row, materials, models);
+                if response.browse {
+                    browse = Some((index, row.text().to_string()));
+                }
+                if response.changed {
+                    edit.dirty = true;
+                }
+                // Discrete widgets are done the moment they change; text and
+                // number fields are done when they are left.
+                if response.finished {
+                    commit = true;
+                }
             }
         }
 
         ui.add_space(4.0);
         if ui
-            .small_button("+ add a key the game does not define")
+            .small_button("+ add a key")
+            .on_hover_text("Any key at all; the game reads the ones it knows and keeps the rest.")
             .clicked()
         {
-            edit.rows.push(PropertyRow {
-                key: format!("key{}", edit.rows.len()),
-                label: format!("key{}", edit.rows.len()),
-                kind: KeyKind::String,
-                help: String::new(),
-                choices: Vec::new(),
-                default: String::new(),
-                value: Some(String::new()),
-                described: false,
-            });
-            edit.dirty = true;
+            let name = format!("key{}", edit.rows.len());
+            add_key(edit, &name, String::new());
             commit = true;
+        }
+
+        if edit.has_editor_data() {
+            ui.add_space(6.0);
+            let salt = if brushes { "dock-brushes" } else { "dock" };
+            commit |= editor_data_rows(ui, salt, edit);
         }
 
         if let Some((row, current)) = browse {

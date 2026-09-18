@@ -269,3 +269,86 @@ fn vectors_parse_however_they_were_written() {
     assert_eq!(parse_vec3("nonsense"), [0.0, 0.0, 0.0]);
     assert_eq!(format_vec3([1.0, -2.5, 0.0]), "1 -2.5 0");
 }
+
+#[test]
+fn a_brush_and_a_face_show_exactly_the_keys_they_carry() {
+    use kerosene_map::Solid;
+    use kerosene_math::{Aabb, Vec3};
+    let mut solid = Solid::cube(Aabb::new(Vec3::ZERO, Vec3::splat(64.0)), "dev/grid");
+    solid.set("detail", "1");
+    solid.sides[0].set("hint", "yes");
+
+    let rows = rows_for(Target::Solid(&solid));
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].key, "detail");
+    assert!(!rows[0].described, "no schema describes a brush key");
+
+    let rows = rows_for(Target::Face(&solid.sides[0]));
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].key, "hint");
+    assert!(rows_for(Target::Face(&solid.sides[1])).is_empty());
+}
+
+#[test]
+fn several_objects_merge_and_a_disagreement_is_marked_mixed() {
+    let schema = schema();
+    let spec = schema.get("func_door");
+    let mut a = door();
+    a.set("speed", "100");
+    a.set("only_on_a", "x");
+    let mut b = door();
+    b.id = 8;
+    b.set("speed", "250");
+
+    let rows = merged_rows(&[Target::Entity(&a, spec), Target::Entity(&b, spec)]);
+    let speed = rows.iter().find(|r| r.key == "speed").unwrap();
+    assert!(speed.mixed, "100 and 250 disagree");
+    let lip = rows.iter().find(|r| r.key == "lip").unwrap();
+    assert!(!lip.mixed, "both unset agrees");
+    let only = rows.iter().find(|r| r.key == "only_on_a").unwrap();
+    assert!(only.mixed, "set on one and absent on the other disagrees");
+    assert_eq!(rows.iter().filter(|r| r.key == "speed").count(), 1);
+}
+
+#[test]
+fn a_multi_edit_writes_only_what_was_touched() {
+    let schema = schema();
+    let spec = schema.get("func_door");
+    let mut a = door();
+    a.set("speed", "100");
+    let mut b = door();
+    b.id = 8;
+    b.set("speed", "250");
+    b.set("lip", "4");
+
+    let mut rows = merged_rows(&[Target::Entity(&a, spec), Target::Entity(&b, spec)]);
+    // Type a speed over the mixed row; leave the mixed lip alone.
+    rows.iter_mut()
+        .find(|r| r.key == "speed")
+        .unwrap()
+        .set(Some("300".into()));
+    for e in [&mut a, &mut b] {
+        apply_pairs(&mut e.properties, &rows, true);
+    }
+    assert_eq!(a.get("speed"), Some("300"));
+    assert_eq!(b.get("speed"), Some("300"));
+    assert_eq!(a.get("lip"), None, "an untouched mixed row leaves a alone");
+    assert_eq!(b.get("lip"), Some("4"), "and b alone");
+}
+
+#[test]
+fn renaming_a_custom_key_removes_the_old_name() {
+    let mut entity = door();
+    entity.set("colour", "red");
+    let mut rows = rows(None, &entity);
+    let row = rows.iter_mut().find(|r| r.key == "colour").unwrap();
+    row.key = "color".into();
+    row.dirty = true;
+    apply(&mut entity, &rows);
+    assert_eq!(entity.get("color"), Some("red"));
+    assert_eq!(
+        entity.get("colour"),
+        None,
+        "the old key went with the rename"
+    );
+}

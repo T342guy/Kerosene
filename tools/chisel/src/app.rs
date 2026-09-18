@@ -11,7 +11,7 @@
 
 use crate::compile::{CompileJob, CompileMessage, CompileSettings, Quality, available_tools};
 use crate::document::Document;
-use crate::inspector::{self, PropertyRow};
+use crate::inspector::{self, PropertyRow, TargetId};
 use crate::raster::Shading;
 use crate::textures::TextureCache;
 use crate::tools::{TextureMode, TextureTarget, Tool, ToolKind};
@@ -19,7 +19,7 @@ use crate::viewport::Viewport;
 use crate::{classes, draw, files, raster};
 use egui::{Context, Key, Modifiers, RichText};
 use kerosene_entity::{ClassKind, KeyKind, Schema};
-use kerosene_map::{Connection, WalkmapRule};
+use kerosene_map::{Connection, EditorData, ObjectId, WalkmapRule};
 use kerosene_math::Vec3;
 use std::path::PathBuf;
 
@@ -256,11 +256,16 @@ pub struct ChiselApp {
     /// character typed, so a field is edited in a buffer and written back when
     /// it loses focus or the selection moves on.
     properties: Option<PropertyEdit>,
+    /// The brushes of a selected brush entity: their own keys, edited under
+    /// the entity's in the same tab.
+    brush_properties: Option<PropertyEdit>,
     /// The Hammer-style "Object Properties" popup, opened by right-clicking an
-    /// object. It is a separate buffer from the docked inspector because it
-    /// also edits the world: a plain brush has no brush entity to hang settings
-    /// on, but it can still carry keyvalues like `playercollision`.
+    /// object. A separate buffer from the docked inspector, so the two can be
+    /// open on different things.
     property_window: Option<PropertyWindow>,
+    /// Hammer's SmartEdit, off: every key as plain text, only the keys the
+    /// object actually carries, no widgets chosen by the schema.
+    pub raw_keys: bool,
 }
 
 /// A rendered 3D pane and the state it was rendered from.
@@ -269,16 +274,30 @@ struct Preview {
     key: u64,
 }
 
+/// In-progress key-value edits on one or more objects.
+///
+/// Fields are edited here and written back when they are left, or when the
+/// selection moves on; committing on every keystroke would push a whole
+/// undo snapshot per character typed.
 struct PropertyEdit {
-    entity: u32,
+    /// What is being edited. Several targets merge into one set of rows.
+    targets: Vec<TargetId>,
     rows: Vec<PropertyRow>,
     /// The entity's outputs, buffered for the same reason the rows are.
     ///
     /// Rebuilding these from the document every frame is what made the output
     /// fields impossible to type into: each keystroke landed in a temporary
     /// that was thrown away and re-cloned before the next frame drew, so the
-    /// caret moved and the text never changed.
+    /// caret moved and the text never changed. Only meaningful when exactly
+    /// one entity is being edited.
     connections: Vec<Connection>,
+    /// The editor block's free text, buffered like the rows.
+    comments: String,
+    /// The editor block's colour; `None` for the object's usual colour.
+    color: Option<[u8; 3]>,
+    /// Whether every target has an editor block: faces and the world do not.
+    has_editor: bool,
+    editor_dirty: bool,
     dirty: bool,
     /// The document revision these rows were read from, so an undo or an edit
     /// made elsewhere refreshes them instead of being overwritten by a stale
@@ -286,20 +305,129 @@ struct PropertyEdit {
     revision: u64,
 }
 
+impl PropertyEdit {
+    /// Read the targets out of the document.
+    fn build(document: &Document, schema: &Schema, targets: Vec<TargetId>) -> PropertyEdit {
+        let resolved: Vec<inspector::Target> = targets
+            .iter()
+            .filter_map(|&t| inspector::Target::resolve(document, schema, t))
+            .collect();
+        let rows = match resolved.as_slice() {
+            [one] => inspector::rows_for(*one),
+            many => inspector::merged_rows(many),
+        };
+        let connections = match targets.as_slice() {
+            [TargetId::Entity(id)] => document
+                .find_entity(*id)
+                .map(|e| e.connections.clone())
+                .unwrap_or_default(),
+            _ => Vec::new(),
+        };
+        // Comments and colour are shown only when every target agrees.
+        let editors: Vec<&EditorData> = targets
+            .iter()
+            .filter_map(|&t| match t {
+                TargetId::Entity(id) => document.map.editor_data(ObjectId::Entity(id)),
+                TargetId::Solid(id) => document.map.editor_data(ObjectId::Solid(id)),
+                TargetId::Face(..) => None,
+            })
+            .collect();
+        let comments = match editors.first() {
+            Some(first) if editors.iter().all(|e| e.comments == first.comments) => {
+                first.comments.clone()
+            }
+            _ => String::new(),
+        };
+        let color = match editors.first() {
+            Some(first) if editors.iter().all(|e| e.color == first.color) => first.color,
+            _ => None,
+        };
+        PropertyEdit {
+            has_editor: !targets.is_empty() && editors.len() == targets.len(),
+            targets,
+            rows,
+            connections,
+            comments,
+            color,
+            editor_dirty: false,
+            dirty: false,
+            revision: document.revision(),
+        }
+    }
+
+    /// The one entity being edited, if that is what this is.
+    fn single_entity(&self) -> Option<u32> {
+        match self.targets.as_slice() {
+            [TargetId::Entity(id)] => Some(*id),
+            _ => None,
+        }
+    }
+
+    fn is_multi(&self) -> bool {
+        self.targets.len() > 1
+    }
+
+    /// Whether every target has an editor block to edit.
+    fn has_editor_data(&self) -> bool {
+        self.has_editor
+    }
+
+    /// Whether every target still exists.
+    fn still_valid(&self, document: &Document, schema: &Schema) -> bool {
+        self.targets
+            .iter()
+            .all(|&t| inspector::Target::resolve(document, schema, t).is_some())
+    }
+
+    /// Write the buffer into the document as one undo step.
+    fn commit(&mut self, document: &mut Document, label: &str) {
+        if !self.dirty && !self.editor_dirty {
+            return;
+        }
+        let rows = self.rows.clone();
+        let touched_only = self.is_multi();
+        let targets = self.targets.clone();
+        let connections = self.single_entity().map(|_| self.connections.clone());
+        let editor = self
+            .editor_dirty
+            .then_some((self.comments.clone(), self.color));
+        document.apply(label, |doc| {
+            for &target in &targets {
+                inspector::apply_to(doc, target, &rows, touched_only);
+                if let Some((comments, color)) = &editor {
+                    let object = match target {
+                        TargetId::Entity(id) => Some(ObjectId::Entity(id)),
+                        TargetId::Solid(id) => Some(ObjectId::Solid(id)),
+                        TargetId::Face(..) => None,
+                    };
+                    if let Some(data) = object.and_then(|o| doc.map.editor_data_mut(o)) {
+                        data.comments = comments.clone();
+                        data.color = *color;
+                    }
+                }
+            }
+            if let (Some(TargetId::Entity(id)), Some(connections)) = (targets.first(), connections)
+                && let Some(entity) = doc.find_entity_mut(*id)
+            {
+                entity.connections = connections;
+            }
+        });
+        for row in &mut self.rows {
+            row.dirty = false;
+            row.original_key = row.key.clone();
+        }
+        self.dirty = false;
+        self.editor_dirty = false;
+        self.revision = document.revision();
+    }
+}
+
 /// The popup form of the property editor: a grid of key/value rows, almost
 /// exactly Hammer's "Object Properties" dialog. Every key the class reads is
 /// shown whether or not it is set, custom keys are renamed in place, and a new
-/// key can be added to any brush or entity from the row at the bottom.
+/// key can be added to any brush, face or entity from the row at the bottom.
 struct PropertyWindow {
-    /// The entity being edited. For a world brush this is `worldspawn`.
-    entity: u32,
-    rows: Vec<PropertyRow>,
-    dirty: bool,
-    /// Document revision the rows were read from, for the same reason the
-    /// docked inspector tracks one.
-    revision: u64,
-    /// The entity's outputs, buffered for the same reason the rows are.
-    connections: Vec<Connection>,
+    edit: PropertyEdit,
     /// The two halves of the add-a-key row at the bottom of the grid.
     new_key: String,
     new_value: String,
@@ -364,7 +492,9 @@ impl ChiselApp {
             discarding: None,
             quit: false,
             properties: None,
+            brush_properties: None,
             property_window: None,
+            raw_keys: false,
         }
     }
 
@@ -926,14 +1056,17 @@ mod tests {
     }
 
     #[test]
-    fn object_properties_targets_the_world_for_a_plain_brush() {
+    fn object_properties_targets_the_brush_itself_and_the_world_when_nothing_is_selected() {
         let mut app = app_with_shipped_content();
         app.document = starter_document();
         let id = app.document.create_block(Vec3::ZERO, Vec3::splat(64.0));
         app.document.selection.clear();
+        assert_eq!(
+            app.properties_targets(),
+            vec![TargetId::Entity(app.document.map.world.id)]
+        );
         app.document.selection.solids.insert(id);
-
-        assert_eq!(app.properties_target(), Some(app.document.map.world.id));
+        assert_eq!(app.properties_targets(), vec![TargetId::Solid(id)]);
     }
 
     #[test]
@@ -945,7 +1078,9 @@ mod tests {
         app.document.selection.solids.insert(id);
         app.document.set_brush_class(Some("func_door"));
 
-        let target = app.properties_target().unwrap();
+        let [TargetId::Entity(target)] = app.properties_targets()[..] else {
+            panic!("the brush entity is the target");
+        };
         assert_ne!(target, app.document.map.world.id);
         assert_eq!(
             app.document.find_entity(target).unwrap().classname(),
@@ -963,30 +1098,109 @@ mod tests {
 
         app.open_property_window();
         let window = app.property_window.as_mut().unwrap();
-        assert_eq!(window.entity, app.document.map.world.id);
-        // Every key the world reads is revealed, set or not.
-        let keys: Vec<&str> = window.rows.iter().map(|r| r.key.as_str()).collect();
+        assert_eq!(window.edit.targets, vec![TargetId::Solid(id)]);
+        assert!(window.edit.rows.is_empty(), "a fresh brush carries no keys");
+
+        // A mapper can add a key the game has no name for, the way
+        // `playercollision` lands on a Source brush -- on the brush itself,
+        // not on the world.
+        add_key(&mut window.edit, "playercollision", "1".into());
+        app.commit_property_window();
+
+        let brush = app.document.map.find_solid(id).unwrap();
+        assert_eq!(brush.get("playercollision"), Some("1"));
+        assert_eq!(app.document.map.world.get("playercollision"), None);
+
+        // With nothing selected the popup is on the world, whose keys are
+        // revealed set or not.
+        app.document.selection.clear();
+        app.open_property_window();
+        let window = app.property_window.as_ref().unwrap();
+        let keys: Vec<&str> = window.edit.rows.iter().map(|r| r.key.as_str()).collect();
         assert!(
             keys.contains(&"skyname"),
             "world keys are revealed: {keys:?}"
         );
+    }
 
-        // And a mapper can add a key the game has no name for, the way
-        // `playercollision` lands on a Source brush.
-        window.rows.push(PropertyRow {
-            key: "playercollision".into(),
-            label: "playercollision".into(),
-            kind: KeyKind::String,
-            help: String::new(),
-            choices: Vec::new(),
-            default: String::new(),
-            value: Some("1".into()),
-            described: false,
-        });
-        window.dirty = true;
+    #[test]
+    fn two_entities_are_edited_at_once_through_the_object_tab() {
+        let mut app = app_with_shipped_content();
+        app.document = starter_document();
+        let a = app.document.create_entity("light", Vec3::ZERO);
+        let b = app
+            .document
+            .create_entity("light", Vec3::new(64.0, 0.0, 0.0));
+        app.document
+            .find_entity_mut(a)
+            .unwrap()
+            .set("_light", "255 0 0 200");
+        app.document.selection.clear();
+        app.document.selection.entities.insert(a);
+        app.document.selection.entities.insert(b);
+
+        // Drawing the tab points the buffer at both.
+        app.inspector_tab = InspectorTab::Object;
+        let ctx = Context::default();
+        let _ = ctx.run(egui::RawInput::default(), |ctx| app.ui(ctx));
+        let edit = app.properties.as_mut().unwrap();
+        assert_eq!(edit.targets.len(), 2);
+        let light = edit.rows.iter_mut().find(|r| r.key == "_light").unwrap();
+        assert!(light.mixed, "one has a colour and the other has not");
+
+        // Typing over the mixed row lands on both; the rest is untouched.
+        light.set(Some("0 0 255 100".into()));
+        edit.dirty = true;
+        app.commit_properties();
+        for id in [a, b] {
+            let e = app.document.find_entity(id).unwrap();
+            assert_eq!(e.get("_light"), Some("0 0 255 100"));
+            assert_eq!(
+                e.properties.len(),
+                3,
+                "classname, origin, _light and nothing more"
+            );
+        }
+    }
+
+    #[test]
+    fn a_face_carries_its_own_keys() {
+        let mut app = app_with_shipped_content();
+        app.document = starter_document();
+        let id = app.document.create_block(Vec3::ZERO, Vec3::splat(64.0));
+        let side = app.document.map.find_solid(id).unwrap().sides[0].id;
+        app.document.selection.clear();
+        app.document.selection.faces.insert((id, side));
+
+        assert_eq!(app.properties_targets(), vec![TargetId::Face(id, side)]);
+        app.open_property_window();
+        let window = app.property_window.as_mut().unwrap();
+        add_key(&mut window.edit, "smoothing_hint", "1".into());
+        app.commit_property_window();
+        let face = &app.document.map.find_solid(id).unwrap().sides[0];
+        assert_eq!(face.get("smoothing_hint"), Some("1"));
+        assert_eq!(face.material, "dev/grid", "the typed fields are untouched");
+    }
+
+    #[test]
+    fn comments_and_colour_reach_the_editor_block_not_the_keys() {
+        let mut app = app_with_shipped_content();
+        app.document = starter_document();
+        let id = app.document.create_entity("light", Vec3::ZERO);
+        app.document.selection.clear();
+        app.document.selection.entities.insert(id);
+
+        app.open_property_window();
+        let window = app.property_window.as_mut().unwrap();
+        window.edit.comments = "the lamp over the door".into();
+        window.edit.color = Some([1, 2, 3]);
+        window.edit.editor_dirty = true;
         app.commit_property_window();
 
-        assert_eq!(app.document.map.world.get("playercollision"), Some("1"));
+        let e = app.document.find_entity(id).unwrap();
+        assert_eq!(e.editor.comments, "the lamp over the door");
+        assert_eq!(e.editor.color, Some([1, 2, 3]));
+        assert!(e.properties.iter().all(|(k, _)| k != "comments"));
     }
 
     #[test]
@@ -1002,16 +1216,17 @@ mod tests {
 
         app.open_property_window();
         let window = app.property_window.as_mut().unwrap();
-        assert_eq!(window.entity, id);
+        assert_eq!(window.edit.targets[0], TargetId::Entity(id));
         assert!(
-            window.connections.is_empty(),
+            window.edit.connections.is_empty(),
             "a fresh door is wired to nothing"
         );
 
         window
+            .edit
             .connections
             .push(Connection::new("OnFullyOpen", "lift", "Trigger"));
-        window.dirty = true;
+        window.edit.dirty = true;
         app.commit_property_window();
 
         let door = app.document.find_entity(id).unwrap();
@@ -1035,15 +1250,17 @@ mod tests {
         app.open_property_window();
         let window = app.property_window.as_mut().unwrap();
         window
+            .edit
             .rows
             .iter_mut()
             .find(|r| r.key == "speed")
             .unwrap()
             .value = Some("250".into());
         window
+            .edit
             .connections
             .push(Connection::new("OnFullyOpen", "lift", "Trigger"));
-        window.dirty = true;
+        window.edit.dirty = true;
         app.commit_property_window();
 
         let door = app.document.find_entity(id).unwrap();
@@ -1079,7 +1296,7 @@ mod tests {
 
         let window = app.property_window.as_ref().unwrap();
         assert_eq!(
-            window.connections.len(),
+            window.edit.connections.len(),
             1,
             "the popup shows what the map actually says"
         );
@@ -1244,7 +1461,7 @@ mod tests {
 
         // And the one that has to hold a name has room for one.
         let window = app.property_window.as_mut().unwrap();
-        window.rows.retain(|r| r.key == "targetname");
+        window.edit.rows.retain(|r| r.key == "targetname");
         for _ in 0..4 {
             let _ = ctx.run(a_real_screen(), |ctx| app.ui(ctx));
         }
