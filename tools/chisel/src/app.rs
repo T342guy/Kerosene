@@ -32,6 +32,7 @@ mod properties;
 mod status;
 mod toolbar;
 mod viewports;
+mod visgroups;
 mod widgets;
 
 use widgets::*;
@@ -174,6 +175,8 @@ pub enum InspectorTab {
     Tool,
     /// The material browser, docked.
     Materials,
+    /// What is shown: the visgroup tree and the automatic groups.
+    VisGroups,
 }
 
 impl InspectorTab {
@@ -181,6 +184,7 @@ impl InspectorTab {
         match index {
             1 => InspectorTab::Tool,
             2 => InspectorTab::Materials,
+            3 => InspectorTab::VisGroups,
             _ => InspectorTab::Object,
         }
     }
@@ -266,6 +270,11 @@ pub struct ChiselApp {
     /// Hammer's SmartEdit, off: every key as plain text, only the keys the
     /// object actually carries, no widgets chosen by the schema.
     pub raw_keys: bool,
+    /// A visgroup being renamed in the tab: its id, the text so far, and
+    /// whether the field still wants the keyboard.
+    renaming_visgroup: Option<(u32, String, bool)>,
+    /// A visgroup colour mid-drag, written when the pointer is released.
+    pending_visgroup_color: Option<(u32, [u8; 3])>,
 }
 
 /// A rendered 3D pane and the state it was rendered from.
@@ -495,6 +504,8 @@ impl ChiselApp {
             brush_properties: None,
             property_window: None,
             raw_keys: false,
+            renaming_visgroup: None,
+            pending_visgroup_color: None,
         }
     }
 
@@ -792,6 +803,12 @@ impl ChiselApp {
             Compile,
             CycleTextureMode,
             Maximise,
+            Group,
+            Ungroup,
+            Hide,
+            HideUnselected,
+            UnhideAll,
+            NewVisGroup,
         }
 
         let mut actions = Vec::new();
@@ -829,9 +846,29 @@ impl ChiselApp {
             if i.consume_key(ctrl, Key::D) && !typing {
                 actions.push(Action::Duplicate)
             }
+            // Shifted first, for the reason given above.
+            if i.consume_key(ctrl | Modifiers::SHIFT, Key::G) && !typing {
+                actions.push(Action::NewVisGroup)
+            }
+            if i.consume_key(ctrl, Key::G) && !typing {
+                actions.push(Action::Group)
+            }
+            if i.consume_key(ctrl, Key::U) && !typing {
+                actions.push(Action::Ungroup)
+            }
+            if i.consume_key(ctrl, Key::H) && !typing {
+                actions.push(Action::HideUnselected)
+            }
 
             if typing {
                 return;
+            }
+
+            if i.consume_key(Modifiers::NONE, Key::H) {
+                actions.push(Action::Hide)
+            }
+            if i.consume_key(Modifiers::NONE, Key::U) {
+                actions.push(Action::UnhideAll)
             }
 
             if i.consume_key(Modifiers::NONE, Key::Delete)
@@ -936,6 +973,12 @@ impl ChiselApp {
                 Action::Coarser => self.document.grid.coarser(),
                 Action::Compile => self.compile_now(Quality::Fast),
                 Action::Maximise => self.toggle_maximised(),
+                Action::Group => self.group_selection(),
+                Action::Ungroup => self.ungroup_selection(),
+                Action::Hide => self.hide_selection(),
+                Action::HideUnselected => self.hide_unselected(),
+                Action::UnhideAll => self.unhide_all(),
+                Action::NewVisGroup => self.new_visgroup_from_selection(),
                 Action::CycleTextureMode => {
                     self.tool.texture_mode = self.tool.texture_mode.next();
                     self.status = format!("texture tool: {}", self.tool.texture_mode.label());

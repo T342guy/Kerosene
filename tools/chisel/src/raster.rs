@@ -566,7 +566,7 @@ fn markers(
     project: impl Fn(Vec3) -> [f32; 3],
 ) {
     const RADIUS: i64 = 4;
-    for entity in document.map.entities.iter().filter(|e| e.solids.is_empty()) {
+    for entity in document.visible_point_entities() {
         let camera = draw::to_camera_space(&[entity.origin()], eye, basis);
         if camera[0].z < draw::NEAR {
             continue;

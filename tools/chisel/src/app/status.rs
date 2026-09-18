@@ -89,6 +89,27 @@ impl ChiselApp {
                         ));
                     }
 
+                    // Hidden things are the classic silent footgun: say so.
+                    let hidden = self.document.hidden_count();
+                    if hidden > 0 {
+                        divider(ui);
+                        segment(
+                            ui,
+                            icons::EYE_SLASH,
+                            &format!("{hidden} hidden"),
+                            colors::WARN,
+                        )
+                        .on_hover_text(
+                            "Hidden by a visgroup, a quick-hide (H) or the cordon. \
+                                 U shows what was quick-hidden; the VisGroups tab has the rest.",
+                        );
+                    }
+                    if self.document.cordon_active() {
+                        divider(ui);
+                        segment(ui, icons::BOUNDING_BOX, "cordon", colors::ERR)
+                            .on_hover_text("Only what is inside the cordon is shown and compiled.");
+                    }
+
                     // The pointer, in the world. The one thing a Hammer user
                     // looks down for.
                     if let Some((_, world)) = self.pointer_world {

@@ -910,3 +910,142 @@ fn select_all_takes_everything() {
     d.create_entity("light", Vec3::ZERO);
     assert_eq!(d.select_all(), 3);
 }
+
+// ---- visibility, groups, visgroups, cordon --------------------------------
+
+#[test]
+fn a_hidden_visgroup_hides_its_members_and_drops_them_from_the_selection() {
+    let mut d = doc();
+    let a = block(&mut d, 0.0, 64.0);
+    let b = block(&mut d, 128.0, 192.0);
+    d.selection.solids.insert(a);
+    d.selection.solids.insert(b);
+    let vg = d.new_visgroup_from_selection("both");
+    assert_eq!(d.map.visgroup_members(vg).len(), 2);
+
+    d.set_visgroup_visible(vg, false);
+    assert!(!d.is_visible(ObjectId::Solid(a)));
+    assert!(d.selection.is_empty(), "hidden things cannot stay selected");
+    assert_eq!(d.visible_solids().count(), 0);
+    assert_eq!(d.select_all(), 0, "select-all skips the hidden");
+    assert_eq!(d.hidden_count(), 2);
+
+    d.undo();
+    assert!(d.is_visible(ObjectId::Solid(a)), "hiding is undoable");
+}
+
+#[test]
+fn a_child_visgroup_is_hidden_by_its_parent() {
+    let mut d = doc();
+    let a = block(&mut d, 0.0, 64.0);
+    let parent = d.add_visgroup("outside", None);
+    let child = d.add_visgroup("shed", Some(parent));
+    d.selection.solids.insert(a);
+    d.add_selection_to_visgroup(child);
+    d.set_visgroup_visible(parent, false);
+    assert!(!d.is_visible(ObjectId::Solid(a)));
+    d.set_visgroup_visible(parent, true);
+    assert!(d.is_visible(ObjectId::Solid(a)));
+}
+
+#[test]
+fn quick_hide_and_unhide_all() {
+    let mut d = doc();
+    let a = block(&mut d, 0.0, 64.0);
+    let b = block(&mut d, 128.0, 192.0);
+    d.selection.clear();
+    d.selection.solids.insert(a);
+    assert_eq!(d.hide_selection(), 1);
+    assert!(!d.is_visible(ObjectId::Solid(a)));
+    assert!(d.is_visible(ObjectId::Solid(b)));
+    assert!(d.selection.is_empty());
+
+    d.selection.solids.insert(b);
+    assert_eq!(
+        d.hide_unselected(),
+        0,
+        "a is already hidden; nothing else to hide"
+    );
+    assert_eq!(d.unhide_all(), 1);
+    assert!(d.is_visible(ObjectId::Solid(a)));
+    d.undo();
+    assert!(
+        !d.is_visible(ObjectId::Solid(a)),
+        "unhiding is undoable too"
+    );
+}
+
+#[test]
+fn auto_visgroups_hide_by_kind_without_touching_the_map() {
+    let mut d = doc();
+    let a = block(&mut d, 0.0, 64.0);
+    let light = d.create_entity("light", Vec3::ZERO);
+    let text_before = d.map.to_text();
+    d.set_auto_visible(AutoGroup::Class("light".into()), false);
+    assert!(!d.is_visible(ObjectId::Entity(light)));
+    assert!(d.is_visible(ObjectId::Solid(a)));
+    d.set_auto_visible(AutoGroup::WorldBrushes, false);
+    assert!(!d.is_visible(ObjectId::Solid(a)));
+    assert_eq!(d.map.to_text(), text_before, "session state, not map state");
+}
+
+#[test]
+fn picking_a_group_member_selects_the_group_unless_groups_are_ignored() {
+    let mut d = doc();
+    let a = block(&mut d, 0.0, 64.0);
+    let b = block(&mut d, 128.0, 192.0);
+    d.selection.solids.insert(a);
+    d.selection.solids.insert(b);
+    let group = d.group_selection().expect("two things make a group");
+    assert_eq!(d.map.group_members(group).len(), 2);
+
+    d.selection.clear();
+    d.selection.solids.insert(a);
+    d.expand_selection_groups();
+    assert_eq!(d.selection.solids.len(), 2, "the whole group came along");
+
+    d.ignore_groups = true;
+    d.selection.clear();
+    d.selection.solids.insert(a);
+    d.expand_selection_groups();
+    assert_eq!(d.selection.solids.len(), 1);
+
+    d.ignore_groups = false;
+    assert_eq!(d.ungroup_selection(), 1);
+    assert_eq!(d.map.groups.len(), 1, "b is still in it");
+    d.selection.solids.insert(b);
+    assert_eq!(d.ungroup_selection(), 1);
+    assert!(d.map.groups.is_empty(), "a group nobody is in is gone");
+}
+
+#[test]
+fn the_cordon_hides_what_is_outside_and_can_be_resized() {
+    let mut d = doc();
+    let inside = block(&mut d, 0.0, 64.0);
+    let outside = block(&mut d, 512.0, 576.0);
+    d.selection.clear();
+    d.selection.solids.insert(inside);
+    d.set_cordon_active(true);
+    assert!(d.cordon_active());
+    assert!(d.is_visible(ObjectId::Solid(inside)));
+    assert!(!d.is_visible(ObjectId::Solid(outside)));
+
+    d.set_cordon_bounds(Aabb::new(Vec3::splat(-16.0), Vec3::splat(1024.0)));
+    assert!(d.is_visible(ObjectId::Solid(outside)));
+    d.set_cordon_active(false);
+    assert!(d.map.cordon.is_some(), "turning it off keeps the box");
+    let again = Map::parse(&d.map.to_text()).unwrap();
+    assert_eq!(again.cordon, d.map.cordon);
+}
+
+#[test]
+fn deleting_a_visgroup_leaves_its_members_visible() {
+    let mut d = doc();
+    let a = block(&mut d, 0.0, 64.0);
+    d.selection.solids.insert(a);
+    let vg = d.new_visgroup_from_selection("v");
+    d.set_visgroup_visible(vg, false);
+    assert!(d.remove_visgroup(vg));
+    assert!(d.is_visible(ObjectId::Solid(a)));
+    assert!(d.map.find_solid(a).unwrap().editor.visgroups.is_empty());
+}

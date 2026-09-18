@@ -190,7 +190,7 @@ pub fn draw_2d(
     };
 
     // Brushes, world first so entity brushes draw over them.
-    for (entity, solid) in document.map.all_solids() {
+    for (entity, solid) in document.visible_solids() {
         let bounds = solid.bounds();
         if !viewport.shows(bounds) {
             continue;
@@ -200,6 +200,8 @@ pub fn draw_2d(
             || document.selection.entities.contains(&entity.id);
         let color = if selected {
             colors::SELECTED
+        } else if let Some(own) = editor_color(document, entity, &solid.editor) {
+            own
         } else if entity.is_brush_entity() && entity.classname() != "worldspawn" {
             colors::BRUSH_ENTITY
         } else {
@@ -213,12 +215,14 @@ pub fn draw_2d(
     // Point entities, each drawn as what it is. A room full of identical
     // squares is a wall of labels you have to read; a shape is something you
     // see without reading.
-    for entity in document.map.entities.iter().filter(|e| e.solids.is_empty()) {
+    for entity in document.visible_point_entities() {
         let origin = entity.origin();
         let selected = document.selection.entities.contains(&entity.id);
         let kind = crate::icons::Kind::of(entity.classname());
         let color = if selected {
             colors::SELECTED
+        } else if let Some(own) = editor_color(document, entity, &entity.editor) {
+            own
         } else {
             kind.colour()
         };
@@ -250,8 +254,95 @@ pub fn draw_2d(
 
     draw_leak(painter, rect, viewport, leak);
     draw_motion(painter, rect, viewport, document);
+    draw_cordon(painter, rect, viewport, document, tool);
     draw_resize_grips(painter, rect, viewport, document, tool);
     draw_tool_preview(painter, rect, viewport, document, tool);
+}
+
+/// The cordon, as a dashed red box, whether or not it is active -- an
+/// inactive one is still where it was left. While it is being edited, or
+/// dragged, the box drawn is the one the drag will produce.
+fn draw_cordon(
+    painter: &Painter,
+    rect: Rect,
+    viewport: &Viewport,
+    document: &Document,
+    tool: &Tool,
+) {
+    let Some(cordon) = &document.map.cordon else {
+        return;
+    };
+    let mut bounds = cordon.bounds;
+    if let Some(drag) = &tool.drag
+        && drag.cordon
+        && drag.is_dragging
+        && let (Some(grip), Some(from)) = (drag.grip, drag.from)
+        && let Some((anchor, factor)) = crate::tools::resize_factor(
+            from,
+            viewport.kind.plane_axes(),
+            grip,
+            drag.current,
+            document.grid.size,
+        )
+    {
+        let a = anchor + (from.min - anchor) * factor;
+        let b = anchor + (from.max - anchor) * factor;
+        bounds = Aabb::new(a.min(b), a.max(b));
+    }
+    let (h, v, _) = viewport.kind.axes();
+    let corners = [
+        (bounds.min[h], bounds.min[v]),
+        (bounds.max[h], bounds.min[v]),
+        (bounds.max[h], bounds.max[v]),
+        (bounds.min[h], bounds.max[v]),
+    ];
+    let to_screen = |(a, b): (f32, f32)| {
+        let mut p = Vec3::ZERO;
+        p[h] = a;
+        p[v] = b;
+        let (x, y) = viewport.world_to_screen(p);
+        Pos2::new(rect.min.x + x, rect.min.y + y)
+    };
+    let color = if cordon.active {
+        colors::LEAK
+    } else {
+        colors::LEAK.gamma_multiply(0.5)
+    };
+    let width: f32 = if document.editing_cordon { 2.0 } else { 1.0 };
+    for i in 0..4 {
+        let a = to_screen(corners[i]);
+        let b = to_screen(corners[(i + 1) % 4]);
+        painter.add(egui::Shape::dashed_line(
+            &[a, b],
+            Stroke::new(width, color),
+            6.0,
+            4.0,
+        ));
+    }
+}
+
+/// The colour an object asked to be drawn in: its own, or its first
+/// visgroup's, or its entity's. `None` means the usual colour for its kind.
+fn editor_color(
+    document: &Document,
+    owner: &kerosene_map::Entity,
+    editor: &kerosene_map::EditorData,
+) -> Option<Color32> {
+    let rgb = |c: [u8; 3]| Color32::from_rgb(c[0], c[1], c[2]);
+    if let Some(c) = editor.color {
+        return Some(rgb(c));
+    }
+    if let Some(g) = editor
+        .visgroups
+        .iter()
+        .find_map(|&id| document.map.visgroup(id))
+    {
+        return Some(rgb(g.color));
+    }
+    if owner.classname() != "worldspawn" && !std::ptr::eq(editor, &owner.editor) {
+        return editor_color(document, owner, &owner.editor);
+    }
+    None
 }
 
 /// Grid lines, coarsening automatically as the view zooms out.
@@ -400,8 +491,17 @@ fn draw_resize_grips(
     if tool.kind != ToolKind::Select {
         return;
     }
-    let Some(bounds) = document.resizable_bounds() else {
-        return;
+    // The cordon's grips stand in for the selection's while it is edited.
+    let (bounds, color) = if document.editing_cordon {
+        match &document.map.cordon {
+            Some(c) => (c.bounds, colors::LEAK),
+            None => return,
+        }
+    } else {
+        match document.resizable_bounds() {
+            Some(b) => (b, colors::SELECTED),
+            None => return,
+        }
     };
     // Hidden mid-drag: the grips describe where the selection is, and during
     // a drag that is somewhere else.
@@ -417,7 +517,7 @@ fn draw_resize_grips(
         }
 
         let box_ = Rect::from_center_size(at, Vec2::splat(crate::tools::HANDLE_SIZE));
-        painter.rect_filled(box_, 0.0, colors::SELECTED);
+        painter.rect_filled(box_, 0.0, color);
         painter.rect_stroke(
             box_,
             0.0,
@@ -443,6 +543,9 @@ fn draw_tool_preview(
     // A select drag with a grip in hand is a resize. Show the shape it will
     // become and the size it will be, because "how big is it now" is the only
     // question anyone is asking while dragging a handle.
+    if drag.cordon {
+        return;
+    }
     if let (Some(grip), Some(from)) = (drag.grip, drag.from) {
         let minimum = document.grid.size;
         let Some((anchor, factor)) = crate::tools::resize_factor(
@@ -802,7 +905,7 @@ pub fn visible_faces(
 ) -> Vec<VisibleFace> {
     let mut faces = Vec::new();
 
-    for (entity, solid) in document.map.all_solids() {
+    for (entity, solid) in document.visible_solids() {
         let selected = document.selection.solids.contains(&solid.id)
             || document.selection.entities.contains(&entity.id);
 
@@ -894,6 +997,16 @@ pub fn apply_action(document: &mut Document, viewport: &Viewport, action: ToolAc
                 document.scale_selection(anchor, factor);
             }
         }
+        ToolAction::ResizeCordon { from, grip, to } => {
+            let minimum = document.grid.size;
+            if let Some((anchor, factor)) =
+                crate::tools::resize_factor(from, viewport.kind.plane_axes(), grip, to, minimum)
+            {
+                let min = anchor + (from.min - anchor) * factor;
+                let max = anchor + (from.max - anchor) * factor;
+                document.set_cordon_bounds(Aabb::new(min.min(max), min.max(max)));
+            }
+        }
         ToolAction::ApplyMaterialAt(point) => {
             if let Some(id) = crate::tools::pick_solid_2d(document, point, viewport) {
                 document.selection.clear();
@@ -910,6 +1023,7 @@ pub fn apply_action(document: &mut Document, viewport: &Viewport, action: ToolAc
             // targets, so a click near one almost always means the entity.
             if let Some(id) = crate::tools::pick_entity_2d(document, point, viewport) {
                 toggle(&mut document.selection.entities, id, add);
+                document.expand_selection_groups();
                 return;
             }
             if let Some(id) = crate::tools::pick_solid_2d(document, point, viewport) {
@@ -926,6 +1040,7 @@ pub fn apply_action(document: &mut Document, viewport: &Viewport, action: ToolAc
                     }
                     _ => toggle(&mut document.selection.solids, id, add),
                 }
+                document.expand_selection_groups();
             }
         }
     }

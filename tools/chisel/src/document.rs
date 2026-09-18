@@ -12,10 +12,13 @@
 //! that is subtly wrong corrupts the level silently.
 
 use crate::grid::Grid;
-use kerosene_map::{Entity, Map, Side, Solid, WalkmapRule};
+use kerosene_map::{Entity, Map, ObjectId, Side, Solid, WalkmapRule};
 use kerosene_math::{Aabb, Plane, Vec3, Winding};
 use std::collections::HashSet;
 use std::path::PathBuf;
+
+mod visibility;
+pub use visibility::AutoGroup;
 
 /// How many undo steps to keep.
 pub const MAX_UNDO: usize = 128;
@@ -69,6 +72,12 @@ pub struct Document {
     pub path: Option<PathBuf>,
     /// Material applied to newly created brushes.
     pub current_material: String,
+    /// Auto visgroups switched off this session. See [`AutoGroup`].
+    pub auto_hidden: HashSet<AutoGroup>,
+    /// Hammer's "ignore groups": pick one member without the rest.
+    pub ignore_groups: bool,
+    /// The cordon box is being sized by its grips rather than the selection.
+    pub editing_cordon: bool,
     undo: Vec<Snapshot>,
     redo: Vec<Snapshot>,
     /// How deep the undo stack was when the map was last saved (or loaded),
@@ -101,6 +110,9 @@ impl Document {
             grid: Grid::default(),
             path: None,
             current_material: "dev/grid".to_string(),
+            auto_hidden: HashSet::new(),
+            ignore_groups: false,
+            editing_cordon: false,
             undo: Vec::new(),
             redo: Vec::new(),
             saved_at: Some(0),
@@ -297,15 +309,23 @@ impl Document {
         })
     }
 
-    /// Select every brush and entity in the map.
+    /// Select every visible brush and entity in the map.
     pub fn select_all(&mut self) -> usize {
         self.selection.clear();
-        for solid in &self.map.world.solids {
-            self.selection.solids.insert(solid.id);
-        }
-        for entity in &self.map.entities {
-            self.selection.entities.insert(entity.id);
-        }
+        let solids: Vec<u32> = self
+            .visible_solids()
+            .filter(|(owner, _)| owner.classname() == "worldspawn")
+            .map(|(_, s)| s.id)
+            .collect();
+        self.selection.solids.extend(solids);
+        let entities: Vec<u32> = self
+            .map
+            .entities
+            .iter()
+            .filter(|e| self.is_visible(ObjectId::Entity(e.id)))
+            .map(|e| e.id)
+            .collect();
+        self.selection.entities.extend(entities);
         self.selection.len()
     }
 

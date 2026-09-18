@@ -183,6 +183,8 @@ pub struct Drag {
     /// along rather than being guessed from a perspective view that has no
     /// such axes.
     pub axes: Option<(usize, usize)>,
+    /// The grip is one of the cordon's, not the selection's.
+    pub cordon: bool,
 }
 
 impl Drag {
@@ -252,7 +254,15 @@ impl Tool {
         // in a 2D pane, and only around world brushes: entities cannot be
         // resized, so a press on an entity never grabs a grip and a drag
         // falls through to a move.
-        let (grip, from) = match (self.kind, document.resizable_bounds()) {
+        // While the cordon is being edited its grips take the place of
+        // the selection's: the box is the thing being sized.
+        let cordon = document.editing_cordon;
+        let bounds = if cordon {
+            document.map.cordon.as_ref().map(|c| c.bounds)
+        } else {
+            document.resizable_bounds()
+        };
+        let (grip, from) = match (self.kind, bounds) {
             (ToolKind::Select, Some(bounds)) if viewport.kind.is_2d() => {
                 (handle_at(bounds, viewport, x, y), Some(bounds))
             }
@@ -266,6 +276,7 @@ impl Tool {
             grip,
             from: grip.and(from),
             axes: grip.map(|_| viewport.kind.plane_axes()),
+            cordon: cordon && grip.is_some(),
         });
     }
 
@@ -307,6 +318,13 @@ impl Tool {
             ToolKind::Entity => ToolAction::CreateEntity(self.entity_class.clone(), drag.start),
             ToolKind::Texture => ToolAction::ApplyMaterialAt(drag.start),
             ToolKind::Select => match (drag.grip, drag.from) {
+                (Some(grip), Some(from)) if drag.is_dragging && drag.cordon => {
+                    ToolAction::ResizeCordon {
+                        from,
+                        grip,
+                        to: drag.current,
+                    }
+                }
                 (Some(grip), Some(from)) if drag.is_dragging => ToolAction::Resize {
                     from,
                     grip,
@@ -346,6 +364,12 @@ pub enum ToolAction {
     /// factor, so the ratio is worked out once, against the size the drag
     /// began at, by the code that has the viewport to work it out in.
     Resize {
+        from: Aabb,
+        grip: Handle,
+        to: Vec3,
+    },
+    /// Drag one of the cordon's grips.
+    ResizeCordon {
         from: Aabb,
         grip: Handle,
         to: Vec3,
@@ -528,7 +552,7 @@ pub fn pick_solid_2d(document: &Document, point: Vec3, viewport: &Viewport) -> O
     let (h, v, _) = viewport.kind.axes();
     let mut best: Option<(f32, u32)> = None;
 
-    for (_, solid) in document.map.all_solids() {
+    for (_, solid) in document.visible_solids() {
         let bounds = solid.bounds();
         // Only the two axes the view shows: the third is depth, and a 2D view
         // selects through the whole level.
@@ -554,7 +578,7 @@ pub fn pick_entity_2d(document: &Document, point: Vec3, viewport: &Viewport) -> 
     let reach = 16.0 / viewport.zoom.max(0.001);
 
     let mut best: Option<(f32, u32)> = None;
-    for entity in document.map.entities.iter().filter(|e| e.solids.is_empty()) {
+    for entity in document.visible_point_entities() {
         let origin = entity.origin();
         let distance = ((origin[h] - point[h]).powi(2) + (origin[v] - point[v]).powi(2)).sqrt();
         if distance > reach {
@@ -570,7 +594,7 @@ pub fn pick_entity_2d(document: &Document, point: Vec3, viewport: &Viewport) -> 
 /// The solid a 3D pick ray hits first.
 pub fn pick_solid_3d(document: &Document, origin: Vec3, direction: Vec3) -> Option<u32> {
     let mut best: Option<(f32, u32)> = None;
-    for (_, solid) in document.map.all_solids() {
+    for (_, solid) in document.visible_solids() {
         let Some(distance) = ray_box(origin, direction, solid.bounds()) else {
             continue;
         };
@@ -590,7 +614,7 @@ pub fn pick_solid_3d(document: &Document, origin: Vec3, direction: Vec3) -> Opti
 /// one behind you.
 pub fn pick_face_3d(document: &Document, origin: Vec3, direction: Vec3) -> Option<(u32, u32)> {
     let mut best: Option<(f32, (u32, u32))> = None;
-    for (_, solid) in document.map.all_solids() {
+    for (_, solid) in document.visible_solids() {
         for (side, winding) in solid.face_windings() {
             let Some(plane) = side.plane() else { continue };
             let facing = plane.normal.dot(direction);

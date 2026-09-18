@@ -28,6 +28,7 @@ impl ChiselApp {
                         (icons::LIST_BULLETS, "Object"),
                         (self.tool.kind.glyph(), "Tool"),
                         (icons::PAINT_BUCKET, "Materials"),
+                        (icons::EYE, "VisGroups"),
                     ],
                     &mut tab,
                 );
@@ -37,6 +38,7 @@ impl ChiselApp {
                     InspectorTab::Object => self.object_tab(ui),
                     InspectorTab::Tool => self.tool_tab(ui),
                     InspectorTab::Materials => self.materials_tab(ui, ctx),
+                    InspectorTab::VisGroups => self.visgroups_tab(ui),
                 }
             });
     }

@@ -21,6 +21,7 @@ impl ChiselApp {
                     ui.menu_button("File", |ui| self.file_menu(ui));
                     ui.menu_button("Edit", |ui| self.edit_menu(ui));
                     ui.menu_button("Map", |ui| self.map_menu(ui));
+                    ui.menu_button("Tools", |ui| self.tools_menu(ui));
                     ui.menu_button("View", |ui| self.view_menu(ui));
 
                     // The map's name, at the far end, with a mark when it has
@@ -175,6 +176,65 @@ impl ChiselApp {
         if menu_item(ui, "Check tools are installed", None).clicked() {
             self.show_tools_check = true;
             ui.close();
+        }
+    }
+
+    fn tools_menu(&mut self, ui: &mut egui::Ui) {
+        let has_selection = !self.document.selection.is_empty();
+        if menu_item_enabled(ui, has_selection, "Group", Some("ctrl-G")).clicked() {
+            self.group_selection();
+            ui.close();
+        }
+        if menu_item_enabled(ui, has_selection, "Ungroup", Some("ctrl-U")).clicked() {
+            self.ungroup_selection();
+            ui.close();
+        }
+        let mut select_groups = !self.document.ignore_groups;
+        if ui
+            .checkbox(&mut select_groups, "Select whole groups")
+            .changed()
+        {
+            self.document.ignore_groups = !select_groups;
+        }
+        ui.separator();
+        if menu_item_enabled(ui, has_selection, "Hide selection", Some("H")).clicked() {
+            self.hide_selection();
+            ui.close();
+        }
+        if menu_item_enabled(ui, has_selection, "Hide everything else", Some("ctrl-H")).clicked() {
+            self.hide_unselected();
+            ui.close();
+        }
+        if menu_item(ui, "Unhide all", Some("U")).clicked() {
+            self.unhide_all();
+            ui.close();
+        }
+        if menu_item_enabled(
+            ui,
+            has_selection,
+            "New visgroup from selection",
+            Some("ctrl-shift-G"),
+        )
+        .clicked()
+        {
+            self.new_visgroup_from_selection();
+            ui.close();
+        }
+        ui.separator();
+        let cordon = if self.document.cordon_active() {
+            "Cordon off"
+        } else {
+            "Cordon on"
+        };
+        if menu_item(ui, cordon, None)
+            .on_hover_text("Only what is inside the box is shown and compiled.")
+            .clicked()
+        {
+            self.toggle_cordon();
+            ui.close();
+        }
+        if self.document.map.cordon.is_some() {
+            ui.checkbox(&mut self.document.editing_cordon, "Edit cordon bounds");
         }
     }
 

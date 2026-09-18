@@ -1414,9 +1414,10 @@ entity
 {
 	"id" "144"
 	"classname" "point_sound"
-	"origin" "240 8 64"
+	"origin" "240 56 64"
 	"targetname" "switch_click"
 	"sound" "ui/click"
+	"volume" "10"
 }
 entity
 {
@@ -1522,13 +1523,13 @@ entity
 {
 	"id" "156"
 	"classname" "prop_dynamic_spawner"
-	"origin" "760 96 96"
+	"origin" "680 112 96"
 	"model" "props/cube"
-	"spawncount" "3"
+	"spawncount" "5"
 	"spawnflags" "1"
 	"friction" "1"
-	"mass" "50"
-	"elasticity" "0.5"
+	"mass" "100"
+	"elasticity" "0.1"
 }
 entity
 {

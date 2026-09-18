@@ -146,6 +146,41 @@ impl ChiselApp {
 
                     toolbar_gap(ui);
 
+                    // Groups and the cordon: what a click takes hold of, and
+                    // how much of the map is in play.
+                    let mut select_groups = !self.document.ignore_groups;
+                    if widgets::icon_toggle(
+                        ui,
+                        icons::SELECTION_ALL,
+                        "select whole groups  (off: pick one member at a time)",
+                        &mut select_groups,
+                    )
+                    .clicked()
+                    {
+                        self.document.ignore_groups = !select_groups;
+                    }
+                    let mut cordon = self.document.cordon_active();
+                    if widgets::icon_toggle(
+                        ui,
+                        icons::BOUNDING_BOX,
+                        "cordon: show and compile only what is inside the box",
+                        &mut cordon,
+                    )
+                    .clicked()
+                    {
+                        self.toggle_cordon();
+                    }
+                    if self.document.map.cordon.is_some() {
+                        widgets::icon_toggle(
+                            ui,
+                            icons::ARROWS_OUT_CARDINAL,
+                            "edit the cordon: drag its grips in a 2D pane",
+                            &mut self.document.editing_cordon,
+                        );
+                    }
+
+                    toolbar_gap(ui);
+
                     // How the 3D panes draw.
                     ui.label(theme::icon(icons::CUBE).color(colors::TEXT_MUTED))
                         .on_hover_text("How the 3D panes draw.");

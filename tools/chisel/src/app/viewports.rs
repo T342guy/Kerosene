@@ -381,6 +381,7 @@ impl ChiselApp {
                     self.document.selection.solids.insert(id);
                 }
             }
+            self.document.expand_selection_groups();
         }
     }
 
