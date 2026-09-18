@@ -23,19 +23,25 @@ In the order you will do them. Each item links to the page that explains it.
       a stale archive means run `kiln` again first.
       ([Publishing](publishing.md#how-kiln---ship-helps))
 - [ ] `dist/` holds the game binary, `<name>.keroproj`, `content/<name>.vault`,
-      `LICENSE-LGPL-3.0`, `LICENSE-MPL-2.0` and `README.txt` — and **no**
+      `LICENSE`, `LICENSE-EXCEPTION` and `README.txt` — and **no**
       `kerosene-tools` binary.
 - [ ] `README.txt`, "Engine source": replaced the instruction with the URL or
       offer where the Kerosene source you built against can be obtained.
       Nothing does this for you.
-- [ ] If you changed any Kerosene file: the changed files (MPL arm) or the
-      modified engine (LGPL arm) are published, and the README says where.
-      Better: the change is a pull request upstream.
+- [ ] The game shows an attribution screen when it starts — "Built with
+      Kerosene", before or with the first interactive screen — that a player
+      cannot switch off. The engine does not draw one for you yet; a few
+      lines in `Game::ui` do it.
+      ([Publishing](publishing.md#requirements))
+- [ ] If you changed any Kerosene file: the whole modified engine is
+      published where anyone can get it, and the `README.txt` and the
+      attribution screen say "modified from Kerosene" with the version or
+      commit you diverged from and where the modified source is. Better: the
+      change is a pull request upstream.
       ([Publishing](publishing.md#forks-and-derived-engines))
-- [ ] If the engine you built on carries a Kerosene-derived name: its whole
-      source is published; the game's `README.txt` links to it *and* to
-      Kerosene with "built from" / "modified from" and the commit it left
-      at. ([Publishing](publishing.md#the-naming-policy))
+- [ ] If the engine you built on carries a Kerosene-derived name: the same,
+      plus its source is published whether or not your game is closed.
+      ([Publishing](publishing.md#the-naming-policy))
 - [ ] The engine commit you built against is tagged or written down, so the
       source pointer means something in a year.
 

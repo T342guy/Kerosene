@@ -3,51 +3,60 @@
 Short answers. Each links to the page with the long one.
 
 **Can I sell a game made with Kerosene?**
-Yes. Neither licence restricts commercial use.
+Yes. The licence does not restrict commercial use.
 ([Publishing](publishing.md#you-can))
 
 **Do I have to open-source my game?**
-No. Under the MPL arm, copyleft is per file and reaches only Kerosene's own
-files; your code, levels, assets and scripts are yours. Under the LGPL arm
-your game code can stay closed too, but the engine part must be replaceable.
-([Licensing](../docs/licensing.md))
+No. The Kerosene Exception lets you link the engine into a closed game.
+Your code, levels, assets and scripts are yours; the engine part stays GPL
+with its source available. ([Licensing](../docs/licensing.md))
 
-**Which licence should I pick?**
-MPL-2.0, unless you specifically want the LGPL's stronger guarantee that
-modified engines stay open. MPL has no linking clause, so a statically
-linked closed-source game owes a notice and a source pointer, nothing more.
-([Publishing](publishing.md#requirements))
+**Isn't the GPL viral? How can my game be closed?**
+On its own it would be. The exception is an additional permission under
+GPL §7 that says a game linking Kerosene is not a covered work, on
+conditions: engine source, the built-with notice, an attribution screen,
+and — if you changed the engine — the whole modified engine published.
+([Licensing](../docs/licensing.md#the-exception-clause-by-clause))
 
 **What do I have to ship alongside the game?**
-Both licence texts and a `README.txt` with the notices. `kiln --ship` writes
-all of it; you fill in where the engine source can be obtained.
+Both texts (`LICENSE`, `LICENSE-EXCEPTION`) and a `README.txt` with the
+notices. `kiln --ship` writes all of it; you fill in where the engine source
+can be obtained. And the game itself shows an attribution screen at start.
 ([Shipping checklist](shipping-checklist.md))
 
+**What is the attribution screen?**
+"Built with Kerosene", shown each time the game starts, before or with the
+first interactive screen. It can be brief and dismissable; it cannot be
+switched off. Draw it in `Game::ui` for now — the engine will draw it for
+you eventually. A game on a modified engine shows "built with *Fork*,
+modified from Kerosene". ([Publishing](publishing.md#requirements))
+
 **Can I remove the "Built with Kerosene" notice?**
-No. It is the notice both licences require of a program carrying their code.
-([Publishing](publishing.md#you-cannot))
+No. It is a condition of the linking permission and a notice §7(b) of the
+GPL lets the project require. Remove it and the permission goes with it,
+which makes the whole game GPL. ([Publishing](publishing.md#you-cannot))
 
 **Can I ship Chisel or the compilers with my game, for modders?**
 Not inside the distribution `kiln --ship` makes, and not without also
-distributing their source: the tools are copyleft binaries in their own
-right. Point modders at the Kerosene repository instead.
+distributing their source: the tools are GPL binaries in their own right.
+Point modders at the Kerosene repository instead, or build your own
+`mygame-tools` on `kerosene::tools`, which ships like the game.
 ([Publishing](publishing.md#you-cannot))
 
 **I changed the engine. What do I owe?**
-It depends on the arm and on the name. Under MPL, the changed files, as
-source, under MPL-2.0. Under LGPL, the modified engine, under LGPL, kept
-replaceable. If you call the result *Kerosene-anything*, add the naming
-policy: the whole engine as source, a link to it, and a "built from
-Kerosene" link back. Either way the project would rather have a pull request.
+The whole modified engine stays GPL with the exception; it says "modified
+from Kerosene" with the version you diverged from and a link back — in its
+notice, the game's `README.txt` and the attribution screen; and if your
+game is closed, the modified engine's complete source is published where
+anyone can get it. The project would rather have a pull request.
 ([Publishing](publishing.md#forks-and-derived-engines))
 
 **Can I make my own engine out of Kerosene and call it "Kerosene: Ultimate"?**
 Yes, and the project would like that — the way Titanfall's engine was a
-rewritten branch of Source. The name comes with four conditions: publish the
-whole modified engine as source, link to it, link to Kerosene with "built
-from" or "modified from" and the commit you left at, and say it is a
-derivative rather than the official one. Pick a name that is not Kerosene's
-and only the licence applies. ([Publishing](publishing.md#the-naming-policy))
+rewritten branch of Source. The name costs what a modified engine already
+owes plus publishing its whole source whether or not a closed game ships on
+it, and saying plainly it is a derivative rather than the official one.
+([Publishing](publishing.md#the-naming-policy))
 
 **Do I owe anything for Symphonia (the MP3/FLAC decoder)?**
 No. Only Timbre, a build tool, links it, and `kiln --ship` never puts a tool

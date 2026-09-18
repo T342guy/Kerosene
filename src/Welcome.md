@@ -14,7 +14,7 @@ Hello! Welcome to the Kerosene game engine docummentation.
 
 Have you ever used the source engine? Have you wished it was open source and you could make a game with the same tools? With Kerosene, we've tried our best! 
 
-Kerosene is a source-like game engine that is PURELY open source. Thanks to the LGPL 3.0 and MPL 2.0 licenses. 
+Kerosene is a source-like game engine that is PURELY open source: GPL 3.0 with an exception that lets your game stay yours, so long as it says it is built with Kerosene. 
 
 Kerosene currently supports the following features:
 

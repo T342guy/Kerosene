@@ -25,7 +25,7 @@ calls and that is a program, on every platform.
 
 ## Storefronts
 
-Nothing in either licence stops you selling on any of these. Nothing in the
+Nothing in the licence stops you selling on any of these. Nothing in the
 engine helps you with any of them yet.
 
 | Store | What works | What is missing |

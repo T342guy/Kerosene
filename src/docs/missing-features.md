@@ -205,6 +205,10 @@ for completeness.
   reaching it whenever the mouse is not captured. Nothing is provided on
   top of that: no main menu, pause menu, options screen or dialogue boxes
   to reuse.
+- **The attribution screen.** The licence exception requires every game to
+  show "Built with Kerosene" when it starts. The engine should draw that
+  itself, so a game meets the condition by default and a fork inherits it;
+  today each game draws it in `Game::ui`.
 - **Gameplay UI toolkit.** egui is what `Game::ui` gets, which is a real
   widget system, but it looks like a tool; there is no theming, atlas font
   or textured-quad layer for a game that wants to look like one.
@@ -306,7 +310,7 @@ for completeness.
 There are none. Which ones matter, in order of what they pay back:
 
 - **Steamworks**, via the `steamworks` crate over Valve's SDK. The SDK is
-  proprietary and cannot live in an LGPL/MPL tree, so this is a Cargo feature
+  proprietary and cannot live in a GPL tree, so this is a Cargo feature
   the engine is built with, and `kiln --ship --steam` copies
   `steam_api.so`/`.dll` and writes `steam_appid.txt`. Then, in order:
   - Init and `restart_app_if_necessary`. The overlay works over Vulkan and

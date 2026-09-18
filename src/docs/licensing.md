@@ -1,97 +1,135 @@
 # Licensing
 
-Kerosene is **dual-licensed** under **LGPL-3.0-or-later OR MPL-2.0**. Both
-full texts ship in the repository — `LICENSE-LGPL-3.0` and `LICENSE-MPL-2.0`
-— `Cargo.toml` declares `license = "LGPL-3.0-or-later OR MPL-2.0"`, and every
-source file carries the matching
-`SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0` line.
+Kerosene is licensed under the **GNU General Public License, version 3 or
+later, with the Kerosene Exception** — additional terms under the GPL's
+section 7. Both texts ship in the repository, `LICENSE` and
+`LICENSE-EXCEPTION`; `Cargo.toml` declares
+`license = "GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0"`, and
+every source file carries the matching `SPDX-License-Identifier` line.
 
-The "OR" is a real choice, not a stack of conditions. A recipient uses the
-code under one licence or the other, whichever fits what they are doing, and
-does not have to satisfy both at once. `NOTICE` states the two paths on one
-page; this document explains the reasoning and then does the dependency audit.
+`NOTICE` states what that means on one page; this document explains the
+reasoning, walks the exception clause by clause, and then does the dependency
+audit.
 
 I am not a lawyer and none of this is legal advice. It is an accurate inventory
 plus the reasoning behind the choice, so that you or an actual lawyer can move
 quickly.
 
-## What the two licences mean here
+## What the licence means here
 
-**MPL-2.0 is weak, file-level copyleft.** The one phrase that matters:
+**The GPL on its own** would make any program that links Kerosene a covered
+work: a game built on it would have to be GPL too. The exception changes
+that, and only that.
 
-* **A "file" is the unit of copyleft, not the program.** Modify an MPL file
-  and distribute it, and you must make *that file's* source available under
-  MPL-2.0. Files you write yourself — your game code, your levels, your
-  scripts — carry whatever terms you like, even when they sit in the same
-  directory, the same crate, or the same binary as MPL-2.0 code.
-* **There is no "linking" stage.** MPL-2.0 does not care how MPL and non-MPL
-  code are combined; the obligations stay in the MPL files and reach nothing
-  beyond them.
-* **Your game is yours.** Game code, assets, levels, shaders, scripts — all
-  yours, under whatever terms you like, shipped any way you like, closed
-  source or otherwise.
-* **Changing Kerosene itself** means distributing those changed files under
-  MPL-2.0 too. The obligation is confined to the files you actually change.
-* **The tools work the same way.** Chisel, Cleave, Umbra, Resonance, Radiance,
-  Alchemy, Timbre, Forge, Vault and Kiln are all under the same terms.
+**A game built on Kerosene is yours.** The exception's section 1 is an
+additional permission: link Kerosene, statically or dynamically, into a game
+and convey the game under terms of your choice — closed, commercial, whatever
+you like. Your code, levels, scripts and assets are yours. The conditions:
 
-**LGPL-3.0-or-later is copyleft on the engine as a whole.** It is the
-stronger of the two:
+* the engine part of the game — Kerosene, plus any change you made to it —
+  stays under the GPL with the exception, with its source available as the
+  GPL requires;
+* the game carries a notice that it is built with Kerosene and says where
+  the engine source is (`kiln --ship` writes it);
+* the game shows an **attribution screen** when it starts — "Built with
+  Kerosene", before or together with its first interactive screen. Brief and
+  dismissable is fine; disabled or hidden is not. A program with no graphical
+  interface prints the same line instead;
+* if the engine is modified, the *whole* modified engine is published as
+  source where anyone can obtain it free of charge, not only offered to the
+  people who receive the game.
 
-* **The "Library" is Kerosene** — the engine crates and the tools. If you
-  modify it and distribute your version, the modified engine must be released
-  under the LGPL.
-* **Code you write *against* the engine is not the engine.** The LGPL does
-  not demand that your game be open source; it demands that the library part
-  stay replaceable. Rust links statically by default, so LGPL-3.0 §4 means
-  shipping the engine as a replaceable shared library, or shipping your
-  object files so the game can be relinked — real but ordinary work.
-* **Stronger guarantee, more ceremony.** That relinking requirement is the
-  entire cost of the LGPL arm, and the entire reason the MPL arm exists.
+**A modified engine is a modified Kerosene**, whatever it is called and
+wherever the changed files are put — a copy of `movement.rs` inside your game
+crate is still the engine. Convey one, alone or inside a game, and section 2
+of the exception asks that it say plainly that it is *"modified from
+Kerosene"* or *"built from Kerosene"*, name the version or commit it diverged
+from, and link to Kerosene's source — in its own notice, in the notice of
+every game built on it, and on the attribution screen of every game built on
+it. It must not present itself as the original or as endorsed by this
+project, and it must carry the attribution-screen requirement forward so that
+games on the fork still show where they came from.
 
-## Why two licences and not one
+**The Kerosene name** is not granted by the licence. A fork may call itself
+Kerosene-something only if it does the above *and* publishes its complete
+source, as one engine rather than as changed files, under the same terms.
+Any other name owes only what the GPL and the exception say.
 
-Kerosene began under LGPL-3.0-or-later. The LGPL's mechanism assumes a user
-can swap the library inside a program for their own build, and Rust's
-default static linking makes that a chore for anyone shipping a closed-source
-game: either C-ABI plumbing or an object-file distribution step that `cargo`
-does not do for you. None of it bites at development time, but the moment a
-binary leaves the door it demands work.
+**The tools** — Chisel, the compilers, Kiln — are under the same terms. The
+linking permission covers them too, so a game's own `mygame-tools` binary
+built on `kerosene::tools` ships the same way the game does. An unmodified
+tool distributed on its own is a plain GPL binary: ship it with its source.
 
-MPL-2.0 has no linking stage, so none of that applies — but its copyleft is
-*weaker*: it does not require a *modified engine* to be released as a whole,
-only the modified files. Each licence, alone, is a trade-off:
+## Why the GPL with an exception, and not the LGPL or the MPL
 
-* MPL-2.0 — simplest possible shipping story, weakest copyleft.
-* LGPL-3.0 — strongest guarantee that a modified engine stays open, most
-  shipping ceremony.
+Kerosene began under LGPL-3.0-or-later, then offered MPL-2.0 as an
+alternative arm. Each had the flaw the other fixed:
 
-Rather than pick one trade-off for everyone, the project offers both. The
-recipient chooses the arm that fits: a closed-source game takes MPL-2.0 and
-ships with nothing more than a notice; someone who wants the strong guarantee
-that forks of the engine stay open takes the LGPL.
+* **The LGPL's mechanism is relinking.** It assumes a user can swap the
+  library inside a program for their own build, and Rust's default static
+  linking makes that a chore for anyone shipping a closed game — C-ABI
+  plumbing, or an object-file distribution step `cargo` does not do. None of
+  it bites at development time; the moment a binary leaves the door it
+  demands work.
+* **The MPL's unit is the file.** It has no linking stage, so it asks nothing
+  of a closed game — but it also asks nothing of a *modified engine* beyond
+  the files that changed, and nothing at all of a fork that presents itself
+  as something new. The derivative-engine policy had to live outside the
+  licence, as a condition on using the name.
 
-Compatibility is worth one sentence: MPL-2.0 §3.3 says you may combine MPL
-code with code under a "Secondary License" from the GPL, LGPL or AGPL
-families and convey the larger work under that licence, and LGPL-3.0 is
-itself GPL-compatible. Neither arm walls this project off from the copyleft
-world, and neither arm imports the other's obligations.
+GPL §7 gives a licensor the two levers that fix both at once. An **additional
+permission** may be granted on any conditions the licensor likes, because a
+recipient who declines the conditions simply has no permission and the plain
+GPL applies. That is the linking exception: it does what the LGPL does for a
+game — keep your code, keep the engine open — without the relinking clause,
+and its conditions carry the policy the MPL could not. And §7 (b)–(f) allow
+a short list of **additional requirements** — preserved notices, marking of
+modified versions, no misrepresentation, limits on the licensor's name — that
+cover the rest of the policy and that a recipient *cannot* strip.
+
+Nothing in the exception is a "further restriction" in §7's sense. Every
+requirement is one the section names, and every condition sits on the
+permission rather than on the GPL.
+
+## The exception, clause by clause
+
+| Clause | What it encodes | Why it is allowed |
+|---|---|---|
+| §1 | You may link Kerosene into a game and ship the game under your own terms | An additional permission (§7, first paragraph) |
+| §1(a) | The engine part, with your changes, stays GPL with source | A condition of the permission |
+| §1(b) | The game carries "built with Kerosene" and a source pointer | A condition of the permission; also §7(b) |
+| §1(c) | A modified engine's whole source is public, not only offered to recipients | A condition of the permission — the GPL alone could not require publication |
+| §1(d) | The game shows the attribution screen | A condition of the permission |
+| §2(a) | Copyright notices, `NOTICE`, and the built-with statement are preserved | §7(b): preservation of legal notices and author attributions |
+| §2(b) | A modified engine says "modified from Kerosene", the version diverged from, and a link — in its notice, its games' notices and their attribution screens; it is not presented as the original | §7(b) attribution; §7(c) marking of modified versions and no misrepresentation |
+| §2(c) | The authors' names are not used for publicity | §7(d) |
+| §2(d) | "Kerosene" as a fork's name only with §2(b) and the whole source published | §7(e): declining to grant trademark rights, on stated conditions |
+| §2(e) | The attribution screen, at start, before or with the first interactive screen; inherited by every fork | §7(b): an author attribution in the *Appropriate Legal Notices* the GPL's §5(d) already has interactive programs display |
+
+A recipient may remove the §1 permission from their copy, as §7 allows, and
+be left with the plain GPL plus §2. Nobody can remove §2.
+
+The engine does not yet *draw* the attribution screen for you: a game adds
+one through `Game::ui` today, and an engine-drawn one that satisfies §2(e) by
+default is a listed gap in [Missing features](missing-features.md). The
+obligation is on the shipped program either way.
 
 ## Third-party dependencies
 
 325 distinct crates in the workspace dependency graph (normal edges, all
 targets). Two facts matter more than any list:
 
-* **Neither arm of the licence forces a hard line around copyleft.** Under
-  the MPL arm, a file-level-copyleft dependency is the same licence the
-  project itself ships under. Under the LGPL arm, the strong copyleft applies
-  to the engine *you* distribute, and a compatible copyleft dependency is
-  ordinary rather than something to quarantine.
+* **Every licence in the tree is GPL-3.0-compatible.** Apache-2.0 is
+  compatible with GPL version 3 (not 2, which is one reason the project is
+  3-or-later), and MPL-2.0 lets its files be combined into a GPL work through
+  its own §3.3. A copyleft dependency is ordinary here rather than something
+  to quarantine.
 * **No GPL crate appears at any depth, and no LGPL or AGPL crate either.**
-  The strongest whole-work copyleft licences are absent from the dependency
-  tree. Nothing requires a game built on this to adopt a copyleft of its own.
+  Kerosene is the only whole-work copyleft in a game built on it, and the
+  exception is what decides what that asks of the game. Nothing in the tree
+  adds an obligation of its own beyond a notice.
 
-The only copyleft-licensed dependencies are themselves MPL-2.0:
+The only copyleft-licensed dependencies are MPL-2.0:
 
 | Reaches | Ships in a game |
 |---|---|
@@ -124,8 +162,7 @@ Regenerate with:
 cargo tree --workspace --edges normal --prefix none --format '{p}|{l}'
 ```
 
-The MPL-2.0 rows above are `smartstring` and Symphonia's six crates. They are
-dependencies that share one arm of the project's own licence.
+The MPL-2.0 rows above are `smartstring` and Symphonia's six crates.
 
 `box3d-rust` (MIT) sits in the plain-`MIT` bucket and backs `kerosene-rigid`,
 the rigid-body simulation. It is a pure-Rust port of Erin Catto's Box3D with
@@ -135,9 +172,8 @@ bindgen output, or require a C++ toolchain to link it.
 
 ### The two MPL-2.0 dependencies
 
-**What MPL-2.0 asks**, first, because it is also one arm of the project's own
-licence: file-level copyleft. A shipped, *unmodified* binary carrying MPL-2.0
-code owes a notice — the licence text and a statement of where the MPL source
+**What MPL-2.0 asks**: file-level copyleft. A shipped, *unmodified* binary
+carrying MPL-2.0 code owes a notice — the licence text and a statement of where the MPL source
 lives. Modified MPL *files* must be released as source under MPL-2.0. It
 reaches nothing else.
 
@@ -187,12 +223,10 @@ winit  cpal  ab_glyph  ab_glyph_rasterizer
 owned_ttf_parser  spirv  codespan-reporting  gethostname
 ```
 
-Apache-2.0 is compatible with both arms of the licence. Under the LGPL arm it
-decided the *version* once — Apache-2.0 cannot be bundled under GPL-2.0, but
-it can under GPL-3.0 and LGPL-3.0 — and under the MPL arm it is a note rather
-than a decision. The list is kept here because it is still the set of crates
-whose "Apache-2.0 only" status is worth knowing if anyone ever forks with
-different terms in mind.
+Apache-2.0 decided the GPL *version*: it cannot be bundled under GPL-2.0, but
+it can under GPL-3.0, and Kerosene is 3-or-later. The list is kept here
+because it is the set of crates whose "Apache-2.0 only" status is worth
+knowing if anyone ever forks with different terms in mind.
 
 **Bundled fonts — `epaint_default_fonts` and `egui-phosphor`.** egui ships
 default typefaces under the SIL Open Font Licence 1.1 and the Ubuntu Font
@@ -271,10 +305,10 @@ source comment and in the table above, so nothing is hidden.
 **The choice of licence does not change this**, and it is worth being explicit
 about why, since picking a licence might look like an answer to it. It isn't.
 A licence governs what *this* project grants downstream; it cannot clear
-anything upstream. Neither arm's GPL compatibility is about *combining* code
+anything upstream. Being GPL-licensed ourselves is about *combining* code
 going forward, not about taking code *out of* a GPL-2.0 work — GPL-2.0 code
-could not be moved under either arm in any case, because the GPL does not
-permit relicensing its code to another licence without the author's
+could not be moved under GPL-3.0-or-later with an exception in any case,
+because the GPL does not permit relicensing its code without the author's
 permission. What actually lowers the risk is what the project already does:
 ship no Valve or id content, define formats theirs cannot read, and state
 provenance plainly.
@@ -306,45 +340,50 @@ either version says which it came from.
 ## Consequences of the choice, in one place
 
 **For contributors.** Patches to Kerosene's own files are offered under the
-same dual terms — `LGPL-3.0-or-later OR MPL-2.0`. Nothing else is needed;
-there is no CLA, and the SPDX line in every file records it.
+same terms — GPL-3.0-or-later WITH the Kerosene Exception. That matters more
+than it would for a plain GPL project: the exception is an additional
+permission, and a contribution offered under the GPL alone would carry no
+such permission, so the file it touched could no longer be linked into a
+closed game. There is no CLA; the SPDX line in every file records the terms,
+and sending a pull request is accepting them.
 
-**For someone forking the engine.** Under the MPL arm, publish the files you
-change under MPL-2.0. Under the LGPL arm, publish the modified engine under
-the LGPL. Either way you are free to fork — but the project's preference is
-that you contribute the change back as a pull request and use the updated
-engine, so the fix exists once rather than once per fork. A fork that carries
-a Kerosene-derived name — *Kerosene: Ultimate*, say — additionally follows
-the naming policy: the whole engine published as source, a link to it, and a
-"built from Kerosene" link back. That is a condition of the name, not of the
-code, and it is set out in
-[Forks and derived engines](../gamedev/publishing.md#forks-and-derived-engines).
+**For someone forking the engine.** The whole modified engine is under the
+GPL with the exception. It says "modified from Kerosene", names the version
+or commit it diverged from, and links to Kerosene's source — in its notice,
+in the notice of every game built on it, and on their attribution screens.
+Ship a closed game on it and the fork's whole source is published where
+anyone can get it. Call it Kerosene-something and the same publication is
+the price of the name. The project's preference, every time: contribute the
+change back as a pull request and use the updated engine, so the fix exists
+once rather than once per fork. [Forks and derived
+engines](../gamedev/publishing.md#forks-and-derived-engines) has the three
+cases side by side.
 
-**For someone shipping a game.** Your game is yours under either arm. Under
-MPL-2.0 you owe the notice and a pointer to the source, and nothing resembles
-a relinking clause. Under the LGPL you may keep your game code closed, but you
-must keep the engine replaceable (a shared library, or object files for
-relinking). Most people take the MPL arm for exactly that reason.
+**For someone shipping a game.** Your game is yours. You owe the licence
+texts, the notice with a source pointer, and an attribution screen at start;
+`kiln --ship` writes the first two and the [Shipping
+checklist](../gamedev/shipping-checklist.md) has the third. There is no
+relinking clause and nothing resembling one.
 
 **For someone shipping the tools.** Chisel and the compilers are under the
-same dual terms. Under MPL-2.0, distribute the corresponding source for any
-MPL files you modify. Under the LGPL, distribute modified tools under the
-LGPL. An unmodified tool ships with the notice and a pointer to the source.
+same terms. A game's own tools binary is a combined work like the game and
+ships the same way. A tool on its own is a GPL binary: distribute the source
+with it.
 
 **Fonts, again, because it catches people.** Any binary linking egui — the
 toolset, and the engine's debug overlay — carries OFL-1.1 and Ubuntu-Font-1.0
 typefaces inside it, and the toolset carries the MIT Phosphor icon font too.
 All three licences are satisfied by shipping their notices alongside the
-binary. Neither conflicts with either arm, because the fonts are
-data travelling with the program rather than part of it.
+binary. None conflicts with the GPL, because the fonts are data travelling
+with the program rather than part of it.
 
 **And `smartstring`, for the same reason.** It is MPL-2.0 and it is inside the
 engine, so a shipped game carries it and owes its notice. `kiln --ship` writes
 that too.
 
-**What the licences do not do.** They do not make the provenance question
-above go away, in either direction. Copyleft — weak or strong — is a statement
-about what *you* grant downstream; it is not a clearance of anything upstream.
-What actually keeps this project clean is what it already does: ship no Valve
-or id content, define formats theirs cannot read, and name every module that
+**What the licence does not do.** It does not make the provenance question
+above go away, in either direction. Copyleft is a statement about what *you*
+grant downstream; it is not a clearance of anything upstream. What actually
+keeps this project clean is what it already does: ship no Valve or id
+content, define formats theirs cannot read, and name every module that
 follows the structure of published work.

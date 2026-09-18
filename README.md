@@ -316,18 +316,19 @@ Known limits, stated plainly:
 
 ## Licence
 
-**LGPL-3.0-or-later OR MPL-2.0** — a dual licence; you may use Kerosene under
-either one. The full texts are `LICENSE-LGPL-3.0` and `LICENSE-MPL-2.0`, and
-every source file carries an `SPDX-License-Identifier: LGPL-3.0-or-later OR
-MPL-2.0` line.
+**GPL-3.0-or-later WITH the Kerosene Exception.** The full texts are
+`LICENSE` and `LICENSE-EXCEPTION`, and every source file carries an
+`SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0`
+line.
 
-Pick whichever fits. MPL-2.0 is weak, *file-level* copyleft: changes *to
-Kerosene's own files* must be published under MPL-2.0, but a game built on it
-— your code, your assets, your levels — can be whatever you like and shipped
-any way you like, with no linking stage or relinking clause. LGPL-3.0-or-later
-is stronger copyleft on the engine as a whole, for anyone who wants that
-guarantee. The project's preference, under either licence: if you change
-Kerosene itself, contribute the change back as a pull request rather than
-releasing a modified fork. [`docs/licensing.md`](docs/licensing.md) explains
-all of this properly, along with the full dependency audit and the provenance
-of the algorithms.
+The exception is what makes a game possible: it lets you link Kerosene,
+statically or dynamically, into a game and ship the game under your own
+terms — your code, assets and levels are yours, closed or open. In return
+the engine part stays under the GPL with its source available, the game says
+it is built with Kerosene and shows that on an attribution screen when it
+starts, and a modified engine says "modified from Kerosene", names the
+version it diverged from, and is published whole. The project's preference:
+if you change Kerosene itself, contribute the change back as a pull request
+rather than releasing a modified fork.
+[`docs/licensing.md`](docs/licensing.md) explains all of this properly,
+along with the full dependency audit and the provenance of the algorithms.

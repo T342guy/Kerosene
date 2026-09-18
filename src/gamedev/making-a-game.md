@@ -154,8 +154,8 @@ path = "src/tools.rs"
 required-features = ["tools"]
 ```
 
-`required-features` is what keeps the toolset — egui, the compilers, and the
-one MPL-2.0 decoder Timbre uses — out of a plain `cargo build` of the game.
+`required-features` is what keeps the toolset — egui, the compilers, the
+audio decoders Timbre uses — out of a plain `cargo build` of the game.
 Features are per package, not per binary, so without it the game binary
 would link everything the tools do.
 
