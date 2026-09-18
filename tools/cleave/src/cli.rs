@@ -44,6 +44,35 @@ struct Args {
     /// Found from the map's project file when not given.
     #[arg(long)]
     content: Option<PathBuf>,
+
+    /// Compile only what is inside this box, sealed by its own walls:
+    /// "minx miny minz maxx maxy maxz". The map's own cordon is used when
+    /// it is active and this is not given.
+    #[arg(long, allow_hyphen_values = true)]
+    cordon: Option<String>,
+
+    /// Ignore the cordon the map carries.
+    #[arg(long)]
+    no_cordon: bool,
+}
+
+/// Parse `"minx miny minz maxx maxy maxz"`.
+fn parse_cordon(text: &str) -> Result<kerosene_math::Aabb> {
+    let nums: Vec<f32> = text
+        .split(|c: char| c.is_whitespace() || c == ',')
+        .filter(|s| !s.is_empty())
+        .map(|s| s.parse::<f32>())
+        .collect::<std::result::Result<_, _>>()
+        .with_context(|| format!("--cordon {text:?}: six numbers are needed"))?;
+    if nums.len() != 6 {
+        anyhow::bail!(
+            "--cordon {text:?}: six numbers are needed, got {}",
+            nums.len()
+        );
+    }
+    let a = kerosene_math::Vec3::new(nums[0], nums[1], nums[2]);
+    let b = kerosene_math::Vec3::new(nums[3], nums[4], nums[5]);
+    Ok(kerosene_math::Aabb::new(a.min(b), a.max(b)))
 }
 
 /// The pixel size of every material's base texture, read from the compiled
@@ -142,11 +171,23 @@ pub fn run(args: Vec<String>) -> Result<()> {
         }
     };
 
+    let cordon = match &args.cordon {
+        Some(text) => Some(parse_cordon(text)?),
+        None if args.no_cordon => None,
+        None => map.cordon.as_ref().filter(|c| c.active).map(|c| c.bounds),
+    };
+    if let Some(b) = cordon {
+        println!(
+            "  cordon: {} {} {} to {} {} {}",
+            b.min.x, b.min.y, b.min.z, b.max.x, b.max.y, b.max.z
+        );
+    }
     let options = pipeline::CompileOptions {
         ignore_leaks: args.ignore_leaks,
         no_fill: args.no_fill,
         verbose: args.verbose,
         texture_sizes: sizes,
+        cordon,
     };
 
     let out_path = args
@@ -210,6 +251,17 @@ pub fn run(args: Vec<String>) -> Result<()> {
         s.leaves_filled, s.clusters
     );
     println!("  output   {} faces, {} vertices", s.faces, s.vertices);
+    if s.sections > 1 {
+        let names: Vec<&str> = output.bsp.sections[1..]
+            .iter()
+            .map(|x| x.name.as_str())
+            .collect();
+        println!(
+            "  sections {} streamed: {}",
+            s.sections - 1,
+            names.join(", ")
+        );
+    }
     println!("  walkmap  {} walkable faces", output.walk.len());
 
     if let Some(leak) = &output.leak {

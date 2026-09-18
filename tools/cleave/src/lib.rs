@@ -13,6 +13,7 @@ pub mod emit;
 pub mod material;
 pub mod pipeline;
 pub mod portal;
+pub mod sections;
 pub mod tree;
 pub mod walk;
 

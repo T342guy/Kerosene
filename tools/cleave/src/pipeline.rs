@@ -37,6 +37,8 @@ pub struct CompileOptions {
     /// surface wearing it at the wrong scale. A material missing from here
     /// is written as [`crate::emit::DEFAULT_TEXTURE_SIZE`] with a warning.
     pub texture_sizes: std::collections::HashMap<String, (u32, u32)>,
+    /// Compile only what is inside this box, sealed by its own walls.
+    pub cordon: Option<kerosene_math::Aabb>,
 }
 
 /// Per-stage numbers, printed after a compile.
@@ -57,6 +59,7 @@ pub struct Stats {
     pub clusters: usize,
     pub faces: usize,
     pub vertices: usize,
+    pub sections: usize,
 }
 
 pub struct CompileOutput {
@@ -94,11 +97,32 @@ pub fn compile(map: &Map, options: &CompileOptions) -> Result<CompileOutput, Com
     let mut warnings: Vec<Warning> = Vec::new();
     let mut stats = Stats::default();
 
+    // ---- the cordon ----
+    let cordoned;
+    let map = match options.cordon {
+        Some(bounds) => {
+            let (cut, cordon_warnings) = crate::sections::cordon(map, bounds);
+            warnings.extend(cordon_warnings);
+            cordoned = cut;
+            &cordoned
+        }
+        None => map,
+    };
+
     // ---- brushes ----
+    let mut sections = crate::sections::SectionTable::of(map);
     let mut all: Vec<BrushWork> = Vec::new();
     for solid in &map.world.solids {
         stats.source_brushes += 1;
-        if let Some(b) = BrushWork::from_solid(solid, 0, "worldspawn", &mut planes, &mut warnings) {
+        let section = sections.assign(solid, &mut warnings);
+        if let Some(b) = BrushWork::from_solid_in_section(
+            solid,
+            0,
+            "worldspawn",
+            section,
+            &mut planes,
+            &mut warnings,
+        ) {
             all.push(b);
         }
     }
@@ -126,6 +150,7 @@ pub fn compile(map: &Map, options: &CompileOptions) -> Result<CompileOutput, Com
     if all.is_empty() {
         return Err(CompileError::NoBrushes);
     }
+    sections.compact(&mut all);
 
     for (i, b) in all.iter_mut().enumerate() {
         b.original = i;
@@ -209,7 +234,7 @@ pub fn compile(map: &Map, options: &CompileOptions) -> Result<CompileOutput, Com
     let prt = portal::write_prt(&tree, &portals, stats.clusters);
     let walk = crate::walk::collect(&world, &planes, &tree);
 
-    let bsp = emit::emit(
+    let mut bsp = emit::emit(
         &tree,
         &planes,
         &world,
@@ -218,6 +243,8 @@ pub fn compile(map: &Map, options: &CompileOptions) -> Result<CompileOutput, Com
         1,
         &options.texture_sizes,
     );
+    bsp.sections = sections.sections;
+    stats.sections = bsp.sections.len();
     for material in emit::materials_without_a_size(&bsp, &options.texture_sizes) {
         warnings.push(Warning {
             brush_id: 0,

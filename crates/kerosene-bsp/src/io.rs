@@ -6,7 +6,7 @@
 //! see [`crate::types`]. Lumps carry their own version number so a format bump
 //! to one lump does not invalidate the rest of the file.
 
-use crate::{Bsp, LUMP_COUNT, acoustics, acoustics::Acoustics, lumps};
+use crate::{Bsp, LUMP_COUNT, acoustics, acoustics::Acoustics, lumps, sections};
 use bytemuck::{Pod, cast_slice};
 use std::path::Path;
 use thiserror::Error;
@@ -14,7 +14,7 @@ use thiserror::Error;
 /// File magic. Not Source's `VBSP`, deliberately -- a Kerosene map is not a
 /// Source map and mistaking one for the other should fail loudly.
 pub const MAGIC: [u8; 4] = *b"KROS";
-pub const VERSION: u32 = 1;
+pub const VERSION: u32 = 2;
 
 const HEADER_SIZE: usize = 4 + 4 + LUMP_COUNT * 16 + 4;
 
@@ -29,7 +29,7 @@ pub enum BspError {
     #[error("{path} is not a .kerobsp file (bad magic)")]
     BadMagic { path: String },
     #[error(
-        "{path} is format version {found}; this build reads version {expected}. Recompile the map with Cleave."
+        "{path} is format version {found}; this build reads version {expected}. Recompile the map: kerosene-tools build, or F9 in Chisel."
     )]
     BadVersion {
         path: String,
@@ -175,6 +175,22 @@ impl Bsp {
                     path: name.to_string(),
                     detail,
                 })?,
+            sections: sections::parse(slice(lumps::SECTIONS)?).map_err(|detail| {
+                BspError::Invalid {
+                    path: name.to_string(),
+                    detail,
+                }
+            })?,
+            face_sections: read_lump(
+                slice(lumps::FACE_SECTIONS)?,
+                name,
+                lumps::NAMES[lumps::FACE_SECTIONS],
+            )?,
+            brush_sections: read_lump(
+                slice(lumps::BRUSH_SECTIONS)?,
+                name,
+                lumps::NAMES[lumps::BRUSH_SECTIONS],
+            )?,
         };
 
         bsp.validate().map_err(|detail| BspError::Invalid {
@@ -245,6 +261,18 @@ impl Bsp {
             dir[lumps::ACOUSTICS].version = acoustics::VERSION;
             dir[lumps::ACOUSTICS].ident = acoustics::MAGIC;
         }
+        push(&mut dir, lumps::SECTIONS, &sections::encode(&self.sections));
+        push(
+            &mut dir,
+            lumps::FACE_SECTIONS,
+            cast_slice(&self.face_sections),
+        );
+        push(
+            &mut dir,
+            lumps::BRUSH_SECTIONS,
+            cast_slice(&self.brush_sections),
+        );
+        push(&mut dir, lumps::SPARE, &[]);
 
         let mut out = Vec::with_capacity(HEADER_SIZE + body.len());
         out.extend_from_slice(&MAGIC);

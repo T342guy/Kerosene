@@ -416,3 +416,39 @@ fn acoustics_round_trip_through_the_spare_lumps() {
         Err(BspError::Invalid { .. })
     ));
 }
+
+#[test]
+fn sections_round_trip_and_mask_the_clusters_their_faces_sit_in() {
+    let mut bsp = tiny_bsp();
+    bsp.sections = vec![
+        Section::world(),
+        Section {
+            name: "Cave".into(),
+            bounds: Aabb::new(Vec3::splat(-8.0), Vec3::splat(8.0)),
+        },
+    ];
+    // Every face into the cave, every brush into the world.
+    bsp.face_sections = vec![1; bsp.faces.len()];
+    bsp.brush_sections = vec![0; bsp.brushes.len()];
+    let bytes = bsp.to_bytes();
+    let again = Bsp::from_bytes(&bytes, "test.kerobsp").expect("reloads");
+    assert_eq!(again.sections, bsp.sections);
+    assert_eq!(again.face_sections, bsp.face_sections);
+    assert_eq!(again.brush_sections, bsp.brush_sections);
+
+    let masks = again.section_cluster_masks();
+    assert_eq!(masks.len(), 2);
+    assert!(
+        masks[0].iter().all(|&b| b == 0),
+        "nothing is in the world section"
+    );
+    assert!(
+        masks[1].iter().any(|&b| b != 0),
+        "the cave's faces mark their clusters"
+    );
+
+    // A face in a section that does not exist is caught.
+    let mut bad = bsp.clone();
+    bad.face_sections[0] = 7;
+    assert!(Bsp::from_bytes(&bad.to_bytes(), "bad.kerobsp").is_err());
+}

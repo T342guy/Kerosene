@@ -45,6 +45,8 @@ struct PendingFace {
     /// 1 when the face points opposite its plane.
     side: u8,
     texinfo: u32,
+    /// The streamed section the face's brush is in.
+    section: u16,
 }
 
 /// Merges coincident vertices so that adjacent faces share vertex records.
@@ -297,6 +299,7 @@ pub fn emit(
                     side.plane,
                     plane,
                     texinfo,
+                    brush.section,
                     &mut leaf_faces,
                 );
             }
@@ -347,6 +350,7 @@ pub fn emit(
             num_sides: brush.sides.len() as u32,
             contents: brush.contents,
         });
+        bsp.brush_sections.push(brush.section);
         brush_index_map.insert(i, index);
     }
 
@@ -361,9 +365,11 @@ pub fn emit(
         let solid = node.contents & contents::SOLID != 0;
         if !solid && let Some(pending) = leaf_faces.remove(&n) {
             for pf in pending {
+                let section = pf.section;
                 let face = build_face(pf, &mut welder, &mut edges, &tex);
                 bsp.leaffaces.push(bsp.faces.len() as u32);
                 bsp.faces.push(face);
+                bsp.face_sections.push(section);
             }
         }
         let num_leaffaces = bsp.leaffaces.len() as u32 - first_leafface;
@@ -467,6 +473,9 @@ pub fn emit(
                 num_sides: brush.sides.len() as u32,
                 contents: brush.contents,
             });
+            // A brush entity is never streamed: it is a door, and it is
+            // drawn and collided with wherever it has moved to.
+            bsp.brush_sections.push(0);
 
             for side in &brush.sides {
                 if !side.is_visible_surface() {
@@ -479,9 +488,11 @@ pub fn emit(
                         plane: side.plane,
                         side: 0,
                         texinfo,
+                        section: 0,
                     };
                     let face = build_face(pf, &mut welder, &mut edges, &tex);
                     bsp.faces.push(face);
+                    bsp.face_sections.push(0);
                 }
             }
         }
@@ -547,6 +558,7 @@ fn file_face(
     plane_index: u32,
     face_plane: Plane,
     texinfo: u32,
+    section: u16,
     out: &mut HashMap<usize, Vec<PendingFace>>,
 ) {
     if winding.is_tiny() {
@@ -567,6 +579,7 @@ fn file_face(
             // built on the odd half of the pair is flagged as reversed.
             side: (plane_index & 1) as u8,
             texinfo,
+            section,
         });
         return;
     };
@@ -581,6 +594,7 @@ fn file_face(
             plane_index,
             face_plane,
             texinfo,
+            section,
             out,
         );
     };

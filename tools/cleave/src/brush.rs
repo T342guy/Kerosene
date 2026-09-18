@@ -61,6 +61,8 @@ pub struct BrushWork {
     pub sides: Vec<SideWork>,
     pub contents: u32,
     pub bounds: Aabb,
+    /// The streamed section this brush is in; 0 is the world.
+    pub section: u16,
 }
 
 /// Something the compiler wants the designer to know about.
@@ -79,6 +81,18 @@ impl BrushWork {
         solid: &Solid,
         entity: usize,
         classname: &str,
+        planes: &mut PlaneSet,
+        warnings: &mut Vec<Warning>,
+    ) -> Option<BrushWork> {
+        Self::from_solid_in_section(solid, entity, classname, 0, planes, warnings)
+    }
+
+    /// [`Self::from_solid`], tagged with a section.
+    pub fn from_solid_in_section(
+        solid: &Solid,
+        entity: usize,
+        classname: &str,
+        section: u16,
         planes: &mut PlaneSet,
         warnings: &mut Vec<Warning>,
     ) -> Option<BrushWork> {
@@ -130,12 +144,22 @@ impl BrushWork {
             return None;
         }
 
-        let contents = match material::contents_for_classname(classname) {
+        let mut contents = match material::contents_for_classname(classname) {
             // The entity's class wins: a trigger_multiple is a trigger no
             // matter what its faces are textured with.
             Some(c) => c,
             None => resolve_contents_of(face_contents.iter().copied()),
         };
+        // `"detail" "1"` on the brush itself: detail without tying it to a
+        // `func_detail`, for a brush that should stay where it is in the
+        // world's list -- and in its visgroup -- but out of the vis tree.
+        if solid
+            .get("detail")
+            .is_some_and(|v| matches!(v.trim(), "1" | "true" | "yes"))
+            && contents & kerosene_bsp::contents::SOLID != 0
+        {
+            contents |= kerosene_bsp::contents::DETAIL;
+        }
 
         let mut brush = BrushWork {
             map_id: solid.id,
@@ -144,6 +168,7 @@ impl BrushWork {
             sides,
             contents,
             bounds: Aabb::EMPTY,
+            section,
         };
         brush.recompute_windings(planes);
 

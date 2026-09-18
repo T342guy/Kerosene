@@ -29,12 +29,14 @@
 
 pub mod acoustics;
 pub mod io;
+pub mod sections;
 pub mod trace;
 pub mod types;
 pub mod vis;
 
 pub use acoustics::{AcousticPath, AcousticRoom, Acoustics, NO_ROOM, room_flags};
 pub use io::{BspError, LumpDir, MAGIC, VERSION, write_bsp};
+pub use sections::{Section, SectionRecord, WORLD_SECTION};
 pub use trace::Trace;
 pub use types::*;
 pub use vis::{VisBuilder, VisData, VisKind};
@@ -66,6 +68,14 @@ pub mod lumps {
     pub const ACOUSTICS: usize = 18;
     /// One `u16` per leaf: which room it is in.
     pub const ACOUSTIC_LEAFS: usize = 19;
+    /// Streamed sections; see [`crate::sections`].
+    pub const SECTIONS: usize = 20;
+    /// One `u16` per face: its section.
+    pub const FACE_SECTIONS: usize = 21;
+    /// One `u16` per brush: its section.
+    pub const BRUSH_SECTIONS: usize = 22;
+    /// Spare.
+    pub const SPARE: usize = 23;
 
     pub const NAMES: [&str; super::LUMP_COUNT] = [
         "entities",
@@ -88,12 +98,17 @@ pub mod lumps {
         "lighting",
         "acoustics",
         "acoustic_leafs",
+        "sections",
+        "face_sections",
+        "brush_sections",
+        "spare",
     ];
 }
 
-/// Slots in the lump directory. Two were left spare so a later lump could be
-/// added without a format version bump; the acoustics lumps took them.
-pub const LUMP_COUNT: usize = 20;
+/// Slots in the lump directory. Version 1 had twenty, with two spare that
+/// the acoustics lumps took; version 2 added four for the section lumps and
+/// keeps one spare.
+pub const LUMP_COUNT: usize = 24;
 
 /// A compiled map.
 #[derive(Clone, Default)]
@@ -126,6 +141,12 @@ pub struct Bsp {
     pub lighting: Vec<ColorRgbExp32>,
     /// Rooms and which leaf is in which; `None` until Resonance runs.
     pub acoustics: Option<Acoustics>,
+    /// The streamed sections; always at least the world, section 0.
+    pub sections: Vec<Section>,
+    /// One per face: which section it belongs to. Empty means all in 0.
+    pub face_sections: Vec<u16>,
+    /// One per brush: which section it belongs to. Empty means all in 0.
+    pub brush_sections: Vec<u16>,
 }
 
 impl Bsp {
@@ -499,7 +520,76 @@ impl Bsp {
         if let Some(acoustics) = &self.acoustics {
             acoustics.validate(self.leaves.len())?;
         }
+        if !self.face_sections.is_empty() && self.face_sections.len() != self.faces.len() {
+            return Err(format!(
+                "{} face sections for {} faces",
+                self.face_sections.len(),
+                self.faces.len()
+            ));
+        }
+        if !self.brush_sections.is_empty() && self.brush_sections.len() != self.brushes.len() {
+            return Err(format!(
+                "{} brush sections for {} brushes",
+                self.brush_sections.len(),
+                self.brushes.len()
+            ));
+        }
+        // A `Bsp` built in memory may not have named its sections yet; an
+        // empty list is the one-section world, as an empty lump is.
+        let n = self.sections.len().max(1);
+        if let Some(bad) = self
+            .face_sections
+            .iter()
+            .chain(self.brush_sections.iter())
+            .find(|&&s| s as usize >= n)
+        {
+            return Err(format!("something is in section {bad} of {n}"));
+        }
         Ok(())
+    }
+
+    /// How many sections there are: at least the world.
+    pub fn section_count(&self) -> usize {
+        self.sections.len().max(1)
+    }
+
+    /// The section a face is in.
+    pub fn face_section(&self, face: usize) -> u16 {
+        self.face_sections.get(face).copied().unwrap_or(0)
+    }
+
+    /// The section a brush is in.
+    pub fn brush_section(&self, brush: usize) -> u16 {
+        self.brush_sections.get(brush).copied().unwrap_or(0)
+    }
+
+    /// For each section, a bit per cluster: the clusters that hold any of
+    /// its faces. This is what streaming intersects with the PVS to decide
+    /// which sections the player might see.
+    pub fn section_cluster_masks(&self) -> Vec<Vec<u8>> {
+        let clusters = self.num_clusters().max(1);
+        let bytes = vis::row_bytes(clusters);
+        let mut masks = vec![vec![0u8; bytes]; self.section_count()];
+        for leaf in &self.leaves {
+            if leaf.cluster < 0 {
+                continue;
+            }
+            let cluster = leaf.cluster as usize;
+            if cluster >= clusters {
+                continue;
+            }
+            let first = leaf.first_leafface as usize;
+            for i in first..first + leaf.num_leaffaces as usize {
+                let Some(&face) = self.leaffaces.get(i) else {
+                    continue;
+                };
+                let section = self.face_section(face as usize) as usize;
+                if let Some(mask) = masks.get_mut(section) {
+                    mask[cluster / 8] |= 1 << (cluster % 8);
+                }
+            }
+        }
+        masks
     }
 
     /// A one-line-per-lump summary, for the compilers' output and the engine's
@@ -527,6 +617,7 @@ impl Bsp {
                 "acoustic rooms",
                 self.acoustics.as_ref().map_or(0, |a| a.rooms.len()),
             ),
+            ("sections", self.section_count()),
         ]
     }
 }

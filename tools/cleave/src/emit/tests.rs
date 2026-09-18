@@ -515,3 +515,135 @@ fn an_entity_buried_in_a_wall_is_warned_about() {
         out.warnings
     );
 }
+
+/// Two rooms side by side with a doorway between them, the second in a
+/// streamed visgroup.
+fn two_rooms_map() -> Map {
+    let mut map = Map::new();
+    let t = 16.0;
+    // One long box, 0..512 on x, split by a wall at x = 256 with a doorway.
+    let (lo, hi) = (0.0f32, 256.0);
+    let far = 512.0;
+    let outer = [
+        Aabb::new(
+            Vec3::new(lo - t, lo - t, lo - t),
+            Vec3::new(far + t, hi + t, lo),
+        ),
+        Aabb::new(
+            Vec3::new(lo - t, lo - t, hi),
+            Vec3::new(far + t, hi + t, hi + t),
+        ),
+        Aabb::new(Vec3::new(lo - t, lo - t, lo), Vec3::new(lo, hi + t, hi)),
+        Aabb::new(Vec3::new(far, lo - t, lo), Vec3::new(far + t, hi + t, hi)),
+        Aabb::new(Vec3::new(lo, lo - t, lo), Vec3::new(far, lo, hi)),
+        Aabb::new(Vec3::new(lo, hi, lo), Vec3::new(far, hi + t, hi)),
+    ];
+    for slab in outer {
+        map.add_world_solid(Solid::cube(slab, "dev/grid"));
+    }
+    // The dividing wall, with a doorway 64 wide in the middle.
+    map.add_world_solid(Solid::cube(
+        Aabb::new(Vec3::new(248.0, lo, lo), Vec3::new(264.0, 96.0, hi)),
+        "dev/grid",
+    ));
+    map.add_world_solid(Solid::cube(
+        Aabb::new(Vec3::new(248.0, 160.0, lo), Vec3::new(264.0, hi, hi)),
+        "dev/grid",
+    ));
+    map.add_world_solid(Solid::cube(
+        Aabb::new(Vec3::new(248.0, 96.0, 128.0), Vec3::new(264.0, 160.0, hi)),
+        "dev/grid",
+    ));
+    // Furniture in the far room, in a streamed visgroup.
+    let cave = map.add_visgroup("Far room", None);
+    map.visgroup_mut(cave).unwrap().stream = true;
+    let mut crate_ = Solid::cube(
+        Aabb::new(Vec3::new(384.0, 96.0, 0.0), Vec3::new(448.0, 160.0, 64.0)),
+        "dev/grid",
+    );
+    crate_.editor.add_to_visgroup(cave);
+    map.add_world_solid(crate_);
+
+    let id = map.next_id();
+    let mut spawn = kerosene_map::Entity::new(id, "info_player_start");
+    spawn.set_origin(Vec3::new(128.0, 128.0, 32.0));
+    map.entities.push(spawn);
+    map
+}
+
+#[test]
+fn a_streamed_visgroup_becomes_a_section_with_its_faces_tagged() {
+    let map = two_rooms_map();
+    let out = compile_ok(&map);
+    let bsp = &out.bsp;
+    assert_eq!(bsp.sections.len(), 2, "the world and the far room");
+    assert_eq!(bsp.sections[1].name, "Far room");
+    assert_eq!(
+        bsp.sections[1].bounds,
+        Aabb::new(Vec3::new(384.0, 96.0, 0.0), Vec3::new(448.0, 160.0, 64.0))
+    );
+    assert_eq!(bsp.face_sections.len(), bsp.faces.len());
+    assert_eq!(bsp.brush_sections.len(), bsp.brushes.len());
+    let tagged = bsp.face_sections.iter().filter(|&&s| s == 1).count();
+    assert!(
+        (5..=6).contains(&tagged),
+        "the crate's visible faces: {tagged}"
+    );
+    assert_eq!(bsp.brush_sections.iter().filter(|&&s| s == 1).count(), 1);
+    // Every tagged face really is on the crate.
+    for (i, &s) in bsp.face_sections.iter().enumerate() {
+        if s == 1 {
+            let b = bsp.face_bounds(i);
+            assert!(b.min.x >= 384.0 - 0.01 && b.max.x <= 448.0 + 0.01, "{b:?}");
+        }
+    }
+    // And the round trip keeps it all.
+    let again = kerosene_bsp::Bsp::from_bytes(&bsp.to_bytes(), "t.kerobsp").unwrap();
+    assert_eq!(again.face_sections, bsp.face_sections);
+    assert_eq!(again.sections, bsp.sections);
+    // The section's faces mark the far room's cluster and not the near one.
+    let masks = again.section_cluster_masks();
+    // A corner of the near room: the leaf through the doorway at crate
+    // height runs the length of the map and rightly sees the crate.
+    let near = again.point_cluster(Vec3::new(64.0, 32.0, 32.0));
+    let far = again.point_cluster(Vec3::new(416.0, 200.0, 32.0));
+    assert!(near >= 0 && far >= 0 && near != far, "{near} {far}");
+    let bit = |mask: &[u8], c: i16| mask[c as usize / 8] & (1 << (c as usize % 8)) != 0;
+    assert!(bit(&masks[1], far));
+    assert!(!bit(&masks[1], near));
+}
+
+#[test]
+fn a_detail_key_keeps_a_brush_out_of_the_tree() {
+    let mut map = room_map(false);
+    let mut pillar = Solid::cube(
+        Aabb::new(Vec3::new(100.0, 100.0, 0.0), Vec3::new(140.0, 140.0, 128.0)),
+        "dev/grid",
+    );
+    pillar.set("detail", "1");
+    map.add_world_solid(pillar);
+    let out = compile_ok(&map);
+    assert_eq!(out.stats.detail_brushes, 1);
+    let plain = compile_ok(&room_map(false));
+    assert_eq!(
+        out.stats.tree_leaves, plain.stats.tree_leaves,
+        "detail does not split"
+    );
+}
+
+#[test]
+fn a_cordon_compiles_a_corner_of_the_map_without_leaking() {
+    let map = two_rooms_map();
+    let options = CompileOptions {
+        cordon: Some(Aabb::new(
+            Vec3::new(-32.0, -32.0, -32.0),
+            Vec3::new(128.0, 288.0, 288.0),
+        )),
+        ..Default::default()
+    };
+    let out = compile(&map, &options).expect("a cordoned map is sealed by its walls");
+    assert!(out.leak.is_none());
+    let b = out.bsp.world_bounds();
+    assert!(b.max.x < 248.0, "the far room is outside the box: {b:?}");
+    assert_eq!(out.bsp.sections.len(), 1, "the far room is outside");
+}
