@@ -19,6 +19,7 @@ members = [
     "crates/kerosene-script",
     "crates/kerosene-audio",
     "crates/kerosene-ui",
+    "crates/kerosene",
     "apps/kerosene",
     "tools/chisel",
     "tools/cleave",
@@ -60,6 +61,7 @@ kerosene-game    = { path = "crates/kerosene-game" }
 kerosene-script  = { path = "crates/kerosene-script" }
 kerosene-audio   = { path = "crates/kerosene-audio", default-features = false }
 kerosene-ui      = { path = "crates/kerosene-ui" }
+kerosene         = { path = "crates/kerosene" }
 box3d-rust       = "0.2"
 
 anyhow      = "1"

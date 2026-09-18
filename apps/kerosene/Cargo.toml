@@ -7,9 +7,7 @@ license.workspace = true
 authors.workspace = true
 
 [dependencies]
-kerosene-engine.workspace = true
-kerosene-entity.workspace = true
-kerosene-game.workspace = true
+kerosene.workspace = true
 anyhow.workspace = true
 
 [[bin]]

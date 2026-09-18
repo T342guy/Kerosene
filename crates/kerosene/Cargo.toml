@@ -1,0 +1,50 @@
+[package]
+name = "kerosene"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "The Kerosene engine, as one crate: what a game depends on."
+
+# The one crate a game names. Everything below is re-exported as a module,
+# so a game's Cargo.toml has one Kerosene line and its code says
+# `kerosene::engine`, `kerosene::entity`, `kerosene::math`, and the
+# versions of egui, glam and rhai it sees are the engine's own.
+
+[features]
+default = ["audio"]
+# Audio output. Needs ALSA headers on Linux; the mixer works without it.
+audio = ["kerosene-engine/audio"]
+# The toolset -- Chisel, the compilers, Kiln -- as a library, so a game can
+# ship a `mygame-tools` binary that knows its classes and launches it.
+tools = ["dep:kerosene-tools", "dep:chisel"]
+
+[dependencies]
+# Named without its default so that a game's `default-features = false`
+# reaches the engine's audio switch rather than being silently ignored.
+kerosene-engine = { path = "../kerosene-engine", default-features = false }
+kerosene-game.workspace = true
+kerosene-entity.workspace = true
+kerosene-math.workspace = true
+kerosene-console.workspace = true
+kerosene-vfs.workspace = true
+kerosene-map.workspace = true
+kerosene-bsp.workspace = true
+kerosene-script.workspace = true
+kerosene-audio.workspace = true
+kerosene-render.workspace = true
+kerosene-physics.workspace = true
+kerosene-rigid.workspace = true
+kerosene-config.workspace = true
+kerosene-kv.workspace = true
+kerosene-asset.workspace = true
+kerosene-walk.workspace = true
+egui.workspace = true
+glam.workspace = true
+rhai.workspace = true
+winit.workspace = true
+anyhow.workspace = true
+log.workspace = true
+kerosene-tools = { path = "../../tools/kerosene-tools", optional = true }
+chisel = { path = "../../tools/chisel", optional = true }

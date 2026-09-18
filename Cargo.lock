@@ -1413,6 +1413,37 @@ dependencies = [
 ]
 
 [[package]]
+name = "kerosene"
+version = "0.1.0-prealpha.4"
+dependencies = [
+ "anyhow",
+ "chisel",
+ "egui",
+ "glam",
+ "kerosene-asset",
+ "kerosene-audio",
+ "kerosene-bsp",
+ "kerosene-config",
+ "kerosene-console",
+ "kerosene-engine",
+ "kerosene-entity",
+ "kerosene-game",
+ "kerosene-kv",
+ "kerosene-map",
+ "kerosene-math",
+ "kerosene-physics",
+ "kerosene-render",
+ "kerosene-rigid",
+ "kerosene-script",
+ "kerosene-tools",
+ "kerosene-vfs",
+ "kerosene-walk",
+ "log",
+ "rhai",
+ "winit",
+]
+
+[[package]]
 name = "kerosene-asset"
 version = "0.1.0-prealpha.4"
 dependencies = [
@@ -1605,9 +1636,7 @@ name = "kerosene-runtime"
 version = "0.1.0-prealpha.4"
 dependencies = [
  "anyhow",
- "kerosene-engine",
- "kerosene-entity",
- "kerosene-game",
+ "kerosene",
 ]
 
 [[package]]

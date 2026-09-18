@@ -7,27 +7,14 @@
 //! kerosene --headless 600 +map kero_start     # simulate without a display
 //! ```
 //!
-//! This is the whole binary. A game of your own is the same call with your
-//! own [`Game`](kerosene_engine::Game); see `kerosene_engine::launch`.
+//! This is the whole binary, and the shape of a game's own: one call with
+//! its own [`Game`](kerosene::Game) in place of the stock one.
 
-use kerosene_engine::Game;
-use kerosene_engine::launch::{LaunchOptions, launch};
-
-/// The stock game: the classes in `kerosene-game`, nothing more.
-struct Stock;
-
-impl Game for Stock {
-    fn classes(&self, registry: &mut kerosene_entity::ClassRegistry) {
-        kerosene_game::register(registry);
-    }
-    fn schema(&self) -> &'static str {
-        kerosene_game::schema::BUILTIN
-    }
-}
+use kerosene::{LaunchOptions, launch};
 
 fn main() -> anyhow::Result<()> {
     launch(
-        Stock,
+        kerosene::game::Stock,
         LaunchOptions {
             name: "Kerosene",
             version: env!("CARGO_PKG_VERSION"),
