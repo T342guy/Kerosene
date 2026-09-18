@@ -122,6 +122,31 @@ impl ChiselApp {
                     )));
                 });
             }
+            ToolKind::Clip => {
+                widgets::section(ui, "keep", |ui| {
+                    for mode in [ClipMode::Both, ClipMode::Front, ClipMode::Back] {
+                        let selected = self.tool.clip_mode == mode;
+                        if ui.selectable_label(selected, mode.label()).clicked() {
+                            self.tool.clip_mode = mode;
+                        }
+                    }
+                    ui.label(theme::caption(
+                        "Front is the side the cut's arrow points to. 6 cycles these.",
+                    ));
+                });
+                widgets::section(ui, "keys", |ui| {
+                    for (key, what) in [
+                        ("drag", "lay the cut across the selection"),
+                        ("enter", "cut"),
+                        ("escape", "forget the line"),
+                    ] {
+                        ui.horizontal(|ui| {
+                            ui.label(theme::mono(key).color(colors::TEXT));
+                            ui.label(theme::caption(what));
+                        });
+                    }
+                });
+            }
             ToolKind::Select => {
                 widgets::section(ui, "keys", |ui| {
                     for (key, what) in [

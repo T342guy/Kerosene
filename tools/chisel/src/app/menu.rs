@@ -221,6 +221,49 @@ impl ChiselApp {
             ui.close();
         }
         ui.separator();
+        if menu_item_enabled(ui, has_selection, "Clip tool", Some("6"))
+            .on_hover_text("Drag a line in a 2D pane, then Enter. 6 again cycles what is kept.")
+            .clicked()
+        {
+            self.tool.set_kind(ToolKind::Clip);
+            ui.close();
+        }
+        if menu_item_enabled(ui, has_selection, "Carve", Some("ctrl-shift-C"))
+            .on_hover_text("Take the selected brushes out of every world brush they overlap.")
+            .clicked()
+        {
+            self.carve();
+            ui.close();
+        }
+        if menu_item_enabled(ui, has_selection, "Hollow...", Some("ctrl-shift-H")).clicked() {
+            self.show_hollow = true;
+            ui.close();
+        }
+        ui.separator();
+        if menu_item_enabled(ui, has_selection, "Transform...", Some("ctrl-M")).clicked() {
+            self.show_transform = true;
+            ui.close();
+        }
+        if menu_item_enabled(ui, has_selection, "Rotate 90 degrees", Some("R"))
+            .on_hover_text("About the axis the active pane looks along.")
+            .clicked()
+        {
+            self.rotate_90();
+            ui.close();
+        }
+        if menu_item_enabled(ui, has_selection, "Flip horizontally", Some("ctrl-L")).clicked() {
+            self.flip(true);
+            ui.close();
+        }
+        if menu_item_enabled(ui, has_selection, "Flip vertically", Some("ctrl-I")).clicked() {
+            self.flip(false);
+            ui.close();
+        }
+        if menu_item_enabled(ui, has_selection, "Align to grid", Some("ctrl-B")).clicked() {
+            self.align_to_grid();
+            ui.close();
+        }
+        ui.separator();
         let cordon = if self.document.cordon_active() {
             "Cordon off"
         } else {

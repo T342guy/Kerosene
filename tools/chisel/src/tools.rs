@@ -7,7 +7,7 @@
 
 use crate::document::Document;
 use crate::viewport::{Viewport, ray_box};
-use kerosene_math::{Aabb, Vec3, Winding};
+use kerosene_math::{Aabb, Plane, Vec3, Winding};
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub enum ToolKind {
     /// Click to select, drag to move, shift-click to add.
@@ -21,6 +21,8 @@ pub enum ToolKind {
     Entity,
     /// Click a face to apply the current material.
     Texture,
+    /// Drag a line in a 2D pane; Enter cuts the selection along it.
+    Clip,
 }
 
 impl ToolKind {
@@ -31,6 +33,7 @@ impl ToolKind {
             ToolKind::Shape => "shape",
             ToolKind::Entity => "entity",
             ToolKind::Texture => "texture",
+            ToolKind::Clip => "clip",
         }
     }
 
@@ -41,19 +44,21 @@ impl ToolKind {
             ToolKind::Shape => "5",
             ToolKind::Entity => "3",
             ToolKind::Texture => "4",
+            ToolKind::Clip => "6",
         }
     }
 
     /// Every tool, in the order the toolbar lists them -- which is the order
     /// their shortcuts run in, so the list reads 1, 2, 3, 4, 5 down the side
     /// rather than sending the eye hunting for the number it wants.
-    pub fn all() -> [ToolKind; 5] {
+    pub fn all() -> [ToolKind; 6] {
         [
             ToolKind::Select,
             ToolKind::Block,
             ToolKind::Entity,
             ToolKind::Texture,
             ToolKind::Shape,
+            ToolKind::Clip,
         ]
     }
 
@@ -222,6 +227,33 @@ pub struct Tool {
     pub texture_mode: TextureMode,
     /// What the texture tool selects: one face, or the whole brush.
     pub texture_target: TextureTarget,
+    /// Which side the clip tool keeps. The tool's own key cycles it.
+    pub clip_mode: crate::document::ClipMode,
+    /// The clip line, once one has been dragged: two points in the world and
+    /// the axis the pane could not see, which the cutting plane runs along.
+    pub clip_line: Option<ClipLine>,
+}
+
+/// A line dragged in a 2D pane for the clip tool.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ClipLine {
+    pub a: Vec3,
+    pub b: Vec3,
+    pub axis: usize,
+}
+
+impl ClipLine {
+    /// The cutting plane: through both points, running along the pane's
+    /// depth axis. `None` for a line too short to define one.
+    pub fn plane(&self) -> Option<Plane> {
+        let mut along = Vec3::ZERO;
+        along[self.axis] = 1.0;
+        let normal = (self.b - self.a).cross(along);
+        if normal.length() < 1e-3 {
+            return None;
+        }
+        Some(Plane::from_point_normal(self.a, normal.normalize()))
+    }
 }
 
 impl Tool {
@@ -236,8 +268,17 @@ impl Tool {
     }
 
     pub fn set_kind(&mut self, kind: ToolKind) {
+        // The clip tool's own key, pressed again, cycles what it keeps --
+        // Hammer's habit, and the only place the mode needs a key.
+        if kind == ToolKind::Clip && self.kind == ToolKind::Clip {
+            self.clip_mode = self.clip_mode.next();
+            return;
+        }
         // Switching tools mid-drag would apply the new tool to the old drag.
         self.drag = None;
+        if kind != ToolKind::Clip {
+            self.clip_line = None;
+        }
         self.kind = kind;
     }
 
@@ -275,7 +316,8 @@ impl Tool {
             is_dragging: false,
             grip,
             from: grip.and(from),
-            axes: grip.map(|_| viewport.kind.plane_axes()),
+            axes: (grip.is_some() || self.kind == ToolKind::Clip)
+                .then(|| viewport.kind.plane_axes()),
             cordon: cordon && grip.is_some(),
         });
     }
@@ -317,6 +359,18 @@ impl Tool {
             }
             ToolKind::Entity => ToolAction::CreateEntity(self.entity_class.clone(), drag.start),
             ToolKind::Texture => ToolAction::ApplyMaterialAt(drag.start),
+            ToolKind::Clip => {
+                // The line is kept, not acted on: Enter cuts, so there is
+                // time to see what the cut will do and change the mode.
+                if drag.is_dragging && drag.start != drag.current {
+                    self.clip_line = Some(ClipLine {
+                        a: drag.start,
+                        b: drag.current,
+                        axis: drag.axes.map_or(2, |(h, v)| 3 - h - v),
+                    });
+                }
+                return None;
+            }
             ToolKind::Select => match (drag.grip, drag.from) {
                 (Some(grip), Some(from)) if drag.is_dragging && drag.cordon => {
                     ToolAction::ResizeCordon {

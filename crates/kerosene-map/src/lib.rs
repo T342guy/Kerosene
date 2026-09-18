@@ -37,12 +37,14 @@
 
 pub mod editor;
 mod entity;
+mod ops;
 mod solid;
 pub mod texture;
 mod walk;
 
 pub use editor::{Cordon, EditorData, Group, ObjectId, VisGroup};
 pub use entity::{Connection, Entity, ParseConnectionError};
+pub use ops::bounds_of;
 pub use solid::{Side, Solid, SolidError};
 pub use texture::{TextureAxis, default_axes_for_plane, rotate_axes};
 pub use walk::WalkmapRule;

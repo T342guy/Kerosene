@@ -213,7 +213,7 @@ fn parse_plane_points(s: &str) -> Option<[Vec3; 3]> {
 ///
 /// Chosen so that `(p0 - p1) x (p2 - p1)` reproduces the normal exactly: with
 /// `u x v = n`, taking `p0 = o + u`, `p1 = o`, `p2 = o + v` gives back `n`.
-fn points_for_plane(plane: &Plane) -> [Vec3; 3] {
+pub(crate) fn points_for_plane(plane: &Plane) -> [Vec3; 3] {
     let n = plane.normal;
     let helper = if n.x.abs() < 0.9 { Vec3::X } else { Vec3::Y };
     let u = helper.cross(n).normalize();

@@ -22,6 +22,7 @@ impl ToolKind {
             ToolKind::Entity => icons::LIGHTBULB,
             ToolKind::Texture => icons::PAINT_BUCKET,
             ToolKind::Shape => icons::SHAPES,
+            ToolKind::Clip => icons::SCISSORS,
         }
     }
 
@@ -38,6 +39,10 @@ impl ToolKind {
             }
             ToolKind::Shape => {
                 "Drag a box in a 2D pane and fill it with a wedge, cylinder, cone, arch or stairs."
+            }
+            ToolKind::Clip => {
+                "Drag a line across the selection in a 2D pane; Enter cuts along it. \
+                 6 again cycles which side is kept."
             }
         }
     }

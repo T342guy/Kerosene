@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: LGPL-3.0-or-later OR MPL-2.0
 use super::*;
+use kerosene_math::Quat;
 
 fn doc() -> Document {
     Document::new()
@@ -1048,4 +1049,147 @@ fn deleting_a_visgroup_leaves_its_members_visible() {
     assert!(d.remove_visgroup(vg));
     assert!(d.is_visible(ObjectId::Solid(a)));
     assert!(d.map.find_solid(a).unwrap().editor.visgroups.is_empty());
+}
+
+// ---- clip, carve, hollow, transform ---------------------------------------
+
+#[test]
+fn clipping_the_selection_replaces_it_with_the_pieces() {
+    let mut d = doc();
+    let id = block(&mut d, 0.0, 64.0);
+    d.map.find_solid_mut(id).unwrap().set("detail", "1");
+    let plane = Plane::new(Vec3::X, 32.0);
+    assert_eq!(d.clip_selection(plane, ClipMode::Both), 2);
+    assert_eq!(d.map.world.solids.len(), 2);
+    assert!(d.map.find_solid(id).is_none(), "the original is gone");
+    assert_eq!(d.selection.solids.len(), 2, "the pieces are selected");
+    assert!(
+        d.map
+            .world
+            .solids
+            .iter()
+            .all(|s| s.get("detail") == Some("1")),
+        "keys carry over"
+    );
+    d.undo();
+    assert!(d.map.find_solid(id).is_some());
+
+    d.selection.solids.insert(id);
+    assert_eq!(d.clip_selection(plane, ClipMode::Front), 1);
+    assert_eq!(d.map.world.solids[0].bounds().min.x, 32.0);
+}
+
+#[test]
+fn clipping_a_brush_entity_keeps_the_pieces_in_it() {
+    let mut d = doc();
+    let id = block(&mut d, 0.0, 64.0);
+    d.selection.solids.insert(id);
+    d.set_brush_class(Some("func_door"));
+    let door = d.selection.entities.iter().copied().next().unwrap();
+    assert_eq!(
+        d.clip_selection(Plane::new(Vec3::Z, 32.0), ClipMode::Both),
+        2
+    );
+    let e = d.find_entity(door).unwrap();
+    assert_eq!(e.solids.len(), 2);
+    assert!(d.selection.entities.contains(&door));
+}
+
+#[test]
+fn carving_cuts_a_hole_and_removes_the_carver() {
+    let mut d = doc();
+    let wall = block(&mut d, 0.0, 128.0);
+    let hole = d.create_block(Vec3::new(32.0, -16.0, 32.0), Vec3::new(96.0, 144.0, 96.0));
+    d.selection.clear();
+    d.selection.solids.insert(hole);
+    assert_eq!(d.carve_selection(), 1);
+    assert!(d.map.find_solid(hole).is_none());
+    assert!(d.map.find_solid(wall).is_none());
+    let pieces = &d.map.world.solids;
+    assert_eq!(
+        pieces.len(),
+        4,
+        "a doorway through a block leaves four pieces"
+    );
+    let volume: f32 = pieces.iter().map(Solid::volume).sum();
+    assert!((volume - (128f32.powi(3) - 64.0 * 128.0 * 64.0)).abs() < 1.0);
+    assert!(d.selection.is_empty());
+}
+
+#[test]
+fn hidden_brushes_are_not_carved() {
+    let mut d = doc();
+    let wall = block(&mut d, 0.0, 128.0);
+    let hole = d.create_block(Vec3::splat(32.0), Vec3::splat(96.0));
+    d.selection.clear();
+    d.selection.solids.insert(wall);
+    d.hide_selection();
+    d.selection.solids.insert(hole);
+    assert_eq!(d.carve_selection(), 0);
+    assert!(d.map.find_solid(wall).is_some());
+}
+
+#[test]
+fn hollowing_makes_walls_of_the_asked_thickness() {
+    let mut d = doc();
+    let id = block(&mut d, 0.0, 128.0);
+    assert_eq!(d.hollow_selection(16.0), 6);
+    assert!(d.map.find_solid(id).is_none());
+    assert_eq!(d.map.world.solids.len(), 6);
+    assert!(
+        !d.map
+            .world
+            .solids
+            .iter()
+            .any(|s| s.contains_point(Vec3::splat(64.0)))
+    );
+}
+
+#[test]
+fn rotating_turns_brushes_and_entities_about_the_pivot() {
+    let mut d = doc();
+    let id = d.create_block(Vec3::new(64.0, 0.0, 0.0), Vec3::new(128.0, 64.0, 64.0));
+    let light = d.create_entity("light", Vec3::new(96.0, 32.0, 32.0));
+    d.find_entity_mut(light).unwrap().set("angles", "0 0 0");
+    d.selection.solids.insert(id);
+    d.selection.entities.insert(light);
+    d.rotate_selection(Vec3::ZERO, Quat::from_rotation_z(90f32.to_radians()));
+    let b = d.map.find_solid(id).unwrap().bounds();
+    assert!(
+        (b.min - Vec3::new(-64.0, 64.0, 0.0)).length() < 1e-2,
+        "{b:?}"
+    );
+    let e = d.find_entity(light).unwrap();
+    assert!((e.origin() - Vec3::new(-32.0, 96.0, 32.0)).length() < 1e-2);
+    assert!((e.angles().yaw - 90.0).abs() < 1e-3);
+}
+
+#[test]
+fn flipping_mirrors_about_the_selection_centre() {
+    let mut d = doc();
+    let a = block(&mut d, 0.0, 32.0);
+    let b = d.create_block(Vec3::new(64.0, 0.0, 0.0), Vec3::new(128.0, 32.0, 32.0));
+    d.selection.solids.insert(a);
+    d.selection.solids.insert(b);
+    d.flip_selection(0);
+    let a = d.map.find_solid(a).unwrap().bounds();
+    let b = d.map.find_solid(b).unwrap().bounds();
+    assert_eq!(a.min.x, 96.0, "the small one is on the right now");
+    assert_eq!(b.min.x, 0.0);
+    assert!(d.map.world.solids.iter().all(|s| s.validate().is_ok()));
+}
+
+#[test]
+fn aligning_to_the_grid_moves_the_whole_selection_together() {
+    let mut d = doc();
+    d.grid.snap = false;
+    let a = d.create_block(Vec3::splat(3.0), Vec3::splat(19.0));
+    let b = d.create_block(Vec3::new(35.0, 3.0, 3.0), Vec3::new(51.0, 19.0, 19.0));
+    d.selection.solids.insert(a);
+    d.selection.solids.insert(b);
+    d.grid.size = 16.0;
+    let delta = d.align_selection_to_grid();
+    assert_eq!(delta, Vec3::splat(-3.0));
+    assert_eq!(d.map.find_solid(a).unwrap().bounds().min, Vec3::ZERO);
+    assert_eq!(d.map.find_solid(b).unwrap().bounds().min.x, 32.0);
 }

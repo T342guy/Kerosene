@@ -10,7 +10,7 @@
 //! result. The decisions all live in the modules it calls.
 
 use crate::compile::{CompileJob, CompileMessage, CompileSettings, Quality, available_tools};
-use crate::document::Document;
+use crate::document::{ClipMode, Document};
 use crate::inspector::{self, PropertyRow, TargetId};
 use crate::raster::Shading;
 use crate::textures::TextureCache;
@@ -31,9 +31,11 @@ mod panel;
 mod properties;
 mod status;
 mod toolbar;
+mod transform;
 mod viewports;
 mod visgroups;
 mod widgets;
+pub use transform::{TransformDialog, TransformMode};
 
 use widgets::*;
 
@@ -275,6 +277,12 @@ pub struct ChiselApp {
     renaming_visgroup: Option<(u32, String, bool)>,
     /// A visgroup colour mid-drag, written when the pointer is released.
     pending_visgroup_color: Option<(u32, [u8; 3])>,
+    pub show_hollow: bool,
+    pub show_transform: bool,
+    /// The hollow dialog's thickness, remembered between uses.
+    hollow_thickness: f32,
+    /// The transform dialog's state.
+    transform: TransformDialog,
 }
 
 /// A rendered 3D pane and the state it was rendered from.
@@ -506,6 +514,10 @@ impl ChiselApp {
             raw_keys: false,
             renaming_visgroup: None,
             pending_visgroup_color: None,
+            show_hollow: false,
+            show_transform: false,
+            hollow_thickness: 16.0,
+            transform: TransformDialog::default(),
         }
     }
 
@@ -766,6 +778,8 @@ impl ChiselApp {
         self.compile_window(ctx);
         self.browser_window(ctx);
         self.file_windows(ctx);
+        self.hollow_window(ctx);
+        self.transform_window(ctx);
         self.property_window_ui(ctx);
         self.viewports_panel(ctx);
     }
@@ -809,6 +823,14 @@ impl ChiselApp {
             HideUnselected,
             UnhideAll,
             NewVisGroup,
+            Enter,
+            Carve,
+            Hollow,
+            Transform,
+            FlipHorizontal,
+            FlipVertical,
+            Rotate90,
+            AlignToGrid,
         }
 
         let mut actions = Vec::new();
@@ -859,6 +881,24 @@ impl ChiselApp {
             if i.consume_key(ctrl, Key::H) && !typing {
                 actions.push(Action::HideUnselected)
             }
+            if i.consume_key(ctrl | Modifiers::SHIFT, Key::C) && !typing {
+                actions.push(Action::Carve)
+            }
+            if i.consume_key(ctrl | Modifiers::SHIFT, Key::H) && !typing {
+                actions.push(Action::Hollow)
+            }
+            if i.consume_key(ctrl, Key::M) && !typing {
+                actions.push(Action::Transform)
+            }
+            if i.consume_key(ctrl, Key::L) && !typing {
+                actions.push(Action::FlipHorizontal)
+            }
+            if i.consume_key(ctrl, Key::I) && !typing {
+                actions.push(Action::FlipVertical)
+            }
+            if i.consume_key(ctrl, Key::B) && !typing {
+                actions.push(Action::AlignToGrid)
+            }
 
             if typing {
                 return;
@@ -869,6 +909,12 @@ impl ChiselApp {
             }
             if i.consume_key(Modifiers::NONE, Key::U) {
                 actions.push(Action::UnhideAll)
+            }
+            if i.consume_key(Modifiers::NONE, Key::Enter) {
+                actions.push(Action::Enter)
+            }
+            if i.consume_key(Modifiers::NONE, Key::R) {
+                actions.push(Action::Rotate90)
             }
 
             if i.consume_key(Modifiers::NONE, Key::Delete)
@@ -965,7 +1011,11 @@ impl ChiselApp {
                 }
                 Action::Cancel => {
                     self.tool.cancel();
-                    self.document.selection.clear();
+                    // A laid clip line goes first; the selection only if
+                    // there was no line to forget.
+                    if self.tool.clip_line.take().is_none() {
+                        self.document.selection.clear();
+                    }
                 }
                 Action::Properties => self.open_property_window(),
                 Action::Tool(kind) => self.tool.set_kind(kind),
@@ -979,6 +1029,14 @@ impl ChiselApp {
                 Action::HideUnselected => self.hide_unselected(),
                 Action::UnhideAll => self.unhide_all(),
                 Action::NewVisGroup => self.new_visgroup_from_selection(),
+                Action::Enter => self.apply_clip(),
+                Action::Carve => self.carve(),
+                Action::Hollow => self.show_hollow = true,
+                Action::Transform => self.show_transform = true,
+                Action::FlipHorizontal => self.flip(true),
+                Action::FlipVertical => self.flip(false),
+                Action::Rotate90 => self.rotate_90(),
+                Action::AlignToGrid => self.align_to_grid(),
                 Action::CycleTextureMode => {
                     self.tool.texture_mode = self.tool.texture_mode.next();
                     self.status = format!("texture tool: {}", self.tool.texture_mode.label());
@@ -1662,6 +1720,84 @@ mod tests {
     fn app_with_shipped_content() -> ChiselApp {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content");
         ChiselApp::new(root)
+    }
+
+    #[test]
+    fn the_clip_tool_lays_a_line_and_enter_cuts_along_it() {
+        let mut app = app_with_shipped_content();
+        app.document = starter_document();
+        app.document.map.world.solids.clear();
+        let id = app.document.create_block(Vec3::ZERO, Vec3::splat(64.0));
+        app.document.selection.solids.insert(id);
+
+        // Drag a line down the middle of the top view, x = 32.
+        app.tool.set_kind(ToolKind::Clip);
+        let viewport = app.viewports[1].clone();
+        assert_eq!(viewport.kind, ViewportKind::Top);
+        let (x0, y0) = viewport.world_to_screen(Vec3::new(32.0, -32.0, 0.0));
+        let (x1, y1) = viewport.world_to_screen(Vec3::new(32.0, 96.0, 0.0));
+        app.tool.press(&app.document, &viewport, x0, y0);
+        app.tool.drag_to(&app.document, &viewport, x1, y1);
+        assert!(
+            app.tool.release(false).is_none(),
+            "a clip drag is not an action yet"
+        );
+        let line = app.tool.clip_line.expect("the line is laid");
+        assert_eq!(
+            line.axis, 2,
+            "the cut runs along the axis the top view looks down"
+        );
+
+        // 6 again cycles the mode; Enter cuts.
+        app.tool.set_kind(ToolKind::Clip);
+        assert_eq!(app.tool.clip_mode, ClipMode::Front);
+        app.tool.set_kind(ToolKind::Clip);
+        assert_eq!(app.tool.clip_mode, ClipMode::Back);
+        app.tool.set_kind(ToolKind::Clip);
+        assert_eq!(app.tool.clip_mode, ClipMode::Both);
+        app.apply_clip();
+        assert!(app.tool.clip_line.is_none());
+        assert_eq!(app.document.map.world.solids.len(), 2);
+        let widths: Vec<f32> = app
+            .document
+            .map
+            .world
+            .solids
+            .iter()
+            .map(|s| s.bounds().size().x)
+            .collect();
+        assert_eq!(widths, vec![32.0, 32.0]);
+    }
+
+    #[test]
+    fn the_transform_dialog_rotates_the_selection_by_numbers() {
+        let mut app = app_with_shipped_content();
+        app.document = starter_document();
+        app.document.map.world.solids.clear();
+        let id = app
+            .document
+            .create_block(Vec3::ZERO, Vec3::new(64.0, 32.0, 32.0));
+        app.document.selection.solids.insert(id);
+        app.transform.mode = TransformMode::Rotate;
+        app.transform.value = [0.0, 0.0, 90.0];
+        app.transform.about_origin = true;
+        app.apply_transform();
+        let b = app.document.map.find_solid(id).unwrap().bounds();
+        assert!(
+            (b.min - Vec3::new(-32.0, 0.0, 0.0)).length() < 1e-2,
+            "{b:?}"
+        );
+        assert!(
+            (b.max - Vec3::new(0.0, 64.0, 32.0)).length() < 1e-2,
+            "{b:?}"
+        );
+
+        app.transform.mode = TransformMode::Scale;
+        app.transform.value = [1.0, 1.0, 2.0];
+        app.transform.about_origin = true;
+        app.apply_transform();
+        let z = app.document.map.find_solid(id).unwrap().bounds().max.z;
+        assert!((z - 64.0).abs() < 1e-3, "{z}");
     }
 
     #[test]

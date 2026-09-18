@@ -17,7 +17,9 @@ use kerosene_math::{Aabb, Plane, Vec3, Winding};
 use std::collections::HashSet;
 use std::path::PathBuf;
 
+mod geometry;
 mod visibility;
+pub use geometry::ClipMode;
 pub use visibility::AutoGroup;
 
 /// How many undo steps to keep.

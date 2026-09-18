@@ -257,6 +257,44 @@ pub fn draw_2d(
     draw_cordon(painter, rect, viewport, document, tool);
     draw_resize_grips(painter, rect, viewport, document, tool);
     draw_tool_preview(painter, rect, viewport, document, tool);
+    draw_clip_line(painter, rect, viewport, tool);
+}
+
+/// The clip tool's line: the one being dragged, or the one laid and waiting
+/// for Enter, with an arrow to the side that "front" means.
+fn draw_clip_line(painter: &Painter, rect: Rect, viewport: &Viewport, tool: &Tool) {
+    if tool.kind != ToolKind::Clip {
+        return;
+    }
+    let (a, b, axis) = match (&tool.drag, tool.clip_line) {
+        (Some(drag), _) if drag.is_dragging => (drag.start, drag.current, viewport.kind.axes().2),
+        (_, Some(line)) => (line.a, line.b, line.axis),
+        _ => return,
+    };
+    let to_screen = |p: Vec3| {
+        let (x, y) = viewport.world_to_screen(p);
+        Pos2::new(rect.min.x + x, rect.min.y + y)
+    };
+    let (sa, sb) = (to_screen(a), to_screen(b));
+    painter.line_segment([sa, sb], Stroke::new(2.0_f32, colors::TOOL_PREVIEW));
+    for p in [sa, sb] {
+        painter.circle_filled(p, 3.5, colors::TOOL_PREVIEW);
+    }
+    // The plane's normal, as the pane sees it, from the middle of the line.
+    let line = crate::tools::ClipLine { a, b, axis };
+    if let Some(plane) = line.plane() {
+        let mid = (a + b) * 0.5;
+        let tip = to_screen(mid + plane.normal * (12.0 / viewport.zoom.max(0.001)));
+        let base = to_screen(mid);
+        painter.arrow(base, tip - base, Stroke::new(1.5_f32, colors::TOOL_PREVIEW));
+        painter.text(
+            tip + Vec2::new(6.0, -6.0),
+            egui::Align2::LEFT_BOTTOM,
+            tool.clip_mode.label(),
+            egui::FontId::monospace(11.0),
+            colors::TOOL_PREVIEW,
+        );
+    }
 }
 
 /// The cordon, as a dashed red box, whether or not it is active -- an
