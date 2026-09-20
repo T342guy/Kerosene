@@ -525,6 +525,7 @@ impl Engine {
 
         // A fresh entity world per map: nothing from the last one should
         // survive, and a stale handle must not resolve.
+        // t3; this part appears to carefully reset and load map data.
         self.entities = EntityWorld::new(self.registry.clone());
         self.entities.set_trace(self.console.int("developer") >= 2);
         let count = self.entities.load_from_bsp(&bsp)?;
@@ -532,7 +533,9 @@ impl Engine {
 
         // Static world geometry, so rigid-body props have something to land
         // on. Built before `bsp` moves into `level`.
-        self.physics = PhysicsProps::new();
+        self.physics = PhysicsProps::new(); // t3; this wipes the phys entity data. But brushes were not wiped
+        self.previous_brush_poses.clear(); // t3; Now they get cleared. Fixes a bug.
+        
         // Only the world section's hulls now; the streamed sections' come
         // and go with them.
         self.physics.build_static_world(&bsp, &self.entities);
