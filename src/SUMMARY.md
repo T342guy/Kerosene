@@ -23,3 +23,15 @@
 - [FAQ](./gamedev/faq.md)
 
 # Devnotes
+
+- [Architecture notes](./devnotes/README.md)
+  - [Crate map](./devnotes/crate-map.md)
+  - [Runtime and the tick](./devnotes/runtime-tick.md)
+  - [The map pipeline](./devnotes/map-pipeline.md)
+  - [BSP internals and traces](./devnotes/bsp-and-traces.md)
+  - [Entities and scripting](./devnotes/entities-and-scripting.md)
+  - [Rendering and streaming](./devnotes/rendering.md)
+  - [Physics](./devnotes/physics.md)
+  - [Audio and acoustics](./devnotes/audio.md)
+  - [Tools and the build](./devnotes/tools-and-build.md)
+  - [Testing](./devnotes/testing.md)
