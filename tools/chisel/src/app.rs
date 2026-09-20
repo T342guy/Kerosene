@@ -287,6 +287,24 @@ pub struct ChiselApp {
     transform: TransformDialog,
     pub report: EntityReport,
     pub show_history: bool,
+    /// The move/rotate gizmo shown over the selection in the 3D pane, and
+    /// which one is on: `None` when the numeric transform dialog is doing
+    /// the job instead. Only ever one of the two -- Hammer's own transform
+    /// tools are exclusive, and stacked handles are more to parse, not more
+    /// to do with.
+    pub gizmo_mode: Option<crate::gizmo::GizmoMode>,
+    /// A gizmo drag in progress: which axis, and the ray it began on.
+    gizmo_drag: Option<crate::gizmo::GizmoDrag>,
+    /// The gizmo drag's total delta as of this frame, for the live ghost
+    /// preview -- applied to the document once, on release.
+    gizmo_preview: Option<crate::gizmo::GizmoUpdate>,
+    /// Where the entity tool would place its class if clicked right now, and
+    /// in which pane -- computed once a frame so every pane's preview and the
+    /// click that commits it agree on the same point.
+    entity_hover: Option<(usize, Vec3)>,
+    /// Models loaded for the placement ghost, by name. `None` remembers a
+    /// failed load so it is not retried every frame the ghost is on screen.
+    ghost_models: std::collections::HashMap<String, Option<std::sync::Arc<kerosene_asset::Model>>>,
 }
 
 /// A rendered 3D pane and the state it was rendered from.
@@ -530,7 +548,31 @@ impl ChiselApp {
             transform: TransformDialog::default(),
             report: EntityReport::default(),
             show_history: false,
+            gizmo_mode: Some(crate::gizmo::GizmoMode::Move),
+            gizmo_drag: None,
+            gizmo_preview: None,
+            entity_hover: None,
+            ghost_models: std::collections::HashMap::new(),
         }
+    }
+
+    /// The model the entity tool's current class places, if it names one in
+    /// the schema, loaded and cached by name.
+    fn ghost_model(&mut self) -> Option<std::sync::Arc<kerosene_asset::Model>> {
+        let name = self
+            .schema
+            .get(&self.tool.entity_class)?
+            .key("model")
+            .filter(|k| k.kind == KeyKind::Model)
+            .map(|k| k.default.clone())
+            .filter(|d| !d.is_empty())?;
+
+        if let Some(cached) = self.ghost_models.get(&name) {
+            return cached.clone();
+        }
+        let model = self.load_model(&name).map(std::sync::Arc::new);
+        self.ghost_models.insert(name, model.clone());
+        model
     }
 
     /// Class names for the entity tool, from the game's definitions.
@@ -1065,7 +1107,11 @@ impl ChiselApp {
     }
 }
 /// Models offered where a key holds one.
-fn scan_models(root: &std::path::Path) -> Vec<String> {
+///
+/// `pub` so Loupe, the standalone model viewer, lists the same models the
+/// same way rather than walking the content tree a second time with its own
+/// idea of what counts.
+pub fn scan_models(root: &std::path::Path) -> Vec<String> {
     let mut out = Vec::new();
     let models = root.join("models");
     collect_by_extension(&models, &models, "keromdl", &mut out);
@@ -2219,6 +2265,60 @@ mod tests {
             "a frame with nothing in it is not a frame"
         );
         let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn the_entity_ghost_draws_without_falling_over() {
+        // A class with a model key, and one without, in both a 2D pane and
+        // the 3D one -- the missing model (nothing was actually shipped at
+        // that path) exercises the "failed to load, cache it as None and
+        // move on" path the same way a typo'd model key would in real use.
+        let schema = r#"
+            class { "name" "prop_ghost_test" "kind" "point"
+                key { "name" "model" "type" "model" "default" "props/nonexistent" } }
+            class { "name" "info_ghost_test" "kind" "point" }
+        "#;
+        for class in ["prop_ghost_test", "info_ghost_test"] {
+            for kind in [ViewportKind::Top, ViewportKind::Perspective] {
+                let root = std::env::temp_dir().join(format!(
+                    "chisel-app-ghost-{class}-{kind:?}-{}-{:?}",
+                    std::process::id(),
+                    std::thread::current().id()
+                ));
+                let _ = std::fs::remove_dir_all(&root);
+                std::fs::create_dir_all(root.join("maps")).unwrap();
+                let mut app = ChiselApp::with_schema(root.clone(), &[schema]);
+                app.tool.set_kind(ToolKind::Entity);
+                app.tool.entity_class = class.to_string();
+                app.viewports[0].kind = kind;
+
+                let output = draw_a_frame(&mut app);
+                assert!(!output.shapes.is_empty(), "{class} {kind:?}");
+                let _ = std::fs::remove_dir_all(&root);
+            }
+        }
+    }
+
+    #[test]
+    fn the_gizmo_draws_without_falling_over_with_a_selection() {
+        // A brush-and-pixel regression test, not a geometry one -- the math
+        // itself is `gizmo`'s own. This exists so a field renamed on one side
+        // of the `ChiselApp` <-> `viewports` boundary is caught by `cargo
+        // test`, not by opening the editor and watching it panic.
+        for mode in [
+            Some(crate::gizmo::GizmoMode::Move),
+            Some(crate::gizmo::GizmoMode::Rotate),
+            None,
+        ] {
+            let (mut app, root) = app_in("frame-gizmo");
+            let id = app.document.create_block(Vec3::ZERO, Vec3::splat(64.0));
+            app.document.selection.solids.insert(id);
+            app.gizmo_mode = mode;
+
+            let output = draw_a_frame(&mut app);
+            assert!(!output.shapes.is_empty(), "{mode:?}");
+            let _ = std::fs::remove_dir_all(&root);
+        }
     }
 
     #[test]

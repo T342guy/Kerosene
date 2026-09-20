@@ -34,15 +34,19 @@ pub enum Tab {
     Sound,
     Build,
     Archive,
+    /// The model viewer: Loupe, on its own tab rather than its own window,
+    /// the same way Timbre lives inside `Sound` rather than launching apart.
+    Models,
 }
 
 impl Tab {
-    const ALL: [Tab; 5] = [
+    const ALL: [Tab; 6] = [
         Tab::Project,
         Tab::Editor,
         Tab::Sound,
         Tab::Build,
         Tab::Archive,
+        Tab::Models,
     ];
 
     fn name(self) -> &'static str {
@@ -52,6 +56,7 @@ impl Tab {
             Tab::Sound => "Sound",
             Tab::Build => "Build",
             Tab::Archive => "Archive",
+            Tab::Models => "Models",
         }
     }
 
@@ -62,6 +67,7 @@ impl Tab {
             Tab::Sound => icons::SPEAKER_HIGH,
             Tab::Build => icons::HAMMER,
             Tab::Archive => icons::ARCHIVE,
+            Tab::Models => icons::CUBE_FOCUS,
         }
     }
 
@@ -72,6 +78,7 @@ impl Tab {
             Tab::Sound => "ctrl-3",
             Tab::Build => "ctrl-4",
             Tab::Archive => "ctrl-5",
+            Tab::Models => "ctrl-6",
         }
     }
 
@@ -82,6 +89,7 @@ impl Tab {
             Tab::Sound => egui::Key::Num3,
             Tab::Build => egui::Key::Num4,
             Tab::Archive => egui::Key::Num5,
+            Tab::Models => egui::Key::Num6,
         }
     }
 }
@@ -118,6 +126,7 @@ pub struct Toolset {
     editor: ChiselApp,
     sound: Option<Timbre>,
     sound_note: String,
+    models: loupe::LoupeApp,
     build: BuildPanel,
     archive: ArchivePanel,
     output: OutputPanel,
@@ -177,6 +186,7 @@ impl Toolset {
             editor,
             sound,
             sound_note,
+            models: loupe::LoupeApp::open(root.clone()),
             build: BuildPanel::new(root.clone()),
             archive: ArchivePanel::new(root, project),
             output: OutputPanel::default(),
@@ -218,6 +228,7 @@ impl Toolset {
                         .is_some_and(|s| s.wants_continuous_redraw()),
                     self.build.running(),
                     self.archive.running(),
+                    false,
                 ];
                 for (tab, busy) in Tab::ALL.into_iter().zip(running) {
                     let response = widgets::tool_button(
@@ -417,6 +428,7 @@ impl kerosene_ui::App for Toolset {
             },
             Tab::Build => self.build.ui(ctx),
             Tab::Archive => self.archive.ui(ctx),
+            Tab::Models => self.models.ui(ctx),
         }
     }
 
@@ -431,6 +443,7 @@ impl kerosene_ui::App for Toolset {
                 .unwrap_or_else(|| "Sound -- Kerosene toolset".into()),
             Tab::Build => "Build -- Kerosene toolset".into(),
             Tab::Archive => "Archive -- Kerosene toolset".into(),
+            Tab::Models => self.models.window_title(),
         }
     }
 
@@ -579,6 +592,23 @@ mod tests {
         });
         let _ = ctx.run(input, |ctx| toolset.ui(ctx));
         assert_eq!(toolset.tab, Tab::Build);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn ctrl_6_opens_the_model_viewer() {
+        let (mut toolset, root) = toolset_in("models-key");
+        let ctx = egui::Context::default();
+        let mut input = egui::RawInput::default();
+        input.events.push(egui::Event::Key {
+            key: egui::Key::Num6,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+            modifiers: egui::Modifiers::CTRL,
+        });
+        let _ = ctx.run(input, |ctx| toolset.ui(ctx));
+        assert_eq!(toolset.tab, Tab::Models);
         let _ = std::fs::remove_dir_all(&root);
     }
 

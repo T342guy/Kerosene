@@ -202,6 +202,23 @@ impl ChiselApp {
                         self.status = format!("3D panes: {}", self.shading.label());
                     }
 
+                    // The gizmo, only while the select tool is active: a
+                    // brush or a shape tool drag has nothing selected to put
+                    // handles on yet.
+                    if self.tool.kind == ToolKind::Select {
+                        toolbar_gap(ui);
+                        use crate::gizmo::GizmoMode;
+                        for (mode, glyph, tip) in [
+                            (Some(GizmoMode::Move), icons::ARROWS_OUT_CARDINAL, "move gizmo"),
+                            (Some(GizmoMode::Rotate), icons::ARROWS_CLOCKWISE, "rotate gizmo"),
+                        ] {
+                            let mut on = self.gizmo_mode == mode;
+                            if widgets::icon_toggle(ui, glyph, tip, &mut on).clicked() {
+                                self.gizmo_mode = if on { mode } else { None };
+                            }
+                        }
+                    }
+
                     // The texture tool's two settings, only while it is the tool.
                     if self.tool.kind == ToolKind::Texture {
                         toolbar_gap(ui);

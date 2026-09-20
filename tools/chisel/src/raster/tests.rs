@@ -334,6 +334,32 @@ fn two_kinds_of_entity_are_marked_in_two_different_colours() {
 }
 
 #[test]
+fn a_selected_entity_draws_more_marker_pixels_for_its_halo_ring() {
+    // The 2D panes ring a selected point entity rather than just recolouring
+    // its icon, so a selection reads at a glance without the shape itself
+    // changing. This is that same halo in the 3D pane: a selected marker
+    // must draw strictly more pixels than an unselected one at the same
+    // spot, not merely different-coloured ones.
+    let mut document = Document::new();
+    document.map.world.solids.clear();
+    let id = document.map.next_id();
+    let mut entity = kerosene_map::Entity::new(id, "light");
+    entity.set_origin(Vec3::new(200.0, 0.0, 0.0));
+    document.map.entities.push(entity);
+
+    let unselected = render_at(&document, Vec3::ZERO, 0.0, 0.0);
+    document.selection.entities.insert(id);
+    let selected = render_at(&document, Vec3::ZERO, 0.0, 0.0);
+
+    assert!(
+        selected.covered() > unselected.covered(),
+        "a selected entity's halo ring should add pixels: {} selected vs {} not",
+        selected.covered(),
+        unselected.covered()
+    );
+}
+
+#[test]
 fn faces_are_outlined_where_they_meet() {
     // The outline is read back out of the face buffer rather than stroked, so
     // it exists exactly where two different faces are adjacent on screen.
@@ -413,6 +439,7 @@ fn render_textured(
     let mut settings = Settings {
         shading: Shading::Textured,
         resolve: Some(&mut resolve),
+        ghost: None,
     };
     render_with(
         document,
@@ -534,6 +561,7 @@ fn a_material_with_no_texture_behind_it_is_a_colour_not_a_hole() {
     let mut settings = Settings {
         shading: Shading::Textured,
         resolve: Some(&mut resolve),
+        ghost: None,
     };
     let image = render_with(
         &document,
@@ -572,6 +600,7 @@ fn flat_mode_uses_the_average_rather_than_the_pixels() {
     let mut settings = Settings {
         shading: Shading::Flat,
         resolve: Some(&mut resolve),
+        ghost: None,
     };
     let image = render_with(
         &document,
@@ -614,6 +643,7 @@ fn walkmap_mode_colours_each_face_by_its_rule() {
         let mut settings = Settings {
             shading: Shading::Walkmap,
             resolve: Some(&mut resolve),
+        ghost: None,
         };
         render_with(
             document,
@@ -766,6 +796,7 @@ fn render_coloured(document: &Document) -> Image {
     let mut settings = Settings {
         shading: Shading::Flat,
         resolve: Some(&mut resolve),
+        ghost: None,
     };
     render_with(
         document,
@@ -953,4 +984,144 @@ fn blending_is_a_mix_and_stays_opaque() {
     // The pane is handed to egui as an image; a hole in it is a hole in the
     // viewport, not a see-through brush.
     assert_eq!(blend(black, white, 0.45)[3], 255);
+}
+
+// ---- the placement ghost ---------------------------------------------------
+
+/// A flat quad at `x`, `half` kerosene units wide and tall, wound to face a
+/// camera at the world origin looking down +X -- enough of a model for the
+/// ghost pass to have something to project and shade.
+fn ghost_quad(x: f32, half: f32) -> kerosene_asset::Model {
+    use kerosene_asset::{Model, Vertex};
+    let corners = [
+        Vec3::new(x, -half, -half),
+        Vec3::new(x, half, -half),
+        Vec3::new(x, half, half),
+        Vec3::new(x, -half, half),
+    ];
+    let mut model = Model::new();
+    for tri in [[0usize, 3, 1], [1, 3, 2]] {
+        for i in tri {
+            model
+                .vertices
+                .push(Vertex::rigid(corners[i], Vec3::NEG_X, [0.0, 0.0]));
+        }
+    }
+    model.indices = (0..model.vertices.len() as u32).collect();
+    model.recompute_bounds();
+    model
+}
+
+fn ghost_at(model: &kerosene_asset::Model, opacity: f32) -> Ghost<'_> {
+    Ghost {
+        model,
+        pose: kerosene_math::Pose::new(Vec3::ZERO, Angles::ZERO),
+        opacity,
+    }
+}
+
+#[test]
+fn a_ghost_in_the_open_is_visible_against_the_background() {
+    let document = Document::new();
+    let model = ghost_quad(200.0, 40.0);
+    let mut settings = Settings {
+        shading: Shading::Shaded,
+        resolve: None,
+        ghost: Some(ghost_at(&model, 0.5)),
+    };
+    let image = render_with(
+        &document,
+        Vec3::ZERO,
+        basis_for(0.0, 0.0),
+        FOV,
+        W,
+        H,
+        &mut settings,
+    );
+    assert!(
+        image.covered() > 0,
+        "a ghost with nothing in front of it should show up"
+    );
+}
+
+#[test]
+fn a_ghost_behind_a_wall_is_completely_hidden() {
+    let mut document = Document::new();
+    document.map.world.solids.clear();
+    brush(
+        &mut document,
+        Vec3::new(100.0, -150.0, -150.0),
+        Vec3::new(120.0, 150.0, 150.0),
+    );
+    let model = ghost_quad(300.0, 20.0);
+
+    let baseline = render_at(&document, Vec3::ZERO, 0.0, 0.0);
+    let mut settings = Settings {
+        shading: Shading::Shaded,
+        resolve: None,
+        ghost: Some(ghost_at(&model, 0.5)),
+    };
+    let with_ghost = render_with(
+        &document,
+        Vec3::ZERO,
+        basis_for(0.0, 0.0),
+        FOV,
+        W,
+        H,
+        &mut settings,
+    );
+
+    assert_eq!(
+        with_ghost, baseline,
+        "a ghost hidden behind a wall must not change a single pixel"
+    );
+}
+
+#[test]
+fn a_ghost_never_writes_the_depth_buffer() {
+    // Two overlapping ghosts should both show, the same way two overlapping
+    // tool volumes do -- neither can occlude the other if the pass never
+    // takes the depth buffer.
+    let near = ghost_quad(150.0, 60.0);
+    let far = ghost_quad(220.0, 60.0);
+    let mut image = Image::new(W, H, [0, 0, 0, 255]);
+    let mut depth = vec![0.0f32; image.pixels.len()];
+    let mut face_at = vec![0u32; image.pixels.len()];
+    let basis = basis_for(0.0, 0.0);
+    let aspect = W as f32 / H as f32;
+    let half_y = (kerosene_render::vertical_fov(FOV, aspect) * 0.5).tan();
+    let half_x = half_y * aspect;
+    let project = |camera: Vec3| -> [f32; 3] {
+        let inv_z = 1.0 / camera.z;
+        [
+            ((camera.x / (camera.z * half_x)) * 0.5 + 0.5) * W as f32,
+            (0.5 - (camera.y / (camera.z * half_y)) * 0.5) * H as f32,
+            inv_z,
+        ]
+    };
+    draw_ghost(
+        &mut image,
+        &mut depth,
+        &mut face_at,
+        Vec3::ZERO,
+        basis,
+        project,
+        &ghost_at(&far, 0.6),
+    );
+    let after_far = image.clone();
+    draw_ghost(
+        &mut image,
+        &mut depth,
+        &mut face_at,
+        Vec3::ZERO,
+        basis,
+        project,
+        &ghost_at(&near, 0.6),
+    );
+    assert_ne!(
+        image, after_far,
+        "drawing the nearer ghost on top should still change the pixels the \
+         farther one already touched -- it would not if the first pass had \
+         written the depth buffer"
+    );
 }

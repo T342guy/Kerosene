@@ -31,6 +31,7 @@ members = [
     "tools/kiln",
     "tools/forge",
     "tools/vault",
+    "tools/loupe",
     "tools/kerosene-tools",
 ]
 

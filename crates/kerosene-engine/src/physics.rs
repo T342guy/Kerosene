@@ -54,6 +54,10 @@ pub struct PhysicsProps {
     /// Model names that would not load, so a prop with a missing `.keromdl`
     /// is read from disk and warned about once rather than every tick.
     missing_models: std::collections::HashSet<String>,
+    /// Each prop's pose as of the *previous* tick, so the renderer can
+    /// interpolate between it and the pose this tick just produced instead
+    /// of snapping a tumbling crate to a new spot every 1/64s.
+    previous: HashMap<EntityId, (Vec3, Angles)>,
 }
 
 /// The player's presence in the rigid world.
@@ -80,7 +84,15 @@ impl PhysicsProps {
             section_bodies: Vec::new(),
             player: None,
             missing_models: std::collections::HashSet::new(),
+            previous: HashMap::new(),
         }
+    }
+
+    /// The pose a prop's entity had as of the previous tick, for the renderer
+    /// to interpolate from. `None` for a prop that did not exist last tick,
+    /// or was never a physics prop.
+    pub fn previous_pose(&self, id: EntityId) -> Option<(Vec3, Angles)> {
+        self.previous.get(&id).copied()
     }
 
     /// Add the static world's solid brushes as convex hulls.
@@ -228,6 +240,15 @@ impl PhysicsProps {
     /// Called once per tick, after entity I/O has run (so a spawner's new
     /// props exist) and before anything draws.
     pub fn sync_and_step(&mut self, dt: f32, entities: &mut EntityWorld, vfs: &Vfs) {
+        // Snapshot where every prop's entity stood as of the end of the last
+        // tick, before anything below moves it, so the renderer has both
+        // ends of this tick's motion to interpolate between.
+        for &id in self.props.keys() {
+            if let Some(e) = entities.get(id) {
+                self.previous.insert(id, (e.origin, e.angles));
+            }
+        }
+
         // Drop bodies for entities that no longer exist.
         let gone: Vec<EntityId> = self
             .props
@@ -240,6 +261,7 @@ impl PhysicsProps {
                 self.rigid.destroy_body(prop.body);
             }
         }
+        self.previous.retain(|id, _| self.props.contains_key(id));
 
         // Give every physics prop without a body one, shaped from its model.
         // The body's mass, friction and bounciness come from the entity's
@@ -971,5 +993,80 @@ mod tests {
             derived.density,
             kerosene_rigid::BodyMaterial::wood().density
         );
+    }
+
+    #[test]
+    fn previous_pose_lags_one_sync_step_behind() {
+        // The renderer interpolates from `previous_pose` to the entity's
+        // current pose; if this ever tracked the *current* tick's own pose
+        // instead of the one before it, interpolation would collapse to
+        // "always at the destination" and the jitter it exists to fix would
+        // come right back.
+        let registry = std::sync::Arc::new(kerosene_entity::ClassRegistry::new());
+        let mut entities = EntityWorld::new(registry);
+        let id = entities.spawn("prop_physics");
+        let start = Vec3::new(0.0, 0.0, 100.0);
+        if let Some(e) = entities.get_mut(id) {
+            e.origin = start;
+        }
+
+        let mut physics = PhysicsProps::new();
+        let body = physics
+            .rigid
+            .add_dynamic_box(Vec3::splat(8.0), start, Quat::IDENTITY);
+        physics.props.insert(
+            id,
+            PropBody {
+                body,
+                center: Vec3::ZERO,
+                half_extent: Vec3::splat(8.0),
+            },
+        );
+        let vfs = Vfs::new();
+
+        // Nothing has stepped yet, so there is no "last tick" to report.
+        assert_eq!(physics.previous_pose(id), None);
+
+        physics.sync_and_step(1.0 / 64.0, &mut entities, &vfs);
+        let (prev_origin, _) = physics.previous_pose(id).expect("tracked after a step");
+        assert_eq!(prev_origin, start, "previous should be where it started");
+
+        let after_first_step = entities.get(id).unwrap().origin;
+        physics.sync_and_step(1.0 / 64.0, &mut entities, &vfs);
+        let (prev_origin, _) = physics.previous_pose(id).unwrap();
+        assert_eq!(
+            prev_origin, after_first_step,
+            "previous should be last tick's result, not this tick's"
+        );
+    }
+
+    #[test]
+    fn previous_pose_is_forgotten_once_the_prop_is_gone() {
+        let registry = std::sync::Arc::new(kerosene_entity::ClassRegistry::new());
+        let mut entities = EntityWorld::new(registry);
+        let id = entities.spawn("prop_physics");
+
+        let mut physics = PhysicsProps::new();
+        let body = physics
+            .rigid
+            .add_dynamic_box(Vec3::splat(8.0), Vec3::ZERO, Quat::IDENTITY);
+        physics.props.insert(
+            id,
+            PropBody {
+                body,
+                center: Vec3::ZERO,
+                half_extent: Vec3::splat(8.0),
+            },
+        );
+        let vfs = Vfs::new();
+        physics.sync_and_step(1.0 / 64.0, &mut entities, &vfs);
+        assert!(physics.previous_pose(id).is_some());
+
+        // `remove` only marks an entity doomed; the slot is reclaimed on the
+        // next `run`, same as it would be mid-tick in the real engine.
+        entities.remove(id);
+        entities.run(1.0 / 64.0);
+        physics.sync_and_step(1.0 / 64.0, &mut entities, &vfs);
+        assert_eq!(physics.previous_pose(id), None);
     }
 }

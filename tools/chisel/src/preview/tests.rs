@@ -262,6 +262,58 @@ fn raw_normals_point_outward(model: &Model) -> usize {
         .count()
 }
 
+/// A texture that reads as one flat colour wherever it is sampled -- enough
+/// to tell "the resolver's texture was drawn" from "the fallback flat colour
+/// was drawn" without needing real UVs.
+fn solid_texture(colour: [u8; 4]) -> crate::textures::Texture {
+    crate::textures::Texture {
+        mips: vec![crate::textures::Level {
+            width: 1,
+            height: 1,
+            pixels: vec![colour],
+        }],
+        average: [colour[0], colour[1], colour[2]],
+    }
+}
+
+#[test]
+fn a_resolver_s_texture_is_what_gets_drawn() {
+    // This is the regression test for the model viewer showing nothing but
+    // flat grey: `model_zoomed` used to have no way to sample a texture at
+    // all, so a resolver that was never even called would still "work" as
+    // far as the old code was concerned.
+    let texture = std::sync::Arc::new(solid_texture([255, 0, 0, 255]));
+    let mut calls = 0;
+    let mut resolve = |_material: &str| {
+        calls += 1;
+        Some(texture.clone())
+    };
+
+    let image = model_zoomed(&cube(), 96, 35.0, -20.0, 1.0, Some(&mut resolve));
+    assert!(calls > 0, "the resolver was never asked for a texture");
+
+    let drawn: Vec<[u8; 4]> = image
+        .pixels
+        .iter()
+        .copied()
+        .filter(|p| *p != BACKGROUND)
+        .collect();
+    assert!(!drawn.is_empty());
+    assert!(
+        drawn.iter().any(|p| p[0] > p[1] && p[0] > p[2]),
+        "no pixel reads as the resolved texture's colour: {:?}",
+        &drawn[..drawn.len().min(5)]
+    );
+}
+
+#[test]
+fn without_a_resolver_the_material_s_average_colour_is_used_instead() {
+    // `model()` -- what the asset browser's thumbnails call -- passes no
+    // resolver at all, on purpose: it should still draw something.
+    let image = model(&cube(), 64, 30.0, -20.0);
+    assert!(drawn(&image) > 200);
+}
+
 #[test]
 fn a_solid_model_shows_three_shades_from_a_corner() {
     // Three faces meeting at a corner, lit from one side, must come out as

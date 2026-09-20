@@ -1538,3 +1538,9 @@ entity
 	"origin" "128 256 16"
 	"angles" "0 0 0"
 }
+cordon
+{
+	"mins" "-32 -32 -32"
+	"maxs" "1072 544 288"
+	"active" "0"
+}

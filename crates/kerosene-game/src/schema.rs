@@ -141,7 +141,7 @@ class
     "name" "prop_static"
     "base" "Entity" "base" "Point" "base" "Angles"
     "help" "A model placed in the world. Baked in at compile time; it cannot move."
-    key { "name" "model" "label" "Model" "type" "model" }
+    key { "name" "model" "label" "Model" "type" "model" "default" "props/cube" }
 }
 
 class
@@ -149,7 +149,7 @@ class
     "name" "prop_physics"
     "base" "Entity" "base" "Point" "base" "Angles" "base" "PhysicsBody"
     "help" "A model with a rigid body: it falls, bounces off walls and settles. Spawned by a prop_dynamic_spawner, or dropped in with phys_spawn."
-    key { "name" "model" "label" "Model" "type" "model" }
+    key { "name" "model" "label" "Model" "type" "model" "default" "props/cube" }
     key {
         "name" "spawnflags" "label" "Flags" "type" "flags" "default" "0"
         choice { "value" "1" "label" "Start asleep" }

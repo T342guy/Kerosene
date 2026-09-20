@@ -23,6 +23,7 @@ use kerosene_entity::{ClassRegistry, EntityId, EntityWorld, Value};
 use kerosene_math::{Aabb, Angles, Pose, Quat, Vec3};
 use kerosene_physics::{MoveInput, MoveParams, MoveState};
 use kerosene_vfs::{Vfs, VfsError};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -205,6 +206,10 @@ pub struct Engine {
     held_prop: Option<HeldProp>,
     /// Accumulated real time not yet simulated.
     accumulator: f32,
+    /// Each moving brush model's pose as of the end of the previous tick, by
+    /// BSP model index, so rendering can interpolate a door or rotating
+    /// brush's motion instead of snapping it to a new pose every tick.
+    previous_brush_poses: HashMap<usize, (Vec3, Angles)>,
     /// Bumped by every successful `load_map`, so a host can tell "the same
     /// map, loaded again" from "nothing happened" -- a name cannot.
     load_generation: u64,
@@ -367,6 +372,7 @@ impl Engine {
             player: PlayerState::default(),
             held_prop: None,
             accumulator: 0.0,
+            previous_brush_poses: HashMap::new(),
             load_generation: 0,
             wants_audio: config.audio,
             time: 0.0,
@@ -457,6 +463,36 @@ impl Engine {
                     model,
                     brush_pose(level.map(|l| &*l.bsp), model, e.origin, e.angles),
                 ))
+            })
+            .collect()
+    }
+
+    /// [`Self::brush_model_poses`], blended `alpha` of the way from where each
+    /// brush model stood at the start of this tick to where it stands now.
+    ///
+    /// Brush movers (doors, rotating brushes) only update on their own think
+    /// schedule, coarser than the render frame rate, so drawing the raw
+    /// current pose makes them visibly snap into a new position each time
+    /// they think. This mirrors [`Self::interpolated_eye`]'s treatment of the
+    /// camera, extended to brush geometry.
+    pub fn interpolated_brush_model_poses(&self, alpha: f32) -> Vec<(usize, Pose)> {
+        let level = self.level.as_ref();
+        let alpha = alpha.clamp(0.0, 1.0);
+        self.entities
+            .iter()
+            .filter_map(|e| {
+                let model = e.brush_model?;
+                if model == 0 {
+                    return None;
+                }
+                let (prev_origin, prev_angles) = self
+                    .previous_brush_poses
+                    .get(&model)
+                    .copied()
+                    .unwrap_or((e.origin, e.angles));
+                let origin = prev_origin.lerp(e.origin, alpha);
+                let angles = prev_angles.slerp(e.angles, alpha);
+                Some((model, brush_pose(level.map(|l| &*l.bsp), model, origin, angles)))
             })
             .collect()
     }
@@ -747,6 +783,15 @@ impl Engine {
             self.throw_held_prop();
         }
         self.player.attack_held = input.attack;
+
+        // Snapshot every brush model's pose before entity I/O has a chance to
+        // move it this tick, so rendering has both ends of the motion to
+        // interpolate between.
+        self.previous_brush_poses = self
+            .entities
+            .iter()
+            .filter_map(|e| e.brush_model.map(|m| (m, (e.origin, e.angles))))
+            .collect();
 
         self.update_triggers(dt);
         self.entities.run(dt);
@@ -1962,6 +2007,7 @@ pub fn is_bare_map_name(name: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use kerosene_math::angle_diff;
 
     /// A content tree with the given files in it, empty.
     fn tree(name: &str, files: &[&str]) -> std::path::PathBuf {
@@ -2037,6 +2083,72 @@ mod tests {
     fn with_nothing_mounted_it_says_so() {
         let said = explain_missing_map(&Vfs::new(), "arena", &not_found("arena"));
         assert!(said.contains("(nothing mounted)"), "{said}");
+    }
+
+    #[test]
+    fn interpolated_brush_poses_land_exactly_on_the_endpoints() {
+        // Renderers rely on alpha=0/1 being exact: a frame drawn right on a
+        // tick boundary must show the real pose, not something a hair off it
+        // from floating-point slop in the blend.
+        let mut engine = Engine::new(&EngineConfig::default());
+        let id = engine.entities.spawn("func_door");
+        let previous = Vec3::new(0.0, 0.0, 0.0);
+        let current = Vec3::new(0.0, 0.0, 128.0);
+        if let Some(e) = engine.entities.get_mut(id) {
+            e.brush_model = Some(1);
+            e.origin = current;
+            e.angles = Angles::new(0.0, 90.0, 0.0);
+        }
+        engine
+            .previous_brush_poses
+            .insert(1, (previous, Angles::ZERO));
+
+        let at_start = engine.interpolated_brush_model_poses(0.0);
+        let at_end = engine.interpolated_brush_model_poses(1.0);
+        let (_, start_pose) = at_start.iter().find(|(m, _)| *m == 1).unwrap();
+        let (_, end_pose) = at_end.iter().find(|(m, _)| *m == 1).unwrap();
+
+        assert_eq!(start_pose.origin, previous);
+        assert_eq!(start_pose.angles, Angles::ZERO);
+        assert_eq!(end_pose.origin, current);
+        assert_eq!(end_pose.angles, Angles::new(0.0, 90.0, 0.0));
+    }
+
+    #[test]
+    fn interpolated_brush_poses_blend_at_the_midpoint() {
+        let mut engine = Engine::new(&EngineConfig::default());
+        let id = engine.entities.spawn("func_door");
+        if let Some(e) = engine.entities.get_mut(id) {
+            e.brush_model = Some(1);
+            e.origin = Vec3::new(0.0, 0.0, 128.0);
+            e.angles = Angles::new(0.0, 90.0, 0.0);
+        }
+        engine
+            .previous_brush_poses
+            .insert(1, (Vec3::ZERO, Angles::ZERO));
+
+        let mid = engine.interpolated_brush_model_poses(0.5);
+        let (_, pose) = mid.iter().find(|(m, _)| *m == 1).unwrap();
+        assert!((pose.origin.z - 64.0).abs() < 1e-4, "{pose:?}");
+        assert!((angle_diff(pose.angles.yaw, 45.0)).abs() < 0.01, "{pose:?}");
+    }
+
+    #[test]
+    fn a_brush_model_with_no_recorded_history_is_not_interpolated() {
+        // A model that appeared this tick (or before `Engine` ever tracked
+        // it) has nothing to blend from; it should render at its current
+        // pose rather than at some default like the world origin.
+        let mut engine = Engine::new(&EngineConfig::default());
+        let id = engine.entities.spawn("func_door");
+        let current = Vec3::new(12.0, -4.0, 8.0);
+        if let Some(e) = engine.entities.get_mut(id) {
+            e.brush_model = Some(1);
+            e.origin = current;
+        }
+
+        let poses = engine.interpolated_brush_model_poses(0.5);
+        let (_, pose) = poses.iter().find(|(m, _)| *m == 1).unwrap();
+        assert_eq!(pose.origin, current);
     }
 
     #[test]

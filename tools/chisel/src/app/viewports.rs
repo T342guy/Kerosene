@@ -2,6 +2,7 @@
 //! The four panes: layout, painting, and input.
 
 use super::*;
+use kerosene_math::Quat;
 use kerosene_ui::theme::{self, colors, icons};
 use kerosene_ui::widgets;
 
@@ -110,7 +111,37 @@ impl ChiselApp {
         let painter = ui.painter_at(body);
         let kind = self.viewports[index].kind;
 
+        // Where the entity tool would place its class if clicked right now:
+        // every pane can answer this, unlike the status bar's plain pointer
+        // position, because placement follows a well-defined rule (a ray hit
+        // or a snapped 2D point) rather than needing a depth guess. Updated
+        // like `pointer_world` below: only the hovered pane sets it, and only
+        // that same pane clears it again, so the other three passes through
+        // this loop each frame do not clobber it. Computed before drawing, so
+        // the preview this frame draws is the one this frame just found.
+        if self.tool.kind == ToolKind::Entity
+            && let Some(pos) = response.hover_pos()
+        {
+            let (x, y) = (pos.x - body.min.x, pos.y - body.min.y);
+            let viewport = &self.viewports[index];
+            let point = if kind.is_2d() {
+                crate::tools::entity_placement_point(&self.document, viewport, x, y)
+            } else {
+                let (origin, direction) = viewport.pick_ray(x, y);
+                self.document
+                    .grid
+                    .snap_point(crate::tools::pick_point_3d(&self.document, origin, direction))
+            };
+            self.entity_hover = Some((index, point));
+        } else if self.entity_hover.is_some_and(|(i, _)| i == index) && !response.hovered() {
+            self.entity_hover = None;
+        }
+
         if kind.is_2d() {
+            let entity_ghost = self
+                .entity_hover
+                .filter(|(i, _)| *i == index)
+                .map(|(_, point)| (point, self.ghost_model().map(|m| m.bounds)));
             draw::draw_2d(
                 &painter,
                 body,
@@ -118,6 +149,7 @@ impl ChiselApp {
                 &self.document,
                 &self.tool,
                 &self.leak,
+                entity_ghost,
             );
         } else {
             self.draw_preview(ui, &painter, index, body);
@@ -462,6 +494,18 @@ impl ChiselApp {
         (self.shading as u8).hash(&mut hasher);
         // A texture arriving after a failed load changes the picture.
         self.textures.len().hash(&mut hasher);
+        // The placement ghost moves every frame the pointer does, with
+        // nothing else above changing -- without this, the cache would show
+        // it frozen at wherever it last happened to redraw for some other
+        // reason.
+        if let Some((hover_index, point)) = self.entity_hover
+            && hover_index == index
+        {
+            self.tool.entity_class.hash(&mut hasher);
+            for c in [point.x, point.y, point.z] {
+                c.to_bits().hash(&mut hasher);
+            }
+        }
         hasher.finish()
     }
 
@@ -484,6 +528,15 @@ impl ChiselApp {
         let width = (rect.width() * scale).round().clamp(1.0, MAX_EDGE) as usize;
         let height = (rect.height() * scale).round().clamp(1.0, MAX_EDGE) as usize;
 
+        // Ahead of the borrow below: loading the ghost model needs `&mut
+        // self`, and a plain `&self.viewports[index]` held across that call
+        // would conflict with it.
+        let ghost_point = self
+            .entity_hover
+            .filter(|(i, _)| *i == index)
+            .map(|(_, p)| p);
+        let ghost_model = ghost_point.and_then(|_| self.ghost_model());
+
         let viewport = &self.viewports[index];
         let key = self.preview_key(index, width, height);
 
@@ -493,9 +546,20 @@ impl ChiselApp {
             let vfs = &self.vfs;
             let cache = &mut self.textures;
             let mut resolve = move |material: &str| cache.get(vfs, material);
+            let ghost = match (ghost_point, &ghost_model) {
+                (Some(point), Some(model)) => Some(raster::Ghost {
+                    model: model.as_ref(),
+                    pose: kerosene_math::Pose::new(point, kerosene_math::Angles::ZERO),
+                    // Half-solid: enough to read the shape, not so much it is
+                    // mistaken for a brush that has already been placed.
+                    opacity: 0.5,
+                }),
+                _ => None,
+            };
             let mut settings = raster::Settings {
                 shading: self.shading,
                 resolve: Some(&mut resolve),
+                ghost,
             };
             let image = raster::render_with(
                 &self.document,
@@ -544,7 +608,161 @@ impl ChiselApp {
         }
 
         self.draw_drag_ghost(painter, index, rect);
+        self.draw_gizmo(painter, index, rect);
         self.draw_leak_3d(painter, index, rect);
+    }
+
+    /// The move/rotate gizmo over the selection, in the 3D pane.
+    pub(super) fn draw_gizmo(&self, painter: &egui::Painter, index: usize, rect: egui::Rect) {
+        let Some(mode) = self.gizmo_mode else { return };
+        if self.tool.kind != ToolKind::Select {
+            return;
+        }
+        let Some(pivot) = self.document.selection_centre() else {
+            return;
+        };
+        let viewport = &self.viewports[index];
+        let radius = crate::gizmo::world_radius(viewport, pivot, crate::gizmo::TARGET_PIXELS);
+
+        // While dragging, show where the selection will land -- the same
+        // live preview a plain move or resize already gets.
+        if let Some(update) = self.gizmo_preview {
+            let polygons = match update {
+                crate::gizmo::GizmoUpdate::Move(delta) => draw::ghost_outline(&self.document, delta),
+                crate::gizmo::GizmoUpdate::Rotate(pivot, rotation) => {
+                    draw::transformed_outline(&self.document, |p| pivot + rotation * (p - pivot))
+                }
+            };
+            draw::stroke_polygons_3d(
+                painter,
+                viewport,
+                rect,
+                &polygons,
+                egui::Stroke::new(1.5_f32, draw::colors::TOOL_PREVIEW),
+            );
+        }
+
+        let active = self.gizmo_drag.map(|d| d.axis);
+        let to_screen = |world: Vec3| -> Option<egui::Pos2> {
+            crate::gizmo::project(viewport, world)
+                .map(|(x, y)| egui::pos2(rect.min.x + x, rect.min.y + y))
+        };
+
+        for axis in crate::gizmo::GizmoAxis::all() {
+            let color = if active == Some(axis) {
+                draw::colors::GIZMO_ACTIVE
+            } else {
+                match axis {
+                    crate::gizmo::GizmoAxis::X => draw::colors::GIZMO_X,
+                    crate::gizmo::GizmoAxis::Y => draw::colors::GIZMO_Y,
+                    crate::gizmo::GizmoAxis::Z => draw::colors::GIZMO_Z,
+                }
+            };
+            let stroke = egui::Stroke::new(2.0_f32, color);
+            match mode {
+                crate::gizmo::GizmoMode::Move => {
+                    let (Some(from), Some(to)) =
+                        (to_screen(pivot), to_screen(pivot + axis.vector() * radius))
+                    else {
+                        continue;
+                    };
+                    draw::draw_arrow(painter, from, to, stroke, None);
+                }
+                crate::gizmo::GizmoMode::Rotate => {
+                    let (u, v) = axis.plane_basis();
+                    let points: Vec<Option<egui::Pos2>> = (0..=crate::gizmo::RING_SEGMENTS)
+                        .map(|i| {
+                            let theta = (i as f32 / crate::gizmo::RING_SEGMENTS as f32)
+                                * std::f32::consts::TAU;
+                            let world = pivot + (u * theta.cos() + v * theta.sin()) * radius;
+                            to_screen(world)
+                        })
+                        .collect();
+                    for pair in points.windows(2) {
+                        if let (Some(a), Some(b)) = (pair[0], pair[1]) {
+                            painter.line_segment([a, b], stroke);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// Move/rotate gizmo interaction: hit-test on press, preview while
+    /// dragging, commit as one undo step on release. Returns whether the
+    /// gizmo took this press, so a fall-through pick does not also fire.
+    pub(super) fn gizmo_input(
+        &mut self,
+        index: usize,
+        rect: egui::Rect,
+        response: &egui::Response,
+        ui: &egui::Ui,
+    ) -> bool {
+        let Some(mode) = self.gizmo_mode else {
+            return false;
+        };
+        if self.tool.kind != ToolKind::Select {
+            return false;
+        }
+        let Some(pivot) = self.document.selection_centre() else {
+            return false;
+        };
+        let local = |pos: egui::Pos2| (pos.x - rect.min.x, pos.y - rect.min.y);
+        let viewport = self.viewports[index].clone();
+
+        if self.gizmo_drag.is_none()
+            && ui.input(|i| i.pointer.primary_pressed())
+            && response.is_pointer_button_down_on()
+            && let Some(pos) = response.interact_pointer_pos()
+        {
+            let (x, y) = local(pos);
+            let radius = crate::gizmo::world_radius(&viewport, pivot, crate::gizmo::TARGET_PIXELS);
+            if let Some(axis) = crate::gizmo::hit(mode, pivot, radius, &viewport, x, y) {
+                let (origin, direction) = viewport.pick_ray(x, y);
+                self.gizmo_drag = crate::gizmo::GizmoDrag::begin(mode, axis, pivot, origin, direction);
+            }
+        }
+
+        let Some(drag) = self.gizmo_drag else {
+            return false;
+        };
+
+        if let Some(pos) = ui.input(|i| i.pointer.hover_pos()) {
+            let (x, y) = local(pos);
+            let (origin, direction) = viewport.pick_ray(x, y);
+            if let Some(update) = drag.update(origin, direction) {
+                self.gizmo_preview = Some(update);
+            }
+        }
+
+        if !ui.input(|i| i.pointer.primary_down()) {
+            if let Some(update) = self.gizmo_preview.take() {
+                match update {
+                    crate::gizmo::GizmoUpdate::Move(delta) => {
+                        if delta.length() > 1e-4 {
+                            self.document.move_selection(delta);
+                            self.status = format!(
+                                "moved {} {} {}",
+                                kerosene_math::format_float(delta.x),
+                                kerosene_math::format_float(delta.y),
+                                kerosene_math::format_float(delta.z)
+                            );
+                        }
+                    }
+                    crate::gizmo::GizmoUpdate::Rotate(pivot, rotation) => {
+                        if rotation != Quat::IDENTITY {
+                            self.document.rotate_selection(pivot, rotation);
+                            let (_, angle) = rotation.to_axis_angle();
+                            self.status =
+                                format!("rotated {:.1} degrees", angle.to_degrees());
+                        }
+                    }
+                }
+            }
+            self.gizmo_drag = None;
+        }
+
+        true
     }
 
     /// The leak trace, over the 3D image.
@@ -601,20 +819,6 @@ impl ChiselApp {
             return;
         }
 
-        let viewport = &self.viewports[index];
-        let basis = viewport.angles.vectors();
-        let aspect = rect.width() / rect.height().max(1.0);
-        let half_y = (kerosene_render::vertical_fov(viewport.fov, aspect) * 0.5)
-            .tan()
-            .max(1e-4);
-        let half_x = half_y * aspect;
-        let project = |camera: Vec3| -> egui::Pos2 {
-            egui::pos2(
-                rect.center().x + (camera.x / (camera.z * half_x)) * rect.width() * 0.5,
-                rect.center().y - (camera.y / (camera.z * half_y)) * rect.height() * 0.5,
-            )
-        };
-
         // A grip drag is a resize: show the scaled shape, computed the same
         // way the 2D pane that owns the drag computes it, rather than a move
         // of the whole selection by the pointer delta.
@@ -631,31 +835,13 @@ impl ChiselApp {
             _ => draw::ghost_outline(&self.document, drag.delta()),
         };
 
-        let stroke = egui::Stroke::new(1.5_f32, draw::colors::TOOL_PREVIEW);
-        for polygon in polygons {
-            let camera = draw::to_camera_space(&polygon, viewport.eye, basis);
-            // An entity marker is a line segment, not a loop; clipping a loop
-            // is the wrong operation for it.
-            let clipped = if polygon.len() > 2 {
-                draw::clip_near_positions(&camera, draw::NEAR)
-            } else if camera.iter().all(|p| p.z >= draw::NEAR) {
-                camera
-            } else {
-                continue;
-            };
-            if clipped.len() < 2 {
-                continue;
-            }
-            let points: Vec<egui::Pos2> = clipped.iter().map(|p| project(*p)).collect();
-            let last = if points.len() > 2 {
-                points.len()
-            } else {
-                points.len() - 1
-            };
-            for i in 0..last {
-                painter.line_segment([points[i], points[(i + 1) % points.len()]], stroke);
-            }
-        }
+        draw::stroke_polygons_3d(
+            painter,
+            &self.viewports[index],
+            rect,
+            &polygons,
+            egui::Stroke::new(1.5_f32, draw::colors::TOOL_PREVIEW),
+        );
     }
 
     pub(super) fn viewport_input(
@@ -726,8 +912,24 @@ impl ChiselApp {
         }
 
         if !kind.is_2d() {
-            // The 3D pane picks but does not drag geometry: a drag there has
-            // no unambiguous depth, and the orthographic views do have one.
+            // The 3D pane otherwise picks but does not drag geometry: a free
+            // drag has no unambiguous depth. An axis or a rotation plane
+            // removes exactly that ambiguity, which is what makes the gizmo
+            // possible here where a plain drag is not -- see `gizmo_input`.
+            if self.gizmo_input(index, rect, response, ui) {
+                return;
+            }
+            if self.tool.kind == ToolKind::Entity {
+                if response.clicked()
+                    && let Some((hover_index, point)) = self.entity_hover
+                    && hover_index == index
+                {
+                    let class = self.tool.entity_class.clone();
+                    self.document.create_entity(&class, point);
+                    self.status = format!("placed {class}");
+                }
+                return;
+            }
             if response.clicked()
                 && let Some(pos) = response.interact_pointer_pos()
             {

@@ -25,6 +25,7 @@ pub mod document;
 pub mod draw;
 pub mod faces;
 pub mod files;
+pub mod gizmo;
 pub mod grid;
 pub mod icons;
 pub mod inspector;

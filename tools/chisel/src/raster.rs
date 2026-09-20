@@ -24,7 +24,7 @@
 use crate::document::Document;
 use crate::draw::{self, colors};
 use crate::textures::{Texture, TextureCache};
-use kerosene_math::{Basis, Vec3};
+use kerosene_math::{Basis, Pose, Vec3};
 use std::sync::Arc;
 
 /// An RGBA image, ready to hand to egui.
@@ -75,7 +75,7 @@ const LIGHT: Vec3 = Vec3::new(0.4, 0.3, 0.87);
 const AMBIENT: f32 = 0.62;
 
 /// Flat shading for a face, in `AMBIENT..=1.0`.
-fn shading_for(normal: Vec3) -> f32 {
+pub(crate) fn shading_for(normal: Vec3) -> f32 {
     let facing = (normal.dot(LIGHT.normalize()) * 0.5 + 0.5).clamp(0.0, 1.0);
     AMBIENT + (1.0 - AMBIENT) * facing
 }
@@ -156,6 +156,10 @@ pub struct Settings<'a> {
     pub shading: Shading,
     /// Material name to texture. `None` draws as [`Shading::Shaded`].
     pub resolve: Option<TextureResolver<'a>>,
+    /// A translucent preview of a model at a point it has not been placed
+    /// yet -- the entity tool armed with a class that has one. `None` the
+    /// rest of the time.
+    pub ghost: Option<Ghost<'a>>,
 }
 
 impl Settings<'_> {
@@ -164,8 +168,21 @@ impl Settings<'_> {
         Settings {
             shading: Shading::Shaded,
             resolve: None,
+            ghost: None,
         }
     }
+}
+
+/// A translucent preview of a model at a candidate placement point.
+///
+/// Drawn last, through the same translucent fill [`Surface::opacity`] below
+/// 1.0 already gives a tool volume: the depth buffer is read, so real
+/// geometry occludes the ghost, but never written, so the ghost can never
+/// occlude something that is actually there.
+pub struct Ghost<'a> {
+    pub model: &'a kerosene_asset::Model,
+    pub pose: Pose,
+    pub opacity: f32,
 }
 
 /// Draw a document from a viewpoint.
@@ -316,29 +333,37 @@ pub fn render_with(
 
     outline(&mut image, &face_at);
     markers(document, &mut image, &mut depth, eye, basis, project);
+    if let Some(ghost) = &settings.ghost {
+        draw_ghost(&mut image, &mut depth, &mut face_at, eye, basis, project, ghost);
+    }
     image
 }
 
 /// A vertex ready to rasterise.
+///
+/// `pub(crate)` so the model previewer -- a second, deliberately separate
+/// rasteriser -- can still reuse this one triangle filler rather than
+/// carrying its own copy of perspective-correct UV interpolation and mip
+/// selection.
 #[derive(Clone, Copy, Debug)]
-struct Vertex {
+pub(crate) struct Vertex {
     /// `[x, y, 1/z]` in pixels.
-    screen: [f32; 3],
+    pub(crate) screen: [f32; 3],
     /// Normalised texture coordinate, before the perspective divide.
-    uv: (f32, f32),
+    pub(crate) uv: (f32, f32),
 }
 
 /// What to fill a triangle with.
-struct Surface {
-    texture: Option<Arc<crate::textures::Texture>>,
+pub(crate) struct Surface {
+    pub(crate) texture: Option<Arc<crate::textures::Texture>>,
     /// Used when there is no texture, and as the tint's base.
-    flat: [u8; 3],
+    pub(crate) flat: [u8; 3],
     /// Flat shading from the face normal.
-    shade: f32,
+    pub(crate) shade: f32,
     /// Mixed in over the top, for a selection.
-    tint: Option<egui::Color32>,
+    pub(crate) tint: Option<egui::Color32>,
     /// 1.0 for world geometry, less for a tool volume.
-    opacity: f32,
+    pub(crate) opacity: f32,
 }
 
 impl Surface {
@@ -364,7 +389,7 @@ impl Surface {
 }
 
 /// Fill one triangle, depth-testing every pixel.
-fn triangle(
+pub(crate) fn triangle(
     image: &mut Image,
     depth: &mut [f32],
     face_at: &mut [u32],
@@ -594,18 +619,95 @@ fn markers(
                 if dx.abs() != RADIUS && dy.abs() != RADIUS {
                     continue;
                 }
-                let (x, y) = (cx + dx, cy + dy);
-                if x < 0 || y < 0 || x >= image.width as i64 || y >= image.height as i64 {
-                    continue;
-                }
-                let at = y as usize * image.width + x as usize;
-                if p[2] < depth[at] {
-                    continue;
-                }
-                depth[at] = p[2];
-                image.pixels[at] = color;
+                plot(image, depth, cx + dx, cy + dy, p[2], color);
             }
         }
+
+        // A ring around a selected entity, the same halo the 2D panes draw --
+        // so the two agree on what "selected" looks like rather than one
+        // changing the icon's shape and the other its outline.
+        if selected {
+            const RING_RADIUS: i64 = 8;
+            const RING_THICKNESS: f32 = 1.2;
+            for dy in -RING_RADIUS..=RING_RADIUS {
+                for dx in -RING_RADIUS..=RING_RADIUS {
+                    let r = ((dx * dx + dy * dy) as f32).sqrt();
+                    if (r - RING_RADIUS as f32).abs() > RING_THICKNESS {
+                        continue;
+                    }
+                    plot(image, depth, cx + dx, cy + dy, p[2], color);
+                }
+            }
+        }
+    }
+}
+
+/// Write one pixel, depth-tested -- shared by every marker shape `markers`
+/// draws, so a square icon and its selection ring occlude the same way.
+fn plot(image: &mut Image, depth: &mut [f32], x: i64, y: i64, z: f32, color: [u8; 4]) {
+    if x < 0 || y < 0 || x >= image.width as i64 || y >= image.height as i64 {
+        return;
+    }
+    let at = y as usize * image.width + x as usize;
+    if z < depth[at] {
+        return;
+    }
+    depth[at] = z;
+    image.pixels[at] = color;
+}
+
+/// A pale, even tint for the placement ghost -- deliberately not any
+/// material's own colour, so it reads as a preview and not as a brush that
+/// has already been placed.
+const GHOST_TINT: [u8; 3] = [200, 220, 255];
+
+fn draw_ghost(
+    image: &mut Image,
+    depth: &mut [f32],
+    face_at: &mut [u32],
+    eye: Vec3,
+    basis: Basis,
+    project: impl Fn(Vec3) -> [f32; 3],
+    ghost: &Ghost<'_>,
+) {
+    for triangle_indices in ghost.model.indices.as_chunks::<3>().0 {
+        let corners: [Vec3; 3] = std::array::from_fn(|i| {
+            let local = Vec3::from_array(ghost.model.vertices[triangle_indices[i] as usize].position);
+            ghost.pose.to_world(local)
+        });
+
+        // `.keromdl` triangles wind counter-clockwise as seen from the front,
+        // same convention `preview.rs` culls by.
+        let normal = (corners[1] - corners[0])
+            .cross(corners[2] - corners[0])
+            .normalize_or_zero();
+        if normal.dot(eye - corners[0]) <= 0.0 {
+            continue;
+        }
+
+        let camera = draw::to_camera_space(&corners, eye, basis);
+        // A ghost that would need clipping is not worth clipping: it is a
+        // preview, not placed geometry, and the moment it is close enough to
+        // straddle the near plane the person is about to click anyway.
+        if camera.iter().any(|c| c.z < draw::NEAR) {
+            continue;
+        }
+
+        let vertices: [Vertex; 3] = std::array::from_fn(|i| Vertex {
+            screen: project(camera[i]),
+            uv: (0.0, 0.0),
+        });
+        let surface = Surface {
+            texture: None,
+            flat: GHOST_TINT,
+            shade: shading_for(normal),
+            tint: None,
+            opacity: ghost.opacity,
+        };
+        // Face id 0 is never a real face (`face_at` is offset by one), so a
+        // ghost triangle can never be mistaken for outlined geometry -- moot
+        // anyway, since translucent fills never write `face_at`.
+        triangle(image, depth, face_at, vertices, &surface, 0);
     }
 }
 

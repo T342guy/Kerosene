@@ -284,10 +284,7 @@ impl Tool {
 
     /// Pointer pressed in a viewport.
     pub fn press(&mut self, document: &Document, viewport: &Viewport, x: f32, y: f32) {
-        let depth = default_depth(document, viewport);
-        let world = document
-            .grid
-            .snap_point(viewport.screen_to_world(x, y, depth));
+        let world = entity_placement_point(document, viewport, x, y);
         self.drag_origin_px = (x, y);
 
         // Pressing on one of the selection's grips resizes it; pressing
@@ -598,6 +595,33 @@ fn default_depth(document: &Document, viewport: &Viewport) -> f32 {
     }
 }
 
+/// Where a click or hover in a 2D pane places a point entity: the pointer's
+/// world position, snapped to the grid.
+///
+/// Factored out of [`Tool::press`] so a hover preview can ask the same
+/// question a click is about to answer -- a ghost that showed one point and
+/// placed the entity at another would be worse than no ghost at all.
+pub fn entity_placement_point(document: &Document, viewport: &Viewport, x: f32, y: f32) -> Vec3 {
+    let depth = default_depth(document, viewport);
+    document.grid.snap_point(viewport.screen_to_world(x, y, depth))
+}
+
+/// Where a 3D pick ray places a point entity: on the nearest solid it hits,
+/// or a fixed distance out along it when it hits nothing.
+///
+/// Against bounding boxes rather than exact faces, same as [`pick_solid_3d`]
+/// -- a placement point does not need to be pixel-exact, and a click into
+/// open sky must still place something rather than doing nothing at all.
+pub fn pick_point_3d(document: &Document, origin: Vec3, direction: Vec3) -> Vec3 {
+    let mut nearest: Option<f32> = None;
+    for (_, solid) in document.visible_solids() {
+        if let Some(distance) = ray_box(origin, direction, solid.bounds()) {
+            nearest = Some(nearest.map_or(distance, |d: f32| d.min(distance)));
+        }
+    }
+    origin + direction * nearest.unwrap_or(256.0)
+}
+
 /// The solid nearest a point in a 2D view, if any.
 ///
 /// Ties break toward the smallest brush: a small detail brush inside a large
@@ -886,6 +910,37 @@ mod tests {
             pick_entity_2d(&document, Vec3::new(400.0, 400.0, 0.0), &viewport),
             None
         );
+    }
+
+    #[test]
+    fn entity_placement_point_matches_what_a_click_would_place_at() {
+        let (mut document, viewport) = setup();
+        document.grid.size = 32.0;
+        let point = entity_placement_point(&document, &viewport, 410.0, 290.0);
+        // Snapped to the grid, not the raw unprojected point.
+        assert_eq!(point.x % document.grid.size, 0.0);
+        assert_eq!(point.y % document.grid.size, 0.0);
+    }
+
+    #[test]
+    fn a_3d_placement_ray_lands_on_the_nearest_solid() {
+        let mut document = Document::new();
+        let near =
+            document.create_block(Vec3::new(100.0, -32.0, -32.0), Vec3::new(164.0, 32.0, 32.0));
+        document.create_block(Vec3::new(400.0, -32.0, -32.0), Vec3::new(464.0, 32.0, 32.0));
+        // `create_block` snaps to the grid, so the near face may not sit
+        // exactly at 100 -- ask the document what it actually built instead
+        // of assuming the input survived unrounded.
+        let near_x = document.find_solid(near).unwrap().bounds().min.x;
+        let point = pick_point_3d(&document, Vec3::ZERO, Vec3::X);
+        assert_eq!(point.x, near_x, "should land on the near face of {near}");
+    }
+
+    #[test]
+    fn a_3d_placement_ray_that_hits_nothing_still_places_something() {
+        let document = Document::new();
+        let point = pick_point_3d(&document, Vec3::ZERO, Vec3::X);
+        assert!(point.x > 0.0, "{point:?}");
     }
 
     #[test]

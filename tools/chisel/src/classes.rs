@@ -213,6 +213,30 @@ class { "name" "npc_guard" "base" "Point" }
     }
 
     #[test]
+    fn prop_classes_default_their_model_key_so_the_placement_ghost_has_something_to_show() {
+        // `App::ghost_model` only previews a class whose `model` key carries a
+        // non-empty default -- otherwise there is nothing to load before the
+        // entity exists to say which model it should be. `prop_static` and
+        // `prop_physics` are exactly the classes a level builder reaches for
+        // to place a model, so leaving their default blank meant the one
+        // entity tool most likely to want a placement ghost never got one.
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content");
+        let loaded = load(&root);
+        assert!(loaded.errors.is_empty(), "{:?}", loaded.errors);
+        for class in ["prop_static", "prop_physics"] {
+            let default = loaded
+                .schema
+                .get(class)
+                .and_then(|c| c.key("model"))
+                .map(|k| k.default.as_str());
+            assert!(
+                default.is_some_and(|d| !d.is_empty()),
+                "{class}'s model key has no default: {default:?}"
+            );
+        }
+    }
+
+    #[test]
     fn the_built_in_definitions_cover_an_empty_tree() {
         // The bug this module exists to prevent: an editor pointed at a tree
         // with no `.kerodef` file must still know what a `func_door` is.

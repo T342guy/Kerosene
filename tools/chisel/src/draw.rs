@@ -43,6 +43,17 @@ pub mod colors {
     /// ever drawn when the map is broken.
     pub const LEAK: Color32 = Color32::from_rgb(255, 70, 70);
 
+    // The move/rotate gizmo. Same red/green/blue as every other X/Y/Z
+    // convention, so an axis reads the same way here as it does everywhere
+    // else -- a game engine included.
+    pub const GIZMO_X: Color32 = Color32::from_rgb(230, 70, 70);
+    pub const GIZMO_Y: Color32 = Color32::from_rgb(80, 200, 100);
+    pub const GIZMO_Z: Color32 = Color32::from_rgb(90, 140, 240);
+    /// The handle currently being dragged, in place of its usual colour --
+    /// otherwise a red arrow dragged against a red-tinted brush is easy to
+    /// lose track of mid-drag.
+    pub const GIZMO_ACTIVE: Color32 = Color32::from_rgb(255, 220, 90);
+
     // The walkmap view colours each face by its rule, so a designer can read
     // where NPCs may and may not go without compiling. The colours are the
     // ones the rules suggest: green to go, red to stay away.
@@ -171,6 +182,56 @@ fn stroke_polygons(
     }
 }
 
+/// Stroke world-space polygons (or two-point line segments, for a point
+/// entity's cross) into the 3D pane, clipped to the near plane and drawn on
+/// top of the rasterised image rather than baked into it.
+///
+/// Every transform preview the 3D pane shows goes through this: a plain move
+/// or resize dragged in a 2D pane, and a gizmo drag started in this one.
+pub fn stroke_polygons_3d(
+    painter: &Painter,
+    viewport: &Viewport,
+    rect: Rect,
+    polygons: &[Vec<Vec3>],
+    stroke: Stroke,
+) {
+    let basis = viewport.angles.vectors();
+    let aspect = rect.width() / rect.height().max(1.0);
+    let half_y = (kerosene_render::vertical_fov(viewport.fov, aspect) * 0.5)
+        .tan()
+        .max(1e-4);
+    let half_x = half_y * aspect;
+    let project = |camera: Vec3| -> Pos2 {
+        Pos2::new(
+            rect.center().x + (camera.x / (camera.z * half_x)) * rect.width() * 0.5,
+            rect.center().y - (camera.y / (camera.z * half_y)) * rect.height() * 0.5,
+        )
+    };
+
+    for polygon in polygons {
+        let camera = to_camera_space(polygon, viewport.eye, basis);
+        let clipped = if polygon.len() > 2 {
+            clip_near_positions(&camera, NEAR)
+        } else if camera.iter().all(|p| p.z >= NEAR) {
+            camera
+        } else {
+            continue;
+        };
+        if clipped.len() < 2 {
+            continue;
+        }
+        let points: Vec<Pos2> = clipped.iter().map(|p| project(*p)).collect();
+        let last = if points.len() > 2 {
+            points.len()
+        } else {
+            points.len() - 1
+        };
+        for i in 0..last {
+            painter.line_segment([points[i], points[(i + 1) % points.len()]], stroke);
+        }
+    }
+}
+
 /// Draw one 2D pane.
 pub fn draw_2d(
     painter: &Painter,
@@ -179,6 +240,7 @@ pub fn draw_2d(
     document: &Document,
     tool: &Tool,
     leak: &crate::leak::LeakTrace,
+    entity_ghost: Option<(Vec3, Option<Aabb>)>,
 ) {
     painter.rect_filled(rect, 0.0, colors::BACKGROUND);
     draw_grid(painter, rect, viewport, document);
@@ -258,6 +320,48 @@ pub fn draw_2d(
     draw_resize_grips(painter, rect, viewport, document, tool);
     draw_tool_preview(painter, rect, viewport, document, tool);
     draw_clip_line(painter, rect, viewport, tool);
+    draw_entity_ghost_2d(painter, rect, viewport, tool, entity_ghost);
+}
+
+/// The entity tool's placement preview, in a 2D pane: the model's bounds
+/// translated to the hover point, or the plain class icon when the class has
+/// no model of its own -- shown dimmed, so it never reads as something
+/// already placed.
+fn draw_entity_ghost_2d(
+    painter: &Painter,
+    rect: Rect,
+    viewport: &Viewport,
+    tool: &Tool,
+    ghost: Option<(Vec3, Option<Aabb>)>,
+) {
+    if tool.kind != ToolKind::Entity {
+        return;
+    }
+    let Some((point, bounds)) = ghost else {
+        return;
+    };
+    let to_screen = |world: Vec3| {
+        let (x, y) = viewport.world_to_screen(world);
+        Pos2::new(rect.min.x + x, rect.min.y + y)
+    };
+    let kind = crate::icons::Kind::of(&tool.entity_class);
+    let color = kind.colour().gamma_multiply(0.6);
+
+    match bounds {
+        Some(bounds) => {
+            let (h, v, _) = viewport.kind.axes();
+            let (min, max) = (point + bounds.min, point + bounds.max);
+            let mut corner_h = min;
+            corner_h[h] = max[h];
+            let mut corner_v = min;
+            corner_v[v] = max[v];
+            let quad = [min, corner_h, max, corner_v].map(to_screen);
+            for i in 0..4 {
+                painter.line_segment([quad[i], quad[(i + 1) % 4]], Stroke::new(1.0_f32, color));
+            }
+        }
+        None => crate::icons::draw(painter, to_screen(point), 7.0, kind, color),
+    }
 }
 
 /// The clip tool's line: the one being dragged, or the one laid and waiting
@@ -491,24 +595,39 @@ fn draw_motion(painter: &Painter, rect: Rect, viewport: &Viewport, document: &Do
         Pos2::new(rect.min.x + x, rect.min.y + y)
     };
     let (from, to) = (to_screen(motion.arrow.0), to_screen(motion.arrow.1));
-    painter.line_segment([from, to], Stroke::new(1.5_f32, colour));
+    draw_arrow(
+        painter,
+        from,
+        to,
+        Stroke::new(1.5_f32, colour),
+        Some(&motion.label),
+    );
+}
 
-    // A head, so the line reads as a direction rather than as an edge. Drawn
-    // from the screen-space vector, since the world one may point straight at
-    // the viewer in this pane and have no length here at all.
+/// A line with an arrowhead at `to`, so it reads as a direction rather than
+/// an edge -- and, when given one, a label past the head.
+///
+/// The head (but not the shaft) is skipped when the arrow is too short on
+/// screen to fit one: the world vector it stands for may point straight at
+/// the viewer in a 3D pane and have next to no length here at all.
+pub fn draw_arrow(painter: &Painter, from: Pos2, to: Pos2, stroke: Stroke, label: Option<&str>) {
+    painter.line_segment([from, to], stroke);
     let along = to - from;
-    if along.length() > 6.0 {
-        let unit = along / along.length();
-        let side = Vec2::new(-unit.y, unit.x) * 4.0;
-        let base = to - unit * 9.0;
-        painter.line_segment([to, base + side], Stroke::new(1.5_f32, colour));
-        painter.line_segment([to, base - side], Stroke::new(1.5_f32, colour));
+    if along.length() <= 6.0 {
+        return;
+    }
+    let unit = along / along.length();
+    let side = Vec2::new(-unit.y, unit.x) * 4.0;
+    let base = to - unit * 9.0;
+    painter.line_segment([to, base + side], stroke);
+    painter.line_segment([to, base - side], stroke);
+    if let Some(label) = label {
         painter.text(
             to + Vec2::new(6.0, 2.0),
             egui::Align2::LEFT_TOP,
-            &motion.label,
+            label,
             egui::FontId::monospace(10.0),
-            colour,
+            stroke.color,
         );
     }
 }
@@ -641,11 +760,16 @@ fn draw_tool_preview(
 
         let (h, v, _) = viewport.kind.axes();
         let anchor = viewport.world_to_screen(drag.current);
+        let snap = if document.grid.snap {
+            format!(" (snap: {} ku)", kerosene_math::format_float(document.grid.size))
+        } else {
+            String::new()
+        };
         painter.text(
             Pos2::new(rect.min.x + anchor.0 + 10.0, rect.min.y + anchor.1 + 10.0),
             egui::Align2::LEFT_TOP,
             format!(
-                "{} {}, {} {}",
+                "{} {}, {} {}{snap}",
                 axis_name(h),
                 kerosene_math::units::length_short(delta[h]),
                 axis_name(v),

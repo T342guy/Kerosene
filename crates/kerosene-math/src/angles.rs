@@ -103,6 +103,24 @@ impl Angles {
         Self::from_mat3(&Mat3::from_quat(q))
     }
 
+    /// The rotation quaternion for these angles, the inverse of [`Self::from_quat`].
+    pub fn to_quat(&self) -> Quat {
+        Quat::from_mat3(&self.to_mat3())
+    }
+
+    /// Spherical interpolation between two orientations, `t` in `0..=1`.
+    ///
+    /// A naive per-component lerp of pitch/yaw/roll is wrong the moment more
+    /// than one axis is moving at once -- yaw races ahead of a pitch that has
+    /// further to swing, and the object visibly wobbles off the straight
+    /// path. Going through quaternions gets the straight path instead.
+    pub fn slerp(self, other: Angles, t: f32) -> Angles {
+        if self == other {
+            return self;
+        }
+        Angles::from_quat(self.to_quat().slerp(other.to_quat(), t.clamp(0.0, 1.0)))
+    }
+
     /// Wrap every component into `[-180, 180)`.
     pub fn normalized(self) -> Self {
         Self::new(wrap180(self.pitch), wrap180(self.yaw), wrap180(self.roll))
@@ -254,6 +272,33 @@ mod tests {
             assert!((angle_diff(back.yaw, y)).abs() < 0.01, "{a:?} -> {back:?}");
             assert!((angle_diff(back.roll, r)).abs() < 0.01, "{a:?} -> {back:?}");
         }
+    }
+
+    #[test]
+    fn to_quat_matches_from_quat() {
+        for &(p, y, r) in &[(5.0, 20.0, -10.0), (40.0, -120.0, 80.0)] {
+            let a = Angles::new(p, y, r);
+            let back = Angles::from_quat(a.to_quat());
+            assert!((angle_diff(back.pitch, p)).abs() < 0.01, "{a:?} -> {back:?}");
+            assert!((angle_diff(back.yaw, y)).abs() < 0.01, "{a:?} -> {back:?}");
+            assert!((angle_diff(back.roll, r)).abs() < 0.01, "{a:?} -> {back:?}");
+        }
+    }
+
+    #[test]
+    fn slerp_returns_exact_endpoints() {
+        let a = Angles::new(10.0, 20.0, -30.0);
+        let b = Angles::new(-40.0, 170.0, 5.0);
+        assert!(close(a.slerp(b, 0.0).forward(), a.forward()));
+        assert!(close(a.slerp(b, 1.0).forward(), b.forward()));
+    }
+
+    #[test]
+    fn slerp_halfway_yaw_turn_is_the_bisector() {
+        let a = Angles::new(0.0, 0.0, 0.0);
+        let b = Angles::new(0.0, 90.0, 0.0);
+        let mid = a.slerp(b, 0.5);
+        assert!((angle_diff(mid.yaw, 45.0)).abs() < 0.01, "{mid:?}");
     }
 
     #[test]

@@ -615,10 +615,12 @@ impl App {
         }
         gfx.renderer.update_camera(&gfx.queue, &uniform);
 
-        // Where each brush entity has got to, from the same fields the
-        // collision code traces against -- so what you see and what you walk
-        // into are the same thing by construction rather than by agreement.
-        let brush_models = self.engine.brush_model_poses();
+        // Where each brush entity has got to, blended between the last two
+        // ticks so a door or rotating brush sweeps smoothly instead of
+        // snapping into place each time it thinks. Collision still traces
+        // against the raw current-tick pose; only the drawn position lags by
+        // up to one tick's worth of motion, same as the camera does.
+        let brush_models = self.engine.interpolated_brush_model_poses(alpha);
         let mut poses = vec![Pose::IDENTITY; MAX_MODELS];
         let mut next_slot = 1usize;
         for (model, pose) in &brush_models {
@@ -628,9 +630,9 @@ impl App {
             next_slot = next_slot.max(model + 1);
         }
 
-        // Physics props each take a model slot and draw where their body is.
-        // The same entity fields the renderer reads, so a tumbling crate is
-        // drawn exactly where the simulation put it.
+        // Physics props each take a model slot and draw where their body is,
+        // blended from where it was last tick so motion stays smooth between
+        // the 64Hz simulation and a faster display.
         let mut props: Vec<(usize, String)> = Vec::new();
         for entity in self.engine.entities.iter() {
             if !is_physics_prop(&entity.classname) {
@@ -642,7 +644,14 @@ impl App {
             if next_slot >= MAX_MODELS {
                 break;
             }
-            poses[next_slot] = Pose::new(entity.origin, entity.angles);
+            let (prev_origin, prev_angles) = self
+                .engine
+                .physics
+                .previous_pose(entity.id)
+                .unwrap_or((entity.origin, entity.angles));
+            let origin = prev_origin.lerp(entity.origin, alpha);
+            let angles = prev_angles.slerp(entity.angles, alpha);
+            poses[next_slot] = Pose::new(origin, angles);
             props.push((next_slot, name.to_string()));
             next_slot += 1;
         }

@@ -44,6 +44,7 @@ fn main() -> Result<()> {
     let mut settings = Settings {
         shading: Shading::Textured,
         resolve: Some(&mut resolve),
+        ghost: None,
     };
     let image = chisel::raster::render_with(
         &document,

@@ -28,6 +28,7 @@ forge = { path = "../forge" }
 kiln = { path = "../kiln" }
 vault = { path = "../vault" }
 timbre = { path = "../timbre" }
+loupe = { path = "../loupe" }
 kerosene-ui.workspace = true
 kerosene-vfs.workspace = true
 kerosene-console.workspace = true

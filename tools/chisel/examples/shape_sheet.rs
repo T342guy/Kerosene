@@ -57,6 +57,7 @@ fn main() -> anyhow::Result<()> {
     let mut settings = Settings {
         shading: Shading::Flat,
         resolve: None,
+        ghost: None,
     };
     let image = render_with(
         &document,

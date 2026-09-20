@@ -1,0 +1,23 @@
+[package]
+name = "loupe"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+
+# A model viewer: what Half-Life Model Viewer is to a `.mdl`, for a
+# `.keromdl`. It renders through Chisel's own model-preview rasteriser
+# (`chisel::preview`) rather than a copy of it, so a model looks the same
+# spinning here as it does in the asset browser and the placement ghost.
+
+[lib]
+name = "loupe"
+path = "src/lib.rs"
+
+[dependencies]
+chisel = { path = "../chisel" }
+kerosene-asset.workspace = true
+kerosene-vfs.workspace = true
+kerosene-ui.workspace = true
+egui.workspace = true
