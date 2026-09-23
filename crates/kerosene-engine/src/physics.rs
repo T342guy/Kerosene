@@ -42,6 +42,9 @@ struct Mover {
 pub struct PhysicsProps {
     pub rigid: RigidWorld,
     props: HashMap<EntityId, PropBody>,
+    /// `prop_static`s: a static box each, from its model's bounds, and that
+    /// box in world space for the player's hull to sweep against.
+    statics: HashMap<EntityId, (Body, Aabb)>,
     /// Moving brush entities, by BSP model index.
     movers: HashMap<usize, Mover>,
     /// Static world body count, for reporting.
@@ -79,6 +82,7 @@ impl PhysicsProps {
         PhysicsProps {
             rigid: RigidWorld::new(),
             props: HashMap::new(),
+            statics: HashMap::new(),
             movers: HashMap::new(),
             static_bodies: 0,
             section_bodies: Vec::new(),
@@ -261,6 +265,64 @@ impl PhysicsProps {
                 self.rigid.destroy_body(prop.body);
             }
         }
+        let gone_statics: Vec<EntityId> = self
+            .statics
+            .keys()
+            .copied()
+            .filter(|&id| !entities.exists(id))
+            .collect();
+        for id in gone_statics {
+            if let Some((body, _)) = self.statics.remove(&id) {
+                self.rigid.destroy_body(body);
+            }
+        }
+
+        // Static props: a box that never moves, where the model is. Solid to
+        // the player, to thrown props and to anything else in the simulation,
+        // the way Source's static props are, without being part of the
+        // compiled world.
+        let unplaced: Vec<(EntityId, String, Vec3, Angles)> = entities
+            .iter()
+            .filter(|e| is_static_prop(&e.classname))
+            .filter(|e| !self.statics.contains_key(&e.id))
+            .filter_map(|e| {
+                let name = e.fields.text("model")?.into_owned();
+                (!self.missing_models.contains(&name)).then_some((e.id, name, e.origin, e.angles))
+            })
+            .collect();
+        for (id, name, origin, angles) in unplaced {
+            let Some(bounds) = model_bounds(vfs, &name) else {
+                log::warn!("physics: prop_static: model {name} would not load; no body");
+                self.missing_models.insert(name);
+                continue;
+            };
+            let rotation = Quat::from_mat3(&angles.to_mat3());
+            let half_extent = (bounds.size() * 0.5).max(Vec3::splat(0.5));
+            let position = origin + rotation * bounds.center();
+            let body = self.rigid.add_static_box(half_extent, position, rotation);
+            let mut world = Aabb::EMPTY;
+            for i in 0..8 {
+                let corner = Vec3::new(
+                    if i & 1 == 0 {
+                        -half_extent.x
+                    } else {
+                        half_extent.x
+                    },
+                    if i & 2 == 0 {
+                        -half_extent.y
+                    } else {
+                        half_extent.y
+                    },
+                    if i & 4 == 0 {
+                        -half_extent.z
+                    } else {
+                        half_extent.z
+                    },
+                );
+                world.add_point(position + rotation * corner);
+            }
+            self.statics.insert(id, (body, world));
+        }
         self.previous.retain(|id, _| self.props.contains_key(id));
 
         // Give every physics prop without a body one, shaped from its model.
@@ -414,11 +476,17 @@ impl PhysicsProps {
     /// of its oriented collision box -- a good enough approximation for the
     /// player's hull trace, and exactly what the debug overlay draws.
     pub fn prop_aabbs(&self) -> Vec<Aabb> {
-        let mut out = Vec::with_capacity(self.props.len());
+        let mut out = Vec::with_capacity(self.props.len() + self.statics.len());
         for prop in self.props.values() {
             out.push(prop_aabb(&self.rigid, prop));
         }
+        out.extend(self.statics.values().map(|(_, aabb)| *aabb));
         out
+    }
+
+    /// Number of `prop_static` bodies.
+    pub fn static_prop_count(&self) -> usize {
+        self.statics.len()
     }
 
     /// The nearest prop whose box a ray from `start` along `dir` hits within
@@ -757,6 +825,12 @@ impl Default for PhysicsProps {
 /// Whether a class is a physics prop (a dynamic rigid body).
 pub fn is_physics_prop(classname: &str) -> bool {
     classname.eq_ignore_ascii_case("prop_physics")
+}
+
+/// Whether an entity is a static prop: a model that is drawn and collided
+/// with and never moves.
+pub fn is_static_prop(classname: &str) -> bool {
+    classname.eq_ignore_ascii_case("prop_static")
 }
 
 /// Read the physical material a prop's object properties describe.

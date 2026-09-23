@@ -647,3 +647,131 @@ fn a_cordon_compiles_a_corner_of_the_map_without_leaking() {
     assert!(b.max.x < 248.0, "the far room is outside the box: {b:?}");
     assert_eq!(out.bsp.sections.len(), 1, "the far room is outside");
 }
+
+// ---- meshes -------------------------------------------------------------------
+
+/// The sealed room with a mesh ramp across it: a single sloped quad rising
+/// from z = 0 at x = 64 to z = 64 at x = 192, in `material`.
+fn room_with_ramp(material: &str) -> Map {
+    let mut map = room_map(false);
+    let id = map.next_id();
+    let mut ramp = kerosene_map::Mesh::new(id);
+    ramp.vertices = vec![
+        Vec3::new(64.0, 64.0, 0.0),
+        Vec3::new(64.0, 192.0, 0.0),
+        Vec3::new(192.0, 192.0, 64.0),
+        Vec3::new(192.0, 64.0, 64.0),
+    ];
+    let points = ramp.vertices.clone();
+    let face_id = map.next_id();
+    ramp.faces.push(kerosene_map::MeshFace::new(
+        face_id,
+        vec![0, 1, 2, 3],
+        &points,
+        material,
+    ));
+    map.world.meshes.push(ramp);
+    map
+}
+
+#[test]
+fn a_mesh_is_drawn_lit_and_walked_on_without_touching_the_tree() {
+    let plain = compile_ok(&room_map(false));
+    let out = compile_ok(&room_with_ramp("dev/floor"));
+    out.bsp.validate().expect("structurally sound");
+
+    // Detail: the tree is the same shape with or without it.
+    assert_eq!(out.stats.tree_nodes, plain.stats.tree_nodes);
+    assert_eq!(out.stats.clusters, plain.stats.clusters);
+
+    // Drawn: one more face, in the ramp's material, facing up the slope.
+    assert_eq!(out.bsp.faces.len(), plain.bsp.faces.len() + 1);
+    let ramp = (0..out.bsp.faces.len())
+        .find(|&f| out.bsp.face_material(f) == "dev/floor")
+        .expect("the ramp's face is in the map");
+    let normal = out.bsp.face_plane(ramp).unwrap().normal;
+    let expected = Vec3::new(-64.0, 0.0, 128.0).normalize();
+    assert!(normal.dot(expected) > 0.999, "{normal}");
+    // Wound the way every compiled face is, so the renderer does not cull it.
+    let verts = out.bsp.face_vertices(ramp);
+    assert!(kerosene_map::polygon_normal(&verts).dot(normal) > 0.999);
+    // And in a leaf, where the renderer's PVS walk will find it.
+    assert!(out.bsp.leaffaces.contains(&(ramp as u32)));
+
+    // Walked on: a trace dropped onto the middle of the ramp stops on it,
+    // and reports the ramp's material for footsteps.
+    let trace = out.bsp.trace_ray(
+        Vec3::new(128.0, 128.0, 200.0),
+        Vec3::new(128.0, 128.0, -50.0),
+        contents::MASK_PLAYER_SOLID,
+    );
+    assert!(trace.hit());
+    assert!(
+        (trace.endpos.z - 32.0).abs() < 0.5,
+        "stopped at {}",
+        trace.endpos
+    );
+    assert_eq!(
+        out.bsp.texinfo_name(trace.texture_index as usize),
+        "dev/floor"
+    );
+    // A box the size of a player standing on it rests there too.
+    let standing = out.bsp.trace_box(
+        Vec3::new(128.0, 128.0, 200.0),
+        Vec3::new(128.0, 128.0, -50.0),
+        Vec3::new(-16.0, -16.0, 0.0),
+        Vec3::new(16.0, 16.0, 72.0),
+        contents::MASK_PLAYER_SOLID,
+    );
+    assert!(
+        standing.endpos.z > 20.0,
+        "the box fell through: {}",
+        standing.endpos
+    );
+}
+
+#[test]
+fn a_flat_mesh_floor_is_in_the_walkmap() {
+    // A 32-unit platform: flat, so walkable by the default rule.
+    let mut map = room_map(false);
+    let id = map.next_id();
+    let mut platform = kerosene_map::Mesh::new(id);
+    platform.vertices = vec![
+        Vec3::new(32.0, 32.0, 32.0),
+        Vec3::new(32.0, 96.0, 32.0),
+        Vec3::new(96.0, 96.0, 32.0),
+        Vec3::new(96.0, 32.0, 32.0),
+    ];
+    let points = platform.vertices.clone();
+    let face_id = map.next_id();
+    platform.faces.push(kerosene_map::MeshFace::new(
+        face_id,
+        vec![0, 1, 2, 3],
+        &points,
+        "dev/floor",
+    ));
+    map.world.meshes.push(platform);
+
+    let out = compile_ok(&map);
+    assert!(
+        out.walk
+            .faces
+            .iter()
+            .any(|f| (f.bounds.min.z - 32.0).abs() < 0.01 && (f.bounds.max.z - 32.0).abs() < 0.01),
+        "the platform top should be ground"
+    );
+}
+
+#[test]
+fn a_mesh_over_a_brush_floor_does_not_erase_it() {
+    // The ramp's slab reaches below z = 0, into the floor brush. It must not
+    // bury the floor's face the way a real brush would.
+    let plain = compile_ok(&room_map(false));
+    let out = compile_ok(&room_with_ramp("dev/floor"));
+    let grid_faces = |bsp: &kerosene_bsp::Bsp| {
+        (0..bsp.faces.len())
+            .filter(|&f| bsp.face_material(f) == "dev/grid")
+            .count()
+    };
+    assert_eq!(grid_faces(&out.bsp), grid_faces(&plain.bsp));
+}

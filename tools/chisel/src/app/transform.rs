@@ -81,6 +81,17 @@ impl ChiselApp {
         };
     }
 
+    pub(super) fn convert_to_mesh(&mut self) {
+        let n = self.document.convert_selection_to_meshes();
+        self.status = if n == 0 {
+            "select world brushes to turn into meshes".into()
+        } else {
+            format!(
+                "{n} brushes are now meshes: detail, so they no longer seal the map or block visibility"
+            )
+        };
+    }
+
     pub(super) fn flip(&mut self, horizontal: bool) {
         if self.document.selection.is_empty() {
             self.status = "select something to flip".into();

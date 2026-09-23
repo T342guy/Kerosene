@@ -15,12 +15,12 @@
 use crate::engine::{Engine, EngineConfig, report_unhandled, take_console_requests};
 use crate::game::Game;
 use crate::input::InputSystem;
-use crate::physics::is_physics_prop;
+use crate::physics::{is_physics_prop, is_static_prop};
 use kerosene_console::ConsoleUi;
 use kerosene_math::Pose;
 use kerosene_render::gpu::{
-    CameraUniform, GpuModel, GpuProbes, LineVertex, MAX_MODELS, MapResources, ModelUniform,
-    Renderer, ToneMapOperator, load_model,
+    CameraUniform, GpuModel, GpuProbes, LineVertex, MAX_MODELS, MapResources, ModelInstance,
+    ModelUniform, Renderer, ToneMapOperator, load_model,
 };
 use kerosene_render::lights::LightFrame;
 use kerosene_render::{Camera, FrameStats, Frustum, LightmapAtlas, WorldMesh};
@@ -110,6 +110,9 @@ struct App {
     console_ui: ConsoleUi,
     /// Uploaded `.keromdl` models, keyed by the name an entity refers to them by.
     model_cache: HashMap<String, Option<GpuModel>>,
+    /// The probe each static prop reflects. Chosen once -- a static prop
+    /// does not move -- rather than traced for every frame.
+    static_probes: HashMap<kerosene_entity::EntityId, u32>,
 }
 
 /// Start the engine with a window and no game.
@@ -135,6 +138,7 @@ pub fn run_with(config: EngineConfig, game: Box<dyn Game>) -> anyhow::Result<()>
         since_report: 0.0,
         console_ui: ConsoleUi::new(),
         model_cache: HashMap::new(),
+        static_probes: HashMap::new(),
     };
 
     event_loop.run_app(&mut app)?;
@@ -456,6 +460,7 @@ impl App {
         // Models are per map: a `.keromdl` that failed to load, and was then
         // compiled, gets its retry on the next load rather than on restart.
         self.model_cache.clear();
+        self.static_probes.clear();
         let bsp = &level.bsp;
         let probes = GpuProbes::upload(&gfx.device, &gfx.queue, bsp.cubemaps.as_ref());
         // The world section, with the map. Baked at unit exposure:
@@ -696,9 +701,42 @@ impl App {
         let light_frame = LightFrame::build(&lights, &camera, gfx.config.width, gfx.config.height);
         gfx.renderer.update_lights(&gfx.queue, &light_frame);
 
+        // Static props, grouped by model so every copy of one model draws in
+        // a single instanced call: a room of forty identical crates is one
+        // draw per mesh, not forty.
+        let mut static_groups: Vec<(String, Vec<ModelInstance>)> = Vec::new();
+        if let Some(level) = &self.engine.level {
+            for entity in self.engine.entities.iter() {
+                if !is_static_prop(&entity.classname) {
+                    continue;
+                }
+                let Some(name) = entity.fields.text("model") else {
+                    continue;
+                };
+                let probe = *self
+                    .static_probes
+                    .entry(entity.id)
+                    .or_insert_with(|| kerosene_render::probe_for(&level.bsp, entity.origin));
+                let instance = ModelInstance::new(Pose::new(entity.origin, entity.angles), probe);
+                match static_groups.iter_mut().find(|(n, _)| *n == name) {
+                    Some((_, list)) => list.push(instance),
+                    None => static_groups.push((name.into_owned(), vec![instance])),
+                }
+            }
+        }
+        let mut static_instances = Vec::new();
+        let mut static_ranges: Vec<(String, u32, u32)> = Vec::new();
+        for (name, list) in static_groups {
+            static_ranges.push((name, static_instances.len() as u32, list.len() as u32));
+            static_instances.extend(list);
+        }
+        gfx.renderer
+            .update_instances(&gfx.device, &gfx.queue, &static_instances);
+
         // Upload any prop model we have not seen yet, once. A failed load is
         // cached as `None` so the warning is not repeated every frame.
-        for name in props.iter().map(|(_, n)| n) {
+        let static_names = static_ranges.iter().map(|(n, _, _)| n);
+        for name in props.iter().map(|(_, n)| n).chain(static_names) {
             if self.model_cache.contains_key(name) {
                 continue;
             }
@@ -815,6 +853,12 @@ impl App {
                             .draw_studio_shadow(&mut pass, layer, model, *slot);
                     }
                 }
+                for (name, first, count) in &static_ranges {
+                    if let Some(model) = self.model_cache.get(name).and_then(Option::as_ref) {
+                        gfx.renderer
+                            .draw_studio_shadow_instances(&mut pass, layer, model, *first, *count);
+                    }
+                }
             }
         }
 
@@ -899,6 +943,23 @@ impl App {
                             &world.frame_bind_group,
                             model,
                             *slot,
+                        );
+                        self.stats.draw_calls += drawn.draw_calls;
+                        self.stats.triangles += drawn.triangles;
+                    }
+                }
+                pass.pop_debug_group();
+
+                // Static props, one instanced draw per model.
+                pass.push_debug_group("static props");
+                for (name, first, count) in &static_ranges {
+                    if let Some(model) = self.model_cache.get(name).and_then(Option::as_ref) {
+                        let drawn = gfx.renderer.draw_studio_instances(
+                            &mut pass,
+                            &world.frame_bind_group,
+                            model,
+                            *first,
+                            *count,
                         );
                         self.stats.draw_calls += drawn.draw_calls;
                         self.stats.triangles += drawn.triangles;

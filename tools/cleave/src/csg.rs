@@ -83,6 +83,11 @@ pub fn chop_brushes(brushes: &mut [BrushWork], planes: &PlaneSet) -> usize {
 
 /// Whether brush `cutter` may remove parts of `victim`'s faces.
 fn should_cut(victim: &BrushWork, cutter: &BrushWork) -> bool {
+    // A mesh's collision slab is not geometry. A mesh floor laid over a
+    // brush floor must not erase the brush's face underneath.
+    if cutter.from_mesh {
+        return false;
+    }
     // Only within one entity. A door's brushes must not erase the world's
     // faces -- the door moves away and would leave a hole.
     if victim.entity != cutter.entity {

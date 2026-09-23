@@ -11,6 +11,7 @@ mod cli;
 pub mod csg;
 pub mod emit;
 pub mod material;
+pub mod mesh;
 pub mod pipeline;
 pub mod portal;
 pub mod sections;

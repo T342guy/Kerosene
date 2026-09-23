@@ -649,6 +649,74 @@ pub fn pick_solid_2d(document: &Document, point: Vec3, viewport: &Viewport) -> O
     best.map(|(_, id)| id)
 }
 
+/// A solid or a mesh, as a pick found it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Picked {
+    Solid(u32),
+    Mesh(u32),
+}
+
+/// The solid or mesh under a point in a 2D view: whichever is smallest
+/// there, so a mesh sitting on a floor brush can be clicked.
+pub fn pick_2d(document: &Document, point: Vec3, viewport: &Viewport) -> Option<Picked> {
+    let (h, v, _) = viewport.kind.axes();
+    let covers = |bounds: Aabb| {
+        (bounds.min[h]..=bounds.max[h]).contains(&point[h])
+            && (bounds.min[v]..=bounds.max[v]).contains(&point[v])
+    };
+    let area = |bounds: Aabb| (bounds.size()[h] * bounds.size()[v]).max(1.0);
+
+    let mut best: Option<(f32, Picked)> = None;
+    let mut consider = |bounds: Aabb, picked: Picked| {
+        if covers(bounds) && best.is_none_or(|(a, _)| area(bounds) < a) {
+            best = Some((area(bounds), picked));
+        }
+    };
+    for (_, solid) in document.visible_solids() {
+        consider(solid.bounds(), Picked::Solid(solid.id));
+    }
+    for mesh in document.visible_meshes() {
+        consider(mesh.bounds(), Picked::Mesh(mesh.id));
+    }
+    best.map(|(_, p)| p)
+}
+
+/// The solid or mesh a 3D pick ray reaches first. Solids by their bounds, as
+/// [`pick_solid_3d`]; meshes by their actual faces, because a mesh is rarely
+/// the box it sits in -- a ramp's bounds are mostly air.
+pub fn pick_3d(document: &Document, origin: Vec3, direction: Vec3) -> Option<Picked> {
+    let mut best: Option<(f32, Picked)> = None;
+    for (_, solid) in document.visible_solids() {
+        if let Some(d) = ray_box(origin, direction, solid.bounds())
+            && best.is_none_or(|(b, _)| d < b)
+        {
+            best = Some((d, Picked::Solid(solid.id)));
+        }
+    }
+    for mesh in document.visible_meshes() {
+        for face in &mesh.faces {
+            for piece in mesh.face_pieces(face) {
+                let normal = kerosene_map::polygon_normal(&piece);
+                let facing = normal.dot(direction);
+                if facing >= -1e-6 {
+                    continue;
+                }
+                let d = -(normal.dot(origin) - normal.dot(piece[0])) / facing;
+                if d < 0.0 {
+                    continue;
+                }
+                let hit = origin + direction * d;
+                if winding_contains(&Winding::new(piece.clone()), normal, hit)
+                    && best.is_none_or(|(b, _)| d < b)
+                {
+                    best = Some((d, Picked::Mesh(mesh.id)));
+                }
+            }
+        }
+    }
+    best.map(|(_, p)| p)
+}
+
 /// The entity nearest a point in a 2D view.
 pub fn pick_entity_2d(document: &Document, point: Vec3, viewport: &Viewport) -> Option<u32> {
     let (h, v, _) = viewport.kind.axes();
@@ -1453,5 +1521,79 @@ mod face_picking_tests {
             picked.insert(hit.1);
         }
         assert_eq!(picked.len(), 6, "some faces are unreachable: {picked:?}");
+    }
+
+    fn mesh_setup() -> (Document, Viewport) {
+        let mut document = Document::new();
+        document.grid.size = 16.0;
+        let viewport = Viewport {
+            size: (800.0, 600.0),
+            zoom: 1.0,
+            ..Viewport::new(crate::viewport::ViewportKind::Top)
+        };
+        (document, viewport)
+    }
+
+    fn ramp(document: &mut Document) -> u32 {
+        // Rising from z = 0 at x = 0 to z = 64 at x = 128, 64 wide.
+        let id = document.map.next_id();
+        let mut mesh = kerosene_map::Mesh::new(id);
+        mesh.vertices = vec![
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 64.0, 0.0),
+            Vec3::new(128.0, 64.0, 64.0),
+            Vec3::new(128.0, 0.0, 64.0),
+        ];
+        let points = mesh.vertices.clone();
+        let face = document.map.next_id();
+        mesh.faces.push(kerosene_map::MeshFace::new(
+            face,
+            vec![0, 1, 2, 3],
+            &points,
+            "dev/grid",
+        ));
+        document.map.world.meshes.push(mesh);
+        id
+    }
+
+    #[test]
+    fn a_click_on_a_mesh_in_2d_picks_it_over_the_floor_under_it() {
+        let (mut document, viewport) = mesh_setup();
+        document.create_block(
+            Vec3::new(-512.0, -512.0, -16.0),
+            Vec3::new(512.0, 512.0, 0.0),
+        );
+        let mesh = ramp(&mut document);
+        assert_eq!(
+            pick_2d(&document, Vec3::new(64.0, 32.0, 0.0), &viewport),
+            Some(Picked::Mesh(mesh)),
+            "the smaller thing under the cursor"
+        );
+        assert!(matches!(
+            pick_2d(&document, Vec3::new(300.0, 300.0, 0.0), &viewport),
+            Some(Picked::Solid(_))
+        ));
+    }
+
+    #[test]
+    fn a_3d_ray_picks_a_mesh_by_its_surface_not_its_bounds() {
+        let (mut document, _) = mesh_setup();
+        let mesh = ramp(&mut document);
+        // Straight down onto the slope.
+        assert_eq!(
+            pick_3d(&document, Vec3::new(64.0, 32.0, 200.0), -Vec3::Z),
+            Some(Picked::Mesh(mesh))
+        );
+        // Through the air under the slope, across it: well inside the
+        // bounding box, which is what a box pick would have hit, but it never
+        // meets the surface.
+        let under = Vec3::new(100.0, 200.0, 5.0);
+        assert!(ray_box(under, -Vec3::Y, document.map.world.meshes[0].bounds()).is_some());
+        assert_eq!(pick_3d(&document, under, -Vec3::Y), None);
+        // And from beneath, it is the back of the face: not pickable.
+        assert_eq!(
+            pick_3d(&document, Vec3::new(64.0, 32.0, -10.0), Vec3::Z),
+            None
+        );
     }
 }

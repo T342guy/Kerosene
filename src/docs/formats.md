@@ -137,6 +137,45 @@ none of them is byte-for-byte the map it was before they existed, and a
 reader that predates them skips them. Visgroup and group ids share the
 map's one id space with entities, solids and sides.
 
+**Meshes.** Beside its solids, the world may hold polygon meshes -- Source 2
+Hammer's kind of geometry: points and the faces between them, any shape, open
+or closed, concave if it likes.
+
+```
+mesh
+{
+    "id" "40"
+    vertices
+    {
+        "v" "0 0 0"
+        "v" "0 64 0"
+        "v" "64 64 16"
+        "v" "64 0 16"
+    }
+    face
+    {
+        "id" "41"
+        "v" "0 1 2 3"
+        "material" "dev/grid"
+        "uaxis" "[1 0 0 0] 0.25"
+        "vaxis" "[0 -1 0 0] 0.25"
+        "lightmapscale" "16"
+    }
+    editor { "visgroupid" "41" }
+}
+```
+
+One vertex a line, so moving one is a one-line diff. A face lists vertex
+indices **clockwise seen from the front**, the same winding a brush face's
+plane points and a compiled face use. Axes and lightmap scale default the way
+a brush face's do. A face that is not flat and convex is cut into triangles
+when it compiles. Meshes are **detail**: Cleave draws, lights and collides
+with them -- each face backed by an invisible 8-unit collision slab, so every
+trace in the engine sees it -- but never lets them split the tree, seal the
+map or block visibility. Block a space out in brushes; dress it in meshes.
+Only the world's meshes compile for now; a brush entity carrying one is
+warned about and left out.
+
 ## `.kerobsp` — compiled maps
 
 A header (`KROS`, a version, a 24-slot lump directory) followed by flat arrays

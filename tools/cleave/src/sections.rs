@@ -101,7 +101,10 @@ impl SectionTable {
 impl SectionTable {
     /// Drop sections nothing ended up in -- a streamed visgroup with no
     /// brushes, or one the cordon cut away -- renumbering the rest.
-    pub fn compact(&mut self, brushes: &mut [crate::brush::BrushWork]) {
+    ///
+    /// Returns the renumbering, old index to new, for anything else that was
+    /// placed in the old numbering. A section that was dropped maps to 0.
+    pub fn compact(&mut self, brushes: &mut [crate::brush::BrushWork]) -> Vec<u16> {
         let mut used = vec![false; self.sections.len()];
         used[0] = true;
         for b in brushes.iter() {
@@ -110,7 +113,7 @@ impl SectionTable {
             }
         }
         if used.iter().all(|&u| u) {
-            return;
+            return (0..self.sections.len() as u16).collect();
         }
         let mut remap = vec![0u16; self.sections.len()];
         let mut kept = Vec::new();
@@ -126,6 +129,7 @@ impl SectionTable {
         }
         self.by_visgroup.clear();
         self.by_name.clear();
+        remap
     }
 }
 

@@ -290,18 +290,19 @@ impl Cordon {
     }
 }
 
-/// A solid or an entity, by id: what every editor feature that treats the
-/// two alike addresses.
+/// A solid, a mesh or an entity, by id: what every editor feature that
+/// treats them alike addresses.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum ObjectId {
     Solid(u32),
     Entity(u32),
+    Mesh(u32),
 }
 
 impl ObjectId {
     pub fn id(self) -> u32 {
         match self {
-            ObjectId::Solid(id) | ObjectId::Entity(id) => id,
+            ObjectId::Solid(id) | ObjectId::Entity(id) | ObjectId::Mesh(id) => id,
         }
     }
 }

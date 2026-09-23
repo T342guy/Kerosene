@@ -3,6 +3,7 @@
 
 use crate::MapError;
 use crate::editor::EditorData;
+use crate::mesh::Mesh;
 use crate::solid::{Solid, SolidError};
 use crate::{plain_properties, read_id, vec3_to_kv};
 use kerosene_kv::{KeyValues, Vec3Value};
@@ -136,6 +137,9 @@ pub struct Entity {
     /// Brushes belonging to this entity. Empty for point entities; non-empty
     /// makes it a brush entity like `func_door`.
     pub solids: Vec<Solid>,
+    /// Polygon meshes belonging to this entity: detail geometry, compiled
+    /// beside the brushes but never into the tree. See [`crate::mesh`].
+    pub meshes: Vec<Mesh>,
     pub connections: Vec<Connection>,
     /// What the editor keeps about the entity and the game never sees:
     /// visgroups, group, colour, comments. Not in `properties`, so it never
@@ -149,6 +153,7 @@ impl Entity {
             id,
             properties: vec![("classname".to_string(), classname.to_string())],
             solids: Vec::new(),
+            meshes: Vec::new(),
             connections: Vec::new(),
             editor: EditorData::default(),
         }
@@ -285,6 +290,8 @@ impl Entity {
             solids.push(solid);
         }
 
+        let meshes = kv.blocks("mesh").map(Mesh::from_kv).collect();
+
         let mut connections = Vec::new();
         if let Some(conn) = kv.block("connections") {
             for (output, value) in conn.pairs() {
@@ -301,6 +308,7 @@ impl Entity {
             id,
             properties,
             solids,
+            meshes,
             connections,
             editor: kv
                 .block("editor")
@@ -317,6 +325,9 @@ impl Entity {
         }
         for s in &self.solids {
             kv.push_block(s.to_kv());
+        }
+        for m in &self.meshes {
+            kv.push_block(m.to_kv());
         }
         if !self.connections.is_empty() {
             let mut conn = KeyValues::new("connections");

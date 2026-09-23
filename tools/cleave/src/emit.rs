@@ -253,10 +253,12 @@ pub struct BrushModel {
 }
 
 /// Assemble the final `.kerobsp`.
+#[allow(clippy::too_many_arguments)]
 pub fn emit(
     tree: &Tree,
     planes: &PlaneSet,
     world_brushes: &[BrushWork],
+    mesh_faces: &[crate::mesh::MeshFaceWork],
     brush_models: &[BrushModel],
     entities_text: String,
     revision: u32,
@@ -304,6 +306,24 @@ pub fn emit(
                 );
             }
         }
+    }
+
+    // Mesh faces go down the same way. They skipped CSG -- a mesh is detail
+    // and does not bury, or get buried by, anything -- so each piece is filed
+    // whole and the tree cuts it where it straddles a node.
+    for mf in mesh_faces {
+        let texinfo = tex.intern(&mf.side);
+        file_face(
+            tree,
+            planes,
+            tree.root,
+            mf.winding.clone(),
+            mf.plane,
+            planes.get(mf.plane),
+            texinfo,
+            mf.section,
+            &mut leaf_faces,
+        );
     }
 
     // ---- 2. walk the tree, assigning output indices ----

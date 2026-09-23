@@ -282,6 +282,14 @@ walls of a given thickness, mitred at the corners so no two overlap; a
 negative thickness builds the walls outward around it. A room is a hollowed
 box. All three keep a brush's keys and visgroups on every piece.
 
+**Meshes.** `Tools → Convert to mesh` turns the selected world brushes into
+polygon meshes: same shape, same materials and alignment, drawn in their own
+colour. A mesh is detail -- drawn, lit and collided with, but it no longer
+seals the map or blocks visibility, so converting a wall that seals the map
+makes it leak and the compile says so. Meshes select, move, resize,
+duplicate, delete, hide and take a material like brushes; editing their
+vertices is not in Chisel yet. See `.keromap` in `formats.md`.
+
 **Transform.** `Ctrl+M` rotates, scales or moves the selection by numbers,
 about its centre or the world origin; `R` is a quarter turn about the axis
 the active pane looks along; `Ctrl+L` and `Ctrl+I` flip it; `Ctrl+B` moves

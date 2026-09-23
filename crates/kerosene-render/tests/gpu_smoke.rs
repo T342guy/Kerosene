@@ -454,3 +454,164 @@ fn a_dynamic_light_lights_the_floor_and_a_roof_shadows_it() {
         at(&unshadowed, beside)
     );
 }
+
+/// A 32-unit cube `.keromdl`, wound counter-clockwise from outside, in a
+/// material that will not load (so it draws as the checkerboard).
+fn cube_model() -> kerosene_asset::Model {
+    use kerosene_asset::{Mesh, Model, Vertex};
+    let mut m = Model::new();
+    let mat = m.intern("missing/on/purpose");
+    let h = 16.0f32;
+    for c in [
+        [-h, -h, -h],
+        [h, -h, -h],
+        [h, h, -h],
+        [-h, h, -h],
+        [-h, -h, h],
+        [h, -h, h],
+        [h, h, h],
+        [-h, h, h],
+    ] {
+        let pos = Vec3::from_array(c);
+        m.vertices.push(Vertex::rigid(
+            pos,
+            (pos / h).normalize_or_zero(),
+            [0.0, 0.0],
+        ));
+    }
+    for t in [
+        [0, 2, 1],
+        [0, 3, 2],
+        [4, 5, 6],
+        [4, 6, 7],
+        [0, 1, 5],
+        [0, 5, 4],
+        [2, 3, 7],
+        [2, 7, 6],
+        [0, 4, 7],
+        [0, 7, 3],
+        [1, 2, 6],
+        [1, 6, 5],
+    ] {
+        m.indices.extend(t.iter().map(|&i| i as u32));
+    }
+    m.meshes.push(Mesh {
+        first_index: 0,
+        index_count: 36,
+        material_offset: mat,
+        flags: 0,
+    });
+    m.recompute_bounds();
+    m
+}
+
+#[test]
+fn copies_of_a_model_draw_in_one_instanced_call() {
+    use kerosene_math::Pose;
+    use kerosene_render::gpu::{ModelInstance, load_model};
+
+    let Some((device, queue)) = device() else {
+        eprintln!("no GPU adapter; skipping");
+        return;
+    };
+    let dir = std::env::temp_dir().join(format!("kerosene-instances-{}", std::process::id()));
+    std::fs::create_dir_all(dir.join("models/test")).unwrap();
+    std::fs::write(
+        dir.join("models/test/cube.keromdl"),
+        cube_model().to_bytes(),
+    )
+    .unwrap();
+    let mut vfs = kerosene_vfs::Vfs::new();
+    vfs.add_directory(&dir, "test");
+
+    let mut renderer = Renderer::new(&device, OUTPUT_FORMAT);
+    // A world only for its frame bind group: nothing of it is drawn.
+    let bsp = lit_quad(0, "missing/on/purpose");
+    let atlas = LightmapAtlas::build(&bsp, 1.0);
+    let mesh = WorldMesh::build(&bsp, &atlas);
+    let resources = MapResources::upload(&device, &queue, &renderer, &mesh, &atlas, &vfs);
+    let probes = GpuProbes::upload(&device, &queue, None);
+    let frame = renderer.create_frame_bind_group(&device, &resources.lightmap_view, &probes);
+    let model = load_model(&device, &queue, &renderer, &vfs, "test/cube").expect("the cube loads");
+
+    // Two cubes either side of the view's centre, a gap between them.
+    renderer.update_instances(
+        &device,
+        &queue,
+        &[
+            ModelInstance::new(
+                Pose::new(Vec3::new(0.0, 30.0, 40.0), Angles::ZERO),
+                u32::MAX,
+            ),
+            ModelInstance::new(
+                Pose::new(Vec3::new(0.0, -30.0, 40.0), Angles::ZERO),
+                u32::MAX,
+            ),
+        ],
+    );
+    renderer.ensure_targets(&device, SIZE, SIZE);
+    let camera = Camera {
+        position: Vec3::new(0.0, 0.0, 120.0),
+        angles: Angles::new(89.0, 0.0, 0.0),
+        aspect: 1.0,
+        ..Default::default()
+    };
+    renderer.update_camera(&queue, &CameraUniform::from_camera(&camera, 0.0));
+    renderer.update_models(&queue, &[]);
+    renderer.update_lights(&queue, &LightFrame::build(&[], &camera, SIZE, SIZE));
+    renderer.update_tonemap(&queue, 1.0, ToneMapOperator::Aces);
+
+    let output = device.create_texture(&wgpu::TextureDescriptor {
+        label: Some("output"),
+        size: wgpu::Extent3d {
+            width: SIZE,
+            height: SIZE,
+            depth_or_array_layers: 1,
+        },
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format: OUTPUT_FORMAT,
+        usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+        view_formats: &[],
+    });
+    let readback = device.create_buffer(&wgpu::BufferDescriptor {
+        label: Some("readback"),
+        size: (SIZE * SIZE * 4) as u64,
+        usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+        mapped_at_creation: false,
+    });
+    let mut encoder = device.create_command_encoder(&Default::default());
+    let drawn = {
+        let mut pass = renderer.begin_scene_pass(&mut encoder, wgpu::Color::BLACK);
+        renderer.draw_studio_instances(&mut pass, &frame, &model, 0, 2)
+    };
+    renderer.tonemap(&mut encoder, &output.create_view(&Default::default()));
+    encoder.copy_texture_to_buffer(
+        output.as_image_copy(),
+        wgpu::TexelCopyBufferInfo {
+            buffer: &readback,
+            layout: wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(SIZE * 4),
+                rows_per_image: Some(SIZE),
+            },
+        },
+        output.size(),
+    );
+    queue.submit([encoder.finish()]);
+    let slice = readback.slice(..);
+    slice.map_async(wgpu::MapMode::Read, |r| r.expect("readback maps"));
+    device.poll(wgpu::PollType::Wait).expect("device finishes");
+    let image = slice.get_mapped_range().to_vec();
+    let _ = std::fs::remove_dir_all(&dir);
+
+    assert_eq!(drawn.draw_calls, 1, "one mesh, one draw, two copies");
+    assert_eq!(drawn.triangles, 24);
+    // Looking straight down with yaw 0, world +Y is screen left.
+    let left = brightness(pixel(&image, 12, SIZE / 2));
+    let right = brightness(pixel(&image, 52, SIZE / 2));
+    let gap = brightness(pixel(&image, SIZE / 2, SIZE / 2));
+    assert!(left > 0 && right > 0, "both copies drawn: {left} {right}");
+    assert_eq!(gap, 0, "and nothing between them");
+}

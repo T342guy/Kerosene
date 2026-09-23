@@ -23,3 +23,16 @@ struct Model {
 fn vs_shadow(@location(0) position: vec3<f32>) -> @builtin(position) vec4<f32> {
     return shadow_view.view_proj * (model.transform * vec4<f32>(position, 1.0));
 }
+
+// Static props, instanced: the transform comes from the instance buffer.
+@vertex
+fn vs_shadow_instanced(
+    @location(0) position: vec3<f32>,
+    @location(3) transform_0: vec4<f32>,
+    @location(4) transform_1: vec4<f32>,
+    @location(5) transform_2: vec4<f32>,
+    @location(6) transform_3: vec4<f32>,
+) -> @builtin(position) vec4<f32> {
+    let transform = mat4x4<f32>(transform_0, transform_1, transform_2, transform_3);
+    return shadow_view.view_proj * (transform * vec4<f32>(position, 1.0));
+}

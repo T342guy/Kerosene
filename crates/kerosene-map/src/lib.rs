@@ -37,6 +37,7 @@
 
 pub mod editor;
 mod entity;
+pub mod mesh;
 mod ops;
 mod solid;
 pub mod texture;
@@ -44,6 +45,7 @@ mod walk;
 
 pub use editor::{Cordon, EditorData, Group, ObjectId, VisGroup};
 pub use entity::{Connection, Entity, ParseConnectionError};
+pub use mesh::{Mesh, MeshError, MeshFace, polygon_normal};
 pub use ops::bounds_of;
 pub use solid::{Side, Solid, SolidError};
 pub use texture::{TextureAxis, default_axes_for_plane, rotate_axes};
@@ -75,6 +77,12 @@ pub enum MapError {
         id: u32,
         #[source]
         source: SolidError,
+    },
+    #[error("mesh {id}: {source}")]
+    Mesh {
+        id: u32,
+        #[source]
+        source: MeshError,
     },
     #[error("entity {id} ({classname}): {detail}")]
     Entity {
@@ -146,6 +154,23 @@ impl Map {
     pub fn all_solids(&self) -> impl Iterator<Item = (&Entity, &Solid)> {
         self.all_entities()
             .flat_map(|e| e.solids.iter().map(move |s| (e, s)))
+    }
+
+    /// Every mesh in the map, with the entity that owns it.
+    pub fn all_meshes(&self) -> impl Iterator<Item = (&Entity, &Mesh)> {
+        self.all_entities()
+            .flat_map(|e| e.meshes.iter().map(move |m| (e, m)))
+    }
+
+    pub fn find_mesh(&self, id: u32) -> Option<&Mesh> {
+        self.all_meshes().map(|(_, m)| m).find(|m| m.id == id)
+    }
+
+    pub fn find_mesh_mut(&mut self, id: u32) -> Option<&mut Mesh> {
+        std::iter::once(&mut self.world)
+            .chain(self.entities.iter_mut())
+            .flat_map(|e| e.meshes.iter_mut())
+            .find(|m| m.id == id)
     }
 
     pub fn solid_count(&self) -> usize {
@@ -239,6 +264,12 @@ impl Map {
                     fill(&mut side.id);
                 }
             }
+            for m in &mut e.meshes {
+                fill(&mut m.id);
+                for face in &mut m.faces {
+                    fill(&mut face.id);
+                }
+            }
         }
         for g in &mut self.groups {
             fill(&mut g.id);
@@ -273,6 +304,10 @@ impl Map {
             for s in &e.solids {
                 ids.push(s.id);
                 ids.extend(s.sides.iter().map(|side| side.id));
+            }
+            for m in &e.meshes {
+                ids.push(m.id);
+                ids.extend(m.faces.iter().map(|face| face.id));
             }
         }
         ids.extend(self.groups.iter().map(|g| g.id));
@@ -320,6 +355,14 @@ impl Map {
                 });
             }
         }
+        for (_, mesh) in self.all_meshes() {
+            if let Err(source) = mesh.validate() {
+                problems.push(MapError::Mesh {
+                    id: mesh.id,
+                    source,
+                });
+            }
+        }
         for e in self.entities.iter() {
             if e.classname().is_empty() {
                 problems.push(MapError::Entity {
@@ -328,7 +371,7 @@ impl Map {
                     detail: "entity has no classname".into(),
                 });
             }
-            if e.solids.is_empty() && !e.has("origin") {
+            if e.solids.is_empty() && e.meshes.is_empty() && !e.has("origin") {
                 problems.push(MapError::Entity {
                     id: e.id,
                     classname: e.classname().to_string(),
@@ -423,9 +466,11 @@ impl Map {
             .iter()
             .map(|s| ObjectId::Solid(s.id))
             .collect();
+        ids.extend(self.world.meshes.iter().map(|m| ObjectId::Mesh(m.id)));
         for e in &self.entities {
             ids.push(ObjectId::Entity(e.id));
             ids.extend(e.solids.iter().map(|s| ObjectId::Solid(s.id)));
+            ids.extend(e.meshes.iter().map(|m| ObjectId::Mesh(m.id)));
         }
         ids
     }
@@ -433,6 +478,7 @@ impl Map {
     pub fn editor_data(&self, id: ObjectId) -> Option<&EditorData> {
         match id {
             ObjectId::Solid(id) => self.find_solid(id).map(|s| &s.editor),
+            ObjectId::Mesh(id) => self.find_mesh(id).map(|m| &m.editor),
             ObjectId::Entity(id) => self.entities.iter().find(|e| e.id == id).map(|e| &e.editor),
         }
     }
@@ -440,6 +486,7 @@ impl Map {
     pub fn editor_data_mut(&mut self, id: ObjectId) -> Option<&mut EditorData> {
         match id {
             ObjectId::Solid(id) => self.find_solid_mut(id).map(|s| &mut s.editor),
+            ObjectId::Mesh(id) => self.find_mesh_mut(id).map(|m| &mut m.editor),
             ObjectId::Entity(id) => self
                 .entities
                 .iter_mut()
@@ -575,6 +622,39 @@ pub(crate) fn vec3_to_kv(v: Vec3) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_world_mesh_survives_the_file_and_shares_the_id_space() {
+        let text = r#"
+world
+{
+    "id" "1"
+    "classname" "worldspawn"
+    mesh
+    {
+        "id" "2"
+        vertices { "v" "0 0 0" "v" "0 64 0" "v" "64 64 0" "v" "64 0 0" }
+        face { "id" "3" "v" "0 1 2 3" "material" "dev/floor" }
+    }
+}
+"#;
+        let map = Map::parse(text).unwrap();
+        assert_eq!(map.world.meshes.len(), 1);
+        assert!(map.validate().is_empty());
+        let back = Map::parse(&map.to_text()).unwrap();
+        assert_eq!(back.world.meshes, map.world.meshes);
+        assert_eq!(back.find_mesh(2).unwrap().faces[0].material, "dev/floor");
+
+        // A brush reusing the mesh's id is the corruption ids exist to catch.
+        let clash = text.replace(
+            "    mesh",
+            "    solid { \"id\" \"2\" side { \"id\" \"9\" \"plane\" \"(0 0 0) (0 1 0) (1 1 0)\" } }\n    mesh",
+        );
+        assert!(matches!(
+            Map::parse(&clash),
+            Err(MapError::DuplicateId { id: 2, .. })
+        ));
+    }
 
     const SAMPLE: &str = r#"
 versioninfo { "editorversion" "100" "formatversion" "1" }

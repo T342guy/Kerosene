@@ -117,6 +117,24 @@ under `ON_EPSILON`), and write the lumps. The `.keroprt` is written by
 same final polygons — so a face CSG cut back to a sliver contributes only the
 sliver.
 
+### Meshes
+
+`tools/cleave/src/mesh.rs` compiles the world's meshes beside the brushes. Each
+face is cut into flat convex pieces (`Mesh::face_pieces`: the face itself, or
+ear-clipped triangles), and each piece becomes two things:
+
+- a **drawn face**, filed down the tree by `emit` exactly as a detail
+  brush's fragment is -- lit by Radiance, drawn by the renderer, and in the
+  walkmap when it is ground (`walk::collect_with_meshes`);
+- a **collision slab**: an invisible convex detail brush, the piece for a
+  front, `SLAB_THICKNESS` (8) behind it, a side through each edge, every
+  side wearing the face's material so a trace reports it.
+
+Slabs join the world brushes before sections are compacted (so a streamed
+mesh keeps its section) but are marked `from_mesh`, which `csg::should_cut`
+reads: a slab never erases another brush's face. Neither kind ever enters
+`Tree::build`, so a mesh cannot change the tree, the portals or the PVS.
+
 ### Tool materials
 
 `tools/cleave/src/material.rs` maps a material name to compiler intent:

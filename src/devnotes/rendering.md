@@ -178,6 +178,19 @@ maps (`MaterialUniform`); a dielectric with neither a roughness map nor a
 factor below one takes no specular path at all, so an albedo-only material
 renders exactly as its lightmap says.
 
+## Static props
+
+`prop_static` is drawn and collided with and never moves. The host groups
+them by model each frame and uploads one `ModelInstance` per copy (transform
+and probe) into a growable instance buffer; `draw_studio_instances` then
+draws every copy of a model in one call per mesh, through the
+`vs_model_instanced` entry point, which reads the transform from the
+instance buffer instead of the per-draw uniform. Shadows use the matching
+`vs_shadow_instanced`. A static prop's probe is chosen once and cached.
+Physics gives each one a static Box3D box from its model bounds, and that
+box joins the ones the player's hull sweeps against, so it blocks the player
+and thrown props without being part of the compiled world.
+
 ## Dynamic lights and shadows
 
 Everything baked stays baked; a `light_dynamic` (and the flashlight) is drawn

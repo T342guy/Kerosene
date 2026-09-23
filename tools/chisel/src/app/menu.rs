@@ -253,6 +253,16 @@ impl ChiselApp {
             self.show_hollow = true;
             ui.close();
         }
+        if menu_item_enabled(ui, has_selection, "Convert to mesh", None)
+            .on_hover_text(
+                "Turn the selected world brushes into polygon meshes: detail geometry that is \
+                 drawn and collided with, but no longer seals the map or blocks visibility.",
+            )
+            .clicked()
+        {
+            self.convert_to_mesh();
+            ui.close();
+        }
         ui.separator();
         if menu_item_enabled(ui, has_selection, "Transform...", Some("ctrl-M")).clicked() {
             self.show_transform = true;

@@ -30,22 +30,28 @@ pub const MAX_UNDO: usize = 128;
 pub struct Selection {
     pub solids: HashSet<u32>,
     pub entities: HashSet<u32>,
+    /// World meshes, by mesh id.
+    pub meshes: HashSet<u32>,
     /// Individual faces, for the face editor: `(solid id, side id)`.
     pub faces: HashSet<(u32, u32)>,
 }
 
 impl Selection {
     pub fn is_empty(&self) -> bool {
-        self.solids.is_empty() && self.entities.is_empty() && self.faces.is_empty()
+        self.solids.is_empty()
+            && self.entities.is_empty()
+            && self.meshes.is_empty()
+            && self.faces.is_empty()
     }
 
     pub fn len(&self) -> usize {
-        self.solids.len() + self.entities.len() + self.faces.len()
+        self.solids.len() + self.entities.len() + self.meshes.len() + self.faces.len()
     }
 
     pub fn clear(&mut self) {
         self.solids.clear();
         self.entities.clear();
+        self.meshes.clear();
         self.faces.clear();
     }
 }
@@ -319,7 +325,9 @@ impl Document {
             let solids = doc.selection.solids.clone();
             let entities = doc.selection.entities.clone();
 
+            let meshes = doc.selection.meshes.clone();
             doc.map.world.solids.retain(|s| !solids.contains(&s.id));
+            doc.map.world.meshes.retain(|m| !meshes.contains(&m.id));
             for entity in &mut doc.map.entities {
                 entity.solids.retain(|s| !solids.contains(&s.id));
             }
@@ -328,7 +336,7 @@ impl Document {
                 !entities.contains(&e.id) && !(e.solids.is_empty() && e.get("origin").is_none())
             });
 
-            let count = solids.len() + entities.len();
+            let count = solids.len() + entities.len() + meshes.len();
             doc.selection.clear();
             count
         })
@@ -343,6 +351,8 @@ impl Document {
             .map(|(_, s)| s.id)
             .collect();
         self.selection.solids.extend(solids);
+        let meshes: Vec<u32> = self.visible_meshes().map(|m| m.id).collect();
+        self.selection.meshes.extend(meshes);
         let entities: Vec<u32> = self
             .map
             .entities
@@ -383,6 +393,25 @@ impl Document {
                 copy.translate(delta);
                 let id = doc.map.add_world_solid(copy);
                 new_selection.solids.insert(id);
+            }
+
+            let meshes = doc.selection.meshes.clone();
+            let mesh_copies: Vec<kerosene_map::Mesh> = doc
+                .map
+                .world
+                .meshes
+                .iter()
+                .filter(|m| meshes.contains(&m.id))
+                .cloned()
+                .collect();
+            for mut copy in mesh_copies {
+                copy.translate(delta);
+                copy.id = doc.map.next_id();
+                for face in &mut copy.faces {
+                    face.id = doc.map.next_id();
+                }
+                new_selection.meshes.insert(copy.id);
+                doc.map.world.meshes.push(copy);
             }
 
             // Whole brush entities, and single brushes picked out of one.
@@ -455,6 +484,12 @@ impl Document {
                     solid.translate(delta);
                 }
             }
+            let meshes = doc.selection.meshes.clone();
+            for mesh in doc.map.world.meshes.iter_mut() {
+                if meshes.contains(&mesh.id) {
+                    mesh.translate(delta);
+                }
+            }
             for entity in doc.map.entities.iter_mut() {
                 let selected = entities.contains(&entity.id);
                 for solid in entity.solids.iter_mut() {
@@ -501,6 +536,16 @@ impl Document {
                     solid.scale(anchor, factor);
                 }
             }
+            // A mesh scales by its vertices; its texture stays where it is in
+            // world space, as a brush's does.
+            let meshes = doc.selection.meshes.clone();
+            for mesh in doc.map.world.meshes.iter_mut() {
+                if meshes.contains(&mesh.id) {
+                    for v in &mut mesh.vertices {
+                        *v = anchor + (*v - anchor) * factor;
+                    }
+                }
+            }
             for entity in doc.map.entities.iter_mut() {
                 let selected = entities.contains(&entity.id);
                 for solid in entity.solids.iter_mut() {
@@ -528,6 +573,15 @@ impl Document {
             let solids = doc.selected_solid_ids();
             let mut changed = 0;
 
+            let meshes = doc.selection.meshes.clone();
+            for mesh in doc.map.world.meshes.iter_mut() {
+                if meshes.contains(&mesh.id) {
+                    for face in &mut mesh.faces {
+                        face.material = material.clone();
+                    }
+                    changed += mesh.faces.len();
+                }
+            }
             for solid in all_solids_mut(&mut doc.map) {
                 if solids.contains(&solid.id) {
                     solid.set_material(&material);
@@ -892,6 +946,11 @@ impl Document {
                 bounds = bounds.union(&solid.bounds());
             }
         }
+        for mesh in &self.map.world.meshes {
+            if self.selection.meshes.contains(&mesh.id) {
+                bounds = bounds.union(&mesh.bounds());
+            }
+        }
         for entity in self.map.all_entities() {
             if self.selection.entities.contains(&entity.id) && entity.solids.is_empty() {
                 // Point entities have no geometry, so give them a small box to
@@ -910,7 +969,9 @@ impl Document {
     /// stretched -- so neither shows resize grips. The move still works for
     /// either; only the grips are gated on this.
     pub fn resizable_bounds(&self) -> Option<Aabb> {
-        if self.selection.solids.is_empty() || !self.selection.entities.is_empty() {
+        if (self.selection.solids.is_empty() && self.selection.meshes.is_empty())
+            || !self.selection.entities.is_empty()
+        {
             return None;
         }
         let mut bounds = Aabb::EMPTY;
@@ -919,7 +980,50 @@ impl Document {
                 bounds = bounds.union(&solid.bounds());
             }
         }
+        for mesh in &self.map.world.meshes {
+            if self.selection.meshes.contains(&mesh.id) {
+                bounds = bounds.union(&mesh.bounds());
+            }
+        }
         (!bounds.is_empty()).then_some(bounds)
+    }
+
+    /// Turn the selected world brushes into meshes, and select the meshes.
+    ///
+    /// Source 2's workflow: block a space out in brushes, where the grid and
+    /// the CSG keep it honest, then convert the pieces that want sculpting.
+    /// Each face keeps its material, alignment and lightmap scale, so the
+    /// converted piece looks exactly as it did. What changes is how it
+    /// compiles: as detail, drawn and collided with but no longer part of
+    /// what seals the map or decides visibility -- so converting a brush
+    /// that seals the map will make it leak, and the compile says so.
+    pub fn convert_selection_to_meshes(&mut self) -> usize {
+        let chosen: Vec<u32> = self
+            .map
+            .world
+            .solids
+            .iter()
+            .filter(|s| self.selection.solids.contains(&s.id))
+            .map(|s| s.id)
+            .collect();
+        if chosen.is_empty() {
+            return 0;
+        }
+        self.apply("convert to mesh", |doc| {
+            let mut converted = Vec::new();
+            for id in &chosen {
+                let Some(solid) = doc.map.world.solids.iter().find(|s| s.id == *id).cloned() else {
+                    continue;
+                };
+                let mesh = kerosene_map::Mesh::from_solid(&solid, || doc.map.next_id());
+                converted.push(mesh.id);
+                doc.map.world.meshes.push(mesh);
+            }
+            doc.map.world.solids.retain(|s| !chosen.contains(&s.id));
+            doc.selection.clear();
+            doc.selection.meshes.extend(converted.iter().copied());
+            converted.len()
+        })
     }
 
     pub fn find_solid(&self, id: u32) -> Option<&Solid> {

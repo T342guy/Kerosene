@@ -46,35 +46,45 @@ pub fn collect(
     planes: &PlaneSet,
     tree: &crate::tree::Tree,
 ) -> Walkmap {
+    collect_with_meshes(world_brushes, &[], planes, tree)
+}
+
+/// [`collect`], with the world's mesh faces as ground too: a mesh floor is
+/// walked on, by the player and by an NPC alike.
+pub fn collect_with_meshes(
+    world_brushes: &[BrushWork],
+    mesh_faces: &[crate::mesh::MeshFaceWork],
+    planes: &PlaneSet,
+    tree: &crate::tree::Tree,
+) -> Walkmap {
     let mut faces = Vec::new();
-    for brush in world_brushes {
-        for side in &brush.sides {
-            let normal = planes.get(side.plane).normal;
-            if !walkable(side, normal) {
-                continue;
-            }
-            for fragment in &side.fragments {
-                if fragment.points.len() < 3 {
-                    continue;
-                }
-                if fragment.area() < MIN_FACE_AREA {
-                    continue;
-                }
-                let above = fragment.center() + normal * 1.0;
-                let leaf = tree.point_leaf(above, planes);
-                if leaf == tree.outside
-                    || tree.nodes[leaf].contents & kerosene_bsp::contents::SOLID != 0
-                {
-                    continue;
-                }
-                faces.push(WalkFace {
-                    vertices: fragment.points.clone(),
-                    normal,
-                    rule: side.walkmap,
-                    bounds: Aabb::from_points(&fragment.points),
-                });
-            }
+    let pieces = world_brushes
+        .iter()
+        .flat_map(|brush| brush.sides.iter())
+        .flat_map(|side| side.fragments.iter().map(move |f| (side, f)))
+        .chain(mesh_faces.iter().map(|mf| (&mf.side, &mf.winding)));
+    for (side, fragment) in pieces {
+        let normal = planes.get(side.plane).normal;
+        if !walkable(side, normal) {
+            continue;
         }
+        if fragment.points.len() < 3 {
+            continue;
+        }
+        if fragment.area() < MIN_FACE_AREA {
+            continue;
+        }
+        let above = fragment.center() + normal * 1.0;
+        let leaf = tree.point_leaf(above, planes);
+        if leaf == tree.outside || tree.nodes[leaf].contents & kerosene_bsp::contents::SOLID != 0 {
+            continue;
+        }
+        faces.push(WalkFace {
+            vertices: fragment.points.clone(),
+            normal,
+            rule: side.walkmap,
+            bounds: Aabb::from_points(&fragment.points),
+        });
     }
     Walkmap { faces }
 }

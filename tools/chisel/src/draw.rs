@@ -31,6 +31,9 @@ pub mod colors {
     pub const AXIS: Color32 = Color32::from_rgb(78, 84, 96);
     pub const BRUSH: Color32 = Color32::from_rgb(170, 178, 190);
     pub const BRUSH_ENTITY: Color32 = Color32::from_rgb(120, 200, 160);
+    /// A mesh: detail geometry, so it wants telling apart from the brushes
+    /// that seal and structure the map.
+    pub const MESH: Color32 = Color32::from_rgb(200, 150, 230);
     pub const SELECTED: Color32 = Color32::from_rgb(255, 190, 70);
     pub const ENTITY: Color32 = Color32::from_rgb(120, 170, 255);
     pub const TOOL_PREVIEW: Color32 = Color32::from_rgb(255, 120, 200);
@@ -113,6 +116,15 @@ pub fn transformed_outline(
         }
         for (_, winding) in solid.face_windings() {
             polygons.push(winding.points.iter().map(|p| transform(*p)).collect());
+        }
+    }
+
+    for mesh in &document.map.world.meshes {
+        if !document.selection.meshes.contains(&mesh.id) {
+            continue;
+        }
+        for face in &mesh.faces {
+            polygons.push(mesh.face_points(face).into_iter().map(&transform).collect());
         }
     }
 
@@ -272,6 +284,26 @@ pub fn draw_2d(
 
         draw_solid_outline(painter, solid, viewport, rect, color, selected);
         let _ = (h, v);
+    }
+
+    // Meshes: every edge of every face, in their own colour.
+    for mesh in document.visible_meshes() {
+        if !viewport.shows(mesh.bounds()) {
+            continue;
+        }
+        let selected = document.selection.meshes.contains(&mesh.id);
+        let color = if selected {
+            colors::SELECTED
+        } else {
+            colors::MESH
+        };
+        let stroke = Stroke::new(if selected { 2.0_f32 } else { 1.0_f32 }, color);
+        for face in &mesh.faces {
+            let points: Vec<Pos2> = mesh.face_points(face).into_iter().map(to_screen).collect();
+            for i in 0..points.len() {
+                painter.line_segment([points[i], points[(i + 1) % points.len()]], stroke);
+            }
+        }
     }
 
     // Point entities, each drawn as what it is. A room full of identical
@@ -953,8 +985,16 @@ impl FaceVertex {
 /// thing. A preview that computed this differently would be a preview that
 /// lies about texture alignment, which is the one thing it is for.
 pub fn texel_for(side: &kerosene_map::Side, point: Vec3) -> (f32, f32) {
-    let u = &side.uaxis;
-    let v = &side.vaxis;
+    texel_for_axes(&side.uaxis, &side.vaxis, point)
+}
+
+/// [`texel_for`], from the axes alone -- a mesh face has them without being
+/// a brush side.
+pub fn texel_for_axes(
+    u: &kerosene_map::TextureAxis,
+    v: &kerosene_map::TextureAxis,
+    point: Vec3,
+) -> (f32, f32) {
     (
         point.dot(u.axis) / u.safe_scale() + u.offset,
         point.dot(v.axis) / v.safe_scale() + v.offset,
@@ -1113,6 +1153,46 @@ pub fn visible_faces(
         }
     }
 
+    // Meshes, flat convex piece by piece, so a notched or bent face draws
+    // the way Cleave will compile it.
+    for mesh in document.visible_meshes() {
+        let selected = document.selection.meshes.contains(&mesh.id);
+        for face in &mesh.faces {
+            for piece in mesh.face_pieces(face) {
+                let normal = kerosene_map::polygon_normal(&piece);
+                let centre = piece.iter().copied().sum::<Vec3>() / piece.len() as f32;
+                if normal.dot(eye - centre) <= 0.0 {
+                    continue;
+                }
+                let camera = to_camera_space(&piece, eye, basis);
+                let vertices: Vec<FaceVertex> = piece
+                    .iter()
+                    .zip(camera)
+                    .map(|(world, position)| FaceVertex {
+                        position,
+                        texel: texel_for_axes(&face.uaxis, &face.vaxis, *world),
+                    })
+                    .collect();
+                let polygon = clip_near(&vertices, NEAR);
+                if polygon.len() < 3 {
+                    continue;
+                }
+                let depth = polygon
+                    .iter()
+                    .fold(f32::MIN, |acc, v| acc.max(v.position.z));
+                faces.push(VisibleFace {
+                    polygon,
+                    depth,
+                    normal,
+                    material: face.material.clone(),
+                    walkmap: face.walkmap,
+                    selected,
+                    face_selected: false,
+                });
+            }
+        }
+    }
+
     faces.sort_by(|a, b| {
         b.depth
             .partial_cmp(&a.depth)
@@ -1188,7 +1268,16 @@ pub fn apply_action(document: &mut Document, viewport: &Viewport, action: ToolAc
                 document.expand_selection_groups();
                 return;
             }
-            if let Some(id) = crate::tools::pick_solid_2d(document, point, viewport) {
+            let id = match crate::tools::pick_2d(document, point, viewport) {
+                Some(crate::tools::Picked::Mesh(id)) => {
+                    toggle(&mut document.selection.meshes, id, add);
+                    document.expand_selection_groups();
+                    return;
+                }
+                Some(crate::tools::Picked::Solid(id)) => Some(id),
+                None => None,
+            };
+            if let Some(id) = id {
                 // Clicking a brush that belongs to an entity selects the
                 // entity: that is the thing a designer thinks of as the door.
                 let owner = document

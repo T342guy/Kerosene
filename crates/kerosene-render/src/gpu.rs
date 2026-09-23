@@ -34,6 +34,56 @@ pub struct ModelVertex {
     pub uv: [f32; 2],
 }
 
+/// One copy of a studio model, for instanced drawing: where it is and which
+/// probe it reflects.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Pod, Zeroable)]
+pub struct ModelInstance {
+    pub transform: [[f32; 4]; 4],
+    pub probe: u32,
+    pub _pad: [u32; 3],
+}
+
+impl ModelInstance {
+    pub fn new(pose: Pose, probe: u32) -> ModelInstance {
+        ModelInstance {
+            transform: pose.to_mat4().to_cols_array_2d(),
+            probe,
+            _pad: [0; 3],
+        }
+    }
+}
+
+/// The instance buffer's attributes: the transform's four columns at
+/// locations 3 to 6 and the probe at 7, after the model's own 0 to 2.
+const INSTANCE_ATTRIBUTES: [wgpu::VertexAttribute; 5] = [
+    wgpu::VertexAttribute {
+        offset: 0,
+        shader_location: 3,
+        format: wgpu::VertexFormat::Float32x4,
+    },
+    wgpu::VertexAttribute {
+        offset: 16,
+        shader_location: 4,
+        format: wgpu::VertexFormat::Float32x4,
+    },
+    wgpu::VertexAttribute {
+        offset: 32,
+        shader_location: 5,
+        format: wgpu::VertexFormat::Float32x4,
+    },
+    wgpu::VertexAttribute {
+        offset: 48,
+        shader_location: 6,
+        format: wgpu::VertexFormat::Float32x4,
+    },
+    wgpu::VertexAttribute {
+        offset: 64,
+        shader_location: 7,
+        format: wgpu::VertexFormat::Uint32,
+    },
+];
+
 /// A debug wireframe vertex: a position and a colour, nothing else.
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, Pod, Zeroable)]
@@ -177,6 +227,8 @@ enum Pass {
     Unlit,
     /// A studio model, drawn without a lightmap.
     Model,
+    /// Many copies of one studio model in one draw: static props.
+    ModelInstanced,
     /// Debug wireframe lines.
     Lines,
 }
@@ -356,6 +408,9 @@ pub struct Renderer {
     /// Depth-only pipelines for world geometry and studio models.
     shadow_world_pipeline: wgpu::RenderPipeline,
     shadow_model_pipeline: wgpu::RenderPipeline,
+    shadow_instanced_pipeline: wgpu::RenderPipeline,
+    /// Every static prop's [`ModelInstance`] this frame, grown as needed.
+    instance_buffer: Option<wgpu::Buffer>,
 }
 
 /// The scene shaders and layouts, everything a pipeline needs except a
@@ -694,22 +749,39 @@ impl Renderer {
             bind_group_layouts: &[&shadow_view_layout, &model_layout],
             push_constant_ranges: &[],
         });
-        let shadow_pipeline = |label: &str, stride: usize| {
+        let shadow_pipeline = |label: &str, stride: usize, instanced: bool| {
+            let position = wgpu::VertexBufferLayout {
+                array_stride: stride as wgpu::BufferAddress,
+                step_mode: wgpu::VertexStepMode::Vertex,
+                attributes: &[wgpu::VertexAttribute {
+                    offset: 0,
+                    shader_location: 0,
+                    format: wgpu::VertexFormat::Float32x3,
+                }],
+            };
+            let buffers = if instanced {
+                vec![
+                    position,
+                    wgpu::VertexBufferLayout {
+                        array_stride: std::mem::size_of::<ModelInstance>() as wgpu::BufferAddress,
+                        step_mode: wgpu::VertexStepMode::Instance,
+                        attributes: &INSTANCE_ATTRIBUTES,
+                    },
+                ]
+            } else {
+                vec![position]
+            };
             device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                 label: Some(label),
                 layout: Some(&shadow_layout),
                 vertex: wgpu::VertexState {
                     module: &shadow_shader,
-                    entry_point: Some("vs_shadow"),
-                    buffers: &[wgpu::VertexBufferLayout {
-                        array_stride: stride as wgpu::BufferAddress,
-                        step_mode: wgpu::VertexStepMode::Vertex,
-                        attributes: &[wgpu::VertexAttribute {
-                            offset: 0,
-                            shader_location: 0,
-                            format: wgpu::VertexFormat::Float32x3,
-                        }],
-                    }],
+                    entry_point: Some(if instanced {
+                        "vs_shadow_instanced"
+                    } else {
+                        "vs_shadow"
+                    }),
+                    buffers: &buffers,
                     compilation_options: Default::default(),
                 },
                 fragment: None,
@@ -740,9 +812,11 @@ impl Renderer {
             })
         };
         let shadow_world_pipeline =
-            shadow_pipeline("shadow world", std::mem::size_of::<WorldVertex>());
+            shadow_pipeline("shadow world", std::mem::size_of::<WorldVertex>(), false);
         let shadow_model_pipeline =
-            shadow_pipeline("shadow model", std::mem::size_of::<ModelVertex>());
+            shadow_pipeline("shadow model", std::mem::size_of::<ModelVertex>(), false);
+        let shadow_instanced_pipeline =
+            shadow_pipeline("shadow instanced", std::mem::size_of::<ModelVertex>(), true);
 
         // Debug lines: the same camera uniform, a line-list topology, and a
         // colour straight through. Only the camera is bound.
@@ -904,6 +978,123 @@ impl Renderer {
             shadow_view_stride,
             shadow_world_pipeline,
             shadow_model_pipeline,
+            shadow_instanced_pipeline,
+            instance_buffer: None,
+        }
+    }
+
+    /// Upload this frame's static-prop instances, growing the buffer when
+    /// there are more than last time. Draws then address them by range.
+    pub fn update_instances(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        instances: &[ModelInstance],
+    ) {
+        if instances.is_empty() {
+            return;
+        }
+        let bytes: &[u8] = bytemuck::cast_slice(instances);
+        let big_enough = self
+            .instance_buffer
+            .as_ref()
+            .is_some_and(|b| b.size() >= bytes.len() as u64);
+        if !big_enough {
+            // Doubled, so a map that adds props as it plays reallocates a
+            // handful of times rather than every frame.
+            let size = (bytes.len() as u64).next_power_of_two().max(4096);
+            self.instance_buffer = Some(device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("static prop instances"),
+                size,
+                usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            }));
+        }
+        if let Some(buffer) = &self.instance_buffer {
+            queue.write_buffer(buffer, 0, bytes);
+        }
+    }
+
+    /// Draw instances `first..first + count` of the last upload, all copies
+    /// of `gpu_model`, in one draw per mesh rather than one per copy.
+    pub fn draw_studio_instances<'a>(
+        &'a self,
+        pass: &mut wgpu::RenderPass<'a>,
+        frame_bind_group: &'a wgpu::BindGroup,
+        gpu_model: &'a GpuModel,
+        first: u32,
+        count: u32,
+    ) -> FrameStats {
+        let mut stats = FrameStats::default();
+        let Some(instances) = &self.instance_buffer else {
+            return stats;
+        };
+        if gpu_model.meshes.is_empty() || count == 0 {
+            return stats;
+        }
+        pass.set_pipeline(&self.pipelines[&PipelineKey::from(Pass::ModelInstanced)]);
+        pass.set_bind_group(0, frame_bind_group, &[]);
+        // The pipeline layout has the model slot; the instanced shader reads
+        // its transform from the instance buffer instead, but a layout's
+        // groups must all be bound.
+        pass.set_bind_group(2, &self.model_bind_group, &[0]);
+        pass.set_vertex_buffer(0, gpu_model.vertex_buffer.slice(..));
+        pass.set_vertex_buffer(1, instances.slice(..));
+        pass.set_index_buffer(gpu_model.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+
+        let mut current_material = u32::MAX;
+        for &(index_first, index_count, material) in &gpu_model.meshes {
+            if material != current_material
+                && let Some(group) = gpu_model
+                    .material_bind_groups
+                    .get(material as usize)
+                    .and_then(|g| g.as_ref())
+            {
+                pass.set_bind_group(1, group, &[]);
+                current_material = material;
+            }
+            pass.draw_indexed(
+                index_first..index_first + index_count,
+                0,
+                first..first + count,
+            );
+            stats.draw_calls += 1;
+            stats.triangles += (index_count / 3) as usize * count as usize;
+        }
+        stats
+    }
+
+    /// [`Renderer::draw_studio_instances`], into a shadow layer.
+    pub fn draw_studio_shadow_instances<'a>(
+        &'a self,
+        pass: &mut wgpu::RenderPass<'a>,
+        layer: usize,
+        gpu_model: &'a GpuModel,
+        first: u32,
+        count: u32,
+    ) {
+        let Some(instances) = &self.instance_buffer else {
+            return;
+        };
+        if gpu_model.meshes.is_empty() || count == 0 {
+            return;
+        }
+        pass.set_pipeline(&self.shadow_instanced_pipeline);
+        pass.set_bind_group(
+            0,
+            &self.shadow_view_bind_group,
+            &[self.shadow_view_offset(layer)],
+        );
+        pass.set_bind_group(1, &self.model_bind_group, &[0]);
+        pass.set_vertex_buffer(0, gpu_model.vertex_buffer.slice(..));
+        pass.set_vertex_buffer(1, instances.slice(..));
+        pass.set_index_buffer(gpu_model.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+        for &(index_first, index_count, _) in &gpu_model.meshes {
+            pass.draw_indexed(
+                index_first..index_first + index_count,
+                0,
+                first..first + count,
+            );
         }
     }
 
@@ -1650,7 +1841,7 @@ fn scene_pipelines(
         vertex: wgpu::VertexState {
             module: &scene.model,
             entry_point: Some("vs_model"),
-            buffers: &[model_vertex_layout],
+            buffers: std::slice::from_ref(&model_vertex_layout),
             compilation_options: Default::default(),
         },
         fragment: Some(wgpu::FragmentState {
@@ -1680,6 +1871,50 @@ fn scene_pipelines(
         cache: None,
     });
     pipelines.insert(PipelineKey::from(Pass::Model), model_pipeline);
+
+    let instanced_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some("model instanced"),
+        layout: Some(&scene.layout),
+        vertex: wgpu::VertexState {
+            module: &scene.model,
+            entry_point: Some("vs_model_instanced"),
+            buffers: &[
+                model_vertex_layout.clone(),
+                wgpu::VertexBufferLayout {
+                    array_stride: std::mem::size_of::<ModelInstance>() as wgpu::BufferAddress,
+                    step_mode: wgpu::VertexStepMode::Instance,
+                    attributes: &INSTANCE_ATTRIBUTES,
+                },
+            ],
+            compilation_options: Default::default(),
+        },
+        fragment: Some(wgpu::FragmentState {
+            module: &scene.model,
+            entry_point: Some("fs_model"),
+            targets: &hdr_target,
+            compilation_options: Default::default(),
+        }),
+        primitive: wgpu::PrimitiveState {
+            topology: wgpu::PrimitiveTopology::TriangleList,
+            strip_index_format: None,
+            front_face: wgpu::FrontFace::Ccw,
+            cull_mode: Some(wgpu::Face::Back),
+            polygon_mode: wgpu::PolygonMode::Fill,
+            unclipped_depth: false,
+            conservative: false,
+        },
+        depth_stencil: Some(wgpu::DepthStencilState {
+            format: DEPTH_FORMAT,
+            depth_write_enabled: true,
+            depth_compare: wgpu::CompareFunction::LessEqual,
+            stencil: wgpu::StencilState::default(),
+            bias: wgpu::DepthBiasState::default(),
+        }),
+        multisample,
+        multiview: None,
+        cache: None,
+    });
+    pipelines.insert(PipelineKey::from(Pass::ModelInstanced), instanced_pipeline);
 
     let line_vertex_layout = wgpu::VertexBufferLayout {
         array_stride: std::mem::size_of::<LineVertex>() as wgpu::BufferAddress,

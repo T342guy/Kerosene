@@ -102,8 +102,9 @@ for completeness.
   No parallax correction, no SSR, no planar reflections.
 - **Dynamic sky / weather / time-of-day.** Sky is a static skybox; sun and
   sky lighting are baked.
-- **GPU instancing.** The world draws per material, but repeated `prop_static`
-  meshes are not instanced.
+- ~~**GPU instancing.**~~ Fixed: `prop_static` models draw instanced, one
+  call per model mesh however many copies there are. (They were not drawn at
+  all before, and did not collide; now they do both.)
 - ~~**Debug labels.**~~ Fixed: labelled passes and pipelines, and debug
   groups around the world, brush models, props and debug lines.
 
@@ -355,8 +356,11 @@ Chisel:
   dangling I/O; there is still no one dialog for a missing texture or an
   entity with no name that something targets.
 - ~~**Undo history panel.**~~ Fixed: `Edit → History...`.
-- **Vertex/edge editing.** Brushes are plane-defined; no direct vertex
-  manipulation.
+- **Vertex/edge editing.** Maps can hold polygon meshes now, and Chisel draws,
+  picks, moves, resizes, duplicates and deletes them, and converts brushes to
+  them (Tools → Convert to mesh). What it cannot do yet is edit one: no
+  vertex, edge or face selection, extrude or bevel. Until it can, a mesh is
+  shaped by converting a brush, or by hand in the `.keromap`.
 - **Texture painting.** No brush-based texture painting or blending.
 - **Walkmap visualization.** The rule-tint view exists, but there is no
   in-editor preview of the compiled walkmap faces versus what Cleave will

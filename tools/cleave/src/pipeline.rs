@@ -126,6 +126,31 @@ pub fn compile(map: &Map, options: &CompileOptions) -> Result<CompileOutput, Com
             all.push(b);
         }
     }
+    // ---- meshes ----
+    // Drawn faces, filed into the tree at emit time, and collision slabs,
+    // which join the world's brushes as detail -- after the brushes, so a
+    // slab never takes a brush's tie in CSG, and before sections are
+    // compacted, so a streamed mesh keeps its section.
+    let mesh_work = crate::mesh::compile_meshes(
+        &map.world.meshes,
+        &mut planes,
+        &mut warnings,
+        |solid, warnings| sections.assign(solid, warnings),
+    );
+    all.extend(mesh_work.slabs);
+    for entity in &map.entities {
+        if !entity.meshes.is_empty() {
+            warnings.push(Warning {
+                brush_id: entity.id,
+                message: format!(
+                    "{} has meshes; only the world's are compiled, so they were left out",
+                    entity.classname()
+                ),
+            });
+        }
+    }
+    let mut mesh_faces = mesh_work.faces;
+
     // Entity indices start at 1; index 0 is worldspawn.
     let mut model_entities: Vec<usize> = Vec::new();
     for (i, entity) in map.entities.iter().enumerate() {
@@ -150,7 +175,13 @@ pub fn compile(map: &Map, options: &CompileOptions) -> Result<CompileOutput, Com
     if all.is_empty() {
         return Err(CompileError::NoBrushes);
     }
-    sections.compact(&mut all);
+    // Compaction renumbers the sections; the mesh faces were placed in the
+    // old numbering and follow the brushes into the new. A mesh's own slabs
+    // keep its section in use, so it is not dropped from under it.
+    let remap = sections.compact(&mut all);
+    for face in &mut mesh_faces {
+        face.section = remap.get(face.section as usize).copied().unwrap_or(0);
+    }
 
     for (i, b) in all.iter_mut().enumerate() {
         b.original = i;
@@ -232,12 +263,13 @@ pub fn compile(map: &Map, options: &CompileOptions) -> Result<CompileOutput, Com
 
     let entities_text = build_entity_lump(map, &model_entities);
     let prt = portal::write_prt(&tree, &portals, stats.clusters);
-    let walk = crate::walk::collect(&world, &planes, &tree);
+    let walk = crate::walk::collect_with_meshes(&world, &mesh_faces, &planes, &tree);
 
     let mut bsp = emit::emit(
         &tree,
         &planes,
         &world,
+        &mesh_faces,
         &models,
         entities_text,
         1,

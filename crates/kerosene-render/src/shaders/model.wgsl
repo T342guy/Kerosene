@@ -140,6 +140,35 @@ fn vs_model(input: VertexIn) -> VertexOut {
     return out;
 }
 
+// A static prop drawn instanced: every copy of one model in a single draw,
+// each with its own transform and probe from the instance buffer instead of
+// the per-draw model uniform. Everything after the vertex stage is shared.
+struct InstanceIn {
+    @location(3) transform_0: vec4<f32>,
+    @location(4) transform_1: vec4<f32>,
+    @location(5) transform_2: vec4<f32>,
+    @location(6) transform_3: vec4<f32>,
+    @location(7) probe: u32,
+};
+
+@vertex
+fn vs_model_instanced(input: VertexIn, instance: InstanceIn) -> VertexOut {
+    let transform = mat4x4<f32>(
+        instance.transform_0,
+        instance.transform_1,
+        instance.transform_2,
+        instance.transform_3,
+    );
+    var out: VertexOut;
+    let world = (transform * vec4<f32>(input.position, 1.0)).xyz;
+    out.clip_position = camera.view_proj * vec4<f32>(world, 1.0);
+    out.uv = input.uv;
+    out.normal = normalize((transform * vec4<f32>(input.normal, 0.0)).xyz);
+    out.world_position = world;
+    out.probe = instance.probe;
+    return out;
+}
+
 // The shading normal for a prop.
 //
 // `.keromdl` carries no tangents -- brush faces get theirs from the texture

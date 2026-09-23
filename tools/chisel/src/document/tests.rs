@@ -1193,3 +1193,78 @@ fn aligning_to_the_grid_moves_the_whole_selection_together() {
     assert_eq!(d.map.find_solid(a).unwrap().bounds().min, Vec3::ZERO);
     assert_eq!(d.map.find_solid(b).unwrap().bounds().min.x, 32.0);
 }
+
+// ---- meshes -------------------------------------------------------------------
+
+#[test]
+fn converting_a_brush_makes_a_selected_mesh_of_the_same_shape_and_undoes() {
+    let mut d = doc();
+    let id = block(&mut d, 0.0, 64.0);
+    let material = d.map.world.solids[0].sides[0].material.clone();
+
+    assert_eq!(d.convert_selection_to_meshes(), 1);
+    assert!(d.map.world.solids.is_empty());
+    assert_eq!(d.map.world.meshes.len(), 1);
+    let mesh = &d.map.world.meshes[0];
+    assert_eq!(mesh.vertices.len(), 8);
+    assert_eq!(mesh.faces.len(), 6);
+    assert_eq!(mesh.bounds().min, Vec3::ZERO);
+    assert_eq!(mesh.bounds().max, Vec3::splat(64.0));
+    assert!(mesh.faces.iter().all(|f| f.material == material));
+    assert!(d.selection.meshes.contains(&mesh.id));
+    assert!(d.selection.solids.is_empty());
+    // Fresh ids, still unique across the map.
+    assert!(d.problems().is_empty(), "{:?}", d.problems());
+    assert!(Map::parse(&d.map.to_text()).is_ok());
+
+    d.undo();
+    assert_eq!(d.map.world.solids.len(), 1);
+    assert_eq!(d.map.world.solids[0].id, id);
+    assert!(d.map.world.meshes.is_empty());
+}
+
+#[test]
+fn a_mesh_moves_duplicates_resizes_and_deletes_with_the_selection() {
+    let mut d = doc();
+    d.grid.size = 16.0;
+    block(&mut d, 0.0, 64.0);
+    d.convert_selection_to_meshes();
+    let original = d.map.world.meshes[0].id;
+
+    d.move_selection(Vec3::new(64.0, 0.0, 0.0));
+    assert_eq!(
+        d.map.world.meshes[0].bounds().min,
+        Vec3::new(64.0, 0.0, 0.0)
+    );
+    assert_eq!(d.selection_bounds().unwrap().min, Vec3::new(64.0, 0.0, 0.0));
+
+    assert_eq!(d.duplicate_selection(Vec3::new(0.0, 128.0, 0.0)), 1);
+    assert_eq!(d.map.world.meshes.len(), 2);
+    let copy = d.map.world.meshes[1].id;
+    assert_ne!(copy, original);
+    assert!(d.selection.meshes.contains(&copy));
+    assert!(d.problems().is_empty(), "{:?}", d.problems());
+
+    d.scale_selection(Vec3::new(64.0, 128.0, 0.0), Vec3::new(2.0, 1.0, 1.0));
+    let b = d.map.world.meshes[1].bounds();
+    assert_eq!(b.size().x, 128.0);
+
+    assert_eq!(d.delete_selection(), 1);
+    assert_eq!(d.map.world.meshes.len(), 1);
+    assert_eq!(d.map.world.meshes[0].id, original);
+}
+
+#[test]
+fn select_all_and_hiding_include_meshes() {
+    let mut d = doc();
+    block(&mut d, 0.0, 64.0);
+    d.convert_selection_to_meshes();
+    let mesh = d.map.world.meshes[0].id;
+    d.selection.clear();
+    d.select_all();
+    assert!(d.selection.meshes.contains(&mesh));
+
+    d.hide_selection();
+    assert!(!d.is_visible(kerosene_map::ObjectId::Mesh(mesh)));
+    assert_eq!(d.visible_meshes().count(), 0);
+}

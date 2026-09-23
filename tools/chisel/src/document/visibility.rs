@@ -125,7 +125,36 @@ impl Document {
                 .iter()
                 .find(|e| e.id == entity_id)
                 .is_some_and(|e| self.entity_visible(e)),
+            ObjectId::Mesh(mesh_id) => self
+                .map
+                .world
+                .meshes
+                .iter()
+                .find(|m| m.id == mesh_id)
+                .is_some_and(|m| self.mesh_visible(m)),
         }
+    }
+
+    /// The same rules as a world brush: its own hide flag, its visgroups,
+    /// and the cordon. The automatic groups are about brush classes and
+    /// tool materials, and a mesh is neither.
+    fn mesh_visible(&self, mesh: &kerosene_map::Mesh) -> bool {
+        mesh.editor.visible
+            && mesh
+                .editor
+                .visgroups
+                .iter()
+                .all(|&g| self.map.is_visgroup_visible(g))
+            && self.inside_cordon(mesh.bounds())
+    }
+
+    /// Every visible world mesh.
+    pub fn visible_meshes(&self) -> impl Iterator<Item = &kerosene_map::Mesh> {
+        self.map
+            .world
+            .meshes
+            .iter()
+            .filter(|m| self.mesh_visible(m))
     }
 
     fn solid_visible(&self, owner: &Entity, solid: &Solid) -> bool {
@@ -251,6 +280,7 @@ impl Document {
                 .iter()
                 .map(|&id| ObjectId::Entity(id)),
         );
+        out.extend(self.selection.meshes.iter().map(|&id| ObjectId::Mesh(id)));
         out.sort();
         out
     }
@@ -272,6 +302,9 @@ impl Document {
                 }
                 ObjectId::Entity(id) => {
                     self.selection.entities.insert(id);
+                }
+                ObjectId::Mesh(id) => {
+                    self.selection.meshes.insert(id);
                 }
             }
         }
@@ -319,7 +352,7 @@ impl Document {
                     .map
                     .owner_of_solid(id)
                     .is_none_or(|e| !keep.contains(&ObjectId::Entity(e.id))),
-                ObjectId::Entity(_) => true,
+                ObjectId::Entity(_) | ObjectId::Mesh(_) => true,
             })
             .collect();
         if hide.is_empty() {

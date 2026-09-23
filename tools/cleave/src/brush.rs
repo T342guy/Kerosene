@@ -63,6 +63,9 @@ pub struct BrushWork {
     pub bounds: Aabb,
     /// The streamed section this brush is in; 0 is the world.
     pub section: u16,
+    /// A collision slab behind a mesh face (see [`crate::mesh`]). It
+    /// collides like any detail brush but never cuts another brush's faces.
+    pub from_mesh: bool,
 }
 
 /// Something the compiler wants the designer to know about.
@@ -169,6 +172,7 @@ impl BrushWork {
             contents,
             bounds: Aabb::EMPTY,
             section,
+            from_mesh: false,
         };
         brush.recompute_windings(planes);
 

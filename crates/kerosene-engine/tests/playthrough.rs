@@ -3459,3 +3459,170 @@ fn archived_settings_and_bindings_come_back_through_config_cfg() {
 
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+// ---- meshes -------------------------------------------------------------------
+
+/// Add a world mesh of one quad per `faces` entry (four corners, clockwise
+/// seen from above), in `dev/grid`.
+fn add_mesh(map: &mut Map, faces: &[[Vec3; 4]]) {
+    let id = map.next_id();
+    let mut mesh = kerosene_map::Mesh::new(id);
+    for quad in faces {
+        let indices: Vec<u32> = quad.iter().map(|&p| mesh.weld(p)).collect();
+        let face_id = map.next_id();
+        mesh.faces.push(kerosene_map::MeshFace::new(
+            face_id, indices, quad, "dev/grid",
+        ));
+    }
+    map.world.meshes.push(mesh);
+}
+
+/// The corridor with a mesh ramp up to a mesh platform: rising from z = 0 at
+/// x = 64 to z = 32 at x = 160, then flat at 32 to x = 240, full width.
+fn ramp_map() -> Map {
+    let mut map = corridor_map(false, false);
+    let w = 128.0;
+    add_mesh(
+        &mut map,
+        &[
+            [
+                Vec3::new(64.0, 0.0, 0.0),
+                Vec3::new(64.0, w, 0.0),
+                Vec3::new(160.0, w, 32.0),
+                Vec3::new(160.0, 0.0, 32.0),
+            ],
+            [
+                Vec3::new(160.0, 0.0, 32.0),
+                Vec3::new(160.0, w, 32.0),
+                Vec3::new(240.0, w, 32.0),
+                Vec3::new(240.0, 0.0, 32.0),
+            ],
+        ],
+    );
+    map
+}
+
+#[test]
+fn the_player_walks_up_a_mesh_ramp_onto_a_mesh_platform() {
+    let bsp = build(&ramp_map());
+    let mut entities = spawned_world(&bsp);
+
+    let mut state = MoveState {
+        origin: Vec3::new(32.0, 64.0, 1.0),
+        on_ground: true,
+        ..Default::default()
+    };
+    let params = MoveParams::default();
+    let input = MoveInput {
+        forward: 1.0,
+        view_angles: Angles::ZERO,
+        ..Default::default()
+    };
+    let mut on_platform = None;
+    for _ in 0..(3.0 / TICK) as usize {
+        let world = LevelCollision::new(&bsp, &entities);
+        player_move(&mut state, &input, &params, &world, TICK);
+        entities.run(TICK);
+        if (180.0..220.0).contains(&state.origin.x) && on_platform.is_none() {
+            on_platform = Some(state);
+        }
+    }
+    let on_platform = on_platform.expect("the player never reached the platform");
+    assert!(
+        (on_platform.origin.z - 32.0).abs() < 1.0 && on_platform.on_ground,
+        "should be standing on the platform at z = 32, got {:?}",
+        on_platform.origin
+    );
+}
+
+#[test]
+fn a_prop_rests_on_a_mesh_platform() {
+    use kerosene_engine::engine::EngineConfig;
+
+    let dir = std::env::temp_dir().join(format!("kerosene-mesh-{}", std::process::id()));
+    std::fs::create_dir_all(dir.join("maps")).unwrap();
+    std::fs::create_dir_all(dir.join("models/props")).unwrap();
+    let bsp = build(&ramp_map());
+    std::fs::write(dir.join("maps/meshtest.kerobsp"), bsp.to_bytes()).unwrap();
+    std::fs::write(
+        dir.join("models/props/cube.keromdl"),
+        cube_model().to_bytes(),
+    )
+    .unwrap();
+
+    let mut engine = common::stock(&EngineConfig {
+        content_paths: vec![dir.clone()],
+        ..Default::default()
+    });
+    engine
+        .load_map("meshtest")
+        .expect("the engine should load it");
+
+    let id = engine.spawn_prop("props/cube", Vec3::new(200.0, 64.0, 120.0));
+    let input = InputState::default();
+    for _ in 0..(3.0 / TICK) as usize {
+        engine.tick(TICK, &input);
+    }
+    let origin = engine.entities.get(id).expect("still alive").origin;
+    // Platform top is z = 32 and the cube's half-height 16: centre at 48.
+    assert!(
+        origin.z > 46.0 && origin.z < 50.0,
+        "the cube should rest on the mesh platform, not at z = {}",
+        origin.z
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_static_prop_blocks_the_player_and_never_moves() {
+    use kerosene_engine::engine::EngineConfig;
+
+    let dir = std::env::temp_dir().join(format!("kerosene-static-{}", std::process::id()));
+    std::fs::create_dir_all(dir.join("maps")).unwrap();
+    std::fs::create_dir_all(dir.join("models/props")).unwrap();
+    let mut map = corridor_map(false, false);
+    // In the player's path, standing on the floor: its box is x 64..96.
+    let id = map.next_id();
+    let mut prop = Entity::new(id, "prop_static");
+    prop.set("model", "props/cube");
+    prop.set("targetname", "crate");
+    prop.set_origin(Vec3::new(80.0, 64.0, 16.0));
+    map.entities.push(prop);
+    let bsp = build(&map);
+    std::fs::write(dir.join("maps/statictest.kerobsp"), bsp.to_bytes()).unwrap();
+    std::fs::write(
+        dir.join("models/props/cube.keromdl"),
+        cube_model().to_bytes(),
+    )
+    .unwrap();
+
+    let mut engine = common::stock(&EngineConfig {
+        content_paths: vec![dir.clone()],
+        ..Default::default()
+    });
+    engine
+        .load_map("statictest")
+        .expect("the engine should load it");
+
+    let forward = InputState {
+        forward: 1.0,
+        ..Default::default()
+    };
+    for _ in 0..(2.0 / TICK) as usize {
+        engine.tick(TICK, &forward);
+    }
+    assert_eq!(engine.physics.static_prop_count(), 1);
+    let player = engine.player.movement.origin;
+    assert!(
+        player.x < 60.0,
+        "the player walked through the static prop to x={}",
+        player.x
+    );
+    let crate_id = *engine.entities.find_by_name("crate").first().unwrap();
+    assert_eq!(
+        engine.entities.get(crate_id).unwrap().origin,
+        Vec3::new(80.0, 64.0, 16.0),
+        "a static prop is not shoved"
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}

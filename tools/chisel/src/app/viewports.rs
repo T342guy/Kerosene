@@ -395,7 +395,13 @@ impl ChiselApp {
         if !add {
             self.document.selection.clear();
         }
-        if let Some(id) = crate::tools::pick_solid_3d(&self.document, origin, direction) {
+        let picked = crate::tools::pick_3d(&self.document, origin, direction);
+        if let Some(crate::tools::Picked::Mesh(id)) = picked {
+            self.document.selection.meshes.insert(id);
+            self.document.expand_selection_groups();
+            return;
+        }
+        if let Some(crate::tools::Picked::Solid(id)) = picked {
             // Clicking a brush that belongs to an entity selects the entity:
             // that is the thing a designer thinks of as the door. Same rule
             // the 2D views follow.
