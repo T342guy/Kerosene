@@ -140,8 +140,22 @@ class
 {
     "name" "prop_static"
     "base" "Entity" "base" "Point" "base" "Angles"
-    "help" "A model placed in the world. Baked in at compile time; it cannot move."
+    "help" "A model placed in the world that never moves. Drawn instanced -- a hundred copies of one model cost about what one does -- and solid to the player and to physics."
     key { "name" "model" "label" "Model" "type" "model" "default" "props/cube" }
+}
+
+class
+{
+    "name" "prop_dynamic"
+    "base" "Entity" "base" "Point" "base" "Angles"
+    "help" "An animated model: a turret, a fan, a character at a console. Plays its default animation, switches on SetAnimation, and goes back to the default when a clip that does not loop ends. Solid, and does not move by itself."
+    key { "name" "model" "label" "Model" "type" "model" "default" "props/cube" }
+    key { "name" "defaultanim" "label" "Default animation" "type" "string" "default" ""
+          "help" "The clip it plays from the start and returns to. Empty holds the model's rest pose." }
+    input  { "name" "SetAnimation" "help" "Play the named clip, fading from the current one." }
+    input  { "name" "SetDefaultAnimation" "help" "Change the clip it returns to." }
+    input  { "name" "SetPlaybackRate" "help" "Play faster or slower: 1 is as authored, 0 freezes." }
+    output { "name" "OnAnimationDone" "help" "Fired when a clip that does not loop reaches its end." }
 }
 
 class

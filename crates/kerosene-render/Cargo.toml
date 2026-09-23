@@ -10,6 +10,7 @@ authors.workspace = true
 kerosene-math.workspace = true
 kerosene-bsp.workspace = true
 kerosene-asset.workspace = true
+kerosene-anim.workspace = true
 kerosene-vfs.workspace = true
 kerosene-console.workspace = true
 glam.workspace = true

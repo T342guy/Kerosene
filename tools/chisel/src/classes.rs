@@ -223,7 +223,7 @@ class { "name" "npc_guard" "base" "Point" }
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content");
         let loaded = load(&root);
         assert!(loaded.errors.is_empty(), "{:?}", loaded.errors);
-        for class in ["prop_static", "prop_physics"] {
+        for class in ["prop_static", "prop_physics", "prop_dynamic"] {
             let default = loaded
                 .schema
                 .get(class)

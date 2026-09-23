@@ -615,3 +615,113 @@ fn copies_of_a_model_draw_in_one_instanced_call() {
     assert!(left > 0 && right > 0, "both copies drawn: {left} {right}");
     assert_eq!(gap, 0, "and nothing between them");
 }
+
+#[test]
+fn a_bone_palette_moves_the_vertices_bound_to_it() {
+    use kerosene_math::Mat4;
+    use kerosene_render::gpu::load_model;
+
+    let Some((device, queue)) = device() else {
+        eprintln!("no GPU adapter; skipping");
+        return;
+    };
+    let dir = std::env::temp_dir().join(format!("kerosene-skin-{}", std::process::id()));
+    std::fs::create_dir_all(dir.join("models/test")).unwrap();
+    std::fs::write(
+        dir.join("models/test/cube.keromdl"),
+        cube_model().to_bytes(),
+    )
+    .unwrap();
+    let mut vfs = kerosene_vfs::Vfs::new();
+    vfs.add_directory(&dir, "test");
+
+    let mut renderer = Renderer::new(&device, OUTPUT_FORMAT);
+    let bsp = lit_quad(0, "missing/on/purpose");
+    let atlas = LightmapAtlas::build(&bsp, 1.0);
+    let mesh = WorldMesh::build(&bsp, &atlas);
+    let resources = MapResources::upload(&device, &queue, &renderer, &mesh, &atlas, &vfs);
+    let probes = GpuProbes::upload(&device, &queue, None);
+    let frame = renderer.create_frame_bind_group(&device, &resources.lightmap_view, &probes);
+    let model = load_model(&device, &queue, &renderer, &vfs, "test/cube").unwrap();
+    // Palette slot 1: bone 0 -- every vertex of the cube -- moved 30 along +Y.
+    renderer.update_palettes(
+        &queue,
+        &[vec![Mat4::from_translation(Vec3::new(0.0, 30.0, 0.0))]],
+    );
+
+    let camera = Camera {
+        position: Vec3::new(0.0, 0.0, 120.0),
+        angles: Angles::new(89.0, 0.0, 0.0),
+        aspect: 1.0,
+        ..Default::default()
+    };
+    let shoot = |renderer: &mut Renderer, bones: usize| -> Vec<u8> {
+        renderer.ensure_targets(&device, SIZE, SIZE);
+        renderer.update_camera(&queue, &CameraUniform::from_camera(&camera, 0.0));
+        renderer.update_models(&queue, &[]);
+        renderer.update_lights(&queue, &LightFrame::build(&[], &camera, SIZE, SIZE));
+        renderer.update_tonemap(&queue, 1.0, ToneMapOperator::Aces);
+        let output = device.create_texture(&wgpu::TextureDescriptor {
+            label: None,
+            size: wgpu::Extent3d {
+                width: SIZE,
+                height: SIZE,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: OUTPUT_FORMAT,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+            view_formats: &[],
+        });
+        let readback = device.create_buffer(&wgpu::BufferDescriptor {
+            label: None,
+            size: (SIZE * SIZE * 4) as u64,
+            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+            mapped_at_creation: false,
+        });
+        let mut encoder = device.create_command_encoder(&Default::default());
+        {
+            let mut pass = renderer.begin_scene_pass(&mut encoder, wgpu::Color::BLACK);
+            renderer.draw_studio_model(&mut pass, &frame, &model, 1, bones);
+        }
+        renderer.tonemap(&mut encoder, &output.create_view(&Default::default()));
+        encoder.copy_texture_to_buffer(
+            output.as_image_copy(),
+            wgpu::TexelCopyBufferInfo {
+                buffer: &readback,
+                layout: wgpu::TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(SIZE * 4),
+                    rows_per_image: Some(SIZE),
+                },
+            },
+            output.size(),
+        );
+        queue.submit([encoder.finish()]);
+        let slice = readback.slice(..);
+        slice.map_async(wgpu::MapMode::Read, |r| r.expect("maps"));
+        device.poll(wgpu::PollType::Wait).expect("finishes");
+        slice.get_mapped_range().to_vec()
+    };
+
+    let rest = shoot(&mut renderer, 0);
+    let moved = shoot(&mut renderer, 1);
+    let _ = std::fs::remove_dir_all(&dir);
+
+    let centre = (SIZE / 2, SIZE / 2);
+    // +Y is screen left, looking down with yaw 0: about 12 pixels over.
+    let left = (SIZE / 2 - 12, SIZE / 2);
+    let at = |img: &[u8], (x, y): (u32, u32)| brightness(pixel(img, x, y));
+    assert!(
+        at(&rest, centre) > 0,
+        "the identity palette draws it where it is"
+    );
+    assert_eq!(
+        at(&moved, centre),
+        0,
+        "the palette took it away from the centre"
+    );
+    assert!(at(&moved, left) > 0, "and put it 30 units along +Y");
+}

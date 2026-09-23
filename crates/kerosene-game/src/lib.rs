@@ -32,6 +32,7 @@
 //! are inert here, which is why a lit map needs
 //! no lights at runtime at all.
 
+pub mod animated;
 pub mod doors;
 pub mod lights;
 pub mod logic;
@@ -76,6 +77,7 @@ pub fn register(registry: &mut ClassRegistry) {
     sound::register(registry);
     props::register(registry);
     lights::register(registry);
+    animated::register(registry);
 
     // Inputs every entity understands, as Source makes them.
     registry.register_common_input("Kill", input_kill);

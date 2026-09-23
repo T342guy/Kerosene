@@ -178,6 +178,25 @@ maps (`MaterialUniform`); a dielectric with neither a roughness map nor a
 factor below one takes no specular path at all, so an albedo-only material
 renders exactly as its lightmap says.
 
+## Skinning
+
+Studio-model vertices go to the GPU with their four bone indices and weights
+(`ModelVertex`, the same 40 bytes as the file). A second dynamic-offset
+uniform holds bone palettes, `kerosene_anim::MAX_BONES` (128) matrices each:
+slot 0 is identities and never rewritten, so every static model binds it and
+draws as before; animated models get slots 1 to `MAX_SKINNED` from
+`update_palettes`. `vs_model` and `vs_shadow_skinned` blend the four
+matrices. Models have their own pipeline layout (`SceneShaders::model_layout`,
+the world's plus the bones group), so world geometry is untouched.
+
+`kerosene-anim` computes the palettes: `Skeleton::of` derives inverse bind
+matrices from the bones' rest poses, `sample` interpolates a clip, and
+`Playback` crossfades a change of clip over `CROSSFADE`. A `prop_dynamic`
+keeps its playback in entity fields in game time; `engine::animation` reads
+them, fires `OnAnimationDone` when a one-shot ends and returns the prop to its
+`defaultanim`, and the host poses it at `Engine::render_time(alpha)` so it
+moves smoothly between ticks.
+
 ## Static props
 
 `prop_static` is drawn and collided with and never moves. The host groups

@@ -3626,3 +3626,158 @@ fn a_static_prop_blocks_the_player_and_never_moves() {
     );
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+// ---- animation -----------------------------------------------------------------
+
+/// A skinned model: the cube, its top four corners bound to an "arm" bone
+/// and its bottom four to the root, with a looping "swing" and a one-second
+/// "raise" that plays once.
+fn animated_model() -> kerosene_asset::Model {
+    use kerosene_asset::{Animation, Bone, BoneKey};
+    use kerosene_math::Quat;
+    let mut m = cube_model();
+    let (root, arm) = (m.intern("root"), m.intern("arm"));
+    m.bones.push(Bone {
+        parent: -1,
+        name_offset: root,
+        rotation: [0.0, 0.0, 0.0, 1.0],
+        ..Default::default()
+    });
+    m.bones.push(Bone {
+        parent: 0,
+        name_offset: arm,
+        position: [0.0, 0.0, 0.0],
+        rotation: [0.0, 0.0, 0.0, 1.0],
+    });
+    for v in &mut m.vertices {
+        if v.position[2] > 0.0 {
+            v.bone_indices = [1, 0, 0, 0];
+        }
+    }
+    let clip = |name: &str, looping: bool, angle: f32| {
+        let mut keys = Vec::new();
+        for frame in 0..2 {
+            keys.push(BoneKey {
+                translation: [0.0; 3],
+                rotation: [0.0, 0.0, 0.0, 1.0],
+            });
+            keys.push(BoneKey {
+                translation: [0.0; 3],
+                rotation: Quat::from_rotation_z(frame as f32 * angle).to_array(),
+            });
+        }
+        Animation {
+            name: name.into(),
+            fps: 1.0,
+            frame_count: 2,
+            looping,
+            keys,
+        }
+    };
+    m.animations.push(clip("swing", true, 0.5));
+    m.animations.push(clip("raise", false, 1.5));
+    m
+}
+
+#[test]
+fn a_prop_dynamic_plays_a_one_shot_reports_it_and_goes_back_to_its_default() {
+    use kerosene_engine::engine::EngineConfig;
+
+    let dir = std::env::temp_dir().join(format!("kerosene-anim-{}", std::process::id()));
+    std::fs::create_dir_all(dir.join("maps")).unwrap();
+    std::fs::create_dir_all(dir.join("models/props")).unwrap();
+    let mut map = corridor_map(false, false);
+    let id = map.next_id();
+    let mut prop = Entity::new(id, "prop_dynamic");
+    prop.set("model", "props/arm");
+    prop.set("targetname", "turret");
+    prop.set("defaultanim", "swing");
+    prop.set_origin(Vec3::new(400.0, 64.0, 16.0));
+    prop.connect(Connection::new("OnAnimationDone", "done_counter", "Add"));
+    map.entities.push(prop);
+    let id = map.next_id();
+    let mut counter = Entity::new(id, "math_counter");
+    counter.set("targetname", "done_counter");
+    counter.set("max", "100");
+    counter.set_origin(Vec3::new(64.0, 64.0, 64.0));
+    map.entities.push(counter);
+    let bsp = build(&map);
+    std::fs::write(dir.join("maps/animtest.kerobsp"), bsp.to_bytes()).unwrap();
+    std::fs::write(
+        dir.join("models/props/arm.keromdl"),
+        animated_model().to_bytes(),
+    )
+    .unwrap();
+
+    let mut engine = common::stock(&EngineConfig {
+        content_paths: vec![dir.clone()],
+        ..Default::default()
+    });
+    engine
+        .load_map("animtest")
+        .expect("the engine should load it");
+    let idle = InputState::default();
+    let turret = *engine.entities.find_by_name("turret").first().unwrap();
+    let counter = *engine
+        .entities
+        .find_by_name("done_counter")
+        .first()
+        .unwrap();
+    let field = |e: &kerosene_engine::engine::Engine, key: &str| {
+        e.entities
+            .get(turret)
+            .and_then(|t| t.fields.text(key).map(|s| s.into_owned()))
+    };
+
+    for _ in 0..16 {
+        engine.tick(TICK, &idle);
+    }
+    assert_eq!(field(&engine, "animation").as_deref(), Some("swing"));
+    // The looping default never finishes.
+    for _ in 0..(3.0 / TICK) as usize {
+        engine.tick(TICK, &idle);
+    }
+    let count = |e: &kerosene_engine::engine::Engine| {
+        e.entities
+            .get(counter)
+            .map(|c| c.fields.f32("value", -1.0))
+            .unwrap()
+    };
+    assert_eq!(count(&engine), 0.0);
+
+    // The pose moves while it plays: the arm's matrix is not the rest one.
+    let now = engine.entities.time;
+    let entity = engine.entities.get(turret).unwrap().clone();
+    let palette = engine
+        .animations
+        .palette(&engine.vfs, &entity, now)
+        .expect("the model loads");
+    assert_eq!(palette.len(), 2);
+
+    engine.entities.queue_input(
+        kerosene_entity::Target::Named("turret".into()),
+        "SetAnimation",
+        "raise",
+        0.0,
+        None,
+        None,
+    );
+    for _ in 0..8 {
+        engine.tick(TICK, &idle);
+    }
+    assert_eq!(field(&engine, "animation").as_deref(), Some("raise"));
+    for _ in 0..(1.5 / TICK) as usize {
+        engine.tick(TICK, &idle);
+    }
+    assert_eq!(count(&engine), 1.0, "OnAnimationDone fired once");
+    assert_eq!(
+        field(&engine, "animation").as_deref(),
+        Some("swing"),
+        "and it went back to its default"
+    );
+    for _ in 0..(2.0 / TICK) as usize {
+        engine.tick(TICK, &idle);
+    }
+    assert_eq!(count(&engine), 1.0, "only once");
+    let _ = std::fs::remove_dir_all(&dir);
+}

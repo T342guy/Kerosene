@@ -650,7 +650,9 @@ impl App {
         // Physics props each take a model slot and draw where their body is,
         // blended from where it was last tick so motion stays smooth between
         // the 64Hz simulation and a faster display.
-        let mut props: Vec<(usize, String)> = Vec::new();
+        // Each drawn model: its model slot, its name, and its bone palette
+        // slot -- 0, the identity, for anything that is not animated.
+        let mut props: Vec<(usize, String, usize)> = Vec::new();
         for entity in self.engine.entities.iter() {
             if !is_physics_prop(&entity.classname) {
                 continue;
@@ -678,9 +680,47 @@ impl App {
                     kerosene_render::probe_for(&level.bsp, origin)
                 });
             poses[next_slot] = ModelUniform::with_probe(Pose::new(origin, angles), probe);
-            props.push((next_slot, name.to_string()));
+            props.push((next_slot, name.to_string(), 0));
             next_slot += 1;
         }
+
+        // Animated props: a model slot each, and a palette of their pose at
+        // the moment being drawn, between ticks like everything else.
+        let now = self.engine.render_time(alpha);
+        let mut palettes = Vec::new();
+        let engine = &mut self.engine;
+        for entity in engine.entities.iter() {
+            if !crate::animation::is_animated_prop(&entity.classname) {
+                continue;
+            }
+            let Some(name) = entity.fields.text("model") else {
+                continue;
+            };
+            if next_slot >= MAX_MODELS {
+                break;
+            }
+            let probe = match (&engine.level, self.static_probes.get(&entity.id)) {
+                (_, Some(&p)) => p,
+                (Some(level), None) => {
+                    let p = kerosene_render::probe_for(&level.bsp, entity.origin);
+                    self.static_probes.insert(entity.id, p);
+                    p
+                }
+                (None, None) => kerosene_render::NO_PROBE,
+            };
+            poses[next_slot] =
+                ModelUniform::with_probe(Pose::new(entity.origin, entity.angles), probe);
+            let bones = match engine.animations.palette(&engine.vfs, entity, now) {
+                Some(palette) if palettes.len() < kerosene_render::gpu::MAX_SKINNED => {
+                    palettes.push(palette);
+                    palettes.len()
+                }
+                _ => 0,
+            };
+            props.push((next_slot, name.to_string(), bones));
+            next_slot += 1;
+        }
+        gfx.renderer.update_palettes(&gfx.queue, &palettes);
         gfx.renderer.update_model_uniforms(&gfx.queue, &poses);
 
         // Dynamic lights: the switched-on light_dynamics, and the flashlight
@@ -736,7 +776,7 @@ impl App {
         // Upload any prop model we have not seen yet, once. A failed load is
         // cached as `None` so the warning is not repeated every frame.
         let static_names = static_ranges.iter().map(|(n, _, _)| n);
-        for name in props.iter().map(|(_, n)| n).chain(static_names) {
+        for name in props.iter().map(|(_, n, _)| n).chain(static_names) {
             if self.model_cache.contains_key(name) {
                 continue;
             }
@@ -847,10 +887,10 @@ impl App {
                         );
                     }
                 }
-                for (slot, name) in &props {
+                for (slot, name, bones) in &props {
                     if let Some(model) = self.model_cache.get(name).and_then(Option::as_ref) {
                         gfx.renderer
-                            .draw_studio_shadow(&mut pass, layer, model, *slot);
+                            .draw_studio_shadow(&mut pass, layer, model, *slot, *bones);
                     }
                 }
                 for (name, first, count) in &static_ranges {
@@ -936,13 +976,14 @@ impl App {
 
                 // Physics props, at the pose in their model slot.
                 pass.push_debug_group("props");
-                for (slot, name) in &props {
+                for (slot, name, bones) in &props {
                     if let Some(model) = self.model_cache.get(name).and_then(Option::as_ref) {
                         let drawn = gfx.renderer.draw_studio_model(
                             &mut pass,
                             &world.frame_bind_group,
                             model,
                             *slot,
+                            *bones,
                         );
                         self.stats.draw_calls += drawn.draw_calls;
                         self.stats.triangles += drawn.triangles;

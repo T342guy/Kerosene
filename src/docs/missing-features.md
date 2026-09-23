@@ -55,8 +55,9 @@ for completeness.
 - **Networking.** The simulation runs headless (the hard part is done), but
   there is no client/server wire protocol, no snapshot, no prediction, and no
   replication.
-- **Skeletal animation.** `.keromdl` carries bones and per-vertex weights and
-  Forge preserves them, but nothing plays animation.
+- ~~**Skeletal animation.**~~ Playback exists: Forge imports skinned glTF
+  with its clips, the renderer skins on the GPU, and `prop_dynamic` plays,
+  switches and crossfades clips. See section 5 for what is not there.
 - **Chisel 3D view.** Software-rasterised, with correct occlusion but no
   lighting or shadow preview.
 - **Texture block compression.** `.kerotex` is uncompressed; no BCn. The
@@ -155,10 +156,12 @@ for completeness.
 
 ## 5. Animation and characters
 
-- **Skeletal animation playback.** Bones and weights are stored; nothing
-  animates them. Viewmodels are the first consumer, and the only one the
-  target genres need soon.
-- **Animation blending / state machines** (the Animator equivalent). None.
+- ~~**Skeletal animation playback.**~~ Fixed for `prop_dynamic`: clips play,
+  loop or hold, and crossfade on change. Still missing: a viewmodel -- the
+  weapon in front of the camera, the first thing a shooter needs from this --
+  and animation events (a footstep sound on frame 12).
+- **Animation state machines** (the Animator equivalent). None: two-clip
+  crossfades only.
 - **Morph targets / blend shapes.** None.
 - **Inverse kinematics** (foot placement, look-at). None.
 - **Animation retargeting.** None.
@@ -265,8 +268,8 @@ for completeness.
 - **Material editor.** `.keromat` is hand-written KeyValues; no visual
   material graph.
 - **Shader graph / custom shaders.** The shader set is closed.
-- **Animation import in Forge.** Forge reads static OBJ only; no FBX/glTF, no
-  skeletal or morph import.
+- **Animation import in Forge.** glTF (skins and animations) is in. No FBX,
+  no morph targets, no animated scale, and only a model's first skin.
 - **Model LOD generation.** None.
 - **Terrain tooling.** Brushes only; no heightmap terrain or terrain editor.
 - ~~**Level streaming / world partition.**~~ Sections: a visgroup marked as

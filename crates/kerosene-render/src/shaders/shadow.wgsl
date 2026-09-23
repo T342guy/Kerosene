@@ -24,6 +24,27 @@ fn vs_shadow(@location(0) position: vec3<f32>) -> @builtin(position) vec4<f32> {
     return shadow_view.view_proj * (model.transform * vec4<f32>(position, 1.0));
 }
 
+// The bone palette: one matrix per bone, bind pose to posed. Slot 0 is all
+// identities, which is what a static model binds.
+struct Bones {
+    palette: array<mat4x4<f32>, 128>,
+};
+@group(2) @binding(0) var<uniform> bones: Bones;
+
+// An animated studio model: skinned, then placed.
+@vertex
+fn vs_shadow_skinned(
+    @location(0) position: vec3<f32>,
+    @location(8) joints: vec4<u32>,
+    @location(9) weights: vec4<f32>,
+) -> @builtin(position) vec4<f32> {
+    let skin = bones.palette[joints.x] * weights.x
+        + bones.palette[joints.y] * weights.y
+        + bones.palette[joints.z] * weights.z
+        + bones.palette[joints.w] * weights.w;
+    return shadow_view.view_proj * (model.transform * skin * vec4<f32>(position, 1.0));
+}
+
 // Static props, instanced: the transform comes from the instance buffer.
 @vertex
 fn vs_shadow_instanced(

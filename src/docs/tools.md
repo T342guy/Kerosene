@@ -712,10 +712,22 @@ unattended.
 kerosene-tools forge compile art/crate.obj -o models/props/crate.keromdl
                             [--scale-metres] [--z-up] [--scale N]
                             [--material old=new] [--recompute-normals]
+kerosene-tools forge compile art/turret.glb -o models/props/turret.keromdl
+                            [--scale N] [--material old=new] [--once clip]
 kerosene-tools forge info models/props/crate.keromdl
 ```
 
-OBJ → `.keromdl`, splitting by material and welding vertices.
+OBJ or glTF (`.gltf`, `.glb`) → `.keromdl`, splitting by material and welding
+vertices.
+
+**glTF** carries what OBJ cannot: a skeleton and its animations. Forge reads
+every triangle mesh in the default scene, the first skin as the model's bones
+(parents first, rest poses from the skin's inverse bind matrices), and every
+animation, resampled at 30 fps; bone translation and rotation are kept and
+animated scale is warned about. glTF is metres, Y-up and faces +Z by
+definition, so there is no `--scale-metres` or `--z-up` to get wrong. Clips
+loop unless named with `--once`. Kiln picks up `.gltf` and `.glb` under `art/`
+beside `.obj`. A `prop_dynamic` plays the result.
 
 Two conversions happen on the way in, and getting either wrong produces a model
 that is subtly rotated or a hundred times too small. OBJ is Y-up with -Z

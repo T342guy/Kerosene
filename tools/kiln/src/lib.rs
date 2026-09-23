@@ -257,7 +257,7 @@ pub fn build(settings: &Settings) -> Result<Report> {
         say("models");
         report.models = build_models(settings)?;
         if report.models == 0 {
-            println!("  no .obj sources under art/")
+            println!("  no .obj, .gltf or .glb sources under art/")
         }
     }
 
@@ -295,10 +295,13 @@ fn say(stage: &str) {
     println!("==> {stage}");
 }
 
-/// Compile every `.obj` under the art tree.
+/// Compile every `.obj`, `.gltf` and `.glb` under the art tree.
 fn build_models(settings: &Settings) -> Result<usize> {
     let art = settings.content.join("art");
-    let sources = sources(&art, "obj");
+    let mut sources = sources(&art, "obj");
+    sources.extend(self::sources(&art, "gltf"));
+    sources.extend(self::sources(&art, "glb"));
+    sources.sort();
     let mut built = 0;
 
     for source in &sources {
@@ -318,7 +321,11 @@ fn build_models(settings: &Settings) -> Result<usize> {
             "-o".to_string(),
             out.display().to_string(),
         ];
-        if settings.models_in_metres {
+        // glTF is metres by definition; only OBJ needs telling.
+        let is_obj = source
+            .extension()
+            .is_some_and(|e| e.eq_ignore_ascii_case("obj"));
+        if settings.models_in_metres && is_obj {
             args.push("--scale-metres".into())
         }
         run_tool("forge", &args, settings)?;

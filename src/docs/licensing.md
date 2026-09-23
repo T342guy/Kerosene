@@ -192,6 +192,16 @@ obligations that egui brings, and satisfied the same way. `kiln --ship` writes
 that notice into the distribution's `README.txt`, so a build made with it is
 compliant without anyone remembering to be.
 
+#### glTF, which only a build tool links
+
+```
+gltf  gltf-json  gltf-derive  serde  serde_derive  serde_json
+```
+
+MIT or Apache-2.0, all reached only by `forge`, which reads `.gltf` and `.glb`
+sources. The engine reads the `.keromdl` Forge writes and never links these,
+for the same reason as Symphonia below: a tool is never shipped.
+
 #### Symphonia, which only a build tool links
 
 ```

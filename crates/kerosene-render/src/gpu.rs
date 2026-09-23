@@ -24,15 +24,27 @@ use wgpu::util::DeviceExt;
 
 /// A vertex in a studio model, as uploaded to the GPU.
 ///
-/// Skinning data is not uploaded: rigid rendering uses bone 0 (the identity),
-/// which is all a physics prop needs. Position, normal and uv only.
+/// The same forty bytes as a `.keromdl` vertex, bone influences included: a
+/// static model is fully weighted to bone 0, which the identity palette in
+/// bone slot 0 leaves where it is, so one vertex format and one shader serve
+/// a crate and a character alike.
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, Pod, Zeroable)]
 pub struct ModelVertex {
     pub position: [f32; 3],
     pub normal: [f32; 3],
     pub uv: [f32; 2],
+    pub bone_indices: [u8; 4],
+    /// Normalised: 255 is all of the vertex.
+    pub bone_weights: [u8; 4],
 }
+
+/// How many animated models can be drawn in one frame, each with its own
+/// palette. Past it, a model is drawn in its rest pose.
+pub const MAX_SKINNED: usize = 64;
+
+/// One skinning palette: a matrix per bone, as the shaders declare it.
+const PALETTE_BYTES: u64 = (kerosene_anim::MAX_BONES * 64) as u64;
 
 /// One copy of a studio model, for instanced drawing: where it is and which
 /// probe it reflects.
@@ -411,6 +423,10 @@ pub struct Renderer {
     shadow_instanced_pipeline: wgpu::RenderPipeline,
     /// Every static prop's [`ModelInstance`] this frame, grown as needed.
     instance_buffer: Option<wgpu::Buffer>,
+    /// Bone palettes: slot 0 the identity, then one per animated model.
+    bones_buffer: wgpu::Buffer,
+    bones_bind_group: wgpu::BindGroup,
+    palette_stride: u32,
 }
 
 /// The scene shaders and layouts, everything a pipeline needs except a
@@ -420,6 +436,8 @@ struct SceneShaders {
     model: wgpu::ShaderModule,
     line: wgpu::ShaderModule,
     layout: wgpu::PipelineLayout,
+    /// The world's layout plus the bone palettes, for studio models.
+    model_layout: wgpu::PipelineLayout,
     line_layout: wgpu::PipelineLayout,
 }
 
@@ -653,6 +671,57 @@ impl Renderer {
             push_constant_ranges: &[],
         });
 
+        // ---- skinning ----
+        // One palette per animated model, addressed by dynamic offset like
+        // the model transforms. Slot 0 is all identities and never
+        // rewritten: what every static model binds.
+        let bones_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("bones"),
+            entries: &[wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::VERTEX,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: true,
+                    min_binding_size: wgpu::BufferSize::new(PALETTE_BYTES),
+                },
+                count: None,
+            }],
+        });
+        let palette_stride = (PALETTE_BYTES as u32).div_ceil(alignment) * alignment;
+        let identity: Vec<[[f32; 4]; 4]> =
+            vec![Mat4::IDENTITY.to_cols_array_2d(); kerosene_anim::MAX_BONES];
+        let mut palette_init = vec![0u8; palette_stride as usize * (MAX_SKINNED + 1)];
+        palette_init[..PALETTE_BYTES as usize].copy_from_slice(bytemuck::cast_slice(&identity));
+        let bones_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("bone palettes"),
+            contents: &palette_init,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+        let bones_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("bones"),
+            layout: &bones_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                    buffer: &bones_buffer,
+                    offset: 0,
+                    size: wgpu::BufferSize::new(PALETTE_BYTES),
+                }),
+            }],
+        });
+        let model_pipeline_layout =
+            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("model"),
+                bind_group_layouts: &[
+                    &frame_layout,
+                    &material_layout,
+                    &model_layout,
+                    &bones_layout,
+                ],
+                push_constant_ranges: &[],
+            });
+
         // ---- dynamic lights and shadows ----
         let lights_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("dynamic lights"),
@@ -749,7 +818,14 @@ impl Renderer {
             bind_group_layouts: &[&shadow_view_layout, &model_layout],
             push_constant_ranges: &[],
         });
-        let shadow_pipeline = |label: &str, stride: usize, instanced: bool| {
+        let shadow_skinned_layout =
+            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("shadow skinned"),
+                bind_group_layouts: &[&shadow_view_layout, &model_layout, &bones_layout],
+                push_constant_ranges: &[],
+            });
+        // `skinned` builds the studio model's: bones as well as position.
+        let shadow_pipeline = |label: &str, stride: usize, instanced: bool, skinned: bool| {
             let position = wgpu::VertexBufferLayout {
                 array_stride: stride as wgpu::BufferAddress,
                 step_mode: wgpu::VertexStepMode::Vertex,
@@ -759,7 +835,30 @@ impl Renderer {
                     format: wgpu::VertexFormat::Float32x3,
                 }],
             };
-            let buffers = if instanced {
+            let skinned_position = wgpu::VertexBufferLayout {
+                array_stride: stride as wgpu::BufferAddress,
+                step_mode: wgpu::VertexStepMode::Vertex,
+                attributes: &[
+                    wgpu::VertexAttribute {
+                        offset: 0,
+                        shader_location: 0,
+                        format: wgpu::VertexFormat::Float32x3,
+                    },
+                    wgpu::VertexAttribute {
+                        offset: 32,
+                        shader_location: 8,
+                        format: wgpu::VertexFormat::Uint8x4,
+                    },
+                    wgpu::VertexAttribute {
+                        offset: 36,
+                        shader_location: 9,
+                        format: wgpu::VertexFormat::Unorm8x4,
+                    },
+                ],
+            };
+            let buffers = if skinned {
+                vec![skinned_position]
+            } else if instanced {
                 vec![
                     position,
                     wgpu::VertexBufferLayout {
@@ -773,10 +872,16 @@ impl Renderer {
             };
             device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                 label: Some(label),
-                layout: Some(&shadow_layout),
+                layout: Some(if skinned {
+                    &shadow_skinned_layout
+                } else {
+                    &shadow_layout
+                }),
                 vertex: wgpu::VertexState {
                     module: &shadow_shader,
-                    entry_point: Some(if instanced {
+                    entry_point: Some(if skinned {
+                        "vs_shadow_skinned"
+                    } else if instanced {
                         "vs_shadow_instanced"
                     } else {
                         "vs_shadow"
@@ -811,12 +916,24 @@ impl Renderer {
                 cache: None,
             })
         };
-        let shadow_world_pipeline =
-            shadow_pipeline("shadow world", std::mem::size_of::<WorldVertex>(), false);
-        let shadow_model_pipeline =
-            shadow_pipeline("shadow model", std::mem::size_of::<ModelVertex>(), false);
-        let shadow_instanced_pipeline =
-            shadow_pipeline("shadow instanced", std::mem::size_of::<ModelVertex>(), true);
+        let shadow_world_pipeline = shadow_pipeline(
+            "shadow world",
+            std::mem::size_of::<WorldVertex>(),
+            false,
+            false,
+        );
+        let shadow_model_pipeline = shadow_pipeline(
+            "shadow model",
+            std::mem::size_of::<ModelVertex>(),
+            false,
+            true,
+        );
+        let shadow_instanced_pipeline = shadow_pipeline(
+            "shadow instanced",
+            std::mem::size_of::<ModelVertex>(),
+            true,
+            false,
+        );
 
         // Debug lines: the same camera uniform, a line-list topology, and a
         // colour straight through. Only the camera is bound.
@@ -831,6 +948,7 @@ impl Renderer {
             model: model_shader,
             line: line_shader,
             layout: pipeline_layout,
+            model_layout: model_pipeline_layout,
             line_layout,
         };
         let samples = 1;
@@ -980,7 +1098,33 @@ impl Renderer {
             shadow_model_pipeline,
             shadow_instanced_pipeline,
             instance_buffer: None,
+            bones_buffer,
+            bones_bind_group,
+            palette_stride,
         }
+    }
+
+    /// Upload this frame's animated models' palettes into slots 1 onward:
+    /// `palettes[i]` is bone slot `i + 1`. Past [`MAX_SKINNED`] they are
+    /// dropped, and a draw asking for one gets the rest pose.
+    pub fn update_palettes(&self, queue: &wgpu::Queue, palettes: &[Vec<Mat4>]) {
+        let stride = self.palette_stride as usize;
+        for (i, palette) in palettes.iter().take(MAX_SKINNED).enumerate() {
+            let mut matrices = vec![Mat4::IDENTITY.to_cols_array_2d(); kerosene_anim::MAX_BONES];
+            for (slot, m) in matrices.iter_mut().zip(palette) {
+                *slot = m.to_cols_array_2d();
+            }
+            queue.write_buffer(
+                &self.bones_buffer,
+                ((i + 1) * stride) as u64,
+                bytemuck::cast_slice(&matrices),
+            );
+        }
+    }
+
+    fn palette_offset(&self, slot: usize) -> u32 {
+        let slot = if slot <= MAX_SKINNED { slot } else { 0 };
+        self.palette_stride * slot as u32
     }
 
     /// Upload this frame's static-prop instances, growing the buffer when
@@ -1038,6 +1182,7 @@ impl Renderer {
         // its transform from the instance buffer instead, but a layout's
         // groups must all be bound.
         pass.set_bind_group(2, &self.model_bind_group, &[0]);
+        pass.set_bind_group(3, &self.bones_bind_group, &[0]);
         pass.set_vertex_buffer(0, gpu_model.vertex_buffer.slice(..));
         pass.set_vertex_buffer(1, instances.slice(..));
         pass.set_index_buffer(gpu_model.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
@@ -1393,6 +1538,7 @@ impl Renderer {
         layer: usize,
         gpu_model: &'a GpuModel,
         slot: usize,
+        bones: usize,
     ) {
         if gpu_model.meshes.is_empty() {
             return;
@@ -1404,6 +1550,7 @@ impl Renderer {
             &[self.shadow_view_offset(layer)],
         );
         pass.set_bind_group(1, &self.model_bind_group, &[self.model_offset(slot)]);
+        pass.set_bind_group(2, &self.bones_bind_group, &[self.palette_offset(bones)]);
         pass.set_vertex_buffer(0, gpu_model.vertex_buffer.slice(..));
         pass.set_index_buffer(gpu_model.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
         for &(first, count, _) in &gpu_model.meshes {
@@ -1468,12 +1615,16 @@ impl Renderer {
     /// Physics props and other dynamic models are drawn through here: the
     /// geometry comes from a `.keromdl` (not from the BSP), and the transform
     /// comes from the same model buffer the brush models use.
+    ///
+    /// `bones` is the palette slot from [`Renderer::update_palettes`] -- 0,
+    /// the identity, for a model that is not animated.
     pub fn draw_studio_model<'a>(
         &'a self,
         pass: &mut wgpu::RenderPass<'a>,
         frame_bind_group: &'a wgpu::BindGroup,
         gpu_model: &'a GpuModel,
         slot: usize,
+        bones: usize,
     ) -> FrameStats {
         let mut stats = FrameStats::default();
         if gpu_model.meshes.is_empty() {
@@ -1482,6 +1633,7 @@ impl Renderer {
 
         pass.set_bind_group(0, frame_bind_group, &[]);
         pass.set_bind_group(2, &self.model_bind_group, &[self.model_offset(slot)]);
+        pass.set_bind_group(3, &self.bones_bind_group, &[self.palette_offset(bones)]);
         pass.set_vertex_buffer(0, gpu_model.vertex_buffer.slice(..));
         pass.set_index_buffer(gpu_model.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
         pass.set_pipeline(&self.pipelines[&PipelineKey::from(Pass::Model)]);
@@ -1833,11 +1985,22 @@ fn scene_pipelines(
                 shader_location: 2,
                 format: wgpu::VertexFormat::Float32x2,
             },
+            // After the instance attributes' 3 to 7.
+            wgpu::VertexAttribute {
+                offset: 32,
+                shader_location: 8,
+                format: wgpu::VertexFormat::Uint8x4,
+            },
+            wgpu::VertexAttribute {
+                offset: 36,
+                shader_location: 9,
+                format: wgpu::VertexFormat::Unorm8x4,
+            },
         ],
     };
     let model_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some("model"),
-        layout: Some(&scene.layout),
+        layout: Some(&scene.model_layout),
         vertex: wgpu::VertexState {
             module: &scene.model,
             entry_point: Some("vs_model"),
@@ -1874,7 +2037,7 @@ fn scene_pipelines(
 
     let instanced_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some("model instanced"),
-        layout: Some(&scene.layout),
+        layout: Some(&scene.model_layout),
         vertex: wgpu::VertexState {
             module: &scene.model,
             entry_point: Some("vs_model_instanced"),
@@ -2557,6 +2720,8 @@ pub fn load_model(
             position: v.position,
             normal: v.normal,
             uv: v.uv,
+            bone_indices: v.bone_indices,
+            bone_weights: v.bone_weights,
         })
         .collect();
     let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -2834,7 +2999,14 @@ mod tests {
     #[test]
     fn the_model_vertex_layout_matches_what_the_pipeline_declares() {
         use super::ModelVertex;
-        assert_eq!(std::mem::size_of::<ModelVertex>(), 32);
+        assert_eq!(std::mem::size_of::<ModelVertex>(), 40);
+        assert_eq!(
+            std::mem::size_of::<ModelVertex>(),
+            std::mem::size_of::<kerosene_asset::Vertex>(),
+            "the same layout as the file, so upload is a copy"
+        );
+        assert_eq!(std::mem::offset_of!(ModelVertex, bone_indices), 32);
+        assert_eq!(std::mem::offset_of!(ModelVertex, bone_weights), 36);
         assert_eq!(std::mem::offset_of!(ModelVertex, position), 0);
         assert_eq!(std::mem::offset_of!(ModelVertex, normal), 12);
         assert_eq!(std::mem::offset_of!(ModelVertex, uv), 24);

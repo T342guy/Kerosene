@@ -380,7 +380,17 @@ wasted bytes per vertex on a static prop buys one vertex layout, one shader
 path and no branch in the hot loop.
 
 Bones are listed parents-first, so a single forward pass can build world
-transforms with no recursion and no sorting.
+transforms with no recursion and no sorting. A bone's rest transform is its
+**bind pose** -- the pose the mesh was skinned in -- which is what the
+renderer inverts to move the mesh with the bones.
+
+**Animations** (version 2). After the string table: one 16-byte record per
+clip -- name, frame count, frames per second, a loop flag -- then every
+clip's keys, frame after frame, one 28-byte `BoneKey` (translation, rotation
+quaternion, both relative to the parent) per bone per frame. Clips are
+resampled at a fixed rate by Forge, so playing one is two lookups and an
+interpolation per bone. A version 1 file -- every static prop compiled before
+animations existed -- still loads, as a model with none.
 
 Triangles are wound **counter-clockwise as seen from the front** -- the
 convention the GPU renderer culls by, and the opposite of `.keromap` faces,

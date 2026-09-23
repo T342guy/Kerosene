@@ -11,9 +11,11 @@
 //!
 //! ```text
 //! kerosene-tools forge compile art/crate.obj -o models/props/crate.keromdl --scale-metres
+//! kerosene-tools forge compile art/soldier.glb -o models/npc/soldier.keromdl --once die
 //! kerosene-tools forge info models/props/crate.keromdl
 //! ```
 
+pub mod gltf_import;
 pub mod obj;
 
 use anyhow::{Context, Result, bail};
@@ -37,7 +39,8 @@ struct Args {
 
 #[derive(Subcommand, Debug)]
 enum Command {
-    /// Compile an OBJ into a .keromdl.
+    /// Compile an OBJ, or a glTF (.gltf/.glb) with its skeleton and
+    /// animations, into a .keromdl.
     Compile {
         source: PathBuf,
         #[arg(short, long)]
@@ -66,6 +69,11 @@ enum Command {
         /// Recompute normals from face geometry, ignoring any in the source.
         #[arg(long)]
         recompute_normals: bool,
+
+        /// glTF: an animation that plays once and holds its last frame
+        /// rather than looping. Repeatable.
+        #[arg(long)]
+        once: Vec<String>,
     },
     /// Describe a compiled model.
     Info { model: PathBuf },
@@ -84,8 +92,18 @@ pub fn run(args: Vec<String>) -> Result<()> {
             scale_metres,
             z_up,
             recompute_normals,
+            once,
         } => {
             let out = output.unwrap_or_else(|| source.with_extension("keromdl"));
+            let is_gltf = source
+                .extension()
+                .and_then(|e| e.to_str())
+                .is_some_and(|e| e.eq_ignore_ascii_case("gltf") || e.eq_ignore_ascii_case("glb"));
+            if is_gltf {
+                // glTF is metres and Y-up by specification, so there is no
+                // --scale-metres or --z-up to get wrong.
+                return compile_gltf(&source, &out, &default_material, &materials, scale, &once);
+            }
             let scale = scale * if scale_metres { KU_PER_METRE } else { 1.0 };
             let up = if z_up { UpAxis::Z } else { UpAxis::Y };
             compile(
@@ -218,6 +236,63 @@ fn compile(
     Ok(())
 }
 
+fn compile_gltf(
+    source: &Path,
+    out: &Path,
+    default_material: &str,
+    material_renames: &[String],
+    scale: f32,
+    once: &[String],
+) -> Result<()> {
+    let mut renames: HashMap<&str, &str> = HashMap::new();
+    for pair in material_renames {
+        let Some((from, to)) = pair.split_once('=') else {
+            bail!("--material expects old=new, got {pair:?}");
+        };
+        renames.insert(from, to);
+    }
+    let model = gltf_import::import(
+        source,
+        &gltf_import::ImportOptions {
+            scale,
+            default_material,
+            renames: &renames,
+            once,
+        },
+    )?;
+    model
+        .validate()
+        .context("the compiled model is inconsistent")?;
+    println!(
+        "forge: {} -- {} vertices, {} triangles, {} meshes, {} bones, {} animations",
+        source.display(),
+        model.vertices.len(),
+        model.triangle_count(),
+        model.meshes.len(),
+        model.bones.len(),
+        model.animations.len()
+    );
+    for a in &model.animations {
+        println!(
+            "  animation {}: {:.2}s{}",
+            a.name,
+            a.duration(),
+            if a.looping { ", loops" } else { ", once" }
+        );
+    }
+    if let Some(parent) = out.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    let bytes = model.to_bytes();
+    std::fs::write(out, &bytes).with_context(|| format!("writing {}", out.display()))?;
+    println!(
+        "  wrote {} ({:.1} KiB)",
+        out.display(),
+        bytes.len() as f64 / 1024.0
+    );
+    Ok(())
+}
+
 /// Normal of a triangle, from its winding.
 fn face_normal(mesh: &ObjMesh, triangle: &[obj::Corner; 3]) -> Vec3 {
     let a = mesh.positions[triangle[0].position];
@@ -263,6 +338,16 @@ fn info(path: &Path) -> Result<()> {
     for i in 0..model.bones.len() {
         let b = &model.bones[i];
         println!("    bone {i}: {} (parent {})", model.bone_name(i), b.parent);
+    }
+    for a in &model.animations {
+        println!(
+            "    animation {}: {} frames at {} fps, {:.2}s{}",
+            a.name,
+            a.frame_count,
+            a.fps,
+            a.duration(),
+            if a.looping { ", loops" } else { ", once" }
+        );
     }
     Ok(())
 }

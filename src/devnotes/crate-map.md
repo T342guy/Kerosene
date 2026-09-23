@@ -212,7 +212,8 @@ The runtime binary `apps/kerosene/src/main.rs` is a call to
 | `kerosene-physics` | Source `gamemovement`, `CollisionWorld` trait | `src/movement.rs`, `src/world.rs` |
 | `kerosene-rigid` | box3d-rust wrapper, inches native | `src/lib.rs` |
 | `kerosene-entity` | Entity slots, fields, I/O queue, class registry, schema | `src/world.rs`, `src/io.rs`, `src/schema.rs` |
-| `kerosene-render` | CPU PVS/mesh build, lightmap atlas, wgpu backend | `src/mesh.rs`, `src/gpu.rs`, `src/lightmap.rs` |
+| `kerosene-render` | CPU PVS/mesh build, lightmap atlas, dynamic lights, probes, wgpu backend | `src/mesh.rs`, `src/gpu.rs`, `src/lightmap.rs` |
+| `kerosene-anim` | skeleton, clip sampling, crossfade, skinning palette | `src/lib.rs` |
 | `kerosene-audio` | ADPCM, mixer, FDN reverb, device output | `src/mixer.rs`, `src/reverb.rs`, `src/compiled.rs` |
 | `kerosene-script` | Rhai VM, world snapshot, `ScriptAction` queue | `src/lib.rs`, `src/view.rs`, `src/bindings.rs` |
 | `kerosene-engine` | `Engine`, `Game`, `host`, `launch`, streaming, acoustics glue | `src/engine.rs`, `src/host.rs` |

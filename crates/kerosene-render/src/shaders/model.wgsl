@@ -112,11 +112,29 @@ struct Model {
 };
 @group(2) @binding(0) var<uniform> model: Model;
 
+// The bone palette: one matrix per bone, bind pose to posed. Slot 0 is all
+// identities, which is what a static model binds.
+struct Bones {
+    palette: array<mat4x4<f32>, 128>,
+};
+@group(3) @binding(0) var<uniform> bones: Bones;
+
 struct VertexIn {
     @location(0) position: vec3<f32>,
     @location(1) normal: vec3<f32>,
     @location(2) uv: vec2<f32>,
+    // Four bone influences, weights summing to one.
+    @location(8) joints: vec4<u32>,
+    @location(9) weights: vec4<f32>,
 };
+
+// Linear blend skinning: the vertex's four bones' matrices, weighted.
+fn skin(input: VertexIn) -> mat4x4<f32> {
+    return bones.palette[input.joints.x] * input.weights.x
+        + bones.palette[input.joints.y] * input.weights.y
+        + bones.palette[input.joints.z] * input.weights.z
+        + bones.palette[input.joints.w] * input.weights.w;
+}
 
 struct VertexOut {
     @builtin(position) clip_position: vec4<f32>,
@@ -129,11 +147,12 @@ struct VertexOut {
 @vertex
 fn vs_model(input: VertexIn) -> VertexOut {
     var out: VertexOut;
-    let world = (model.transform * vec4<f32>(input.position, 1.0)).xyz;
+    let placed = model.transform * skin(input);
+    let world = (placed * vec4<f32>(input.position, 1.0)).xyz;
     out.clip_position = camera.view_proj * vec4<f32>(world, 1.0);
     out.uv = input.uv;
     // Rotated, not carried through: w = 0 drops the translation.
-    out.normal = normalize((model.transform * vec4<f32>(input.normal, 0.0)).xyz);
+    out.normal = normalize((placed * vec4<f32>(input.normal, 0.0)).xyz);
     out.world_position = world;
     // Read here, where the model uniform is visible, and handed on.
     out.probe = model.probe.x;

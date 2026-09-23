@@ -32,7 +32,7 @@ pub use material::{
     ACOUSTIC_BANDS_HZ, AcousticProfile, MAX_ABSORPTION, Material, MaterialError, Shader,
     SurfaceProperty,
 };
-pub use model::{Bone, Mesh, Model, ModelError, Vertex};
+pub use model::{Animation, Bone, BoneKey, Mesh, Model, ModelError, Vertex};
 pub use texture::{Mip, PixelFormat, Texture, TextureError, TextureFlags};
 pub use textureset::{MapKind, TextureSet};
 

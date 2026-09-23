@@ -200,6 +200,8 @@ pub struct Engine {
     pub(crate) game: Option<Box<dyn Game>>,
     /// Rigid-body props and the static world they rest on.
     pub physics: PhysicsProps,
+    /// Animated models' clips and skeletons, loaded as `prop_dynamic`s ask.
+    pub animations: crate::animation::Animations,
     pub player: PlayerState,
     /// The prop the pick-up tool is carrying, and how to keep it facing the
     /// player as they turn.
@@ -369,6 +371,7 @@ impl Engine {
             registry,
             game: None,
             physics: PhysicsProps::new(),
+            animations: crate::animation::Animations::new(),
             player: PlayerState::default(),
             held_prop: None,
             accumulator: 0.0,
@@ -433,6 +436,13 @@ impl Engine {
     /// simulation states.
     pub fn interpolation_alpha(&self) -> f32 {
         (self.accumulator / self.tick_interval()).clamp(0.0, 1.0)
+    }
+
+    /// Game time to draw at: the last tick's, less the part of a tick not yet
+    /// simulated, so an animation moves smoothly between ticks the way the
+    /// camera and the props do.
+    pub fn render_time(&self, alpha: f32) -> f32 {
+        self.entities.time - (1.0 - alpha) * self.tick_interval()
     }
 
     /// See `load_generation`.
@@ -537,6 +547,8 @@ impl Engine {
         // Static world geometry, so rigid-body props have something to land
         // on. Built before `bsp` moves into `level`.
         self.physics = PhysicsProps::new(); // t3; this wipes the phys entity data. But brushes were not wiped
+        // Models may have been recompiled since the last map.
+        self.animations = crate::animation::Animations::new();
         self.previous_brush_poses.clear(); // t3; Now they get cleared. Fixes a bug.
 
         // Only the world section's hulls now; the streamed sections' come
@@ -877,6 +889,7 @@ impl Engine {
 
             self.physics
                 .sync_and_step(dt, &mut self.entities, &self.vfs);
+            self.animations.tick(&mut self.entities, &self.vfs);
         }
         self.update_streaming(dt);
 

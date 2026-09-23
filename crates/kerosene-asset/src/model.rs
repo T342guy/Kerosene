@@ -13,13 +13,22 @@
 //! Vertices carry four bone influences whether or not the model is skinned.
 //! The cost is 8 bytes a vertex on static props; the benefit is one vertex
 //! layout, one shader path, and no branch in the hot loop.
+//!
+//! A skinned model carries its animations too (version 2): each clip is its
+//! bones' local transforms resampled at a fixed rate, so playing one is two
+//! lookups and an interpolation per bone, with no curve evaluation and no
+//! knowledge of the tool it was authored in. A bone's rest transform is its
+//! bind pose: the pose the mesh was skinned in, which is what the renderer
+//! inverts to move the mesh with the bones.
 
 use bytemuck::{Pod, Zeroable};
 use kerosene_math::{Aabb, Vec3};
 use thiserror::Error;
 
 const MAGIC: [u8; 4] = *b"KRMD";
-const VERSION: u32 = 1;
+/// Version 2 added animations. Version 1 files -- every static prop written
+/// before them -- still load, as models with none.
+const VERSION: u32 = 2;
 const HEADER_SIZE: usize = 64;
 
 /// Bones per vertex. Four is the usual compromise: enough for a shoulder or a
@@ -38,6 +47,16 @@ pub enum ModelError {
     BadIndex { mesh: usize },
     #[error("bone {bone} has parent {parent}, which is not before it")]
     BadBoneOrder { bone: usize, parent: i32 },
+    #[error(
+        "animation {animation} has {found} keys; {frames} frames of {bones} bones need {expected}"
+    )]
+    BadAnimation {
+        animation: usize,
+        found: usize,
+        frames: usize,
+        bones: usize,
+        expected: usize,
+    },
 }
 
 #[repr(C)]
@@ -86,6 +105,57 @@ pub struct Bone {
     pub rotation: [f32; 4],
 }
 
+/// One bone's local transform in one frame of an animation.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Pod, Zeroable)]
+pub struct BoneKey {
+    /// Relative to the parent bone, like [`Bone::position`].
+    pub translation: [f32; 3],
+    /// Quaternion `[x, y, z, w]`, relative to the parent.
+    pub rotation: [f32; 4],
+}
+
+/// An animation clip.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Animation {
+    pub name: String,
+    /// Frames per second the keys were sampled at.
+    pub fps: f32,
+    pub frame_count: u32,
+    /// Whether it plays round again when it ends, or holds its last frame.
+    pub looping: bool,
+    /// `frame_count` frames of one [`BoneKey`] per bone, frame after frame.
+    pub keys: Vec<BoneKey>,
+}
+
+impl Animation {
+    /// Length in seconds, from the first frame to the last.
+    pub fn duration(&self) -> f32 {
+        if self.frame_count < 2 || self.fps <= 0.0 {
+            0.0
+        } else {
+            (self.frame_count - 1) as f32 / self.fps
+        }
+    }
+
+    /// The keys of one frame, one per bone.
+    pub fn frame(&self, frame: usize, bone_count: usize) -> &[BoneKey] {
+        let start = frame.min(self.frame_count.saturating_sub(1) as usize) * bone_count;
+        self.keys.get(start..start + bone_count).unwrap_or(&[])
+    }
+}
+
+/// An animation's record in the file; its keys follow every record.
+#[repr(C)]
+#[derive(Clone, Copy, Pod, Zeroable)]
+struct RawAnimation {
+    name_offset: u32,
+    frame_count: u32,
+    fps: f32,
+    /// Bit 0: loops.
+    flags: u32,
+}
+
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
 struct RawHeader {
@@ -99,7 +169,9 @@ struct RawHeader {
     flags: u32,
     mins: [f32; 3],
     maxs: [f32; 3],
-    _reserved: [u32; 2],
+    /// Zero in version 1, where it was reserved.
+    animation_count: u32,
+    _reserved: u32,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -111,6 +183,8 @@ pub struct Model {
     /// NUL-separated names, indexed by the offsets above.
     pub strings: Vec<u8>,
     pub bounds: Aabb,
+    /// Animation clips, for a skinned model.
+    pub animations: Vec<Animation>,
 }
 
 impl Model {
@@ -203,10 +277,43 @@ impl Model {
                 });
             }
         }
+        for (i, animation) in self.animations.iter().enumerate() {
+            let expected = animation.frame_count as usize * self.bones.len();
+            if animation.keys.len() != expected {
+                return Err(ModelError::BadAnimation {
+                    animation: i,
+                    found: animation.keys.len(),
+                    frames: animation.frame_count as usize,
+                    bones: self.bones.len(),
+                    expected,
+                });
+            }
+        }
         Ok(())
     }
 
+    /// The index of the animation called `name`, ignoring case.
+    pub fn animation_index(&self, name: &str) -> Option<usize> {
+        self.animations
+            .iter()
+            .position(|a| a.name.eq_ignore_ascii_case(name))
+    }
+
     pub fn to_bytes(&self) -> Vec<u8> {
+        // Animation names go in the string table with everything else, so
+        // they are interned on a copy rather than on `self`.
+        let mut strings = self.strings.clone();
+        let mut records = Vec::with_capacity(self.animations.len());
+        for animation in &self.animations {
+            let name_offset = intern_into(&mut strings, &animation.name);
+            records.push(RawAnimation {
+                name_offset,
+                frame_count: animation.frame_count,
+                fps: animation.fps,
+                flags: animation.looping as u32,
+            });
+        }
+
         let header = RawHeader {
             magic: MAGIC,
             version: VERSION,
@@ -214,11 +321,12 @@ impl Model {
             index_count: self.indices.len() as u32,
             mesh_count: self.meshes.len() as u32,
             bone_count: self.bones.len() as u32,
-            string_bytes: self.strings.len() as u32,
+            string_bytes: strings.len() as u32,
             flags: 0,
             mins: self.bounds.min.to_array(),
             maxs: self.bounds.max.to_array(),
-            _reserved: [0; 2],
+            animation_count: self.animations.len() as u32,
+            _reserved: 0,
         };
 
         let mut out = Vec::new();
@@ -228,7 +336,14 @@ impl Model {
         out.extend_from_slice(bytemuck::cast_slice(&self.indices));
         out.extend_from_slice(bytemuck::cast_slice(&self.meshes));
         out.extend_from_slice(bytemuck::cast_slice(&self.bones));
-        out.extend_from_slice(&self.strings);
+        out.extend_from_slice(&strings);
+        // Records, then every clip's keys, so the records can be read as one
+        // array. Keys are four-byte fields, so no padding is needed after the
+        // string table for a copying reader like this one.
+        out.extend_from_slice(bytemuck::cast_slice(&records));
+        for animation in &self.animations {
+            out.extend_from_slice(bytemuck::cast_slice(&animation.keys));
+        }
         out
     }
 
@@ -244,7 +359,7 @@ impl Model {
         if header.magic != MAGIC {
             return Err(ModelError::BadMagic);
         }
-        if header.version != VERSION {
+        if !(1..=VERSION).contains(&header.version) {
             return Err(ModelError::BadVersion {
                 found: header.version,
                 expected: VERSION,
@@ -265,6 +380,26 @@ impl Model {
             });
         }
         let strings = bytes[offset..string_end].to_vec();
+        offset = string_end;
+
+        let animation_count = if header.version >= 2 {
+            header.animation_count as usize
+        } else {
+            0
+        };
+        let records: Vec<RawAnimation> = read_array(bytes, &mut offset, animation_count)?;
+        let mut animations = Vec::with_capacity(records.len());
+        for record in &records {
+            let count = record.frame_count as usize * bones.len();
+            let keys: Vec<BoneKey> = read_array(bytes, &mut offset, count)?;
+            animations.push(Animation {
+                name: read_string(&strings, record.name_offset as usize).to_string(),
+                fps: record.fps,
+                frame_count: record.frame_count,
+                looping: record.flags & 1 != 0,
+                keys,
+            });
+        }
 
         let model = Model {
             vertices,
@@ -273,6 +408,7 @@ impl Model {
             bones,
             strings,
             bounds: Aabb::new(Vec3::from_array(header.mins), Vec3::from_array(header.maxs)),
+            animations,
         };
         model.validate()?;
         Ok(model)
@@ -296,6 +432,22 @@ fn read_array<T: Pod>(
     bytemuck::cast_slice_mut::<T, u8>(&mut out).copy_from_slice(&bytes[*offset..end]);
     *offset = end;
     Ok(out)
+}
+
+/// Intern a name into a NUL-separated table, reusing an existing entry.
+fn intern_into(strings: &mut Vec<u8>, name: &str) -> u32 {
+    let mut offset = 0usize;
+    while offset < strings.len() {
+        let existing = read_string(strings, offset);
+        if existing == name {
+            return offset as u32;
+        }
+        offset += existing.len() + 1;
+    }
+    let at = strings.len() as u32;
+    strings.extend_from_slice(name.as_bytes());
+    strings.push(0);
+    at
 }
 
 fn read_string(buf: &[u8], offset: usize) -> &str {
@@ -469,11 +621,86 @@ mod tests {
         assert!(back.materials().is_empty());
     }
 
+    /// Two bones, and a one-second walk that swings the child.
+    fn skinned_model() -> Model {
+        let mut m = crate_model();
+        let root = m.intern("root");
+        let arm = m.intern("arm");
+        m.bones.push(Bone {
+            parent: -1,
+            name_offset: root,
+            rotation: [0.0, 0.0, 0.0, 1.0],
+            ..Default::default()
+        });
+        m.bones.push(Bone {
+            parent: 0,
+            name_offset: arm,
+            position: [0.0, 0.0, 16.0],
+            rotation: [0.0, 0.0, 0.0, 1.0],
+        });
+        let mut keys = Vec::new();
+        for frame in 0..4 {
+            keys.push(BoneKey {
+                translation: [0.0; 3],
+                rotation: [0.0, 0.0, 0.0, 1.0],
+            });
+            let angle = frame as f32 * 0.3;
+            keys.push(BoneKey {
+                translation: [0.0, 0.0, 16.0],
+                rotation: [0.0, (angle / 2.0).sin(), 0.0, (angle / 2.0).cos()],
+            });
+        }
+        m.animations.push(Animation {
+            name: "walk".into(),
+            fps: 3.0,
+            frame_count: 4,
+            looping: true,
+            keys,
+        });
+        m
+    }
+
+    #[test]
+    fn animations_round_trip_and_are_found_by_name() {
+        let m = skinned_model();
+        let bytes = m.to_bytes();
+        let back = Model::from_bytes(&bytes).unwrap();
+        assert_eq!(back.animations, m.animations);
+        assert_eq!(back.animation_index("WALK"), Some(0));
+        assert_eq!(back.animation_index("run"), None);
+        assert!((back.animations[0].duration() - 1.0).abs() < 1e-6);
+        assert_eq!(back.animations[0].frame(2, 2)[1], m.animations[0].keys[5]);
+        // The name went into the file's string table, not the model's.
+        assert_eq!(back.to_bytes(), bytes);
+    }
+
+    #[test]
+    fn a_version_1_model_still_loads_with_no_animations() {
+        // Every prop compiled before animations existed.
+        let mut bytes = crate_model().to_bytes();
+        bytes[4..8].copy_from_slice(&1u32.to_le_bytes());
+        let back = Model::from_bytes(&bytes).unwrap();
+        assert!(back.animations.is_empty());
+        assert_eq!(back.meshes.len(), 2);
+    }
+
+    #[test]
+    fn an_animation_short_of_keys_is_rejected() {
+        let mut m = skinned_model();
+        m.animations[0].keys.pop();
+        assert!(matches!(
+            m.validate(),
+            Err(ModelError::BadAnimation { animation: 0, .. })
+        ));
+    }
+
     #[test]
     fn vertex_layout_has_no_padding() {
         // The renderer uploads these straight to the GPU with a fixed stride.
         assert_eq!(std::mem::size_of::<Vertex>(), 40);
         assert_eq!(std::mem::size_of::<Mesh>(), 16);
         assert_eq!(std::mem::size_of::<Bone>(), 36);
+        assert_eq!(std::mem::size_of::<BoneKey>(), 28);
+        assert_eq!(std::mem::size_of::<RawHeader>(), HEADER_SIZE);
     }
 }

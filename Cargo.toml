@@ -14,6 +14,7 @@ members = [
     "crates/kerosene-rigid",
     "crates/kerosene-entity",
     "crates/kerosene-render",
+    "crates/kerosene-anim",
     "crates/kerosene-engine",
     "crates/kerosene-game",
     "crates/kerosene-script",
@@ -57,6 +58,7 @@ kerosene-physics = { path = "crates/kerosene-physics" }
 kerosene-rigid   = { path = "crates/kerosene-rigid" }
 kerosene-entity  = { path = "crates/kerosene-entity" }
 kerosene-render  = { path = "crates/kerosene-render" }
+kerosene-anim    = { path = "crates/kerosene-anim" }
 kerosene-engine  = { path = "crates/kerosene-engine" }
 kerosene-game    = { path = "crates/kerosene-game" }
 kerosene-script  = { path = "crates/kerosene-script" }
@@ -100,6 +102,10 @@ cpal        = "0.18"
 # build tool: the engine never links it, and `kiln --ship` never puts a tool in
 # a game, so no game carries it.
 symphonia   = { version = "0.6", default-features = false, features = ["flac", "mp3", "id3v2"] }
+# Reading glTF models, for Forge only: MIT OR Apache-2.0. Like symphonia it
+# is a build tool's dependency -- the engine reads the .keromdl Forge writes
+# and never links it.
+gltf        = { version = "1.4", default-features = false, features = ["import", "utils", "names"] }
 
 [profile.release]
 opt-level = 3

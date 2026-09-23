@@ -283,7 +283,10 @@ impl PhysicsProps {
         // compiled world.
         let unplaced: Vec<(EntityId, String, Vec3, Angles)> = entities
             .iter()
-            .filter(|e| is_static_prop(&e.classname))
+            // An animated prop does not move either, and blocks the same way.
+            .filter(|e| {
+                is_static_prop(&e.classname) || crate::animation::is_animated_prop(&e.classname)
+            })
             .filter(|e| !self.statics.contains_key(&e.id))
             .filter_map(|e| {
                 let name = e.fields.text("model")?.into_owned();

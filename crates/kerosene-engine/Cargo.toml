@@ -23,6 +23,7 @@ kerosene-entity.workspace = true
 kerosene-physics.workspace = true
 kerosene-rigid.workspace = true
 kerosene-render.workspace = true
+kerosene-anim.workspace = true
 glam.workspace = true
 bytemuck.workspace = true
 anyhow.workspace = true
