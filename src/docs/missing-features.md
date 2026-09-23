@@ -78,31 +78,33 @@ for completeness.
   `light`, `light_spot`, and `light_environment` are compile-time only. One
   unshadowed point light in the shader is enough for a flashlight and a
   muzzle flash, and is the version worth doing first.
-- **Post-processing.** No bloom, SSAO, color grading, or motion blur; only a
-  single `mat_exposure` convar.
-- **Anti-aliasing.** `multisampled: false` in the GPU setup; no MSAA/TAA/FXAA.
-  MSAA is a one-line toggle in wgpu and should be a convar.
+- **Post-processing.** The scene is HDR (`Rgba16Float`) and tone-mapped once
+  per frame (`mat_tonemap`: ACES by default, Reinhard, or none) with a live
+  `mat_exposure`. Still no bloom, SSAO, color grading, auto-exposure or
+  motion blur; the HDR target is what each of those needs first.
+- ~~**Anti-aliasing.**~~ Fixed: `r_msaa` (4x by default) on the HDR target,
+  resolved before tone-mapping. No TAA or FXAA.
 - **PBR material model.** Materials are a small closed set
   (`lit`/`unlit`/`sky`/`water`/`ui`). They carry colour, normal, roughness,
-  emissive and occlusion maps, and the renderer samples all five -- but the
-  specular term is a Blinn-Phong lobe steered by roughness rather than a real
-  microfacet BRDF, and there is no metalness map, no parallax, and no
-  per-material shader customization. Because diffuse lighting is baked and
-  direction-free, a world surface's highlight is a guess from the view angle
-  rather than from any light that still exists at draw time. Cubemap probes
-  baked by Radiance would make the existing materials read correctly without
-  touching the BRDF.
+  emissive, occlusion and metalness maps, plus `$metalness` and
+  `$roughnessfactor` scalars, shaded with GGX / Smith / Schlick. What is left:
+  no parallax, no per-material shader customization, and diffuse lighting is
+  still direction-free, so normal maps on the world are lit by a fixed
+  notional direction rather than the real one -- radiosity normal mapping in
+  Radiance is the fix.
 - **Level of detail.** No LOD for models or geometry.
 - **Decals / projected textures.** None. A bullet hole is the first thing a
   weapon needs.
 - **Particles / VFX.** None. Muzzle flash, sparks, dust.
-- **Reflections.** No cubemap probes, no SSR, no planar reflections.
+- **Reflections.** `env_cubemap` probes, baked by Radiance and reflected by
+  every smooth or metal surface (nearest visible probe, blurred by roughness).
+  No parallax correction, no SSR, no planar reflections.
 - **Dynamic sky / weather / time-of-day.** Sky is a static skybox; sun and
   sky lighting are baked.
 - **GPU instancing.** The world draws per material, but repeated `prop_static`
   meshes are not instanced.
-- **Debug labels.** No wgpu labels or `push_debug_group` per pass, so a
-  RenderDoc capture is a list of unnamed passes. Costs nothing to add.
+- ~~**Debug labels.**~~ Fixed: labelled passes and pipelines, and debug
+  groups around the world, brush models, props and debug lines.
 
 ## 4. Physics and simulation
 

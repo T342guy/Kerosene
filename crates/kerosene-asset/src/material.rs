@@ -14,6 +14,9 @@
 //!     "$roughness"      "dev/grid_rough"
 //!     "$selfillummask"  "dev/grid_emissive"
 //!     "$ao"             "dev/grid_ao"
+//!     "$metalnessmap"   "dev/grid_metal"
+//!     "$metalness"      "1"
+//!     "$roughnessfactor" "0.5"
 //!     "$surfaceprop"    "concrete"
 //! }
 //! ```
@@ -170,6 +173,39 @@ impl Material {
         self.get("$ao")
     }
 
+    /// Where the surface is bare metal, read from the red channel.
+    pub fn metalness_map(&self) -> Option<&str> {
+        self.get("$metalnessmap")
+    }
+
+    /// How metallic the surface is, 0 to 1, defaulting to 0.
+    ///
+    /// A scalar and a map at once, the way `$color` tints `$basetexture`:
+    /// with a map it scales the map, so a set whose map says "this is metal"
+    /// can be toned down without re-baking it; without one it is the whole
+    /// answer, so a plain steel material is one line rather than a texture.
+    /// A set that has a map and says nothing reads as 1, because a map that
+    /// exists and is then multiplied by zero would be a map that does nothing.
+    pub fn metalness(&self) -> f32 {
+        let default = if self.metalness_map().is_some() {
+            1.0
+        } else {
+            0.0
+        };
+        self.get_f32("$metalness", default).clamp(0.0, 1.0)
+    }
+
+    /// A scale on roughness, 0 to 1, defaulting to 1.
+    ///
+    /// Multiplies the roughness map, whose absence reads as fully rough --
+    /// so on its own it *is* the roughness, and polished chrome is
+    /// `$metalness 1` and `$roughnessfactor 0.1` with no textures at all.
+    /// glTF's `roughnessFactor`, under the `$` spelling every other key here
+    /// uses. (`$roughness` names the map, so it could not be the scalar too.)
+    pub fn roughness_factor(&self) -> f32 {
+        self.get_f32("$roughnessfactor", 1.0).clamp(0.0, 1.0)
+    }
+
     /// Every texture this material references, for content packing.
     ///
     /// Vault uses this to work out what a map actually needs: walking the
@@ -187,6 +223,7 @@ impl Material {
                         | "$bumpmap"
                         | "$roughness"
                         | "$ao"
+                        | "$metalnessmap"
                         | "$detail"
                         | "$selfillummask"
                         | "$envmapmask"
@@ -615,5 +652,37 @@ lit
         );
         assert_eq!(SurfaceProperty::Metal.footstep_sound(4), "footstep/metal/1");
         assert_eq!(SurfaceProperty::Metal.footstep_sound(2), "footstep/metal/3");
+    }
+
+    #[test]
+    fn metalness_defaults_to_dielectric_without_a_map() {
+        let m = Material::parse(SAMPLE).unwrap();
+        assert_eq!(m.metalness(), 0.0);
+        assert_eq!(m.metalness_map(), None);
+    }
+
+    #[test]
+    fn a_metalness_map_on_its_own_means_fully_metal_where_it_says_so() {
+        let m = Material::parse(r#"lit { "$metalnessmap" "x_metal" }"#).unwrap();
+        assert_eq!(m.metalness_map(), Some("x_metal"));
+        assert_eq!(m.metalness(), 1.0);
+        assert!(m.referenced_textures().contains(&"x_metal"));
+    }
+
+    #[test]
+    fn the_roughness_factor_defaults_to_fully_rough_and_is_clamped() {
+        assert_eq!(Material::parse(SAMPLE).unwrap().roughness_factor(), 1.0);
+        let m = Material::parse(r#"lit { "$roughnessfactor" "0.1" }"#).unwrap();
+        assert_eq!(m.roughness_factor(), 0.1);
+        let m = Material::parse(r#"lit { "$roughnessfactor" "-3" }"#).unwrap();
+        assert_eq!(m.roughness_factor(), 0.0);
+    }
+
+    #[test]
+    fn the_metalness_scalar_scales_and_is_clamped() {
+        let m = Material::parse(r#"lit { "$metalness" "0.25" }"#).unwrap();
+        assert_eq!(m.metalness(), 0.25);
+        let m = Material::parse(r#"lit { "$metalness" "7" }"#).unwrap();
+        assert_eq!(m.metalness(), 1.0);
     }
 }

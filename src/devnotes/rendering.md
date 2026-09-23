@@ -118,9 +118,85 @@ bleed. `AtlasRect::to_uv` insets a half-texel so a sample at luxel 0 lands at
 the centre of the first texel. `overflowed` counts faces that did not fit; they
 draw unlit and the host warns, suggesting a coarser lightmap scale.
 
-The atlas is built at unit exposure, and `mat_exposure` is applied live in the
-shader. Folding exposure into the atlas as well squared it and froze half of it
-at load time — a bug the host comment records.
+The atlas holds **linear** light in `Rgb9e5Ufloat` (`ATLAS_FORMAT`): three
+9-bit mantissas and a shared exponent, four bytes a texel like the RGBA8 it
+replaced, and filterable everywhere. It used to be 8-bit, squeezed through a
+Reinhard curve on the CPU and then compressed a second time by the shader, so
+a lamp and the wall beside it read nearly alike. The codec is in
+`kerosene_bsp::cubemaps` (`encode_rgb9e5`), shared with the probes.
+
+The atlas is built at unit exposure, and `mat_exposure` is applied live by the
+tone-map pass. Folding exposure into the atlas as well squared it and froze
+half of it at load time — a bug the host comment records.
+
+## A frame's passes
+
+```mermaid
+---
+config:
+  layout: elk
+---
+flowchart LR
+    scene["scene pass<br/>Rgba16Float HDR, MSAA x4<br/>world, brush models, props, lines"] --> resolve["resolve<br/>(end of pass)"]
+    resolve --> tonemap["tonemap pass<br/>exposure + ACES / Reinhard / clip"]
+    tonemap --> ui["UI pass<br/>egui, not tone-mapped"]
+    ui --> present(["swapchain"])
+
+    classDef pass fill:#FF6D00,color:#fff
+    class scene,resolve,tonemap,ui pass
+```
+
+Every scene shader writes **linear HDR** into `HDR_FORMAT` and nothing
+tone-maps per surface. `Renderer::begin_scene_pass` returns the pass; with
+`r_msaa` above 1 it draws into a 4x target and resolves into the single-sample
+one, discarding the samples (the cheap path on tiled GPUs). A change of sample
+count rebuilds the scene pipelines, which is why `set_msaa` keeps the shader
+modules and layouts (`SceneShaders`). `Renderer::tonemap` then draws one
+fullscreen triangle: exposure, then the `mat_tonemap` curve. The UI draws over
+the result, so the console stays the colour it is. The host brackets the
+world, brush models, props and debug lines in `push_debug_group`s, so a
+RenderDoc capture reads as the frame's structure.
+
+## Shading
+
+`world.wgsl` and `model.wgsl` share one reflectance model -- GGX,
+height-correlated Smith, Schlick -- with metalness blending F0 from 4% grey to
+the base colour. `crates/kerosene-render/src/brdf.rs` is its CPU mirror, and
+its tests are the BRDF's properties: the distribution projects to one, Fresnel
+runs from F0 to white, nothing reflects more than arrives. A change to one side
+that is not made to the other is a bug.
+
+A lightmapped surface has no light direction -- the bake says how much light
+arrived, not from where -- so the world does not evaluate a GGX lobe at all.
+It uses the split-sum environment term (`env_brdf`, Karis's fit) against what
+surrounds the surface: its cubemap probe, or, without one, an even glow the
+brightness of its own lightmap. Props do have a direction, their fixed key
+light, so they get the full lobe as well as the environment term.
+
+Materials carry `$metalness` and `$roughnessfactor` as scalars beside the
+maps (`MaterialUniform`); a dielectric with neither a roughness map nor a
+factor below one takes no specular path at all, so an albedo-only material
+renders exactly as its lightmap says.
+
+## Cubemap probes
+
+Radiance bakes one per `env_cubemap` into the `cubemaps` lump
+(`kerosene_bsp::cubemaps`): six faces of RGB9E5, one ray a texel, each the
+lightmap where it landed times the surface's reflectivity. At load,
+`ProbeChain` (`probes.rs`) builds a box-filtered mip chain down to one texel a
+face and `GpuProbes` uploads it as a 2D texture array, six layers a probe.
+Not a cube array: the GL backend lacks those, and the shader's `probe_uv`
+picks the face itself from a table that must stay a copy of
+`cubemaps::face_basis` (a test holds the Rust side to its inverse).
+Roughness chooses the mip level.
+
+Which probe a surface reflects is decided once, in `WorldMesh::build_for`:
+`probe_for` takes the nearest probe the face's centre can *see*, falling back
+to the nearest at all, and writes it into every vertex (`WorldVertex::probe`,
+flat-interpolated), so batching by material is untouched. Props choose the
+same way from their origin each frame and pass it in `ModelUniform::probe`.
+Probes are map-wide rather than per section, since a probe is reflected by
+whatever can see it.
 
 ## The wgpu layer
 
@@ -130,9 +206,12 @@ setup and a draw loop. Materials each get their own bind group; surfaces arrive
 sorted by material, so the loop rebinds only when the material changes.
 
 `CameraUniform` carries `view_proj`, `position`, and a `params` vector of
-`[exposure, time, lightmaps_enabled, fullbright]` plus bump/specular scales and
-the sky colour. `ModelUniform` is a full transform, not a displacement — the
-comment notes it was three floats until rotated brush entities showed up. Props
+`[unused, time, lightmaps_enabled, fullbright]` plus bump/specular scales and
+the sky colour; the first slot was exposure, which moved to `ToneMapUniform`.
+The frame bind group is the camera, a section's lightmap atlas and the map's
+probes. `ModelUniform` is a full transform, not a displacement — the comment
+notes it was three floats until rotated brush entities showed up — plus the
+probe a studio model reflects. Props
 are drawn through `draw_studio_model`; debug overlays (prop boxes, streaming
 bounds, acoustic rooms) are `LineVertex` streams uploaded per frame.
 

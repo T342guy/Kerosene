@@ -492,7 +492,10 @@ impl Engine {
                     .unwrap_or((e.origin, e.angles));
                 let origin = prev_origin.lerp(e.origin, alpha);
                 let angles = prev_angles.slerp(e.angles, alpha);
-                Some((model, brush_pose(level.map(|l| &*l.bsp), model, origin, angles)))
+                Some((
+                    model,
+                    brush_pose(level.map(|l| &*l.bsp), model, origin, angles),
+                ))
             })
             .collect()
     }
@@ -535,7 +538,7 @@ impl Engine {
         // on. Built before `bsp` moves into `level`.
         self.physics = PhysicsProps::new(); // t3; this wipes the phys entity data. But brushes were not wiped
         self.previous_brush_poses.clear(); // t3; Now they get cleared. Fixes a bug.
-        
+
         // Only the world section's hulls now; the streamed sections' come
         // and go with them.
         self.physics.build_static_world(&bsp, &self.entities);
@@ -1615,7 +1618,25 @@ fn register_cvars(console: &mut Console) {
         Some(0.01),
         Some(16.0),
         ConVarFlags::ARCHIVE,
-        "Overall brightness.",
+        "Overall brightness, applied by the tone-map pass.",
+    );
+    console.register_cvar_ranged(
+        "mat_tonemap",
+        "2",
+        Some(0.0),
+        Some(2.0),
+        ConVarFlags::ARCHIVE,
+        "Tone curve: 0 none (clip), 1 Reinhard, 2 ACES filmic.",
+    );
+    // Four samples when on: the one count every backend supports for the
+    // HDR and depth formats. See `Renderer::set_msaa`.
+    console.register_cvar_ranged(
+        "r_msaa",
+        "4",
+        Some(0.0),
+        Some(16.0),
+        ConVarFlags::ARCHIVE,
+        "Multisample anti-aliasing. 0 or 1 off; anything higher is 4x.",
     );
     console.register_cvar(
         "fps_max",

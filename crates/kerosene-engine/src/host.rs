@@ -19,7 +19,8 @@ use crate::physics::is_physics_prop;
 use kerosene_console::ConsoleUi;
 use kerosene_math::Pose;
 use kerosene_render::gpu::{
-    CameraUniform, GpuModel, LineVertex, MAX_MODELS, MapResources, Renderer, load_model,
+    CameraUniform, GpuModel, GpuProbes, LineVertex, MAX_MODELS, MapResources, ModelUniform,
+    Renderer, ToneMapOperator, load_model,
 };
 use kerosene_render::{Camera, FrameStats, LightmapAtlas, WorldMesh};
 use std::collections::HashMap;
@@ -75,6 +76,9 @@ struct LoadedMap {
     building: std::collections::HashSet<usize>,
     tx: std::sync::mpsc::Sender<BuiltSection>,
     rx: std::sync::mpsc::Receiver<BuiltSection>,
+    /// The map's cubemap probes. Map-wide rather than per section: a probe
+    /// is reflected by whatever can see it, loaded or not.
+    probes: GpuProbes,
 }
 
 impl LoadedMap {
@@ -213,7 +217,7 @@ impl ApplicationHandler for App {
                     gfx.config.height = size.height.max(1);
                     gfx.surface.configure(&gfx.device, &gfx.config);
                     gfx.renderer
-                        .ensure_depth(&gfx.device, gfx.config.width, gfx.config.height);
+                        .ensure_targets(&gfx.device, gfx.config.width, gfx.config.height);
                 }
             }
 
@@ -452,10 +456,11 @@ impl App {
         // compiled, gets its retry on the next load rather than on restart.
         self.model_cache.clear();
         let bsp = &level.bsp;
+        let probes = GpuProbes::upload(&gfx.device, &gfx.queue, bsp.cubemaps.as_ref());
         // The world section, with the map. Baked at unit exposure:
-        // `mat_exposure` is applied by the shader, per frame, so it is live
-        // and is counted once. Folding it in here as well squared it, and
-        // froze half of it at load time.
+        // `mat_exposure` is applied by the tone-map pass, per frame, so it is
+        // live and is counted once. Folding it in here as well squared it,
+        // and froze half of it at load time.
         let atlas = LightmapAtlas::build_for(bsp, 1.0, |f| bsp.face_section(f) == 0);
         let mesh = WorldMesh::build_for(bsp, &atlas, |f| bsp.face_section(f) == 0);
         let summary = format!(
@@ -465,7 +470,7 @@ impl App {
             mesh.materials.len(),
             atlas.occupancy() * 100.0
         );
-        let world = upload_section(gfx, &self.engine.vfs, mesh, &atlas);
+        let world = upload_section(gfx, &self.engine.vfs, mesh, &atlas, &probes);
 
         for missing in &world.resources.missing_materials {
             self.engine
@@ -491,6 +496,7 @@ impl App {
             building: std::collections::HashSet::new(),
             tx,
             rx,
+            probes,
         });
     }
 
@@ -560,7 +566,7 @@ impl App {
                 built.mesh.surfaces.len(),
                 built.mesh.triangle_count()
             ));
-            let gpu = upload_section(gfx, &self.engine.vfs, built.mesh, &built.atlas);
+            let gpu = upload_section(gfx, &self.engine.vfs, built.mesh, &built.atlas, &map.probes);
             map.sections[built.section] = Some(gpu);
             arrived.push(built.section);
         }
@@ -584,8 +590,12 @@ impl App {
         let view = frame
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
+        // Before the targets: a change of sample count drops them, and this
+        // is where they get remade at the new one.
         gfx.renderer
-            .ensure_depth(&gfx.device, gfx.config.width, gfx.config.height);
+            .set_msaa(&gfx.device, self.engine.console.int("r_msaa").max(0) as u32);
+        gfx.renderer
+            .ensure_targets(&gfx.device, gfx.config.width, gfx.config.height);
 
         // Interpolate between the last two simulation states, so the view is
         // smooth on a display refreshing faster than the tick rate. The
@@ -601,11 +611,7 @@ impl App {
             ..Default::default()
         };
 
-        let mut uniform = CameraUniform::from_camera(
-            &camera,
-            self.engine.console.float("mat_exposure"),
-            self.engine.time,
-        );
+        let mut uniform = CameraUniform::from_camera(&camera, self.engine.time);
         uniform.set_lightmaps(self.engine.console.bool("r_lightmap"));
         uniform.set_fullbright(self.engine.console.bool("r_fullbright"));
         uniform.set_bumpmap(self.engine.console.float("r_bumpmap"));
@@ -614,6 +620,11 @@ impl App {
             uniform.set_sky_color(level.sky_color);
         }
         gfx.renderer.update_camera(&gfx.queue, &uniform);
+        gfx.renderer.update_tonemap(
+            &gfx.queue,
+            self.engine.console.float("mat_exposure"),
+            ToneMapOperator::from_index(self.engine.console.int("mat_tonemap")),
+        );
 
         // Where each brush entity has got to, blended between the last two
         // ticks so a door or rotating brush sweeps smoothly instead of
@@ -621,11 +632,11 @@ impl App {
         // against the raw current-tick pose; only the drawn position lags by
         // up to one tick's worth of motion, same as the camera does.
         let brush_models = self.engine.interpolated_brush_model_poses(alpha);
-        let mut poses = vec![Pose::IDENTITY; MAX_MODELS];
+        let mut poses = vec![ModelUniform::default(); MAX_MODELS];
         let mut next_slot = 1usize;
         for (model, pose) in &brush_models {
             if *model < MAX_MODELS {
-                poses[*model] = *pose;
+                poses[*model] = ModelUniform::from(*pose);
             }
             next_slot = next_slot.max(model + 1);
         }
@@ -651,11 +662,20 @@ impl App {
                 .unwrap_or((entity.origin, entity.angles));
             let origin = prev_origin.lerp(entity.origin, alpha);
             let angles = prev_angles.slerp(entity.angles, alpha);
-            poses[next_slot] = Pose::new(origin, angles);
+            // The probe it reflects is the nearest one its centre can see,
+            // chosen the way a world face chooses: by line of sight first.
+            let probe = self
+                .engine
+                .level
+                .as_ref()
+                .map_or(kerosene_render::NO_PROBE, |level| {
+                    kerosene_render::probe_for(&level.bsp, origin)
+                });
+            poses[next_slot] = ModelUniform::with_probe(Pose::new(origin, angles), probe);
             props.push((next_slot, name.to_string()));
             next_slot += 1;
         }
-        gfx.renderer.update_models(&gfx.queue, &poses);
+        gfx.renderer.update_model_uniforms(&gfx.queue, &poses);
 
         // Upload any prop model we have not seen yet, once. A failed load is
         // cached as `None` so the warning is not repeated every frame.
@@ -732,33 +752,15 @@ impl App {
             });
 
         {
-            let depth_view = gfx.renderer.depth_view().expect("depth buffer exists");
-            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("world"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 0.02,
-                            g: 0.02,
-                            b: 0.04,
-                            a: 1.0,
-                        }),
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: depth_view,
-                    depth_ops: Some(wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(1.0),
-                        store: wgpu::StoreOp::Store,
-                    }),
-                    stencil_ops: None,
-                }),
-                timestamp_writes: None,
-                occlusion_query_set: None,
-            });
+            let mut pass = gfx.renderer.begin_scene_pass(
+                &mut encoder,
+                wgpu::Color {
+                    r: 0.02,
+                    g: 0.02,
+                    b: 0.04,
+                    a: 1.0,
+                },
+            );
 
             if let (Some(map), Some(level), Some(world)) = (
                 &self.map,
@@ -771,6 +773,9 @@ impl App {
                 // Every resident section, each with its own lightmap atlas
                 // and so its own frame bind group.
                 self.stats = FrameStats::default();
+                // Named groups so a RenderDoc capture reads as the frame's
+                // structure rather than a list of anonymous draws.
+                pass.push_debug_group("world");
                 for (_, section) in map.loaded() {
                     let visible = if novis {
                         // Every surface, models included: `r_novis` means
@@ -794,11 +799,13 @@ impl App {
                     self.stats.surfaces_total += drawn.surfaces_total;
                     self.stats.cluster = drawn.cluster;
                 }
+                pass.pop_debug_group();
 
                 // Then the brush entities, each where it has got to.
                 // They are not in the world's PVS -- their leaves are
                 // their own -- so a leaf walk cannot find them, which is
                 // why every door in every map used to be invisible.
+                pass.push_debug_group("brush models");
                 for (model, pose) in &brush_models {
                     if !novis && !world.mesh.model_is_visible(*model, *pose, &frustum) {
                         continue;
@@ -814,8 +821,10 @@ impl App {
                     self.stats.triangles += drawn.triangles;
                     self.stats.surfaces_drawn += drawn.surfaces_drawn;
                 }
+                pass.pop_debug_group();
 
                 // Physics props, at the pose in their model slot.
+                pass.push_debug_group("props");
                 for (slot, name) in &props {
                     if let Some(model) = self.model_cache.get(name).and_then(Option::as_ref) {
                         let drawn = gfx.renderer.draw_studio_model(
@@ -828,16 +837,23 @@ impl App {
                         self.stats.triangles += drawn.triangles;
                     }
                 }
+                pass.pop_debug_group();
 
                 // The physics debug overlay, drawn last so it sits on top.
                 if let Some(buffer) = &line_buffer {
+                    pass.push_debug_group("debug lines");
                     gfx.renderer
                         .draw_lines(&mut pass, &world.frame_bind_group, buffer, line_count);
+                    pass.pop_debug_group();
                 }
 
                 self.stats.cluster = level.bsp.point_cluster(camera.position);
             }
         }
+
+        // HDR scene to the swapchain. The UI draws after, over the result,
+        // so it is never tone-mapped: a console should be the colour it is.
+        gfx.renderer.tonemap(&mut encoder, &view);
 
         if self.console_ui.open || self.engine.game().is_some_and(|g| g.wants_ui()) {
             draw_ui(
@@ -881,21 +897,18 @@ impl App {
     }
 }
 
-/// Run one egui frame for the console and record it into the encoder.
-///
-/// A free function rather than a method so it can borrow the graphics state
-/// and the console at once without the whole `App` going along with it.
 /// Upload one section's mesh and atlas to the device.
 fn upload_section(
     gfx: &Gfx,
     vfs: &kerosene_vfs::Vfs,
     mesh: WorldMesh,
     atlas: &LightmapAtlas,
+    probes: &GpuProbes,
 ) -> SectionGpu {
     let resources = MapResources::upload(&gfx.device, &gfx.queue, &gfx.renderer, &mesh, atlas, vfs);
-    let frame_bind_group = gfx
-        .renderer
-        .create_frame_bind_group(&gfx.device, &resources.lightmap_view);
+    let frame_bind_group =
+        gfx.renderer
+            .create_frame_bind_group(&gfx.device, &resources.lightmap_view, probes);
     SectionGpu {
         mesh,
         resources,
@@ -1094,7 +1107,7 @@ async fn create_gfx(event_loop: &ActiveEventLoop, config: &EngineConfig) -> anyh
     surface.configure(&device, &config);
 
     let mut renderer = Renderer::new(&device, format);
-    renderer.ensure_depth(&device, config.width, config.height);
+    renderer.ensure_targets(&device, config.width, config.height);
 
     let egui = egui::Context::default();
     let egui_state = egui_winit::State::new(

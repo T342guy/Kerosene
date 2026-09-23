@@ -195,6 +195,17 @@ atlas and rigid-body hulls as the player moves. A compile always writes the
 lumps -- one section, every face in it, for a map with no streamed groups
 -- and a version 1 file is refused with a message to recompile.
 
+**Cubemaps.** The last spare slot, so adding it moved no version either: a
+file from before it has the lump empty and reads as a map without probes.
+A `KCUB` header -- version, face size, probe count -- then each probe's
+origin, then every probe's six faces of RGB9E5 texels (three 9-bit mantissas
+and a shared 5-bit exponent: linear HDR in four bytes, on the same scale as
+the lightmap, 1.0 being a white surface lit to full). Radiance writes it from
+the `env_cubemap` entities, after baking the lightmaps the probes photograph.
+The face order and orientation are `kerosene_bsp::cubemaps::face_basis` --
+Kerosene's own, since the renderer picks faces itself rather than using a
+hardware cube map. The next lump needs a version bump.
+
 Every index in the file is validated at load. A dangling one becomes an
 out-of-bounds read deep inside the renderer, where the cause is invisible.
 
@@ -260,6 +271,7 @@ lit
     "$roughness"     "dev/grid_rough"
     "$selfillummask" "dev/grid_emissive"
     "$ao"            "dev/grid_ao"
+    "$metalnessmap"  "dev/grid_metal"
     "$surfaceprop"   "concrete"
 }
 ```
@@ -273,7 +285,7 @@ making every metal surface reflective is one file change. Unknown parameters
 round-trip rather than being dropped: a game will invent keys the engine has
 never heard of.
 
-The five texture parameters above are the ones the renderer samples. Every one
+The six texture parameters above are the ones the renderer samples. Every one
 but `$basetexture` is optional and absent by default, and a material that names
 none of them renders exactly as it would have before they existed — the shader
 branches on a per-material word saying which are real, so there is one pipeline
@@ -283,9 +295,23 @@ rather than a variant per combination.
 |---|---|
 | `$basetexture` | The colour. Sampled through an sRGB view. |
 | `$bumpmap` | Tangent-space normals. The basis comes from the face's texture projection, so it agrees with the UVs by construction. |
-| `$roughness` | Red channel, 0 mirror to 1 matte. Drives a specular highlight; with no map the surface is fully rough and gets none. |
-| `$selfillummask` | What the surface emits regardless of light reaching it. Added before tone-mapping, so it blooms like a lit highlight. |
+| `$roughness` | Red channel, 0 mirror to 1 matte. Drives the specular term; with no map (and no `$roughnessfactor`) a dielectric is fully rough and gets none. |
+| `$selfillummask` | What the surface emits regardless of light reaching it. Added in linear HDR before tone-mapping, so it rolls off like a lit highlight. |
 | `$ao` | Baked occlusion, multiplied into the lighting. Darkens what the surface shadows itself, which the lightmap's luxels are far too coarse to see. |
+| `$metalnessmap` | Red channel, 0 dielectric to 1 bare metal. Metal has no diffuse colour; its base colour tints its reflection instead. |
+
+Two scalars go with the maps, the way glTF's factors do: each multiplies its
+map, and with no map it is the whole answer.
+
+| Parameter | Default | What it does |
+|---|---|---|
+| `$metalness` | 0, or 1 with a `$metalnessmap` | How metallic. `"$metalness" "1"` is a plain metal with no texture. |
+| `$roughnessfactor` | 1 | Scales roughness. `$metalness 1` with `$roughnessfactor 0.1` is polished chrome. |
+
+Shading is GGX with height-correlated Smith and Schlick Fresnel -- the model
+Source 2 and every other current engine settled on. A lightmapped surface
+reflects its nearest visible `env_cubemap`, blurred by roughness; one with no
+probe reflects an even glow the brightness of its own lightmap.
 
 `$surfaceprop` is the physical type the surface is made of — `concrete`,
 `metal`, `wood`, and so on. It has two consumers. At runtime a trace that

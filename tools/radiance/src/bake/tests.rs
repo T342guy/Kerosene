@@ -530,3 +530,49 @@ fn a_lit_map_still_round_trips_through_a_file() {
     assert_eq!(back.faces[0].lightmap_offset, bsp.faces[0].lightmap_offset);
     assert!(back.face_lightmap(0).is_some());
 }
+
+#[test]
+fn a_probe_sees_the_lit_floor_below_it_the_wall_beside_it_and_sky_above() {
+    use crate::probes;
+    use kerosene_bsp::cubemaps::{FACES, direction_to_face};
+    use kerosene_bsp::decode_rgb9e5;
+
+    let mut world = corner_world();
+    let lights = lights_from(
+        r#"entity { "classname" "light" "origin" "32 32 48" "_light" "255 255 255 300" }"#,
+    );
+    bake(&mut world, &lights, &quick());
+
+    let size = 8;
+    // A sky colour nothing else could produce, to tell escaping rays apart.
+    let sky = Vec3::new(0.0, 0.0, 3.0);
+    let (cubemaps, stats) = probes::bake(&world, &[Vec3::new(32.0, 32.0, 32.0)], size, sky);
+    assert_eq!(stats.probes, 1);
+    assert_eq!(stats.buried, 0);
+    let probe = &cubemaps.probes[0];
+    assert_eq!(probe.texels.len(), FACES * (size * size) as usize);
+
+    let look = |dir: Vec3| {
+        let (face, s, t) = direction_to_face(dir.normalize());
+        let (x, y) = ((s * size as f32) as u32, (t * size as f32) as u32);
+        decode_rgb9e5(probe.texels[face * (size * size) as usize + (y * size + x) as usize])
+    };
+
+    let floor = look(-Vec3::Z);
+    let wall = look(Vec3::X);
+    let up = look(Vec3::Z);
+    assert!(
+        floor.x > 0.0 && floor.z == floor.x,
+        "lit grey floor: {floor}"
+    );
+    assert!(wall.x > 0.0, "lit wall: {wall}");
+    assert_eq!(up, sky, "nothing above but sky");
+
+    // The floor texel is the floor's luxel times its 0.8 reflectivity, on
+    // the atlas's scale: the same light the engine draws the floor with.
+    let under = world.face_lightmap(0).unwrap()[2 * 5 + 2].to_linear() / 255.0 * 0.8;
+    assert!(
+        (floor.x - under.x).abs() < under.x * 0.05,
+        "probe {floor} vs floor luxel {under}"
+    );
+}

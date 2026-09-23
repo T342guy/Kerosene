@@ -234,6 +234,7 @@ fn data_maps_are_not_colour_and_colour_maps_are() {
     assert!(!MapKind::Normal.flags().is_color());
     assert!(!MapKind::Roughness.flags().is_color());
     assert!(!MapKind::Ao.flags().is_color());
+    assert!(!MapKind::Metalness.flags().is_color());
 }
 
 #[test]
@@ -263,6 +264,7 @@ fn every_map_a_set_has_is_packed_with_it() {
     dir.image("set/roughness.png");
     dir.image("set/emissive.png");
     dir.image("set/ao.png");
+    dir.image("set/metalness.png");
     let set = TextureSet::discover(&dir.0.join("set"), &dir.0).unwrap();
     let material = set.to_material();
     let referenced = material.referenced_textures();

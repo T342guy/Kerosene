@@ -230,6 +230,17 @@ class
           "help" "Negative points downward. Overrides the pitch in Angles when non-zero." }
 }
 
+// ----------------------------------------------------------- reflections ---
+//
+// Read by Radiance at compile time, like the lights.
+
+class
+{
+    "name" "env_cubemap"
+    "base" "Entity" "base" "Point"
+    "help" "A reflection probe. Radiance records what the lit world looks like from here, and every smooth or metal surface near it reflects that. Put one in the middle of each room, at head height; a room without one reflects an even glow instead. Compile-time only."
+}
+
 // ------------------------------------------------------------ acoustics ----
 //
 // Read by Resonance at compile time. The probe measures every room from its

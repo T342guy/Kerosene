@@ -13,13 +13,15 @@
 //!
 //! Lighting is authored as entities in the map -- `light`, `light_spot`,
 //! `light_environment` -- so a designer changes it in the editor rather than
-//! in a separate file.
+//! in a separate file. Reflection probes (`env_cubemap`) are baked here too,
+//! after the lightmaps, since what a probe records is the lit world.
 //!
 //! This is a library that the unified toolset invokes as the `radiance`
 //! subcommand.
 
 pub mod bake;
 pub mod lights;
+pub mod probes;
 
 use anyhow::{Context, Result};
 use bake::BakeOptions;
@@ -55,6 +57,10 @@ struct Args {
     /// Multiplier on the ambient term alone.
     #[arg(long, default_value_t = 1.0)]
     ambient_scale: f32,
+
+    /// Texels along one edge of each cubemap probe face.
+    #[arg(long, default_value_t = probes::DEFAULT_FACE_SIZE, value_parser = clap::value_parser!(u32).range(4..=256))]
+    cubemap_size: u32,
 
     /// Fast preview: one sample per luxel, no bounces.
     #[arg(long)]
@@ -130,6 +136,36 @@ pub fn run(args: Vec<String>) -> Result<()> {
         "  lighting lump {:.1} KiB",
         (stats.luxels * 4) as f64 / 1024.0
     );
+
+    // Probes last: they photograph the lighting just baked. A map with none
+    // has any stale ones from an earlier compile cleared, so deleting the
+    // last env_cubemap does what it looks like it does.
+    let origins = probes::probe_origins(&bsp);
+    if origins.is_empty() {
+        bsp.cubemaps = None;
+    } else {
+        // The sky on the atlas's scale, the same colour Radiance lit the
+        // map's sky surfaces with.
+        let sky = lights.sky_color * options.scale / 255.0;
+        let (cubemaps, probe_stats) = probes::bake(&bsp, &origins, args.cubemap_size, sky);
+        println!(
+            "  {} cubemap probe(s) at {}x{} a face",
+            probe_stats.probes, args.cubemap_size, args.cubemap_size
+        );
+        if probe_stats.buried > 0 {
+            println!(
+                "  warning: {} env_cubemap(s) inside a wall see nothing; move them into the room",
+                probe_stats.buried
+            );
+        }
+        if probe_stats.unresolved > 0 {
+            println!(
+                "  note: {} probe texel(s) saw something with no world face (a brush entity?), drawn black",
+                probe_stats.unresolved
+            );
+        }
+        bsp.cubemaps = Some(cubemaps);
+    }
 
     if args.dry_run {
         println!(

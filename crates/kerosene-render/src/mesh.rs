@@ -16,7 +16,7 @@
 
 use crate::lightmap::LightmapAtlas;
 use bytemuck::{Pod, Zeroable};
-use kerosene_bsp::{Bsp, surf};
+use kerosene_bsp::{Bsp, contents, surf};
 use kerosene_math::{Aabb, Pose, Vec3};
 
 /// One vertex of world geometry.
@@ -38,6 +38,40 @@ pub struct WorldVertex {
     /// triangles, and disagree with the texture projection wherever the two
     /// were not already in step.
     pub tangent: [f32; 4],
+    /// The cubemap probe this surface reflects, or [`NO_PROBE`].
+    ///
+    /// Per vertex rather than per draw, because the world is drawn a whole
+    /// material at a time: a per-draw probe would split every batch at every
+    /// probe boundary. Every vertex of a face carries the same value.
+    pub probe: u32,
+}
+
+/// A surface with no probe to reflect. It falls back to reflecting an even
+/// glow the brightness of its own lightmap.
+pub const NO_PROBE: u32 = u32::MAX;
+
+/// Which probe a point should reflect.
+///
+/// The nearest one it can see, and failing that the nearest at all. Nearest
+/// alone -- Source's rule -- lets a probe in the next room win through a
+/// wall, and a corridor floor then reflects a room it is not in. Line of
+/// sight is a trace per candidate, nearest first, so the usual cost is one.
+pub fn probe_for(bsp: &Bsp, point: Vec3) -> u32 {
+    let Some(cubemaps) = bsp.cubemaps.as_ref() else {
+        return NO_PROBE;
+    };
+    let mut order: Vec<usize> = (0..cubemaps.probes.len()).collect();
+    order.sort_by(|&a, &b| {
+        let da = cubemaps.probes[a].origin.distance_squared(point);
+        let db = cubemaps.probes[b].origin.distance_squared(point);
+        da.total_cmp(&db).then(a.cmp(&b))
+    });
+    order
+        .iter()
+        .copied()
+        .find(|&i| bsp.is_visible_between(point, cubemaps.probes[i].origin, contents::MASK_OPAQUE))
+        .or(order.first().copied())
+        .map_or(NO_PROBE, |i| i as u32)
 }
 
 /// The tangent basis a face's normal map is read in.
@@ -300,6 +334,11 @@ impl WorldMesh {
         let base = self.vertices.len() as u32;
         let mut bounds = Aabb::EMPTY;
 
+        // Judged from just off the face, so the line of sight to a probe
+        // does not start inside the wall the face is on.
+        let centre = points.iter().copied().sum::<Vec3>() / points.len() as f32;
+        let probe = probe_for(bsp, centre + plane.normal * 2.0);
+
         for &p in &points {
             bounds.add_point(p);
             let (tu, tv) = ti.texcoord(p);
@@ -326,6 +365,7 @@ impl WorldMesh {
                 uv: [tu / tex_w, tv / tex_h],
                 lightmap_uv,
                 tangent,
+                probe,
             });
         }
 

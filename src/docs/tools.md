@@ -608,16 +608,18 @@ after a rebuild does so because the map changed.
 
 ```sh
 kerosene-tools radiance map.kerobsp [--samples 1-8] [--bounces 0-8] [--scale N]
-                  [--ambient-scale N] [--fast] [--dry-run]
+                  [--ambient-scale N] [--cubemap-size 4-256] [--fast] [--dry-run]
 ```
 
-Bakes static lighting from the map's own light entities.
+Bakes static lighting from the map's own light entities, then the reflection
+probes.
 
 | Entity | |
 |---|---|
 | `light` | A point light. `_light` is `"r g b brightness"`. |
 | `light_spot` | A cone. `_cone`, `_inner_cone`, `_exponent`, `pitch`. |
 | `light_environment` | The sun and the sky. `_light` is the sun, `_ambient` the fill. |
+| `env_cubemap` | A reflection probe: what the lit world looks like from here. |
 
 Brightness reads directly at 100 inches with the default quadratic falloff, so
 a `_light` of `"255 255 255 200"` delivers 200 units of light at normal room
@@ -632,6 +634,17 @@ as an interior.
 
 A map with no lights compiles fine and is then pitch black, which looks like a
 broken renderer — so Radiance says so.
+
+**Reflection probes.** After the lightmaps, Radiance stands at each
+`env_cubemap` and records what it sees in every direction -- one ray a texel,
+the colour being the lightmap where the ray landed times the surface's
+reflectivity, or the sky's colour if it escaped. `--cubemap-size` is the edge
+of each face, 32 by default, which is what Source ships its cubemaps at; the
+renderer blurs them further for rough surfaces. Put one at head height in
+each room. Every smooth or metal face reflects the nearest probe it can see,
+and a room with none reflects an even glow instead. A probe inside a wall
+sees nothing and Radiance says which. Unlike Source's `buildcubemaps`, this
+is part of the compile: there is no step to forget.
 
 ---
 
@@ -867,7 +880,10 @@ the thing they set it for.
 | `r_drawworld` `r_fullbright` `r_lightmap` `r_novis` | rendering toggles (cheat) |
 | `r_speeds` | per-frame culling and draw statistics |
 | `sv_stream` `sv_stream_linger` `r_stream_debug` | streamed sections: on/off, seconds a section lingers, draw their bounds |
-| `mat_exposure` | overall brightness |
+| `mat_exposure` | overall brightness, applied by the tone-map pass |
+| `mat_tonemap` | tone curve: `0` none (clip), `1` Reinhard, `2` ACES filmic (default) |
+| `r_msaa` | multisample anti-aliasing: `0`/`1` off, anything higher 4x (default) |
+| `r_bumpmap` `r_specular` | material debug scales: `0` removes normal maps / reflections, `2` exaggerates (cheat) |
 | `volume` `snd_reverb` `snd_reverb_preset` | sound; see [`audio.md`](audio.md#how-a-room-sounds) |
 | `developer` | verbosity; `2` also traces entity I/O |
 

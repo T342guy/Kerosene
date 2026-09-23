@@ -219,6 +219,16 @@ colour come from `light_environment`; the engine reads the same `_light` colour
 to tint the sky (`Engine::sky_color_from_map`), so a map lit by a warm sun gets
 a warm sky without anyone stating it twice.
 
+Last, `tools/radiance/src/probes.rs` bakes the reflection probes: one per
+`env_cubemap`, six faces of `--cubemap-size` texels, each texel a ray from the
+probe. A ray that escapes is sky; one that lands is the lightmap at that point
+times the surface's reflectivity. The face it landed on is found through a
+`FaceIndex` bucketed by plane, not through the leaf in front of the hit: a hit
+an epsilon off the floor can sit in a thin leaf Cleave filed no faces into.
+Only world faces are indexed, since a door is baked where it was compiled.
+The result goes in the `cubemaps` lump; a map with no probes has any stale
+ones cleared.
+
 ## Kiln: the whole pipeline
 
 Source: `tools/kiln/src/lib.rs`. Kiln is the one tool that runs the others. It

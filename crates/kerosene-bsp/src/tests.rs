@@ -209,6 +209,27 @@ fn round_trips_through_bytes() {
 }
 
 #[test]
+fn cubemap_probes_survive_the_file_and_a_map_without_them_has_none() {
+    use crate::cubemaps::{Cubemaps, FACES, Probe};
+    let plain = tiny_bsp();
+    let back = Bsp::from_bytes(&plain.to_bytes(), "x").unwrap();
+    assert!(back.cubemaps.is_none());
+
+    let mut bsp = tiny_bsp();
+    bsp.cubemaps = Some(Cubemaps {
+        face_size: 4,
+        probes: vec![Probe {
+            origin: Vec3::new(8.0, 16.0, 32.0),
+            texels: (0..(FACES * 16) as u32).collect(),
+        }],
+    });
+    let bytes = bsp.to_bytes();
+    let back = Bsp::from_bytes(&bytes, "x").unwrap();
+    assert_eq!(back.cubemaps, bsp.cubemaps);
+    assert_eq!(back.to_bytes(), bytes);
+}
+
+#[test]
 fn every_lump_starts_four_byte_aligned() {
     // Records are cast straight out of the buffer, so a misaligned lump would
     // be a correctness problem on strict platforms and a slow path elsewhere.

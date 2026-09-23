@@ -2,8 +2,8 @@
 //! Texture sets -- a surface's maps, gathered in one folder.
 //!
 //! A single PNG is not a surface. A surface is a colour, the bumps in it, how
-//! rough it is, what it glows with and where it self-shadows -- five images
-//! that belong together and are useless apart. The flat `art/` tree cannot say
+//! rough it is, what it glows with, where it self-shadows and whether it is
+//! metal -- six images that belong together and are useless apart. The flat `art/` tree cannot say
 //! that: it has one file per texture and one naming convention (`_normal`,
 //! `_n`) bolted on to guess at the rest, which works only for the one map
 //! anybody thought to name.
@@ -59,16 +59,21 @@ pub enum MapKind {
     Emissive,
     /// Baked ambient occlusion, darkening what the surface shadows itself.
     Ao,
+    /// How much of the surface is bare metal, 0 dielectric to 1 metal. Read
+    /// from red. Metal has no diffuse colour of its own: the base colour
+    /// becomes the tint of its reflection instead.
+    Metalness,
 }
 
 impl MapKind {
     /// Every kind, in the order a material lists them.
-    pub const ALL: [MapKind; 5] = [
+    pub const ALL: [MapKind; 6] = [
         MapKind::Base,
         MapKind::Normal,
         MapKind::Roughness,
         MapKind::Emissive,
         MapKind::Ao,
+        MapKind::Metalness,
     ];
 
     /// What this kind appends to the set's name to make its texture name.
@@ -83,6 +88,7 @@ impl MapKind {
             MapKind::Roughness => "_rough",
             MapKind::Emissive => "_emissive",
             MapKind::Ao => "_ao",
+            MapKind::Metalness => "_metal",
         }
     }
 
@@ -94,6 +100,7 @@ impl MapKind {
             MapKind::Roughness => "roughness",
             MapKind::Emissive => "emissive",
             MapKind::Ao => "ao",
+            MapKind::Metalness => "metalness",
         }
     }
 
@@ -101,6 +108,8 @@ impl MapKind {
     ///
     /// `$selfillummask` rather than `$emissive` because that is the key Source
     /// uses and the one [`crate::Material::referenced_textures`] already packs.
+    /// `$metalnessmap` rather than `$metalness`, because `$metalness` is the
+    /// scalar a material without a map sets.
     pub fn material_param(self) -> &'static str {
         match self {
             MapKind::Base => "$basetexture",
@@ -108,6 +117,7 @@ impl MapKind {
             MapKind::Roughness => "$roughness",
             MapKind::Emissive => "$selfillummask",
             MapKind::Ao => "$ao",
+            MapKind::Metalness => "$metalnessmap",
         }
     }
 
@@ -146,6 +156,7 @@ impl MapKind {
                 "ambient_occlusion",
                 "ambient",
             ],
+            MapKind::Metalness => &["metalness", "metallic", "metal", "mtl", "m"],
         }
     }
 
@@ -166,7 +177,7 @@ impl MapKind {
         match self {
             MapKind::Base | MapKind::Emissive => TextureFlags::NONE,
             MapKind::Normal => TextureFlags::NORMAL_MAP,
-            MapKind::Roughness | MapKind::Ao => TextureFlags::DATA,
+            MapKind::Roughness | MapKind::Ao | MapKind::Metalness => TextureFlags::DATA,
         }
     }
 }

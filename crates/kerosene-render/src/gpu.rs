@@ -10,8 +10,9 @@
 
 use crate::FrameStats;
 use crate::camera::Camera;
-use crate::lightmap::{ATLAS_SIZE, LightmapAtlas};
-use crate::mesh::{WorldMesh, WorldVertex};
+use crate::lightmap::{ATLAS_FORMAT, ATLAS_SIZE, LightmapAtlas};
+use crate::mesh::{NO_PROBE, WorldMesh, WorldVertex};
+use crate::probes::ProbeChain;
 use bytemuck::{Pod, Zeroable};
 use kerosene_asset::{MapKind, Material, Model, Texture};
 use kerosene_bsp::surf;
@@ -46,7 +47,11 @@ pub struct LineVertex {
 pub struct CameraUniform {
     pub view_proj: [[f32; 4]; 4],
     pub position: [f32; 4],
-    /// `[exposure, time, lightmaps_enabled, fullbright]`.
+    /// `[unused, time, lightmaps_enabled, fullbright]`.
+    ///
+    /// The first slot was exposure. It moved to the tone-map pass, which is
+    /// the only place it can be applied once to everything; the slot stays so
+    /// the layout both shaders declare does not shift under them.
     pub params: [f32; 4],
     pub sky_color: [f32; 4],
     /// `[bumpmap_scale, specular_scale, 0, 0]`.
@@ -63,11 +68,11 @@ pub struct CameraUniform {
 }
 
 impl CameraUniform {
-    pub fn from_camera(camera: &Camera, exposure: f32, time: f32) -> Self {
+    pub fn from_camera(camera: &Camera, time: f32) -> Self {
         CameraUniform {
             view_proj: camera.view_projection().to_cols_array_2d(),
             position: camera.position.extend(1.0).to_array(),
-            params: [exposure, time, 1.0, 0.0],
+            params: [0.0, time, 1.0, 0.0],
             sky_color: [1.0, 1.0, 1.0, 1.0],
             render: [1.0, 1.0, 0.0, 0.0],
         }
@@ -101,6 +106,64 @@ const MAX_ANISOTROPY: u16 = 16;
 /// units, and 24-bit depth z-fights visibly at that range.
 pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
 
+/// The scene's colour format: linear, half-float, with room above 1.0.
+///
+/// Lighting adds up -- a lightmap, a highlight on top of it, an emissive
+/// sign beside it -- and an 8-bit target clipped each of those as it was
+/// drawn. Half floats keep the sum and leave the tone-map pass to decide what
+/// "too bright" looks like, once, for the whole frame.
+pub const HDR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba16Float;
+
+/// Samples per pixel when multisampling is on.
+pub const MSAA_SAMPLES: u32 = 4;
+
+/// The curve that folds HDR scene colour into what a display can show.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+#[repr(u32)]
+pub enum ToneMapOperator {
+    /// Clip at 1.0. For looking at raw values, not for playing.
+    None = 0,
+    /// `x / (x + 1)`. What the renderer did per surface before it had an HDR
+    /// target; kept so a map lit for it can be compared.
+    Reinhard = 1,
+    /// A filmic curve: a toe that keeps shadows dense and a shoulder that
+    /// rolls highlights off rather than clipping them.
+    #[default]
+    Aces = 2,
+}
+
+impl ToneMapOperator {
+    /// The operator a `mat_tonemap` value names. Out-of-range values get the
+    /// default rather than an error, since the convar is typed at a console.
+    pub fn from_index(index: i32) -> ToneMapOperator {
+        match index {
+            0 => ToneMapOperator::None,
+            1 => ToneMapOperator::Reinhard,
+            _ => ToneMapOperator::Aces,
+        }
+    }
+}
+
+/// What the tone-map pass reads besides the scene.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Pod, Zeroable)]
+pub struct ToneMapUniform {
+    pub exposure: f32,
+    /// A [`ToneMapOperator`] as its discriminant.
+    pub curve: u32,
+    pub _pad: [f32; 2],
+}
+
+impl Default for ToneMapUniform {
+    fn default() -> Self {
+        ToneMapUniform {
+            exposure: 1.0,
+            curve: ToneMapOperator::default() as u32,
+            _pad: [0.0; 2],
+        }
+    }
+}
+
 /// Which pipeline draws a surface.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum Pass {
@@ -129,12 +192,16 @@ enum Pass {
 #[derive(Clone, Copy, Debug, Pod, Zeroable)]
 pub struct ModelUniform {
     pub transform: [[f32; 4]; 4],
+    /// `x`: the cubemap probe a studio model reflects, or [`NO_PROBE`]. Brush
+    /// models ignore it -- their vertices carry their own, like the world's.
+    pub probe: [u32; 4],
 }
 
 impl Default for ModelUniform {
     fn default() -> Self {
         ModelUniform {
             transform: Mat4::IDENTITY.to_cols_array_2d(),
+            probe: [NO_PROBE, 0, 0, 0],
         }
     }
 }
@@ -143,6 +210,17 @@ impl From<Pose> for ModelUniform {
     fn from(pose: Pose) -> Self {
         ModelUniform {
             transform: pose.to_mat4().to_cols_array_2d(),
+            ..Default::default()
+        }
+    }
+}
+
+impl ModelUniform {
+    /// A pose that reflects `probe`.
+    pub fn with_probe(pose: Pose, probe: u32) -> Self {
+        ModelUniform {
+            probe: [probe, 0, 0, 0],
+            ..ModelUniform::from(pose)
         }
     }
 }
@@ -151,7 +229,7 @@ impl From<Pose> for ModelUniform {
 
 /// The maps a material is made of, in binding order.
 ///
-/// The renderer's copy of [`kerosene_asset::MapKind`]: the same five, in the
+/// The renderer's copy of [`kerosene_asset::MapKind`]: the same six, in the
 /// same order, because the shader indexes them by position. A test holds the
 /// two lists against each other, so adding a kind on one side and forgetting
 /// the other fails the build rather than binding roughness where the emissive
@@ -162,10 +240,11 @@ pub const MAP_KINDS: [MapKind; MAP_COUNT] = [
     MapKind::Roughness,
     MapKind::Emissive,
     MapKind::Ao,
+    MapKind::Metalness,
 ];
 
 /// How many texture bindings a material has.
-pub const MAP_COUNT: usize = 5;
+pub const MAP_COUNT: usize = 6;
 
 /// The first binding the material textures occupy; 0 and 1 are the sampler and
 /// the presence uniform.
@@ -174,7 +253,7 @@ pub const MAP_BINDING_BASE: u32 = 2;
 /// Which of a material's maps are real, and how strongly they act.
 ///
 /// The alternative to shader variants: rather than compiling a pipeline per
-/// combination of maps present, every material binds all five slots -- the
+/// combination of maps present, every material binds all six slots -- the
 /// absent ones getting a 1x1 neutral texture -- and this says which of them
 /// carry anything. A branch on a uniform is uniform across the draw, so it
 /// costs about what a constant would.
@@ -190,6 +269,12 @@ pub struct MaterialUniform {
     pub normal_strength: f32,
     /// Overall specular level, scaled by `r_specular`.
     pub specular_strength: f32,
+    /// `$metalness`: the whole answer without a metalness map, a scale on the
+    /// map with one.
+    pub metalness: f32,
+    /// `$roughnessfactor`, the same arrangement for roughness.
+    pub roughness_factor: f32,
+    pub _pad: [f32; 2],
 }
 
 impl Default for MaterialUniform {
@@ -199,6 +284,9 @@ impl Default for MaterialUniform {
             emissive_strength: 1.0,
             normal_strength: 1.0,
             specular_strength: 1.0,
+            metalness: 0.0,
+            roughness_factor: 1.0,
+            _pad: [0.0; 2],
         }
     }
 }
@@ -213,7 +301,12 @@ pub const MAX_MODELS: usize = 512;
 
 /// GPU resources that outlive any one map.
 pub struct Renderer {
+    /// Everything that draws into the HDR scene target, keyed by pass. Built
+    /// for one sample count and rebuilt when `r_msaa` changes it.
     pipelines: HashMap<PipelineKey, wgpu::RenderPipeline>,
+    /// What the scene pipelines are built from, kept so a change of sample
+    /// count can rebuild them without recompiling a shader.
+    scene: SceneShaders,
     pub frame_layout: wgpu::BindGroupLayout,
     pub material_layout: wgpu::BindGroupLayout,
     camera_buffer: wgpu::Buffer,
@@ -229,8 +322,42 @@ pub struct Renderer {
     model_stride: u32,
     sampler: wgpu::Sampler,
     lightmap_sampler: wgpu::Sampler,
-    depth: Option<(wgpu::Texture, wgpu::TextureView, u32, u32)>,
+    /// Trilinear and clamped: the mip level is how blurry a reflection is,
+    /// and a face must not wrap round to its own far edge.
+    probe_sampler: wgpu::Sampler,
+    /// Samples per pixel in the scene target: 1, or [`MSAA_SAMPLES`].
+    samples: u32,
+    /// The scene's colour and depth, sized to the window. `None` until the
+    /// first [`Renderer::ensure_targets`] and after a change of sample count.
+    targets: Option<Targets>,
+    tonemap_pipeline: wgpu::RenderPipeline,
+    tonemap_layout: wgpu::BindGroupLayout,
+    tonemap_buffer: wgpu::Buffer,
+    /// The swapchain's format: what the tone-map pass writes.
     format: wgpu::TextureFormat,
+}
+
+/// The scene shaders and layouts, everything a pipeline needs except a
+/// sample count.
+struct SceneShaders {
+    world: wgpu::ShaderModule,
+    model: wgpu::ShaderModule,
+    line: wgpu::ShaderModule,
+    layout: wgpu::PipelineLayout,
+    line_layout: wgpu::PipelineLayout,
+}
+
+/// The render targets a frame is drawn into before tone-mapping.
+struct Targets {
+    width: u32,
+    height: u32,
+    /// The multisampled colour target, when there is one. Resolved into
+    /// `resolved` at the end of the scene pass, and never read otherwise.
+    multisampled: Option<wgpu::TextureView>,
+    /// The single-sampled HDR colour the tone-map pass reads.
+    resolved: wgpu::TextureView,
+    depth: wgpu::TextureView,
+    tonemap_bind_group: wgpu::BindGroup,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
@@ -243,6 +370,8 @@ impl From<Pass> for PipelineKey {
 }
 
 impl Renderer {
+    /// `format` is the swapchain's. The scene itself is drawn in
+    /// [`HDR_FORMAT`] and reaches `format` only through [`Renderer::tonemap`].
     pub fn new(device: &wgpu::Device, format: wgpu::TextureFormat) -> Renderer {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("world"),
@@ -255,6 +384,10 @@ impl Renderer {
         let line_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("line"),
             source: wgpu::ShaderSource::Wgsl(include_str!("shaders/line.wgsl").into()),
+        });
+        let tonemap_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("tonemap"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("shaders/tonemap.wgsl").into()),
         });
 
         let frame_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -286,13 +419,30 @@ impl Renderer {
                     ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
                     count: None,
                 },
+                // The map's cubemap probes, six layers each.
+                wgpu::BindGroupLayoutEntry {
+                    binding: 3,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        view_dimension: wgpu::TextureViewDimension::D2Array,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 4,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                    count: None,
+                },
             ],
         });
 
-        // A material is five textures, one sampler and a word saying which of
-        // the five are real.
+        // A material is six textures, one sampler and a uniform saying which
+        // of the six are real.
         //
-        // The presence word is why there is one pipeline rather than thirty-two.
+        // The presence word is why there is one pipeline rather than sixty-four.
         // The alternative -- a shader variant per combination of maps -- means
         // compiling pipelines for combinations no material in the game uses,
         // and a stall the first time one turns up that was not predicted.
@@ -384,155 +534,6 @@ impl Renderer {
             push_constant_ranges: &[],
         });
 
-        let vertex_layout = wgpu::VertexBufferLayout {
-            array_stride: std::mem::size_of::<WorldVertex>() as wgpu::BufferAddress,
-            step_mode: wgpu::VertexStepMode::Vertex,
-            attributes: &[
-                wgpu::VertexAttribute {
-                    offset: 0,
-                    shader_location: 0,
-                    format: wgpu::VertexFormat::Float32x3,
-                },
-                wgpu::VertexAttribute {
-                    offset: 12,
-                    shader_location: 1,
-                    format: wgpu::VertexFormat::Float32x3,
-                },
-                wgpu::VertexAttribute {
-                    offset: 24,
-                    shader_location: 2,
-                    format: wgpu::VertexFormat::Float32x2,
-                },
-                wgpu::VertexAttribute {
-                    offset: 32,
-                    shader_location: 3,
-                    format: wgpu::VertexFormat::Float32x2,
-                },
-                wgpu::VertexAttribute {
-                    offset: 40,
-                    shader_location: 4,
-                    format: wgpu::VertexFormat::Float32x4,
-                },
-            ],
-        };
-
-        let mut pipelines = HashMap::new();
-        for (pass, entry) in [
-            (Pass::World, "fs_world"),
-            (Pass::Sky, "fs_sky"),
-            (Pass::Unlit, "fs_unlit"),
-        ] {
-            let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                label: Some(entry),
-                layout: Some(&pipeline_layout),
-                vertex: wgpu::VertexState {
-                    module: &shader,
-                    entry_point: Some("vs_main"),
-                    buffers: std::slice::from_ref(&vertex_layout),
-                    compilation_options: Default::default(),
-                },
-                fragment: Some(wgpu::FragmentState {
-                    module: &shader,
-                    entry_point: Some(entry),
-                    targets: &[Some(wgpu::ColorTargetState {
-                        format,
-                        blend: Some(wgpu::BlendState::ALPHA_BLENDING),
-                        write_mask: wgpu::ColorWrites::ALL,
-                    })],
-                    compilation_options: Default::default(),
-                }),
-                primitive: wgpu::PrimitiveState {
-                    topology: wgpu::PrimitiveTopology::TriangleList,
-                    strip_index_format: None,
-                    // The mesh builder emits counter-clockwise triangles; see
-                    // its docs for why the source data is the other way round.
-                    front_face: wgpu::FrontFace::Ccw,
-                    cull_mode: Some(wgpu::Face::Back),
-                    polygon_mode: wgpu::PolygonMode::Fill,
-                    unclipped_depth: false,
-                    conservative: false,
-                },
-                depth_stencil: Some(wgpu::DepthStencilState {
-                    format: DEPTH_FORMAT,
-                    // The sky is behind everything, so it tests but does not
-                    // write, letting geometry drawn later sit in front of it.
-                    depth_write_enabled: pass != Pass::Sky,
-                    depth_compare: wgpu::CompareFunction::LessEqual,
-                    stencil: wgpu::StencilState::default(),
-                    bias: wgpu::DepthBiasState::default(),
-                }),
-                multisample: wgpu::MultisampleState::default(),
-                multiview: None,
-                cache: None,
-            });
-            pipelines.insert(PipelineKey::from(pass), pipeline);
-        }
-
-        // Studio models carry position, normal and uv only -- no lightmap --
-        // so they get their own vertex layout and pipeline, while sharing the
-        // same bind groups (camera, material, per-model transform).
-        let model_vertex_layout = wgpu::VertexBufferLayout {
-            array_stride: std::mem::size_of::<ModelVertex>() as wgpu::BufferAddress,
-            step_mode: wgpu::VertexStepMode::Vertex,
-            attributes: &[
-                wgpu::VertexAttribute {
-                    offset: 0,
-                    shader_location: 0,
-                    format: wgpu::VertexFormat::Float32x3,
-                },
-                wgpu::VertexAttribute {
-                    offset: 12,
-                    shader_location: 1,
-                    format: wgpu::VertexFormat::Float32x3,
-                },
-                wgpu::VertexAttribute {
-                    offset: 24,
-                    shader_location: 2,
-                    format: wgpu::VertexFormat::Float32x2,
-                },
-            ],
-        };
-        let model_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("model"),
-            layout: Some(&pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: &model_shader,
-                entry_point: Some("vs_model"),
-                buffers: &[model_vertex_layout],
-                compilation_options: Default::default(),
-            },
-            fragment: Some(wgpu::FragmentState {
-                module: &model_shader,
-                entry_point: Some("fs_model"),
-                targets: &[Some(wgpu::ColorTargetState {
-                    format,
-                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
-                compilation_options: Default::default(),
-            }),
-            primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleList,
-                strip_index_format: None,
-                front_face: wgpu::FrontFace::Ccw,
-                cull_mode: Some(wgpu::Face::Back),
-                polygon_mode: wgpu::PolygonMode::Fill,
-                unclipped_depth: false,
-                conservative: false,
-            },
-            depth_stencil: Some(wgpu::DepthStencilState {
-                format: DEPTH_FORMAT,
-                depth_write_enabled: true,
-                depth_compare: wgpu::CompareFunction::LessEqual,
-                stencil: wgpu::StencilState::default(),
-                bias: wgpu::DepthBiasState::default(),
-            }),
-            multisample: wgpu::MultisampleState::default(),
-            multiview: None,
-            cache: None,
-        });
-        pipelines.insert(PipelineKey::from(Pass::Model), model_pipeline);
-
         // Debug lines: the same camera uniform, a line-list topology, and a
         // colour straight through. Only the camera is bound.
         let line_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -540,64 +541,82 @@ impl Renderer {
             bind_group_layouts: &[&frame_layout],
             push_constant_ranges: &[],
         });
-        let line_vertex_layout = wgpu::VertexBufferLayout {
-            array_stride: std::mem::size_of::<LineVertex>() as wgpu::BufferAddress,
-            step_mode: wgpu::VertexStepMode::Vertex,
-            attributes: &[
-                wgpu::VertexAttribute {
-                    offset: 0,
-                    shader_location: 0,
-                    format: wgpu::VertexFormat::Float32x3,
+
+        let scene = SceneShaders {
+            world: shader,
+            model: model_shader,
+            line: line_shader,
+            layout: pipeline_layout,
+            line_layout,
+        };
+        let samples = 1;
+        let pipelines = scene_pipelines(device, &scene, samples);
+
+        // The tone-map pass reads the resolved scene by texel, so it needs no
+        // sampler: the source and the target are the same size.
+        let tonemap_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("tonemap"),
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: false },
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
                 },
-                wgpu::VertexAttribute {
-                    offset: 12,
-                    shader_location: 1,
-                    format: wgpu::VertexFormat::Float32x3,
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: wgpu::BufferSize::new(
+                            std::mem::size_of::<ToneMapUniform>() as u64,
+                        ),
+                    },
+                    count: None,
                 },
             ],
-        };
-        let line_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("line"),
-            layout: Some(&line_layout),
+        });
+        let tonemap_pipeline_layout =
+            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("tonemap"),
+                bind_group_layouts: &[&tonemap_layout],
+                push_constant_ranges: &[],
+            });
+        let tonemap_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("tonemap"),
+            layout: Some(&tonemap_pipeline_layout),
             vertex: wgpu::VertexState {
-                module: &line_shader,
-                entry_point: Some("vs_line"),
-                buffers: &[line_vertex_layout],
+                module: &tonemap_shader,
+                entry_point: Some("vs_fullscreen"),
+                buffers: &[],
                 compilation_options: Default::default(),
             },
             fragment: Some(wgpu::FragmentState {
-                module: &line_shader,
-                entry_point: Some("fs_line"),
+                module: &tonemap_shader,
+                entry_point: Some("fs_tonemap"),
                 targets: &[Some(wgpu::ColorTargetState {
                     format,
-                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+                    blend: None,
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
                 compilation_options: Default::default(),
             }),
-            primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::LineList,
-                strip_index_format: None,
-                front_face: wgpu::FrontFace::Ccw,
-                cull_mode: None,
-                polygon_mode: wgpu::PolygonMode::Fill,
-                unclipped_depth: false,
-                conservative: false,
-            },
-            depth_stencil: Some(wgpu::DepthStencilState {
-                format: DEPTH_FORMAT,
-                depth_write_enabled: false,
-                // Lines are an overlay; draw them over the world but keep the
-                // depth test so occluded props are visibly behind walls.
-                depth_compare: wgpu::CompareFunction::LessEqual,
-                stencil: wgpu::StencilState::default(),
-                bias: wgpu::DepthBiasState::default(),
-            }),
+            primitive: wgpu::PrimitiveState::default(),
+            depth_stencil: None,
             multisample: wgpu::MultisampleState::default(),
             multiview: None,
             cache: None,
         });
-        pipelines.insert(PipelineKey::from(Pass::Lines), line_pipeline);
+        let tonemap_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("tonemap"),
+            contents: bytemuck::bytes_of(&ToneMapUniform::default()),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
 
         let camera_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("camera"),
@@ -634,8 +653,20 @@ impl Renderer {
             ..Default::default()
         });
 
+        let probe_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            label: Some("probes"),
+            address_mode_u: wgpu::AddressMode::ClampToEdge,
+            address_mode_v: wgpu::AddressMode::ClampToEdge,
+            address_mode_w: wgpu::AddressMode::ClampToEdge,
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
+            mipmap_filter: wgpu::FilterMode::Linear,
+            ..Default::default()
+        });
+
         Renderer {
             pipelines,
+            scene,
             frame_layout,
             material_layout,
             camera_buffer,
@@ -645,44 +676,200 @@ impl Renderer {
             model_stride,
             sampler,
             lightmap_sampler,
-            depth: None,
+            probe_sampler,
+            samples,
+            targets: None,
+            tonemap_pipeline,
+            tonemap_layout,
+            tonemap_buffer,
             format,
         }
     }
 
+    /// The swapchain format the tone-map pass writes.
     pub fn format(&self) -> wgpu::TextureFormat {
         self.format
     }
 
-    /// Create or resize the depth buffer.
-    pub fn ensure_depth(&mut self, device: &wgpu::Device, width: u32, height: u32) {
+    /// Samples per pixel the scene is drawn with.
+    pub fn msaa_samples(&self) -> u32 {
+        self.samples
+    }
+
+    /// Ask for multisampling. Returns the sample count actually used.
+    ///
+    /// Anything above 1 means [`MSAA_SAMPLES`]: four samples is the one count
+    /// every backend wgpu runs on supports for both the HDR and the depth
+    /// format, and asking the adapter for more would make the answer depend
+    /// on the machine for a difference few people can see. A change rebuilds
+    /// the scene pipelines, since the sample count is baked into them, and
+    /// drops the targets for [`Renderer::ensure_targets`] to remake.
+    pub fn set_msaa(&mut self, device: &wgpu::Device, requested: u32) -> u32 {
+        let samples = msaa_samples_for(requested);
+        if samples != self.samples {
+            self.samples = samples;
+            self.pipelines = scene_pipelines(device, &self.scene, samples);
+            self.targets = None;
+        }
+        samples
+    }
+
+    /// Create or resize the scene targets: HDR colour, its multisampled
+    /// partner if MSAA is on, and depth.
+    pub fn ensure_targets(&mut self, device: &wgpu::Device, width: u32, height: u32) {
         let (width, height) = (width.max(1), height.max(1));
-        if let Some((_, _, w, h)) = &self.depth
-            && *w == width
-            && *h == height
+        if let Some(t) = &self.targets
+            && t.width == width
+            && t.height == height
         {
             return;
         }
-        let texture = device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("depth"),
-            size: wgpu::Extent3d {
-                width,
-                height,
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: DEPTH_FORMAT,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-            view_formats: &[],
+        let size = wgpu::Extent3d {
+            width,
+            height,
+            depth_or_array_layers: 1,
+        };
+        let target = |label: &str, format, samples, usage| {
+            device
+                .create_texture(&wgpu::TextureDescriptor {
+                    label: Some(label),
+                    size,
+                    mip_level_count: 1,
+                    sample_count: samples,
+                    dimension: wgpu::TextureDimension::D2,
+                    format,
+                    usage,
+                    view_formats: &[],
+                })
+                .create_view(&wgpu::TextureViewDescriptor::default())
+        };
+
+        let resolved = target(
+            "scene",
+            HDR_FORMAT,
+            1,
+            wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+        );
+        let multisampled = (self.samples > 1).then(|| {
+            target(
+                "scene msaa",
+                HDR_FORMAT,
+                self.samples,
+                wgpu::TextureUsages::RENDER_ATTACHMENT,
+            )
         });
-        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-        self.depth = Some((texture, view, width, height));
+        let depth = target(
+            "depth",
+            DEPTH_FORMAT,
+            self.samples,
+            wgpu::TextureUsages::RENDER_ATTACHMENT,
+        );
+        let tonemap_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("tonemap"),
+            layout: &self.tonemap_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&resolved),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: self.tonemap_buffer.as_entire_binding(),
+                },
+            ],
+        });
+        self.targets = Some(Targets {
+            width,
+            height,
+            multisampled,
+            resolved,
+            depth,
+            tonemap_bind_group,
+        });
     }
 
-    pub fn depth_view(&self) -> Option<&wgpu::TextureView> {
-        self.depth.as_ref().map(|(_, v, _, _)| v)
+    /// Begin the pass the scene is drawn in: HDR colour, cleared to `clear`,
+    /// resolved from the multisampled target if there is one, and depth.
+    ///
+    /// Panics if [`Renderer::ensure_targets`] has not been called since the
+    /// last change of size or sample count; that is a bug in the frame loop,
+    /// not a condition to recover from.
+    pub fn begin_scene_pass<'e>(
+        &'e self,
+        encoder: &'e mut wgpu::CommandEncoder,
+        clear: wgpu::Color,
+    ) -> wgpu::RenderPass<'e> {
+        let targets = self
+            .targets
+            .as_ref()
+            .expect("ensure_targets before begin_scene_pass");
+        // With MSAA the samples are drawn into the multisampled target and
+        // averaged into `resolved` when the pass ends. The samples themselves
+        // are never read again, so they are not stored: on a tiled GPU that
+        // is the difference between MSAA being nearly free and not.
+        let (view, resolve_target, store) = match &targets.multisampled {
+            Some(ms) => (ms, Some(&targets.resolved), wgpu::StoreOp::Discard),
+            None => (&targets.resolved, None, wgpu::StoreOp::Store),
+        };
+        encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("scene"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view,
+                resolve_target,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(clear),
+                    store,
+                },
+            })],
+            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                view: &targets.depth,
+                depth_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(1.0),
+                    store: wgpu::StoreOp::Discard,
+                }),
+                stencil_ops: None,
+            }),
+            timestamp_writes: None,
+            occlusion_query_set: None,
+        })
+    }
+
+    /// Set the exposure and curve the next [`Renderer::tonemap`] applies.
+    pub fn update_tonemap(&self, queue: &wgpu::Queue, exposure: f32, operator: ToneMapOperator) {
+        let uniform = ToneMapUniform {
+            exposure: exposure.max(0.0),
+            curve: operator as u32,
+            ..Default::default()
+        };
+        queue.write_buffer(&self.tonemap_buffer, 0, bytemuck::bytes_of(&uniform));
+    }
+
+    /// Fold the HDR scene down into `output`, the swapchain image.
+    ///
+    /// Overwrites all of `output`; anything drawn after this -- the UI --
+    /// loads what it leaves.
+    pub fn tonemap(&self, encoder: &mut wgpu::CommandEncoder, output: &wgpu::TextureView) {
+        let Some(targets) = &self.targets else {
+            return;
+        };
+        let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("tonemap"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: output,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    // Every pixel is written, so there is nothing to load.
+                    load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                    store: wgpu::StoreOp::Store,
+                },
+            })],
+            depth_stencil_attachment: None,
+            timestamp_writes: None,
+            occlusion_query_set: None,
+        });
+        pass.set_pipeline(&self.tonemap_pipeline);
+        pass.set_bind_group(0, &targets.tonemap_bind_group, &[]);
+        pass.draw(0..3, 0..1);
     }
 
     pub fn update_camera(&self, queue: &wgpu::Queue, uniform: &CameraUniform) {
@@ -699,6 +886,12 @@ impl Renderer {
     /// Index 0 is the world and is always the identity; a caller may pass it
     /// or not.
     pub fn update_models(&self, queue: &wgpu::Queue, poses: &[Pose]) {
+        let entries: Vec<ModelUniform> = poses.iter().map(|p| ModelUniform::from(*p)).collect();
+        self.update_model_uniforms(queue, &entries);
+    }
+
+    /// [`Renderer::update_models`], with a probe for each slot as well.
+    pub fn update_model_uniforms(&self, queue: &wgpu::Queue, entries: &[ModelUniform]) {
         // Written as one span with the device's stride between entries, so
         // the same buffer can be addressed by dynamic offset. The staging
         // buffer is kept between frames: this runs every frame, and the
@@ -709,10 +902,7 @@ impl Renderer {
         bytes.resize(stride * MAX_MODELS, 0);
         let identity = ModelUniform::default();
         for i in 0..MAX_MODELS {
-            let entry = match poses.get(i) {
-                Some(pose) => ModelUniform::from(*pose),
-                None => identity,
-            };
+            let entry = entries.get(i).copied().unwrap_or(identity);
             let at = i * stride;
             bytes[at..at + std::mem::size_of::<ModelUniform>()]
                 .copy_from_slice(bytemuck::bytes_of(&entry));
@@ -793,10 +983,13 @@ impl Renderer {
         pass.draw(0..vertex_count, 0..1);
     }
 
+    /// Everything a frame's draws share for one section: the camera, that
+    /// section's lightmap atlas, and the map's probes.
     pub fn create_frame_bind_group(
         &self,
         device: &wgpu::Device,
         lightmap_view: &wgpu::TextureView,
+        probes: &GpuProbes,
     ) -> wgpu::BindGroup {
         device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("frame"),
@@ -813,6 +1006,14 @@ impl Renderer {
                 wgpu::BindGroupEntry {
                     binding: 2,
                     resource: wgpu::BindingResource::Sampler(&self.lightmap_sampler),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: wgpu::BindingResource::TextureView(&probes.view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: wgpu::BindingResource::Sampler(&self.probe_sampler),
                 },
             ],
         })
@@ -944,6 +1145,298 @@ impl Renderer {
     }
 }
 
+/// How many samples a request for `requested` gets. See [`Renderer::set_msaa`].
+pub fn msaa_samples_for(requested: u32) -> u32 {
+    if requested > 1 { MSAA_SAMPLES } else { 1 }
+}
+
+/// Build every pipeline that draws into the scene target, at one sample count.
+fn scene_pipelines(
+    device: &wgpu::Device,
+    scene: &SceneShaders,
+    samples: u32,
+) -> HashMap<PipelineKey, wgpu::RenderPipeline> {
+    let multisample = wgpu::MultisampleState {
+        count: samples,
+        mask: !0,
+        alpha_to_coverage_enabled: false,
+    };
+    let hdr_target = [Some(wgpu::ColorTargetState {
+        format: HDR_FORMAT,
+        blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+        write_mask: wgpu::ColorWrites::ALL,
+    })];
+
+    let vertex_layout = wgpu::VertexBufferLayout {
+        array_stride: std::mem::size_of::<WorldVertex>() as wgpu::BufferAddress,
+        step_mode: wgpu::VertexStepMode::Vertex,
+        attributes: &[
+            wgpu::VertexAttribute {
+                offset: 0,
+                shader_location: 0,
+                format: wgpu::VertexFormat::Float32x3,
+            },
+            wgpu::VertexAttribute {
+                offset: 12,
+                shader_location: 1,
+                format: wgpu::VertexFormat::Float32x3,
+            },
+            wgpu::VertexAttribute {
+                offset: 24,
+                shader_location: 2,
+                format: wgpu::VertexFormat::Float32x2,
+            },
+            wgpu::VertexAttribute {
+                offset: 32,
+                shader_location: 3,
+                format: wgpu::VertexFormat::Float32x2,
+            },
+            wgpu::VertexAttribute {
+                offset: 40,
+                shader_location: 4,
+                format: wgpu::VertexFormat::Float32x4,
+            },
+            wgpu::VertexAttribute {
+                offset: 56,
+                shader_location: 5,
+                format: wgpu::VertexFormat::Uint32,
+            },
+        ],
+    };
+
+    let mut pipelines = HashMap::new();
+    for (pass, entry) in [
+        (Pass::World, "fs_world"),
+        (Pass::Sky, "fs_sky"),
+        (Pass::Unlit, "fs_unlit"),
+    ] {
+        let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some(entry),
+            layout: Some(&scene.layout),
+            vertex: wgpu::VertexState {
+                module: &scene.world,
+                entry_point: Some("vs_main"),
+                buffers: std::slice::from_ref(&vertex_layout),
+                compilation_options: Default::default(),
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &scene.world,
+                entry_point: Some(entry),
+                targets: &hdr_target,
+                compilation_options: Default::default(),
+            }),
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::TriangleList,
+                strip_index_format: None,
+                // The mesh builder emits counter-clockwise triangles; see
+                // its docs for why the source data is the other way round.
+                front_face: wgpu::FrontFace::Ccw,
+                cull_mode: Some(wgpu::Face::Back),
+                polygon_mode: wgpu::PolygonMode::Fill,
+                unclipped_depth: false,
+                conservative: false,
+            },
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: DEPTH_FORMAT,
+                // The sky is behind everything, so it tests but does not
+                // write, letting geometry drawn later sit in front of it.
+                depth_write_enabled: pass != Pass::Sky,
+                depth_compare: wgpu::CompareFunction::LessEqual,
+                stencil: wgpu::StencilState::default(),
+                bias: wgpu::DepthBiasState::default(),
+            }),
+            multisample,
+            multiview: None,
+            cache: None,
+        });
+        pipelines.insert(PipelineKey::from(pass), pipeline);
+    }
+
+    // Studio models carry position, normal and uv only -- no lightmap --
+    // so they get their own vertex layout and pipeline, while sharing the
+    // same bind groups (camera, material, per-model transform).
+    let model_vertex_layout = wgpu::VertexBufferLayout {
+        array_stride: std::mem::size_of::<ModelVertex>() as wgpu::BufferAddress,
+        step_mode: wgpu::VertexStepMode::Vertex,
+        attributes: &[
+            wgpu::VertexAttribute {
+                offset: 0,
+                shader_location: 0,
+                format: wgpu::VertexFormat::Float32x3,
+            },
+            wgpu::VertexAttribute {
+                offset: 12,
+                shader_location: 1,
+                format: wgpu::VertexFormat::Float32x3,
+            },
+            wgpu::VertexAttribute {
+                offset: 24,
+                shader_location: 2,
+                format: wgpu::VertexFormat::Float32x2,
+            },
+        ],
+    };
+    let model_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some("model"),
+        layout: Some(&scene.layout),
+        vertex: wgpu::VertexState {
+            module: &scene.model,
+            entry_point: Some("vs_model"),
+            buffers: &[model_vertex_layout],
+            compilation_options: Default::default(),
+        },
+        fragment: Some(wgpu::FragmentState {
+            module: &scene.model,
+            entry_point: Some("fs_model"),
+            targets: &hdr_target,
+            compilation_options: Default::default(),
+        }),
+        primitive: wgpu::PrimitiveState {
+            topology: wgpu::PrimitiveTopology::TriangleList,
+            strip_index_format: None,
+            front_face: wgpu::FrontFace::Ccw,
+            cull_mode: Some(wgpu::Face::Back),
+            polygon_mode: wgpu::PolygonMode::Fill,
+            unclipped_depth: false,
+            conservative: false,
+        },
+        depth_stencil: Some(wgpu::DepthStencilState {
+            format: DEPTH_FORMAT,
+            depth_write_enabled: true,
+            depth_compare: wgpu::CompareFunction::LessEqual,
+            stencil: wgpu::StencilState::default(),
+            bias: wgpu::DepthBiasState::default(),
+        }),
+        multisample,
+        multiview: None,
+        cache: None,
+    });
+    pipelines.insert(PipelineKey::from(Pass::Model), model_pipeline);
+
+    let line_vertex_layout = wgpu::VertexBufferLayout {
+        array_stride: std::mem::size_of::<LineVertex>() as wgpu::BufferAddress,
+        step_mode: wgpu::VertexStepMode::Vertex,
+        attributes: &[
+            wgpu::VertexAttribute {
+                offset: 0,
+                shader_location: 0,
+                format: wgpu::VertexFormat::Float32x3,
+            },
+            wgpu::VertexAttribute {
+                offset: 12,
+                shader_location: 1,
+                format: wgpu::VertexFormat::Float32x3,
+            },
+        ],
+    };
+    let line_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some("line"),
+        layout: Some(&scene.line_layout),
+        vertex: wgpu::VertexState {
+            module: &scene.line,
+            entry_point: Some("vs_line"),
+            buffers: &[line_vertex_layout],
+            compilation_options: Default::default(),
+        },
+        fragment: Some(wgpu::FragmentState {
+            module: &scene.line,
+            entry_point: Some("fs_line"),
+            targets: &hdr_target,
+            compilation_options: Default::default(),
+        }),
+        primitive: wgpu::PrimitiveState {
+            topology: wgpu::PrimitiveTopology::LineList,
+            strip_index_format: None,
+            front_face: wgpu::FrontFace::Ccw,
+            cull_mode: None,
+            polygon_mode: wgpu::PolygonMode::Fill,
+            unclipped_depth: false,
+            conservative: false,
+        },
+        depth_stencil: Some(wgpu::DepthStencilState {
+            format: DEPTH_FORMAT,
+            depth_write_enabled: false,
+            // Lines are an overlay; draw them over the world but keep the
+            // depth test so occluded props are visibly behind walls.
+            depth_compare: wgpu::CompareFunction::LessEqual,
+            stencil: wgpu::StencilState::default(),
+            bias: wgpu::DepthBiasState::default(),
+        }),
+        multisample,
+        multiview: None,
+        cache: None,
+    });
+    pipelines.insert(PipelineKey::from(Pass::Lines), line_pipeline);
+
+    pipelines
+}
+
+/// A map's cubemap probes on the GPU. One per map, shared by every section's
+/// frame bind group.
+pub struct GpuProbes {
+    _texture: wgpu::Texture,
+    view: wgpu::TextureView,
+    /// How many real probes there are; 0 for the black placeholder.
+    pub count: usize,
+}
+
+impl GpuProbes {
+    /// Upload a map's probes with their mip chain. `None` -- a map without
+    /// probes -- uploads a black placeholder no vertex points at.
+    pub fn upload(
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        cubemaps: Option<&kerosene_bsp::Cubemaps>,
+    ) -> GpuProbes {
+        let chain = ProbeChain::build(cubemaps);
+        let texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("cubemap probes"),
+            size: wgpu::Extent3d {
+                width: chain.face_size,
+                height: chain.face_size,
+                depth_or_array_layers: chain.layers,
+            },
+            mip_level_count: chain.levels.len() as u32,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: ATLAS_FORMAT,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            view_formats: &[],
+        });
+        for (level, texels) in chain.levels.iter().enumerate() {
+            let size = chain.level_size(level);
+            queue.write_texture(
+                wgpu::TexelCopyTextureInfo {
+                    texture: &texture,
+                    mip_level: level as u32,
+                    origin: wgpu::Origin3d::ZERO,
+                    aspect: wgpu::TextureAspect::All,
+                },
+                bytemuck::cast_slice(texels),
+                wgpu::TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(4 * size),
+                    rows_per_image: Some(size),
+                },
+                wgpu::Extent3d {
+                    width: size,
+                    height: size,
+                    depth_or_array_layers: chain.layers,
+                },
+            );
+        }
+        let view = texture.create_view(&wgpu::TextureViewDescriptor {
+            dimension: Some(wgpu::TextureViewDimension::D2Array),
+            ..Default::default()
+        });
+        GpuProbes {
+            _texture: texture,
+            view,
+            count: cubemaps.map_or(0, |c| c.probes.len()),
+        }
+    }
+}
+
 /// GPU resources for one loaded map.
 pub struct MapResources {
     pub vertices: wgpu::Buffer,
@@ -984,13 +1477,16 @@ impl MapResources {
             usage: wgpu::BufferUsages::INDEX,
         });
 
-        let lightmap = upload_rgba(
+        // Four bytes a texel, like RGBA8, but linear light with an exponent:
+        // see `ATLAS_FORMAT`.
+        let lightmap = upload_rgba_format(
             device,
             queue,
             "lightmap atlas",
             ATLAS_SIZE,
             ATLAS_SIZE,
             &atlas.pixels,
+            ATLAS_FORMAT,
         );
         let lightmap_view = lightmap.create_view(&wgpu::TextureViewDescriptor::default());
 
@@ -1061,13 +1557,15 @@ impl NeutralMaps {
             // What each map means when it is absent: white light through the
             // colour, a normal pointing straight out, fully rough (the
             // lightmap is diffuse, so a surface with nothing said about it
-            // should not shine), nothing emitted, nothing occluded.
+            // should not shine), nothing emitted, nothing occluded, and
+            // metal exactly as far as `$metalness` says.
             let texel: [u8; 4] = match kind {
                 MapKind::Base => [255, 255, 255, 255],
                 MapKind::Normal => [128, 128, 255, 255],
                 MapKind::Roughness => [255, 255, 255, 255],
                 MapKind::Emissive => [0, 0, 0, 255],
                 MapKind::Ao => [255, 255, 255, 255],
+                MapKind::Metalness => [255, 255, 255, 255],
             };
             let texture = upload_rgba_format(
                 device,
@@ -1092,7 +1590,6 @@ impl NeutralMaps {
 }
 
 /// A material's maps, as far as they loaded.
-#[derive(Default)]
 struct LoadedMaps {
     /// One slot per [`MAP_KINDS`] entry; `None` where the material named no
     /// such map, or named one that would not load.
@@ -1100,6 +1597,24 @@ struct LoadedMaps {
     /// Whether the base colour loaded. False means the checkerboard, and a
     /// line in the console.
     has_base: bool,
+    /// The material's `$metalness`.
+    metalness: f32,
+    /// The material's `$roughnessfactor`.
+    roughness_factor: f32,
+}
+
+/// What a material that did not load gets: no maps, not metal, fully rough.
+/// Written out rather than derived, because a derived zero roughness would
+/// turn every missing material into a mirror.
+impl Default for LoadedMaps {
+    fn default() -> Self {
+        LoadedMaps {
+            maps: Default::default(),
+            has_base: false,
+            metalness: 0.0,
+            roughness_factor: 1.0,
+        }
+    }
 }
 
 impl LoadedMaps {
@@ -1136,6 +1651,8 @@ impl LoadedMaps {
 
         let uniform = MaterialUniform {
             present,
+            metalness: self.metalness,
+            roughness_factor: self.roughness_factor,
             ..Default::default()
         };
         let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -1189,7 +1706,11 @@ fn load_material_maps(
 
     // A sky material's base texture is sampled by direction, but it is loaded
     // exactly the same way as any other.
-    let mut loaded = LoadedMaps::default();
+    let mut loaded = LoadedMaps {
+        metalness: material.metalness(),
+        roughness_factor: material.roughness_factor(),
+        ..Default::default()
+    };
     for (slot, kind) in MAP_KINDS.into_iter().enumerate() {
         // The base colour falls back to the material's own name, which is the
         // convention a material with no `$basetexture` has always relied on.
@@ -1199,6 +1720,7 @@ fn load_material_maps(
             MapKind::Roughness => material.roughness_map(),
             MapKind::Emissive => material.emissive_map(),
             MapKind::Ao => material.ao_map(),
+            MapKind::Metalness => material.metalness_map(),
         };
         let Some(texture_name) = texture_name.filter(|n| !n.is_empty()) else {
             continue;
@@ -1311,9 +1833,8 @@ fn upload_rgba_chain(
 
 /// Upload RGBA8 texels as linear data.
 ///
-/// For everything that is not material art: the lightmap atlas, which already
-/// holds light values rather than colours, and the missing-texture
-/// checkerboard, which only has to be visible.
+/// For what is not material art: the missing-texture checkerboard, which
+/// only has to be visible.
 fn upload_rgba(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
@@ -1333,7 +1854,7 @@ fn upload_rgba(
     )
 }
 
-/// Upload RGBA8 texels in a chosen format.
+/// Upload four-byte texels in a chosen format.
 #[allow(clippy::too_many_arguments)]
 fn upload_rgba_format(
     device: &wgpu::Device,
@@ -1462,8 +1983,7 @@ pub fn load_model(
             Some(&idx) => idx,
             None => {
                 // Props share the world's material group, so they load the
-                // same five maps -- even though `fs_model` samples only the
-                // colour so far. Binding a layout the pipeline declares but
+                // same six maps. Binding a layout the pipeline declares but
                 // the data does not fill is not an option: it is a validation
                 // error, not a blank surface.
                 let loaded =
@@ -1518,6 +2038,7 @@ mod tests {
     const WORLD_WGSL: &str = include_str!("shaders/world.wgsl");
     const MODEL_WGSL: &str = include_str!("shaders/model.wgsl");
     const LINE_WGSL: &str = include_str!("shaders/line.wgsl");
+    const TONEMAP_WGSL: &str = include_str!("shaders/tonemap.wgsl");
 
     fn validate(name: &str, source: &str) -> naga::valid::ModuleInfo {
         let module = naga::front::wgsl::parse_str(source)
@@ -1543,6 +2064,18 @@ mod tests {
     #[test]
     fn the_line_shader_compiles() {
         validate("line.wgsl", LINE_WGSL);
+    }
+
+    #[test]
+    fn the_tonemap_shader_compiles() {
+        let module = naga::front::wgsl::parse_str(TONEMAP_WGSL).expect("parses");
+        let names: Vec<&str> = module
+            .entry_points
+            .iter()
+            .map(|e| e.name.as_str())
+            .collect();
+        assert!(names.contains(&"vs_fullscreen") && names.contains(&"fs_tonemap"));
+        validate("tonemap.wgsl", TONEMAP_WGSL);
     }
 
     #[test]
@@ -1598,13 +2131,14 @@ mod tests {
     #[test]
     fn the_vertex_layout_matches_the_mesh_vertex() {
         use crate::mesh::WorldVertex;
-        assert_eq!(std::mem::size_of::<WorldVertex>(), 56);
+        assert_eq!(std::mem::size_of::<WorldVertex>(), 60);
         // The attribute offsets in `Renderer::new` assume this layout.
         assert_eq!(std::mem::offset_of!(WorldVertex, position), 0);
         assert_eq!(std::mem::offset_of!(WorldVertex, normal), 12);
         assert_eq!(std::mem::offset_of!(WorldVertex, uv), 24);
         assert_eq!(std::mem::offset_of!(WorldVertex, lightmap_uv), 32);
         assert_eq!(std::mem::offset_of!(WorldVertex, tangent), 40);
+        assert_eq!(std::mem::offset_of!(WorldVertex, probe), 56);
     }
 
     #[test]
@@ -1612,7 +2146,7 @@ mod tests {
         // Both shaders declare this struct; getting it wrong here binds
         // `normal_strength` where `present` should be and turns every map off
         // at once, or on at once, depending on the float.
-        assert_eq!(std::mem::size_of::<super::MaterialUniform>(), 16);
+        assert_eq!(std::mem::size_of::<super::MaterialUniform>(), 32);
         assert_eq!(std::mem::offset_of!(super::MaterialUniform, present), 0);
         assert_eq!(
             std::mem::offset_of!(super::MaterialUniform, emissive_strength),
@@ -1626,6 +2160,43 @@ mod tests {
             std::mem::offset_of!(super::MaterialUniform, specular_strength),
             12
         );
+        assert_eq!(std::mem::offset_of!(super::MaterialUniform, metalness), 16);
+        assert_eq!(
+            std::mem::offset_of!(super::MaterialUniform, roughness_factor),
+            20
+        );
+    }
+
+    #[test]
+    fn the_model_uniform_matches_what_the_shaders_declare() {
+        assert_eq!(std::mem::size_of::<super::ModelUniform>(), 80);
+        assert_eq!(std::mem::offset_of!(super::ModelUniform, probe), 64);
+        assert_eq!(super::ModelUniform::default().probe[0], crate::NO_PROBE);
+    }
+
+    #[test]
+    fn the_tonemap_uniform_matches_what_the_shader_declares() {
+        assert_eq!(std::mem::size_of::<super::ToneMapUniform>(), 16);
+        assert_eq!(std::mem::offset_of!(super::ToneMapUniform, exposure), 0);
+        assert_eq!(std::mem::offset_of!(super::ToneMapUniform, curve), 4);
+    }
+
+    #[test]
+    fn msaa_is_off_or_four_samples() {
+        assert_eq!(super::msaa_samples_for(0), 1);
+        assert_eq!(super::msaa_samples_for(1), 1);
+        assert_eq!(super::msaa_samples_for(2), super::MSAA_SAMPLES);
+        assert_eq!(super::msaa_samples_for(16), super::MSAA_SAMPLES);
+    }
+
+    #[test]
+    fn tonemap_operators_come_from_the_convar_by_index() {
+        use super::ToneMapOperator;
+        assert_eq!(ToneMapOperator::from_index(0), ToneMapOperator::None);
+        assert_eq!(ToneMapOperator::from_index(1), ToneMapOperator::Reinhard);
+        assert_eq!(ToneMapOperator::from_index(2), ToneMapOperator::Aces);
+        assert_eq!(ToneMapOperator::from_index(99), ToneMapOperator::Aces);
+        assert_eq!(ToneMapOperator::default(), ToneMapOperator::Aces);
     }
 
     #[test]

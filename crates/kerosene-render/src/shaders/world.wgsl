@@ -3,20 +3,23 @@
 //
 // Diffuse lighting is entirely baked: the lightmap atlas already holds the
 // result of every light, bounce and shadow that Radiance computed. The
-// fragment shader's job is to combine it with the material and tone-map, not
-// to light anything. That is the whole bargain of a BSP engine -- expensive
+// fragment shader's job is to combine it with the material, not to light
+// anything -- and not to tone-map either: it writes linear HDR, and the
+// tone-map pass folds the whole frame into display range at once. That is the whole bargain of a BSP engine -- expensive
 // lighting, computed once, at build time.
 //
 // What the material still gets a say in is everything the bake could not know:
 // which way the surface actually faces at texel scale (the normal map), how
 // tight its highlight is (roughness), what it shadows itself (occlusion), and
-// what it emits regardless of any of that (emissive). Those are per-texel and
-// view-dependent, so they belong here rather than in the atlas.
+// what it emits regardless of any of that (emissive), and whether it is metal.
+// Those are per-texel and view-dependent, so they belong here rather than in
+// the atlas.
 
 struct Camera {
     view_proj: mat4x4<f32>,
     position: vec4<f32>,
-    // x: exposure, y: time, z: lightmap enable, w: fullbright
+    // x: unused (exposure is the tone-map pass's), y: time, z: lightmap
+    // enable, w: fullbright
     params: vec4<f32>,
     // Colour the sky renders, from light_environment.
     sky_color: vec4<f32>,
@@ -27,19 +30,27 @@ struct Camera {
 @group(0) @binding(0) var<uniform> camera: Camera;
 @group(0) @binding(1) var lightmap_texture: texture_2d<f32>;
 @group(0) @binding(2) var lightmap_sampler: sampler;
+@group(0) @binding(3) var probe_texture: texture_2d_array<f32>;
+@group(0) @binding(4) var probe_sampler: sampler;
 
 // A material is one sampler, a word saying which of its maps are real, and
-// five textures. The absent ones are bound to a neutral 1x1 texel, so every
+// six textures. The absent ones are bound to a neutral 1x1 texel, so every
 // material fills the same layout and there is one pipeline rather than a
 // variant per combination of maps.
 @group(1) @binding(0) var base_sampler: sampler;
 
 struct MaterialParams {
-    // Bit 0 base, 1 normal, 2 roughness, 3 emissive, 4 occlusion.
+    // Bit 0 base, 1 normal, 2 roughness, 3 emissive, 4 occlusion, 5 metalness.
     present: u32,
     emissive_strength: f32,
     normal_strength: f32,
     specular_strength: f32,
+    // `$metalness`; scales the metalness map, whose neutral stand-in is white.
+    metalness: f32,
+    // `$roughnessfactor`; scales the roughness map the same way.
+    roughness_factor: f32,
+    _pad0: f32,
+    _pad1: f32,
 };
 @group(1) @binding(1) var<uniform> material: MaterialParams;
 
@@ -48,6 +59,7 @@ struct MaterialParams {
 @group(1) @binding(4) var roughness_texture: texture_2d<f32>;
 @group(1) @binding(5) var emissive_texture: texture_2d<f32>;
 @group(1) @binding(6) var ao_texture: texture_2d<f32>;
+@group(1) @binding(7) var metalness_texture: texture_2d<f32>;
 
 const MAP_NORMAL: u32 = 1u;
 const MAP_ROUGHNESS: u32 = 2u;
@@ -84,6 +96,9 @@ struct VertexIn {
     @location(3) lightmap_uv: vec2<f32>,
     // xyz the tangent, w the bitangent's handedness.
     @location(4) tangent: vec4<f32>,
+    // The probe this face reflects, or NO_PROBE. The same for every vertex
+    // of a face, so flat is exact rather than an approximation.
+    @location(5) probe: u32,
 };
 
 struct VertexOut {
@@ -93,6 +108,7 @@ struct VertexOut {
     @location(2) normal: vec3<f32>,
     @location(3) world_position: vec3<f32>,
     @location(4) tangent: vec4<f32>,
+    @location(5) @interpolate(flat) probe: u32,
 };
 
 @vertex
@@ -117,13 +133,9 @@ fn vs_main(input: VertexIn) -> VertexOut {
         input.tangent.w,
     );
     out.world_position = world;
+    out.probe = input.probe;
     return out;
 }
-
-// Lightmaps are stored tone-mapped into 0..1, so a surface lit to "full"
-// reads as 0.5-ish. Scaling back up here restores the range without needing
-// a floating-point atlas.
-const LIGHTMAP_SCALE: f32 = 2.0;
 
 // A floor of ambient light so a surface with no lightmap is dim rather than
 // pure black. An unlit room should look unlit, not look broken.
@@ -169,33 +181,102 @@ fn shading_normal(input: VertexOut) -> vec3<f32> {
     return world;
 }
 
-// A highlight the baked lighting cannot give us.
+// ---- reflectance ------------------------------------------------------------
 //
-// The lightmap is diffuse: Radiance integrated light arriving at the surface,
-// with no idea where the viewer would eventually stand. So specular is added
-// here, from the one direction we do know something about -- the surface's own
-// normal against the view -- rather than from lights that no longer exist by
-// the time anything is drawn. It is a cheap Blinn-Phong lobe steered by
-// roughness, not a physically-based one; what it buys is that a smooth surface
-// reads as smooth instead of reading as a matte surface with a smooth texture.
-fn specular(n: vec3<f32>, view: vec3<f32>, light: vec3<f32>, roughness: f32) -> vec3<f32> {
-    if (specular_strength() <= 0.0) {
-        return vec3<f32>(0.0);
+// GGX, height-correlated Smith and Schlick: the model Source 2 and every other
+// current engine settled on. `crates/kerosene-render/src/brdf.rs` is the CPU
+// reference for each of these, with the tests; change both or neither.
+
+const PI: f32 = 3.14159265;
+const DIELECTRIC_F0: f32 = 0.04;
+
+// Specular colour at normal incidence: 4% grey for anything that is not
+// metal, the base colour for anything that is.
+fn f0_for(albedo: vec3<f32>, metalness: f32) -> vec3<f32> {
+    return mix(vec3<f32>(DIELECTRIC_F0), albedo, metalness);
+}
+
+// What a surface reflects of an environment equally bright in every
+// direction, as a fraction of that brightness. Karis's fit to the split-sum
+// integral.
+//
+// This is the honest specular for a lightmapped surface. The lightmap says how
+// much light arrived, not from where; pretending it came from one direction
+// invents a highlight that nothing cast, and one that slides across a floor
+// as the player walks. "Evenly from everywhere" invents nothing -- a smooth
+// floor still brightens toward grazing, as a real one does -- and it is the
+// term a cubemap probe multiplies once there is one to say what the
+// environment actually looks like.
+fn env_brdf(f0: vec3<f32>, roughness: f32, n_dot_v: f32) -> vec3<f32> {
+    let c0 = vec4<f32>(-1.0, -0.0275, -0.572, 0.022);
+    let c1 = vec4<f32>(1.0, 0.0425, 1.04, -0.04);
+    let r = clamp(roughness, 0.0, 1.0) * c0 + c1;
+    let a004 = min(r.x * r.x, exp2(-9.28 * max(n_dot_v, 0.0))) * r.x + r.y;
+    let ab = vec2<f32>(-1.04, 1.04) * a004 + r.zw;
+    return f0 * ab.x + ab.y;
+}
+
+// ---- cubemap probes ---------------------------------------------------------
+//
+// Six layers a probe in one 2D array, faces picked here rather than by the
+// hardware -- see `crates/kerosene-render/src/probes.rs` for why. The face
+// table is `kerosene_bsp::cubemaps::face_basis`; a test there checks the Rust
+// side round-trips, and this must stay a copy of it.
+
+const NO_PROBE: u32 = 0xffffffffu;
+
+// (s, t, face) for a direction, s and t in 0..1.
+fn probe_uv(dir: vec3<f32>) -> vec3<f32> {
+    let a = abs(dir);
+    var face = 0u;
+    var major = vec3<f32>(1.0, 0.0, 0.0);
+    var s_axis = vec3<f32>(0.0, 1.0, 0.0);
+    var t_axis = vec3<f32>(0.0, 0.0, 1.0);
+    if (a.x >= a.y && a.x >= a.z) {
+        if (dir.x < 0.0) {
+            face = 1u;
+            major = vec3<f32>(-1.0, 0.0, 0.0);
+            s_axis = vec3<f32>(0.0, -1.0, 0.0);
+        }
+    } else if (a.y >= a.z) {
+        if (dir.y >= 0.0) {
+            face = 2u;
+            major = vec3<f32>(0.0, 1.0, 0.0);
+            s_axis = vec3<f32>(-1.0, 0.0, 0.0);
+        } else {
+            face = 3u;
+            major = vec3<f32>(0.0, -1.0, 0.0);
+            s_axis = vec3<f32>(1.0, 0.0, 0.0);
+        }
+    } else {
+        s_axis = vec3<f32>(1.0, 0.0, 0.0);
+        if (dir.z >= 0.0) {
+            face = 4u;
+            major = vec3<f32>(0.0, 0.0, 1.0);
+            t_axis = vec3<f32>(0.0, 1.0, 0.0);
+        } else {
+            face = 5u;
+            major = vec3<f32>(0.0, 0.0, -1.0);
+            t_axis = vec3<f32>(0.0, -1.0, 0.0);
+        }
     }
-    // Treat the light as arriving along the normal -- the best guess available
-    // once lighting is baked -- so the half vector is between the normal and
-    // the eye.
-    let h = normalize(n + view);
-    let gloss = clamp(1.0 - roughness, 0.0, 1.0);
-    // 2..2048, so "smooth" is a tight highlight and "rough" is barely a lobe.
-    let power = exp2(1.0 + gloss * gloss * 10.0);
-    let lobe = pow(max(dot(n, h), 0.0), power);
+    let m = max(dot(dir, major), 1e-6);
+    return vec3<f32>((dot(dir, s_axis) / m + 1.0) * 0.5, (dot(dir, t_axis) / m + 1.0) * 0.5, f32(face));
+}
 
-    // Schlick, at a dielectric's 4% reflectance: no material says otherwise
-    // yet, and a metalness map is the next thing to add here.
-    let f = 0.04 + 0.96 * pow(1.0 - max(dot(n, view), 0.0), 5.0);
+// What a probe sees along `dir`, blurred as far as `roughness` says: the mip
+// chain runs from the probe as baked down to one texel a face.
+fn probe_radiance(probe: u32, dir: vec3<f32>, roughness: f32) -> vec3<f32> {
+    let st = probe_uv(normalize(dir));
+    let levels = f32(textureNumLevels(probe_texture));
+    let lod = clamp(roughness, 0.0, 1.0) * (levels - 1.0);
+    let layer = i32(probe * 6u + u32(st.z));
+    return textureSampleLevel(probe_texture, probe_sampler, st.xy, layer, lod).rgb;
+}
 
-    return light * lobe * f * gloss * specular_strength();
+fn metalness(uv: vec2<f32>) -> f32 {
+    // The neutral map is white, so without one this is the scalar alone.
+    return clamp(material.metalness * textureSample(metalness_texture, base_sampler, uv).r, 0.0, 1.0);
 }
 
 @fragment
@@ -208,10 +289,12 @@ fn fs_world(input: VertexOut) -> @location(0) vec4<f32> {
         return vec4<f32>(albedo.rgb, 1.0);
     }
 
+    // Linear light, as Radiance baked it: 1.0 is a surface lit to full, and
+    // a lamp against a wall is many times that.
     var light = vec3<f32>(MIN_AMBIENT);
     if (camera.params.z > 0.5) {
         let sampled = textureSample(lightmap_texture, lightmap_sampler, input.lightmap_uv).rgb;
-        light = max(sampled * LIGHTMAP_SCALE, vec3<f32>(MIN_AMBIENT));
+        light = max(sampled, vec3<f32>(MIN_AMBIENT));
     }
 
     // Occlusion darkens what the surface shadows itself, which the lightmap
@@ -221,7 +304,9 @@ fn fs_world(input: VertexOut) -> @location(0) vec4<f32> {
         light = light * ao;
     }
 
-    var color = albedo.rgb * light * camera.params.x;
+    let metal = metalness(input.uv);
+    // Metal has no diffuse: what light it does not reflect, it absorbs.
+    var color = albedo.rgb * (1.0 - metal) * light;
 
     let geometric = normalize(input.normal);
     let n = shading_normal(input);
@@ -240,8 +325,8 @@ fn fs_world(input: VertexOut) -> @location(0) vec4<f32> {
     // one: every surface is lit as though the light were up and slightly to
     // one side, which is where light usually is, and it is the same lie the
     // model shader already tells for props. What it buys is that a normal map
-    // does something on a wall with no roughness map -- the alternative being
-    // that it does nothing at all and looks broken.
+    // does something on a wall -- the alternative being that it does nothing
+    // at all and looks broken.
     if (has_map(MAP_NORMAL) && normal_strength() > 0.0) {
         let key = normalize(vec3<f32>(0.3, 0.4, 0.9));
         // Half-Lambert: light wraps past the terminator rather than clamping
@@ -254,29 +339,36 @@ fn fs_world(input: VertexOut) -> @location(0) vec4<f32> {
         color = color * clamp(bumped / max(flat, 0.05), 0.5, 1.6);
     }
 
-    // A surface with no roughness map is fully rough, so it gets no highlight
-    // at all and renders exactly as it did before any of this existed.
-    if (has_map(MAP_ROUGHNESS)) {
-        let roughness = textureSample(roughness_texture, base_sampler, input.uv).r;
-        color = color + specular(n, view, light * camera.params.x, roughness);
+    // A dielectric with no roughness map and no `$roughnessfactor` is taken
+    // to be fully rough and gets no specular term, so a plain albedo material
+    // renders exactly as the lightmap had it. Metal always reflects: a metal
+    // with no specular would be black.
+    //
+    // What it reflects is the face's probe, seen along the mirror direction
+    // and blurred by roughness. A face with no probe reflects an even glow
+    // the brightness of its own lightmap, which is right on average and
+    // wrong in every particular -- the reason to place env_cubemaps.
+    if ((has_map(MAP_ROUGHNESS) || metal > 0.0 || material.roughness_factor < 1.0) && specular_strength() > 0.0) {
+        let roughness = textureSample(roughness_texture, base_sampler, input.uv).r * material.roughness_factor;
+        let f0 = f0_for(albedo.rgb, metal);
+        let n_dot_v = max(dot(n, view), 1e-4);
+        var environment = light;
+        if (input.probe != NO_PROBE) {
+            environment = probe_radiance(input.probe, reflect(-view, n), roughness);
+            if (has_map(MAP_AO)) {
+                environment = environment * textureSample(ao_texture, base_sampler, input.uv).r;
+            }
+        }
+        color = color + environment * env_brdf(f0, roughness, n_dot_v) * specular_strength();
     }
 
-    // Emissive is added after lighting and before tone-mapping: it is light
-    // leaving the surface, so it should bloom out the same way a lit highlight
-    // does rather than being pasted on at full strength afterwards.
+    // Emissive is light leaving the surface, added in the same linear space
+    // as everything else so it blooms and tone-maps along with a highlight
+    // rather than being pasted on at full strength afterwards.
     if (has_map(MAP_EMISSIVE)) {
         let emissive = textureSample(emissive_texture, base_sampler, input.uv).rgb;
-        color = color + emissive * material.emissive_strength * camera.params.x;
+        color = color + emissive * material.emissive_strength;
     }
-
-    // Reinhard, so a bright highlight keeps its shape instead of clipping to
-    // a flat white blob.
-    color = color / (color + vec3<f32>(1.0));
-    // No gamma step here: the swapchain is an sRGB format, so the hardware
-    // encodes on write. Doing it here as well encoded twice and washed the
-    // whole image out -- survivable while albedo was also being sampled
-    // wrong, because the two errors pulled in opposite directions, but not
-    // once the textures started being decoded correctly.
 
     return vec4<f32>(color, albedo.a);
 }
@@ -295,8 +387,8 @@ fn fs_sky(input: VertexOut) -> @location(0) vec4<f32> {
 
 @fragment
 fn fs_unlit(input: VertexOut) -> @location(0) vec4<f32> {
-    // Straight through, and correct: the texture is sampled through an sRGB
-    // view so this is linear, and the sRGB swapchain encodes it on write.
+    // Straight through: the texture is sampled through an sRGB view so this
+    // is linear, and the tone-map pass takes it from there like anything else.
     let albedo = textureSample(base_texture, base_sampler, input.uv);
     return vec4<f32>(albedo.rgb, albedo.a);
 }

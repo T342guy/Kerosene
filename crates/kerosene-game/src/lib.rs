@@ -27,8 +27,9 @@
 //! | `logic_script` | Runs a script function |
 //! | `ambient_generic` | A sound placed in the world |
 //!
-//! Lighting entities (`light`, `light_spot`, `light_environment`) are read by
-//! Radiance at compile time and are inert here, which is why a lit map needs
+//! Lighting entities (`light`, `light_spot`, `light_environment`) and
+//! reflection probes (`env_cubemap`) are read by Radiance at compile time and
+//! are inert here, which is why a lit map needs
 //! no lights at runtime at all.
 
 pub mod doors;
@@ -53,6 +54,8 @@ pub fn register(registry: &mut ClassRegistry) {
         "light",
         "light_spot",
         "light_environment",
+        // Read by Radiance at compile time, like the lights.
+        "env_cubemap",
         // Read by Resonance at compile time, like the lights by Radiance.
         "env_acoustic_override",
         "func_detail",

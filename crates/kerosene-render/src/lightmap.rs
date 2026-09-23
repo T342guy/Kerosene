@@ -12,8 +12,7 @@
 //! matters more than the last few percent of occupancy, because a map that
 //! packs differently between runs invalidates every cached atlas.
 
-use kerosene_bsp::{Bsp, ColorRgbExp32};
-use kerosene_math::Vec3;
+use kerosene_bsp::{Bsp, ColorRgbExp32, encode_rgb9e5};
 
 /// Atlas edge length. 2048 holds a substantial map at 16-unit luxels and is
 /// within every GPU's limits.
@@ -48,9 +47,21 @@ impl AtlasRect {
     }
 }
 
+/// The atlas's texel format.
+///
+/// Shared-exponent float: three 9-bit mantissas and one 5-bit exponent in 32
+/// bits. Light is HDR by nature -- a lamp against a wall bakes to many times
+/// what a lit floor does -- and the atlas used to squeeze that into 8-bit
+/// unorm through a Reinhard curve, which meant the frame's own tone-mapper
+/// then compressed it a second time and nothing downstream could tell a
+/// bright surface from a very bright one. This keeps it linear, in the same
+/// four bytes a texel cost before, and every GPU wgpu runs on can filter it.
+pub const ATLAS_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgb9e5Ufloat;
+
 /// A packed lightmap atlas, ready to upload.
 pub struct LightmapAtlas {
-    /// RGBA8 pixels, `ATLAS_SIZE` square.
+    /// Linear light, one little-endian [`ATLAS_FORMAT`] texel per four bytes,
+    /// `ATLAS_SIZE` square. 1.0 is a surface lit to what Radiance calls full.
     pub pixels: Vec<u8>,
     /// Where each face landed, indexed by face. `None` for unlit faces.
     pub rects: Vec<Option<AtlasRect>>,
@@ -66,10 +77,11 @@ impl LightmapAtlas {
 
     /// Pack every lit face of a map into one atlas.
     ///
-    /// `exposure` scales the HDR samples down into the 0..1 range the atlas
-    /// stores. Baked lighting routinely exceeds 1.0 -- that is the point of
-    /// the exponent in [`ColorRgbExp32`] -- so something has to map it, and
-    /// doing it here keeps the shader simple.
+    /// `exposure` scales the samples as they are stored. The engine passes
+    /// 1.0 and leaves exposure to the tone-map pass, where it is live; the
+    /// parameter is for a tool that wants a brighter or darker atlas baked in.
+    /// Values over 1.0 are kept as they are, not compressed: that is what the
+    /// atlas format is for.
     pub fn build(bsp: &Bsp, exposure: f32) -> LightmapAtlas {
         Self::build_for(bsp, exposure, |_| true)
     }
@@ -146,36 +158,19 @@ impl LightmapAtlas {
                     .get((y * rect.width + x) as usize)
                     .copied()
                     .unwrap_or(ColorRgbExp32::default());
-                let color = tonemap(sample.to_linear(), exposure);
+                let texel = encode_rgb9e5(sample.to_linear() * (exposure / 255.0));
                 let dst = (((rect.y + y) * ATLAS_SIZE + (rect.x + x)) * 4) as usize;
-                self.pixels[dst] = color[0];
-                self.pixels[dst + 1] = color[1];
-                self.pixels[dst + 2] = color[2];
-                self.pixels[dst + 3] = 255;
+                self.pixels[dst..dst + 4].copy_from_slice(&texel.to_le_bytes());
             }
         }
     }
-}
-
-/// Map an HDR lightmap sample into a byte.
-///
-/// Reinhard rather than a hard clamp: a lamp right against a wall bakes to
-/// values many times over 1.0, and clipping them turns a bright highlight into
-/// a flat white blob with no shape in it.
-fn tonemap(linear: Vec3, exposure: f32) -> [u8; 3] {
-    let scaled = linear * (exposure / 255.0);
-    let mapped = scaled / (scaled + Vec3::ONE);
-    [
-        (mapped.x.clamp(0.0, 1.0) * 255.0) as u8,
-        (mapped.y.clamp(0.0, 1.0) * 255.0) as u8,
-        (mapped.z.clamp(0.0, 1.0) * 255.0) as u8,
-    ]
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use kerosene_bsp::{Face, TexData, TexInfo};
+    use kerosene_math::Vec3;
 
     /// A map with `count` faces, each claiming a `w` by `h` lightmap.
     fn map_with_faces(sizes: &[(u32, u32)]) -> Bsp {
@@ -302,21 +297,20 @@ mod tests {
     }
 
     #[test]
-    fn bright_samples_compress_instead_of_clipping_flat() {
-        // A lamp against a wall bakes far over 1.0; clamping loses its shape.
-        let dim = tonemap(Vec3::splat(200.0), 1.0);
-        let bright = tonemap(Vec3::splat(2000.0), 1.0);
-        let brighter = tonemap(Vec3::splat(20000.0), 1.0);
-        assert!(dim[0] < bright[0], "brighter input must read brighter");
-        assert!(bright[0] < brighter[0], "and keep doing so well past 1.0");
-        assert!(brighter[0] < 255, "without ever quite clipping");
-    }
-
-    #[test]
-    fn exposure_scales_the_result() {
-        let normal = tonemap(Vec3::splat(255.0), 1.0);
-        let doubled = tonemap(Vec3::splat(255.0), 2.0);
-        assert!(doubled[0] > normal[0]);
+    fn exposure_scales_the_stored_light() {
+        let mut bsp = map_with_faces(&[(1, 1)]);
+        bsp.lighting = vec![ColorRgbExp32::from_linear(Vec3::splat(255.0))];
+        let texel = |exposure: f32| {
+            let atlas = LightmapAtlas::build(&bsp, exposure);
+            let rect = atlas.rects[0].unwrap();
+            let at = ((rect.y * ATLAS_SIZE + rect.x) * 4) as usize;
+            kerosene_bsp::decode_rgb9e5(u32::from_le_bytes(
+                atlas.pixels[at..at + 4].try_into().unwrap(),
+            ))
+        };
+        let one = texel(1.0);
+        assert!((one.x - 1.0).abs() < 0.02, "255 is full light: {one}");
+        assert!((texel(2.0).x / one.x - 2.0).abs() < 0.02);
     }
 
     #[test]

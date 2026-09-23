@@ -36,7 +36,7 @@ record and corrupt the map in ways that look like geometry bugs.
 | 17 | `lighting` | `ColorRgbExp32` per luxel |
 | 18–19 | `acoustics`, `acoustic_leafs` | rooms and leaf→room |
 | 20–22 | `sections`, `face_sections`, `brush_sections` | streaming |
-| 23 | `spare` | reserved |
+| 23 | `cubemaps` | reflection probes (`KCUB`), empty without `env_cubemap`s |
 
 The indirection in lumps 3–4 is the important one. Vertices are reached as
 `surfedges[first_surfedge .. + num_surfedges]`, each a *signed* edge index,

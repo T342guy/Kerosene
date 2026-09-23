@@ -28,6 +28,7 @@
 //! over compile times.
 
 pub mod acoustics;
+pub mod cubemaps;
 pub mod io;
 pub mod sections;
 pub mod trace;
@@ -35,6 +36,7 @@ pub mod types;
 pub mod vis;
 
 pub use acoustics::{AcousticPath, AcousticRoom, Acoustics, NO_ROOM, room_flags};
+pub use cubemaps::{Cubemaps, Probe, decode_rgb9e5, encode_rgb9e5};
 pub use io::{BspError, LumpDir, MAGIC, VERSION, write_bsp};
 pub use sections::{Section, SectionRecord, WORLD_SECTION};
 pub use trace::Trace;
@@ -74,8 +76,10 @@ pub mod lumps {
     pub const FACE_SECTIONS: usize = 21;
     /// One `u16` per brush: its section.
     pub const BRUSH_SECTIONS: usize = 22;
-    /// Spare.
-    pub const SPARE: usize = 23;
+    /// Cubemap probes; see [`crate::cubemaps`]. This was the spare slot, so
+    /// a map from before probes has it empty and reads as having none,
+    /// without a format version bump.
+    pub const CUBEMAPS: usize = 23;
 
     pub const NAMES: [&str; super::LUMP_COUNT] = [
         "entities",
@@ -101,13 +105,14 @@ pub mod lumps {
         "sections",
         "face_sections",
         "brush_sections",
-        "spare",
+        "cubemaps",
     ];
 }
 
 /// Slots in the lump directory. Version 1 had twenty, with two spare that
 /// the acoustics lumps took; version 2 added four for the section lumps and
-/// keeps one spare.
+/// one spare, which the cubemap probes took. The next lump needs a version
+/// bump.
 pub const LUMP_COUNT: usize = 24;
 
 /// A compiled map.
@@ -147,6 +152,8 @@ pub struct Bsp {
     pub face_sections: Vec<u16>,
     /// One per brush: which section it belongs to. Empty means all in 0.
     pub brush_sections: Vec<u16>,
+    /// Reflection probes; `None` until Radiance finds an `env_cubemap`.
+    pub cubemaps: Option<Cubemaps>,
 }
 
 impl Bsp {
@@ -618,6 +625,10 @@ impl Bsp {
                 self.acoustics.as_ref().map_or(0, |a| a.rooms.len()),
             ),
             ("sections", self.section_count()),
+            (
+                "cubemaps",
+                self.cubemaps.as_ref().map_or(0, |c| c.probes.len()),
+            ),
         ]
     }
 }

@@ -6,7 +6,9 @@
 //! see [`crate::types`]. Lumps carry their own version number so a format bump
 //! to one lump does not invalidate the rest of the file.
 
-use crate::{Bsp, LUMP_COUNT, acoustics, acoustics::Acoustics, lumps, sections};
+use crate::{
+    Bsp, LUMP_COUNT, acoustics, acoustics::Acoustics, cubemaps::Cubemaps, lumps, sections,
+};
 use bytemuck::{Pod, cast_slice};
 use std::path::Path;
 use thiserror::Error;
@@ -191,6 +193,12 @@ impl Bsp {
                 name,
                 lumps::NAMES[lumps::BRUSH_SECTIONS],
             )?,
+            cubemaps: Cubemaps::parse(slice(lumps::CUBEMAPS)?).map_err(|detail| {
+                BspError::Invalid {
+                    path: name.to_string(),
+                    detail,
+                }
+            })?,
         };
 
         bsp.validate().map_err(|detail| BspError::Invalid {
@@ -272,7 +280,17 @@ impl Bsp {
             lumps::BRUSH_SECTIONS,
             cast_slice(&self.brush_sections),
         );
-        push(&mut dir, lumps::SPARE, &[]);
+        let cubemaps = self
+            .cubemaps
+            .as_ref()
+            .filter(|c| !c.probes.is_empty())
+            .map(Cubemaps::encode)
+            .unwrap_or_default();
+        push(&mut dir, lumps::CUBEMAPS, &cubemaps);
+        if !cubemaps.is_empty() {
+            dir[lumps::CUBEMAPS].version = crate::cubemaps::VERSION;
+            dir[lumps::CUBEMAPS].ident = crate::cubemaps::MAGIC;
+        }
 
         let mut out = Vec::with_capacity(HEADER_SIZE + body.len());
         out.extend_from_slice(&MAGIC);

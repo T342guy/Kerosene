@@ -18,14 +18,16 @@
 //! Lightmaps are packed into a single atlas ([`lightmap`]) so the world draws
 //! in as many calls as it has materials, rather than one per face.
 
+pub mod brdf;
 pub mod camera;
 pub mod gpu;
 pub mod lightmap;
 pub mod mesh;
+pub mod probes;
 
 pub use camera::{Camera, Frustum, vertical_fov};
-pub use lightmap::{ATLAS_SIZE, AtlasRect, LightmapAtlas};
-pub use mesh::{Batch, Surface, WorldMesh, WorldVertex};
+pub use lightmap::{ATLAS_FORMAT, ATLAS_SIZE, AtlasRect, LightmapAtlas};
+pub use mesh::{Batch, NO_PROBE, Surface, WorldMesh, WorldVertex, probe_for};
 
 /// Statistics for a frame, for the `r_speeds`-style overlay.
 #[derive(Clone, Copy, Debug, Default)]
