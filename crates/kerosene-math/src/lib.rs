@@ -20,6 +20,7 @@
 
 mod aabb;
 mod angles;
+pub mod light;
 mod plane;
 pub mod pose;
 pub mod units;

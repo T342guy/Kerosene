@@ -29,6 +29,7 @@ pub mod game;
 pub mod host;
 pub mod input;
 pub mod launch;
+pub mod lights;
 pub mod physics;
 pub mod scripting;
 pub mod streaming;

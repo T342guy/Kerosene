@@ -1150,3 +1150,40 @@ entity { "classname" "prop_physics" "targetname" "box" "model" "props/cube" }
     run(&mut w, TICK);
     assert!(!w.exists(box_id), "Break removes the prop");
 }
+
+// ---- dynamic lights ---------------------------------------------------------
+
+#[test]
+fn a_dynamic_light_starts_on_and_switches_through_its_inputs() {
+    let mut w = world_from(
+        r#"
+entity { "classname" "light_dynamic" "targetname" "lamp" "origin" "0 0 64" }
+entity { "classname" "light_dynamic" "targetname" "dark" "spawnflags" "1" }
+"#,
+    );
+    run(&mut w, 0.1);
+    let (lamp, dark) = (named(&w, "lamp"), named(&w, "dark"));
+    assert!(kerosene_game::lights::is_on(&w, lamp));
+    assert!(
+        !kerosene_game::lights::is_on(&w, dark),
+        "spawnflag 1 starts it off"
+    );
+
+    let send = |w: &mut EntityWorld, name: &str, input: &str| {
+        w.queue_input(
+            kerosene_entity::Target::Named(name.into()),
+            input,
+            "",
+            0.0,
+            None,
+            None,
+        );
+        run(w, 0.1);
+    };
+    send(&mut w, "lamp", "TurnOff");
+    assert!(!kerosene_game::lights::is_on(&w, lamp));
+    send(&mut w, "lamp", "Toggle");
+    assert!(kerosene_game::lights::is_on(&w, lamp));
+    send(&mut w, "dark", "TurnOn");
+    assert!(kerosene_game::lights::is_on(&w, dark));
+}

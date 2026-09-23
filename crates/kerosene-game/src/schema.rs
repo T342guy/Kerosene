@@ -230,6 +230,38 @@ class
           "help" "Negative points downward. Overrides the pitch in Angles when non-zero." }
 }
 
+class
+{
+    "name" "light_dynamic"
+    "base" "Entity" "base" "Point" "base" "Angles"
+    "help" "A light drawn live rather than baked: it can be switched, moved and parented, and casts real-time shadows. Costs a slot in the renderer's budget of 32 and, with shadows, part of its 16 shadow layers -- use a baked light for anything that never changes. Reads the same keys as light and light_spot, so one swaps for the other."
+    key {
+        "name" "_light" "label" "Colour and brightness" "type" "color" "default" "255 255 255 200"
+        "help" "Red green blue, then brightness, exactly as a baked light's."
+    }
+    key { "name" "distance" "label" "Maximum distance" "type" "float" "default" "0"
+          "help" "Stops the light short of where its falloff would carry it. 0 lets the falloff decide." }
+    key { "name" "_cone" "label" "Outer cone angle" "type" "float" "default" "0"
+          "help" "Above 0 makes it a spot, aimed by Angles. 0 shines every way." }
+    key { "name" "_inner_cone" "label" "Inner cone angle" "type" "float" "default" "0" }
+    key { "name" "_exponent"   "label" "Edge falloff"     "type" "float" "default" "1" }
+    key { "name" "pitch" "label" "Pitch override" "type" "float" "default" "0"
+          "help" "Overrides the pitch in Angles when non-zero, as for light_spot." }
+    key { "name" "_constant_attn"  "type" "float" "default" "0" }
+    key { "name" "_linear_attn"    "type" "float" "default" "0" }
+    key { "name" "_quadratic_attn" "type" "float" "default" "1" }
+    key {
+        "name" "spawnflags" "label" "Flags" "type" "flags" "default" "0"
+        choice { "value" "1" "label" "Start off" }
+        choice { "value" "2" "label" "No shadows" }
+    }
+    input  { "name" "TurnOn"  "help" "Switch it on." }
+    input  { "name" "TurnOff" "help" "Switch it off." }
+    input  { "name" "Toggle"  "help" "Switch it the other way." }
+    output { "name" "OnTurnedOn"  "help" "Fired when it comes on." }
+    output { "name" "OnTurnedOff" "help" "Fired when it goes off." }
+}
+
 // ----------------------------------------------------------- reflections ---
 //
 // Read by Radiance at compile time, like the lights.

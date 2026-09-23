@@ -178,6 +178,39 @@ maps (`MaterialUniform`); a dielectric with neither a roughness map nor a
 factor below one takes no specular path at all, so an albedo-only material
 renders exactly as its lightmap says.
 
+## Dynamic lights and shadows
+
+Everything baked stays baked; a `light_dynamic` (and the flashlight) is drawn
+live on top of it, which is Source 2's split. `crates/kerosene-render/src/lights.rs`
+does the CPU half and is the reference for the shaders' light loop:
+
+- **Same numbers as a bake.** Falloff and cone are `kerosene_math::light`,
+  which Radiance now uses too, and intensity is on the lightmap's scale
+  (`color * brightness / 255`), so a live light and a baked one with the same
+  `_light` read the same. A test pins that at 100 units.
+- **Clustered.** `LightFrame::build` keeps the nearest `MAX_LIGHTS` (32) whose
+  spheres touch the frustum, and bins each into a 16 x 9 x 24 grid of tiles
+  and exponential depth slices -- one bit per light per cluster, 13.5 KiB of
+  uniform. Binning is on the CPU: deterministic, and it works on GL, which has
+  no compute. A fragment looks up its cluster and walks only its bits.
+- **Shadows.** A shadow-casting light gets layers of a 512² `Depth32Float`
+  array, one for a spot and six for a point light, nearest first until the 16
+  run out; a light that misses out still lights, unshadowed. The host renders
+  each layer before the scene with `draw_world_shadow`/`draw_studio_shadow`,
+  culled by the light's own PVS and frustum -- `visible_surfaces` from the
+  light's position. Sampling is four hardware-PCF taps with a normal offset
+  that grows with distance, plus slope-scaled depth bias in the pipeline.
+
+The flashlight (`flashlight`, bound to F; `cl_flashlight`) is a spot held a
+few inches below and right of the eye, so its shadows are visible, with
+linear rather than physical falloff so it carries across a room. `r_dynamic`
+and `r_shadows` switch the two halves off; `r_speeds` reports lights and
+shadow views.
+
+There are no dynamic shadows from the sun: `light_environment` is baked
+whole, and casting a prop's shadow into it would need the bake to keep the
+sun's share of each luxel separate.
+
 ## Cubemap probes
 
 Radiance bakes one per `env_cubemap` into the `cubemaps` lump

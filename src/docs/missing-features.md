@@ -73,11 +73,12 @@ for completeness.
 
 ## 3. Rendering and visuals
 
-- **Dynamic/real-time lighting and shadows.** Everything is baked by Radiance.
-  No shadow mapping, no runtime point/spot lights, no moving light sources.
-  `light`, `light_spot`, and `light_environment` are compile-time only. One
-  unshadowed point light in the shader is enough for a flashlight and a
-  muzzle flash, and is the version worth doing first.
+- **Dynamic/real-time lighting and shadows.** `light_dynamic` (point or spot,
+  switchable, movable) and a flashlight are drawn live on top of the bake,
+  with clustered shading for up to 32 lights and shadow maps for the nearest
+  shadow casters. What is left: no dynamic sun or cascaded shadows (the sun is
+  baked whole), no light cookies or IES profiles, no volumetrics, and the
+  512² shadow maps are fixed-size rather than a convar.
 - **Post-processing.** The scene is HDR (`Rgba16Float`) and tone-mapped once
   per frame (`mat_tonemap`: ACES by default, Reinhard, or none) with a live
   `mat_exposure`. Still no bloom, SSAO, color grading, auto-exposure or

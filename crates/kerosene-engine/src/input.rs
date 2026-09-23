@@ -120,6 +120,7 @@ impl InputSystem {
             ("shift", "+speed"),
             ("mouse1", "+attack"),
             ("e", "+use"),
+            ("f", "flashlight"),
             ("`", "toggleconsole"),
             // Escape is not bound: the host intercepts it before bindings
             // are consulted (see `host::intercepted`), so a binding here

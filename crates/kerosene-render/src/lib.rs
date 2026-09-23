@@ -22,6 +22,7 @@ pub mod brdf;
 pub mod camera;
 pub mod gpu;
 pub mod lightmap;
+pub mod lights;
 pub mod mesh;
 pub mod probes;
 
@@ -38,6 +39,9 @@ pub struct FrameStats {
     pub draw_calls: usize,
     /// The cluster the viewer is in, or -1 outside the world.
     pub cluster: i16,
+    /// Dynamic lights drawn, and shadow layers rendered for them.
+    pub lights: usize,
+    pub shadow_views: usize,
 }
 
 impl FrameStats {

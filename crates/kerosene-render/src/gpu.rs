@@ -11,6 +11,7 @@
 use crate::FrameStats;
 use crate::camera::Camera;
 use crate::lightmap::{ATLAS_FORMAT, ATLAS_SIZE, LightmapAtlas};
+use crate::lights::{ClusterMasks, LightFrame, LightsUniform, SHADOW_LAYERS, SHADOW_SIZE};
 use crate::mesh::{NO_PROBE, WorldMesh, WorldVertex};
 use crate::probes::ProbeChain;
 use bytemuck::{Pod, Zeroable};
@@ -113,6 +114,10 @@ pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
 /// drawn. Half floats keep the sum and leave the tone-map pass to decide what
 /// "too bright" looks like, once, for the whole frame.
 pub const HDR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba16Float;
+
+/// Shadow map depth format. 32-bit float for the same reason the scene's
+/// depth is: a light's range can be thousands of units.
+pub const SHADOW_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
 
 /// Samples per pixel when multisampling is on.
 pub const MSAA_SAMPLES: u32 = 4;
@@ -335,6 +340,22 @@ pub struct Renderer {
     tonemap_buffer: wgpu::Buffer,
     /// The swapchain's format: what the tone-map pass writes.
     format: wgpu::TextureFormat,
+    /// This frame's dynamic lights, and which cluster each can reach.
+    lights_buffer: wgpu::Buffer,
+    clusters_buffer: wgpu::Buffer,
+    /// Every shadow layer, as one array the scene samples...
+    shadow_array: wgpu::TextureView,
+    /// ...and each layer on its own, to render into.
+    shadow_layers: Vec<wgpu::TextureView>,
+    _shadow_texture: wgpu::Texture,
+    shadow_sampler: wgpu::Sampler,
+    /// One light view-projection per shadow layer, by dynamic offset.
+    shadow_view_buffer: wgpu::Buffer,
+    shadow_view_bind_group: wgpu::BindGroup,
+    shadow_view_stride: u32,
+    /// Depth-only pipelines for world geometry and studio models.
+    shadow_world_pipeline: wgpu::RenderPipeline,
+    shadow_model_pipeline: wgpu::RenderPipeline,
 }
 
 /// The scene shaders and layouts, everything a pipeline needs except a
@@ -436,6 +457,49 @@ impl Renderer {
                     ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
                     count: None,
                 },
+                // Dynamic lights, then the cluster masks that say which of
+                // them each part of the view can see.
+                wgpu::BindGroupLayoutEntry {
+                    binding: 5,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: wgpu::BufferSize::new(
+                            std::mem::size_of::<LightsUniform>() as u64,
+                        ),
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 6,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: wgpu::BufferSize::new(
+                            std::mem::size_of::<ClusterMasks>() as u64,
+                        ),
+                    },
+                    count: None,
+                },
+                // The shadow maps, compared in hardware.
+                wgpu::BindGroupLayoutEntry {
+                    binding: 7,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Depth,
+                        view_dimension: wgpu::TextureViewDimension::D2Array,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 8,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Comparison),
+                    count: None,
+                },
             ],
         });
 
@@ -533,6 +597,152 @@ impl Renderer {
             bind_group_layouts: &[&frame_layout, &material_layout, &model_layout],
             push_constant_ranges: &[],
         });
+
+        // ---- dynamic lights and shadows ----
+        let lights_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("dynamic lights"),
+            contents: bytemuck::bytes_of(&LightsUniform::default()),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+        let clusters_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("light clusters"),
+            contents: bytemuck::bytes_of(&ClusterMasks::default()),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+        let shadow_texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("shadow maps"),
+            size: wgpu::Extent3d {
+                width: SHADOW_SIZE,
+                height: SHADOW_SIZE,
+                depth_or_array_layers: SHADOW_LAYERS as u32,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: SHADOW_FORMAT,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+            view_formats: &[],
+        });
+        let shadow_array = shadow_texture.create_view(&wgpu::TextureViewDescriptor {
+            label: Some("shadow maps"),
+            dimension: Some(wgpu::TextureViewDimension::D2Array),
+            ..Default::default()
+        });
+        let shadow_layers = (0..SHADOW_LAYERS as u32)
+            .map(|layer| {
+                shadow_texture.create_view(&wgpu::TextureViewDescriptor {
+                    label: Some("shadow layer"),
+                    dimension: Some(wgpu::TextureViewDimension::D2),
+                    base_array_layer: layer,
+                    array_layer_count: Some(1),
+                    ..Default::default()
+                })
+            })
+            .collect();
+        let shadow_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            label: Some("shadow compare"),
+            address_mode_u: wgpu::AddressMode::ClampToEdge,
+            address_mode_v: wgpu::AddressMode::ClampToEdge,
+            address_mode_w: wgpu::AddressMode::ClampToEdge,
+            // Linear with a comparison is hardware 2x2 percentage-closer
+            // filtering: four depth tests, blended, for the price of one.
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
+            compare: Some(wgpu::CompareFunction::LessEqual),
+            ..Default::default()
+        });
+
+        let shadow_view_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("shadow view"),
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: true,
+                        min_binding_size: wgpu::BufferSize::new(64),
+                    },
+                    count: None,
+                }],
+            });
+        let shadow_view_stride = 64u32.div_ceil(alignment) * alignment;
+        let shadow_view_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("shadow views"),
+            size: shadow_view_stride as u64 * SHADOW_LAYERS as u64,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        let shadow_view_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("shadow view"),
+            layout: &shadow_view_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                    buffer: &shadow_view_buffer,
+                    offset: 0,
+                    size: wgpu::BufferSize::new(64),
+                }),
+            }],
+        });
+        let shadow_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("shadow"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("shaders/shadow.wgsl").into()),
+        });
+        let shadow_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("shadow"),
+            bind_group_layouts: &[&shadow_view_layout, &model_layout],
+            push_constant_ranges: &[],
+        });
+        let shadow_pipeline = |label: &str, stride: usize| {
+            device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                label: Some(label),
+                layout: Some(&shadow_layout),
+                vertex: wgpu::VertexState {
+                    module: &shadow_shader,
+                    entry_point: Some("vs_shadow"),
+                    buffers: &[wgpu::VertexBufferLayout {
+                        array_stride: stride as wgpu::BufferAddress,
+                        step_mode: wgpu::VertexStepMode::Vertex,
+                        attributes: &[wgpu::VertexAttribute {
+                            offset: 0,
+                            shader_location: 0,
+                            format: wgpu::VertexFormat::Float32x3,
+                        }],
+                    }],
+                    compilation_options: Default::default(),
+                },
+                fragment: None,
+                primitive: wgpu::PrimitiveState {
+                    topology: wgpu::PrimitiveTopology::TriangleList,
+                    front_face: wgpu::FrontFace::Ccw,
+                    // Both sides: a brush wall is one-sided, and a light on
+                    // its far side must still be stopped by it.
+                    cull_mode: None,
+                    ..Default::default()
+                },
+                depth_stencil: Some(wgpu::DepthStencilState {
+                    format: SHADOW_FORMAT,
+                    depth_write_enabled: true,
+                    depth_compare: wgpu::CompareFunction::LessEqual,
+                    stencil: wgpu::StencilState::default(),
+                    // Pushes the stored depth back a little, more on slopes,
+                    // so a lit surface does not shadow itself in stripes.
+                    bias: wgpu::DepthBiasState {
+                        constant: 2,
+                        slope_scale: 2.5,
+                        clamp: 0.0,
+                    },
+                }),
+                multisample: wgpu::MultisampleState::default(),
+                multiview: None,
+                cache: None,
+            })
+        };
+        let shadow_world_pipeline =
+            shadow_pipeline("shadow world", std::mem::size_of::<WorldVertex>());
+        let shadow_model_pipeline =
+            shadow_pipeline("shadow model", std::mem::size_of::<ModelVertex>());
 
         // Debug lines: the same camera uniform, a line-list topology, and a
         // colour straight through. Only the camera is bound.
@@ -683,6 +893,17 @@ impl Renderer {
             tonemap_layout,
             tonemap_buffer,
             format,
+            lights_buffer,
+            clusters_buffer,
+            shadow_array,
+            shadow_layers,
+            _shadow_texture: shadow_texture,
+            shadow_sampler,
+            shadow_view_buffer,
+            shadow_view_bind_group,
+            shadow_view_stride,
+            shadow_world_pipeline,
+            shadow_model_pipeline,
         }
     }
 
@@ -872,6 +1093,137 @@ impl Renderer {
         pass.draw(0..3, 0..1);
     }
 
+    /// Upload this frame's dynamic lights, their clusters and their shadow
+    /// views. Before the shadow passes and the scene pass, like every other
+    /// per-frame write.
+    pub fn update_lights(&self, queue: &wgpu::Queue, frame: &LightFrame) {
+        queue.write_buffer(&self.lights_buffer, 0, bytemuck::bytes_of(&frame.uniform));
+        queue.write_buffer(
+            &self.clusters_buffer,
+            0,
+            bytemuck::bytes_of(&frame.clusters),
+        );
+        if frame.shadow_views.is_empty() {
+            return;
+        }
+        let stride = self.shadow_view_stride as usize;
+        let mut bytes = vec![0u8; stride * frame.shadow_views.len()];
+        for (layer, (view, _)) in frame.shadow_views.iter().enumerate() {
+            let at = layer * stride;
+            bytes[at..at + 64].copy_from_slice(bytemuck::bytes_of(&view.to_cols_array_2d()));
+        }
+        queue.write_buffer(&self.shadow_view_buffer, 0, &bytes);
+    }
+
+    /// Begin rendering shadow layer `layer`: depth only, cleared to far.
+    pub fn begin_shadow_pass<'e>(
+        &'e self,
+        encoder: &'e mut wgpu::CommandEncoder,
+        layer: usize,
+    ) -> wgpu::RenderPass<'e> {
+        encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("shadow"),
+            color_attachments: &[],
+            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                view: &self.shadow_layers[layer.min(SHADOW_LAYERS - 1)],
+                depth_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(1.0),
+                    store: wgpu::StoreOp::Store,
+                }),
+                stencil_ops: None,
+            }),
+            timestamp_writes: None,
+            occlusion_query_set: None,
+        })
+    }
+
+    /// Draw world or brush-model surfaces into a shadow layer, at the pose in
+    /// model slot `model` (0 for the world). Sky casts no shadow.
+    #[allow(clippy::too_many_arguments)]
+    pub fn draw_world_shadow<'a>(
+        &'a self,
+        pass: &mut wgpu::RenderPass<'a>,
+        layer: usize,
+        resources: &'a MapResources,
+        mesh: &WorldMesh,
+        surfaces: &[u32],
+        model: usize,
+    ) -> FrameStats {
+        let mut stats = FrameStats::default();
+        if surfaces.is_empty() {
+            return stats;
+        }
+        pass.set_pipeline(&self.shadow_world_pipeline);
+        pass.set_bind_group(
+            0,
+            &self.shadow_view_bind_group,
+            &[self.shadow_view_offset(layer)],
+        );
+        pass.set_bind_group(1, &self.model_bind_group, &[self.model_offset(model)]);
+        pass.set_vertex_buffer(0, resources.vertices.slice(..));
+        pass.set_index_buffer(resources.indices.slice(..), wgpu::IndexFormat::Uint32);
+
+        // Depth only, so the material does not matter and any two surfaces
+        // adjacent in the index buffer are one draw.
+        let mut run: Option<(u32, u32)> = None;
+        for &index in surfaces {
+            let Some(surface) = mesh.surfaces.get(index as usize) else {
+                continue;
+            };
+            if surface.flags & surf::SKY != 0 {
+                continue;
+            }
+            run = match run {
+                Some((first, count)) if first + count == surface.first_index => {
+                    Some((first, count + surface.index_count))
+                }
+                other => {
+                    if let Some((f, c)) = other {
+                        pass.draw_indexed(f..f + c, 0, 0..1);
+                        stats.draw_calls += 1;
+                    }
+                    Some((surface.first_index, surface.index_count))
+                }
+            };
+            stats.triangles += (surface.index_count / 3) as usize;
+        }
+        if let Some((f, c)) = run {
+            pass.draw_indexed(f..f + c, 0, 0..1);
+            stats.draw_calls += 1;
+        }
+        stats
+    }
+
+    /// Draw a studio model into a shadow layer, at the pose in model slot
+    /// `slot`.
+    pub fn draw_studio_shadow<'a>(
+        &'a self,
+        pass: &mut wgpu::RenderPass<'a>,
+        layer: usize,
+        gpu_model: &'a GpuModel,
+        slot: usize,
+    ) {
+        if gpu_model.meshes.is_empty() {
+            return;
+        }
+        pass.set_pipeline(&self.shadow_model_pipeline);
+        pass.set_bind_group(
+            0,
+            &self.shadow_view_bind_group,
+            &[self.shadow_view_offset(layer)],
+        );
+        pass.set_bind_group(1, &self.model_bind_group, &[self.model_offset(slot)]);
+        pass.set_vertex_buffer(0, gpu_model.vertex_buffer.slice(..));
+        pass.set_index_buffer(gpu_model.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+        for &(first, count, _) in &gpu_model.meshes {
+            pass.draw_indexed(first..first + count, 0, 0..1);
+        }
+    }
+
+    fn shadow_view_offset(&self, layer: usize) -> u32 {
+        self.shadow_view_stride * layer.min(SHADOW_LAYERS - 1) as u32
+    }
+
     pub fn update_camera(&self, queue: &wgpu::Queue, uniform: &CameraUniform) {
         queue.write_buffer(&self.camera_buffer, 0, bytemuck::bytes_of(uniform));
     }
@@ -1014,6 +1366,22 @@ impl Renderer {
                 wgpu::BindGroupEntry {
                     binding: 4,
                     resource: wgpu::BindingResource::Sampler(&self.probe_sampler),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 5,
+                    resource: self.lights_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 6,
+                    resource: self.clusters_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 7,
+                    resource: wgpu::BindingResource::TextureView(&self.shadow_array),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 8,
+                    resource: wgpu::BindingResource::Sampler(&self.shadow_sampler),
                 },
             ],
         })
@@ -2039,6 +2407,7 @@ mod tests {
     const MODEL_WGSL: &str = include_str!("shaders/model.wgsl");
     const LINE_WGSL: &str = include_str!("shaders/line.wgsl");
     const TONEMAP_WGSL: &str = include_str!("shaders/tonemap.wgsl");
+    const SHADOW_WGSL: &str = include_str!("shaders/shadow.wgsl");
 
     fn validate(name: &str, source: &str) -> naga::valid::ModuleInfo {
         let module = naga::front::wgsl::parse_str(source)
@@ -2064,6 +2433,13 @@ mod tests {
     #[test]
     fn the_line_shader_compiles() {
         validate("line.wgsl", LINE_WGSL);
+    }
+
+    #[test]
+    fn the_shadow_shader_compiles() {
+        let module = naga::front::wgsl::parse_str(SHADOW_WGSL).expect("parses");
+        assert!(module.entry_points.iter().any(|e| e.name == "vs_shadow"));
+        validate("shadow.wgsl", SHADOW_WGSL);
     }
 
     #[test]

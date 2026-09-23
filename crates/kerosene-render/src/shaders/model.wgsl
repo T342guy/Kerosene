@@ -23,6 +23,39 @@ struct Camera {
 @group(0) @binding(3) var probe_texture: texture_2d_array<f32>;
 @group(0) @binding(4) var probe_sampler: sampler;
 
+// Dynamic lights. `crates/kerosene-render/src/lights.rs` packs these and is
+// the reference for everything the light loop below does.
+struct GpuLight {
+    // xyz position, w range.
+    position_range: vec4<f32>,
+    // rgb intensity on the lightmap's scale, w 1 for a spot.
+    color_kind: vec4<f32>,
+    // xyz spot direction, w cos(outer half-angle).
+    direction_outer: vec4<f32>,
+    // x cos(inner half-angle), y cone exponent, z constant, w linear falloff.
+    cone_attn: vec4<f32>,
+    // x quadratic falloff, y first shadow layer or -1.
+    attn_shadow: vec4<f32>,
+};
+struct DynamicLights {
+    lights: array<GpuLight, 32>,
+    shadow_matrices: array<mat4x4<f32>, 16>,
+    // x light count.
+    count: vec4<u32>,
+    // xy target size, z near, w cluster far.
+    screen: vec4<f32>,
+    // xyz camera forward.
+    forward: vec4<f32>,
+};
+@group(0) @binding(5) var<uniform> dynamic_lights: DynamicLights;
+// A bit per light for each of the 16 x 9 x 24 clusters, four to a vec4.
+struct Clusters {
+    masks: array<vec4<u32>, 864>,
+};
+@group(0) @binding(6) var<uniform> clusters: Clusters;
+@group(0) @binding(7) var shadow_texture: texture_depth_2d_array;
+@group(0) @binding(8) var shadow_sampler: sampler_comparison;
+
 // The same material layout the world uses -- one pipeline layout serves both,
 // so this is not optional even where a map goes unread.
 @group(1) @binding(0) var base_sampler: sampler;
@@ -268,6 +301,133 @@ fn env_brdf(f0: vec3<f32>, roughness: f32, n_dot_v: f32) -> vec3<f32> {
     return f0 * ab.x + ab.y;
 }
 
+// ---- dynamic lights ---------------------------------------------------------
+
+// The bitmask of lights that can reach this fragment's cluster.
+fn cluster_mask(frag: vec2<f32>, world: vec3<f32>) -> u32 {
+    let screen = dynamic_lights.screen;
+    let tile = vec2<u32>(clamp(frag / screen.xy * vec2<f32>(16.0, 9.0), vec2<f32>(0.0), vec2<f32>(15.0, 8.0)));
+    let depth = dot(world - camera.position.xyz, dynamic_lights.forward.xyz);
+    var slice = 0u;
+    if (depth > screen.z) {
+        slice = min(u32(log(depth / screen.z) / log(screen.w / screen.z) * 24.0), 23u);
+    }
+    let index = (slice * 9u + tile.y) * 16u + tile.x;
+    return clusters.masks[index / 4u][index % 4u];
+}
+
+// How much of a light gets past its shadow map: 1 fully lit, 0 in shadow.
+// A point light's six faces are +X -X +Y -Y +Z -Z, picked by the major axis
+// of the direction from the light, as `DynamicLight::shadow_views` lays them.
+fn shadow_factor(first_layer: i32, light_pos: vec3<f32>, is_spot: bool, world: vec3<f32>, normal: vec3<f32>) -> f32 {
+    if (first_layer < 0) {
+        return 1.0;
+    }
+    var layer = first_layer;
+    if (!is_spot) {
+        let d = world - light_pos;
+        let a = abs(d);
+        if (a.x >= a.y && a.x >= a.z) {
+            layer = layer + select(1, 0, d.x >= 0.0);
+        } else if (a.y >= a.z) {
+            layer = layer + select(3, 2, d.y >= 0.0);
+        } else {
+            layer = layer + select(5, 4, d.z >= 0.0);
+        }
+    }
+    // Pushed out along the normal, further the further from the light, so a
+    // surface does not compare against its own stored depth and stripe.
+    let offset = normal * (0.75 + 0.004 * distance(world, light_pos));
+    let clip = dynamic_lights.shadow_matrices[layer] * vec4<f32>(world + offset, 1.0);
+    if (clip.w <= 0.0) {
+        return 1.0;
+    }
+    let ndc = clip.xyz / clip.w;
+    let uv = vec2<f32>(ndc.x * 0.5 + 0.5, 0.5 - ndc.y * 0.5);
+    if (any(uv < vec2<f32>(0.0)) || any(uv > vec2<f32>(1.0)) || ndc.z > 1.0) {
+        return 1.0;
+    }
+    // Four hardware-filtered taps: sixteen depth tests, a soft edge.
+    let texel = 1.0 / 512.0;
+    var lit = 0.0;
+    lit += textureSampleCompareLevel(shadow_texture, shadow_sampler, uv + vec2<f32>(-0.5, -0.5) * texel, layer, ndc.z);
+    lit += textureSampleCompareLevel(shadow_texture, shadow_sampler, uv + vec2<f32>(0.5, -0.5) * texel, layer, ndc.z);
+    lit += textureSampleCompareLevel(shadow_texture, shadow_sampler, uv + vec2<f32>(-0.5, 0.5) * texel, layer, ndc.z);
+    lit += textureSampleCompareLevel(shadow_texture, shadow_sampler, uv + vec2<f32>(0.5, 0.5) * texel, layer, ndc.z);
+    return lit * 0.25;
+}
+
+// Every dynamic light reaching this fragment: diffuse on `diffuse_color`
+// (the base colour with metal's share removed) plus GGX specular. Light
+// values are on the lightmap's scale, so a Lambert surface facing a light
+// gets `diffuse_color * intensity * n.l`, exactly as the bake would give it.
+fn dynamic_lighting(
+    frag: vec2<f32>,
+    world: vec3<f32>,
+    geometric: vec3<f32>,
+    n: vec3<f32>,
+    view: vec3<f32>,
+    diffuse_color: vec3<f32>,
+    roughness: f32,
+    f0: vec3<f32>,
+) -> vec3<f32> {
+    var total = vec3<f32>(0.0);
+    var mask = cluster_mask(frag, world);
+    while (mask != 0u) {
+        let i = firstTrailingBit(mask);
+        mask = mask & (mask - 1u);
+        if (i >= dynamic_lights.count.x) {
+            continue;
+        }
+        let light = dynamic_lights.lights[i];
+
+        let delta = light.position_range.xyz - world;
+        let dist = length(delta);
+        let range = light.position_range.w;
+        if (dist >= range) {
+            continue;
+        }
+        let l = delta / max(dist, 1e-4);
+        let n_dot_l = dot(n, l);
+        if (n_dot_l <= 0.0) {
+            continue;
+        }
+
+        // kerosene_math::light: falloff normalised at 100 units, times a
+        // window that fades the last of the range out.
+        let d = max(dist, 1.0);
+        let denom = light.cone_attn.z + light.cone_attn.w * d / 100.0 + light.attn_shadow.x * d * d / 10000.0;
+        var scale = select(0.0, 1.0 / denom, denom > 0.0);
+        let x = dist / range;
+        let w = 1.0 - x * x * x * x;
+        scale = scale * w * w;
+
+        let is_spot = light.color_kind.w > 0.5;
+        if (is_spot) {
+            let cos_angle = dot(-l, light.direction_outer.xyz);
+            let cos_outer = light.direction_outer.w;
+            let cos_inner = light.cone_attn.x;
+            if (cos_angle < cos_outer) {
+                continue;
+            }
+            if (cos_angle < cos_inner) {
+                let t = (cos_angle - cos_outer) / max(cos_inner - cos_outer, 1e-6);
+                scale = scale * pow(t, max(light.cone_attn.y, 0.01));
+            }
+        }
+
+        scale = scale * shadow_factor(i32(light.attn_shadow.y), light.position_range.xyz, is_spot, world, geometric);
+        if (scale <= 0.0) {
+            continue;
+        }
+        let radiance = light.color_kind.rgb * scale;
+        // Lambert is albedo / pi times irradiance, so the specular term,
+        // which is per unit irradiance, carries the pi back in.
+        total = total + diffuse_color * radiance * n_dot_l + specular_ggx(n, view, l, roughness, f0) * radiance * PI;
+    }
+    return total;
+}
+
 // The fixed lighting a prop gets: a key light high and to the player's left,
 // and an even ambient. The key's irradiance is written so a white Lambert
 // surface facing it reads KEY_DIFFUSE -- the numbers this shader used before
@@ -295,12 +455,13 @@ fn fs_model(input: VertexOut) -> @location(0) vec4<f32> {
     let metal = clamp(material.metalness * textureSample(metalness_texture, base_sampler, input.uv).r, 0.0, 1.0);
     var color = albedo.rgb * (1.0 - metal) * light;
 
+    let roughness = textureSample(roughness_texture, base_sampler, input.uv).r * material.roughness_factor;
+    let view = normalize(camera.position.xyz - input.world_position);
+    let f0 = f0_for(albedo.rgb, metal);
+
     // As on the world, a dielectric with nothing said about roughness stays
     // matte and a metal always reflects.
     if ((has_map(MAP_ROUGHNESS) || metal > 0.0 || material.roughness_factor < 1.0) && specular_strength() > 0.0) {
-        let roughness = textureSample(roughness_texture, base_sampler, input.uv).r * material.roughness_factor;
-        let view = normalize(camera.position.xyz - input.world_position);
-        let f0 = f0_for(albedo.rgb, metal);
         // Lambert is albedo / pi times irradiance, so a key that reads as
         // KEY_DIFFUSE on white has irradiance KEY_DIFFUSE * pi.
         let direct = specular_ggx(n, view, key, roughness, f0) * (KEY_DIFFUSE * PI);
@@ -312,6 +473,17 @@ fn fs_model(input: VertexOut) -> @location(0) vec4<f32> {
         let ambient = env_brdf(f0, roughness, max(dot(n, view), 1e-4)) * environment;
         color = color + (direct + ambient) * occlusion * specular_strength();
     }
+
+    color = color + dynamic_lighting(
+        input.clip_position.xy,
+        input.world_position,
+        normalize(input.normal),
+        n,
+        view,
+        albedo.rgb * (1.0 - metal),
+        roughness,
+        f0 * specular_strength(),
+    );
 
     if (has_map(MAP_EMISSIVE)) {
         let emissive = textureSample(emissive_texture, base_sampler, input.uv).rgb;

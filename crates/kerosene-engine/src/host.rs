@@ -22,7 +22,8 @@ use kerosene_render::gpu::{
     CameraUniform, GpuModel, GpuProbes, LineVertex, MAX_MODELS, MapResources, ModelUniform,
     Renderer, ToneMapOperator, load_model,
 };
-use kerosene_render::{Camera, FrameStats, LightmapAtlas, WorldMesh};
+use kerosene_render::lights::LightFrame;
+use kerosene_render::{Camera, FrameStats, Frustum, LightmapAtlas, WorldMesh};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
@@ -677,6 +678,24 @@ impl App {
         }
         gfx.renderer.update_model_uniforms(&gfx.queue, &poses);
 
+        // Dynamic lights: the switched-on light_dynamics, and the flashlight
+        // from where the camera is -- the interpolated eye, so it does not
+        // lag the view -- binned into clusters and given shadow layers.
+        let mut lights = Vec::new();
+        if self.engine.console.bool("r_dynamic") && self.engine.level.is_some() {
+            lights = crate::lights::entity_lights(&self.engine.entities);
+            if self.engine.console.bool("cl_flashlight") {
+                lights.push(crate::lights::flashlight(camera.position, camera.angles));
+            }
+            if !self.engine.console.bool("r_shadows") {
+                for light in &mut lights {
+                    light.shadows = false;
+                }
+            }
+        }
+        let light_frame = LightFrame::build(&lights, &camera, gfx.config.width, gfx.config.height);
+        gfx.renderer.update_lights(&gfx.queue, &light_frame);
+
         // Upload any prop model we have not seen yet, once. A failed load is
         // cached as `None` so the warning is not repeated every frame.
         for name in props.iter().map(|(_, n)| n) {
@@ -750,6 +769,54 @@ impl App {
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("frame"),
             });
+
+        // Shadow maps first: each layer is the world from one light's point
+        // of view, culled by that light's own PVS and frustum -- the same
+        // leaf walk the camera uses, from somewhere else.
+        if let (Some(map), Some(level), Some(world)) = (
+            &self.map,
+            &self.engine.level,
+            self.map.as_ref().and_then(LoadedMap::world),
+        ) && self.engine.console.bool("r_drawworld")
+        {
+            for (layer, (view, light)) in light_frame.shadow_views.iter().enumerate() {
+                let frustum = Frustum::from_view_projection(*view);
+                let origin = lights[*light].origin;
+                let mut pass = gfx.renderer.begin_shadow_pass(&mut encoder, layer);
+                for (_, section) in map.loaded() {
+                    let surfaces = section.mesh.visible_surfaces(&level.bsp, origin, &frustum);
+                    gfx.renderer.draw_world_shadow(
+                        &mut pass,
+                        layer,
+                        &section.resources,
+                        &section.mesh,
+                        &surfaces,
+                        0,
+                    );
+                }
+                for (model, pose) in &brush_models {
+                    if !world.mesh.model_is_visible(*model, *pose, &frustum) {
+                        continue;
+                    }
+                    if let Some(surfaces) = world.mesh.model_surfaces.get(*model) {
+                        gfx.renderer.draw_world_shadow(
+                            &mut pass,
+                            layer,
+                            &world.resources,
+                            &world.mesh,
+                            surfaces,
+                            *model,
+                        );
+                    }
+                }
+                for (slot, name) in &props {
+                    if let Some(model) = self.model_cache.get(name).and_then(Option::as_ref) {
+                        gfx.renderer
+                            .draw_studio_shadow(&mut pass, layer, model, *slot);
+                    }
+                }
+            }
+        }
 
         {
             let mut pass = gfx.renderer.begin_scene_pass(
@@ -850,6 +917,8 @@ impl App {
                 self.stats.cluster = level.bsp.point_cluster(camera.position);
             }
         }
+        self.stats.lights = light_frame.drawn.len();
+        self.stats.shadow_views = light_frame.shadow_views.len();
 
         // HDR scene to the swapchain. The UI draws after, over the result,
         // so it is never tone-mapped: a console should be the colour it is.
@@ -884,13 +953,15 @@ impl App {
 
         let s = self.stats;
         let message = format!(
-            "{:.0} fps | {}/{} surfaces ({:.0}% culled) | {} tris | {} draws | cluster {}",
+            "{:.0} fps | {}/{} surfaces ({:.0}% culled) | {} tris | {} draws | {} lights, {} shadow views | cluster {}",
             1.0 / real_dt.max(1e-6),
             s.surfaces_drawn,
             s.surfaces_total,
             s.culled_fraction() * 100.0,
             s.triangles,
             s.draw_calls,
+            s.lights,
+            s.shadow_views,
             s.cluster
         );
         self.engine.console.print(message);

@@ -1628,6 +1628,24 @@ fn register_cvars(console: &mut Console) {
         ConVarFlags::ARCHIVE,
         "Tone curve: 0 none (clip), 1 Reinhard, 2 ACES filmic.",
     );
+    console.register_cvar(
+        "r_dynamic",
+        "1",
+        ConVarFlags::NONE,
+        "Draw dynamic lights: light_dynamic entities and the flashlight.",
+    );
+    console.register_cvar(
+        "r_shadows",
+        "1",
+        ConVarFlags::ARCHIVE,
+        "Real-time shadows from dynamic lights.",
+    );
+    console.register_cvar(
+        "cl_flashlight",
+        "0",
+        ConVarFlags::NONE,
+        "Whether the flashlight is on. The flashlight command toggles it.",
+    );
     // Four samples when on: the one count every backend supports for the
     // HDR and depth formats. See `Renderer::set_msaa`.
     console.register_cvar_ranged(
@@ -1885,6 +1903,16 @@ fn register_commands(console: &mut Console) {
     console.register_command("exit", ConVarFlags::NONE, "Exit.", |con, _| {
         con.request(requests::QUIT, "");
     });
+
+    console.register_command(
+        "flashlight",
+        ConVarFlags::NONE,
+        "Toggle the flashlight.",
+        |con, _| {
+            let on = con.bool("cl_flashlight");
+            con.set_bool("cl_flashlight", !on);
+        },
+    );
 
     console.register_command(
         "noclip",

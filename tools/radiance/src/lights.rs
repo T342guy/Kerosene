@@ -8,12 +8,8 @@
 
 use kerosene_bsp::Bsp;
 use kerosene_kv::{FromKvValue, KeyValues, Vec3Value};
+use kerosene_math::light::{Attenuation, spot_cone};
 use kerosene_math::{Angles, Vec3};
-
-/// Distance at which a light's `_linear_attn` and `_quadratic_attn` are
-/// normalised to 1. Matches Source: a light of brightness 200 with the default
-/// quadratic falloff delivers 200 units of light at 100 inches away.
-const ATTN_REFERENCE: f32 = 100.0;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum LightKind {
@@ -189,27 +185,12 @@ fn point_light(e: &KeyValues, origin: Vec3, kind: LightKind) -> Option<Light> {
 /// and the compile time is the product of the two. Solving the falloff for
 /// "one part in 512 of a fully bright surface" is cheap and cuts most of them.
 fn cutoff_range(intensity: Vec3, (c, l, q): (f32, f32, f32)) -> f32 {
-    let peak = intensity.max_element();
-    if peak <= 0.0 {
-        return 0.0;
+    Attenuation {
+        constant: c,
+        linear: l,
+        quadratic: q,
     }
-    let threshold = 1.0 / 512.0;
-
-    if q > 0.0 {
-        // peak * ref^2 / (q * d^2) = threshold
-        (peak * ATTN_REFERENCE * ATTN_REFERENCE / (q * threshold)).sqrt()
-    } else if l > 0.0 {
-        peak * ATTN_REFERENCE / (l * threshold)
-    } else if c > 0.0 {
-        // No distance falloff at all; only the constant term limits it.
-        if peak / c > threshold {
-            f32::INFINITY
-        } else {
-            0.0
-        }
-    } else {
-        f32::INFINITY
-    }
+    .range(intensity.max_element(), 1.0 / 512.0)
 }
 
 /// A light's aim, from `angles` and the `pitch` key.
@@ -264,20 +245,10 @@ impl Light {
                 }
                 let to_point = -delta / dist.max(1e-6);
 
-                let cos_angle = to_point.dot(direction);
-                let cos_outer = cone.to_radians().cos();
-                if cos_angle < cos_outer {
+                let cone_scale = spot_cone(to_point.dot(direction), cone, inner, exponent);
+                if cone_scale <= 0.0 {
                     return None;
                 }
-
-                let cos_inner = inner.to_radians().cos();
-                let cone_scale = if cos_angle >= cos_inner {
-                    1.0
-                } else {
-                    // Soften the edge between the inner and outer cones.
-                    let t = (cos_angle - cos_outer) / (cos_inner - cos_outer).max(1e-6);
-                    t.powf(exponent.max(0.01))
-                };
 
                 let falloff = self.falloff(dist) * cone_scale;
                 if falloff <= 0.0 {
@@ -290,11 +261,14 @@ impl Light {
 
     fn falloff(&self, dist: f32) -> f32 {
         let (c, l, q) = self.attenuation;
-        let d = dist.max(1.0);
-        // Linear and quadratic terms are normalised at ATTN_REFERENCE inches,
-        // so brightness reads as "how bright at a normal room distance".
-        let denom = c + l * d / ATTN_REFERENCE + q * (d * d) / (ATTN_REFERENCE * ATTN_REFERENCE);
-        if denom <= 0.0 { 0.0 } else { 1.0 / denom }
+        // Shared with the renderer's dynamic lights, so a baked light and a
+        // live one with the same keys read the same.
+        Attenuation {
+            constant: c,
+            linear: l,
+            quadratic: q,
+        }
+        .falloff(dist)
     }
 
     /// Where a shadow ray toward this light should end.

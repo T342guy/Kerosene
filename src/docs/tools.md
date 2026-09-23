@@ -884,6 +884,8 @@ the thing they set it for.
 | `mat_tonemap` | tone curve: `0` none (clip), `1` Reinhard, `2` ACES filmic (default) |
 | `r_msaa` | multisample anti-aliasing: `0`/`1` off, anything higher 4x (default) |
 | `r_bumpmap` `r_specular` | material debug scales: `0` removes normal maps / reflections, `2` exaggerates (cheat) |
+| `r_dynamic` `r_shadows` | dynamic lights (`light_dynamic`, the flashlight) and their real-time shadows |
+| `flashlight` / `cl_flashlight` | toggle the flashlight (bound to F) / whether it is on |
 | `volume` `snd_reverb` `snd_reverb_preset` | sound; see [`audio.md`](audio.md#how-a-room-sounds) |
 | `developer` | verbosity; `2` also traces entity I/O |
 

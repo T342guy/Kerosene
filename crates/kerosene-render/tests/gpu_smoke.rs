@@ -18,6 +18,7 @@ use kerosene_bsp::{
 use kerosene_bsp::{Cubemaps, Probe, encode_rgb9e5};
 use kerosene_math::{Angles, Plane, PlaneSet, Vec3};
 use kerosene_render::gpu::{CameraUniform, GpuProbes, MapResources, Renderer, ToneMapOperator};
+use kerosene_render::lights::{DynamicLight, LightFrame};
 use kerosene_render::{Camera, LightmapAtlas, WorldMesh};
 
 const SIZE: u32 = 64;
@@ -26,9 +27,17 @@ const OUTPUT_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8UnormSrgb;
 /// One 64-unit floor quad facing +Z, lit to `light` (in 0..255 terms),
 /// wearing `material`.
 fn lit_quad(light: u8, material: &str) -> Bsp {
+    quads(light, material, false)
+}
+
+/// The floor quad, and with `roof` a 16-unit quad at z = 32 over its centre,
+/// facing down: seen from above it is back-facing and culled, so it draws
+/// nothing -- but it is still there to cast a shadow.
+fn quads(light: u8, material: &str, roof: bool) -> Bsp {
     let mut bsp = Bsp::new();
     let mut planes = PlaneSet::new();
     let floor = planes.insert(Plane::new(Vec3::Z, 0.0));
+    let roof_plane = planes.insert(Plane::new(-Vec3::Z, -32.0));
     bsp.planes = planes.planes().iter().map(BspPlane::from_plane).collect();
 
     let name = bsp.intern_texdata_string(material);
@@ -82,10 +91,36 @@ fn lit_quad(light: u8, material: &str) -> Bsp {
         (w * h) as usize,
     ));
     bsp.leaffaces.push(0);
+    if roof {
+        // Clockwise seen from below, its front.
+        bsp.vertices.extend([
+            [8.0, -8.0, 32.0],
+            [8.0, 8.0, 32.0],
+            [-8.0, 8.0, 32.0],
+            [-8.0, -8.0, 32.0],
+        ]);
+        bsp.edges.extend((0..4).map(|i| Edge {
+            v: [4 + i, 4 + (i + 1) % 4],
+        }));
+        bsp.surfedges.extend(4..8);
+        bsp.faces.push(Face {
+            plane: roof_plane & !1,
+            side: (roof_plane & 1) as u8,
+            first_surfedge: 4,
+            num_surfedges: 4,
+            texinfo: 0,
+            dispinfo: -1,
+            lightmap_offset: -1,
+            light_styles: [0, 255, 255, 255],
+            area: 256.0,
+            ..Default::default()
+        });
+        bsp.leaffaces.push(1);
+    }
     bsp.leaves.push(Leaf {
         contents: kerosene_bsp::contents::EMPTY,
         first_leafface: 0,
-        num_leaffaces: 1,
+        num_leaffaces: bsp.leaffaces.len() as u16,
         cluster: 0,
         mins: [-64, -64, -8],
         maxs: [64, 64, 128],
@@ -97,7 +132,7 @@ fn lit_quad(light: u8, material: &str) -> Bsp {
         origin: [0.0; 3],
         head_node: encode_leaf(0),
         first_face: 0,
-        num_faces: 1,
+        num_faces: bsp.faces.len() as u32,
     });
     bsp.entities = "entity { \"classname\" \"worldspawn\" }\n".into();
     bsp.validate().expect("fixture is well formed");
@@ -131,6 +166,42 @@ fn render_centre(
     mesh: &WorldMesh,
     frame_bind_group: &wgpu::BindGroup,
 ) -> [u8; 4] {
+    let bsp = Bsp::new();
+    let image = render(
+        device,
+        queue,
+        renderer,
+        resources,
+        mesh,
+        frame_bind_group,
+        &bsp,
+        &[],
+    );
+    pixel(&image, SIZE / 2, SIZE / 2)
+}
+
+fn pixel(image: &[u8], x: u32, y: u32) -> [u8; 4] {
+    let at = ((y * SIZE + x) * 4) as usize;
+    [image[at], image[at + 1], image[at + 2], image[at + 3]]
+}
+
+fn brightness(p: [u8; 4]) -> u32 {
+    p[..3].iter().map(|&c| c as u32).sum()
+}
+
+/// Draw the scene from above, with `lights` and their shadows, and return
+/// the tone-mapped image, four bytes a pixel.
+#[allow(clippy::too_many_arguments)]
+fn render(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    renderer: &mut Renderer,
+    resources: &MapResources,
+    mesh: &WorldMesh,
+    frame_bind_group: &wgpu::BindGroup,
+    bsp: &Bsp,
+    lights: &[DynamicLight],
+) -> Vec<u8> {
     renderer.ensure_targets(device, SIZE, SIZE);
 
     let camera = Camera {
@@ -140,6 +211,8 @@ fn render_centre(
         ..Default::default()
     };
     renderer.update_camera(queue, &CameraUniform::from_camera(&camera, 0.0));
+    let light_frame = LightFrame::build(lights, &camera, SIZE, SIZE);
+    renderer.update_lights(queue, &light_frame);
     // Every model slot at the identity, the world's included; an unwritten
     // buffer is a zero matrix, which draws everything at one point.
     renderer.update_models(queue, &[]);
@@ -171,6 +244,13 @@ fn render_centre(
     });
 
     let mut encoder = device.create_command_encoder(&Default::default());
+    for (layer, (view, _)) in light_frame.shadow_views.iter().enumerate() {
+        let frustum = kerosene_render::Frustum::from_view_projection(*view);
+        let origin = lights[light_frame.shadow_views[layer].1].origin;
+        let surfaces = mesh.visible_surfaces(bsp, origin, &frustum);
+        let mut pass = renderer.begin_shadow_pass(&mut encoder, layer);
+        renderer.draw_world_shadow(&mut pass, layer, resources, mesh, &surfaces, 0);
+    }
     {
         let mut pass = renderer.begin_scene_pass(&mut encoder, wgpu::Color::BLACK);
         renderer.draw_world(
@@ -199,9 +279,7 @@ fn render_centre(
     let slice = readback.slice(..);
     slice.map_async(wgpu::MapMode::Read, |r| r.expect("readback maps"));
     device.poll(wgpu::PollType::Wait).expect("device finishes");
-    let bytes = slice.get_mapped_range();
-    let at = (((SIZE / 2) * SIZE + SIZE / 2) * 4) as usize;
-    [bytes[at], bytes[at + 1], bytes[at + 2], bytes[at + 3]]
+    slice.get_mapped_range().to_vec()
 }
 
 #[test]
@@ -310,5 +388,69 @@ fn a_metal_floor_reflects_its_probe() {
     assert!(
         sum(bright) > sum(dark) + 60,
         "a bright probe must make the metal brighter: {dark:?} vs {bright:?}"
+    );
+}
+
+#[test]
+fn a_dynamic_light_lights_the_floor_and_a_roof_shadows_it() {
+    let Some((device, queue)) = device() else {
+        eprintln!("no GPU adapter; skipping");
+        return;
+    };
+    // A dim bake, so what the dynamic light adds is plain to see.
+    let bsp = quads(10, "missing/on/purpose", true);
+    let mut renderer = Renderer::new(&device, OUTPUT_FORMAT);
+    let vfs = kerosene_vfs::Vfs::new();
+    let atlas = LightmapAtlas::build(&bsp, 1.0);
+    let mesh = WorldMesh::build(&bsp, &atlas);
+    let resources = MapResources::upload(&device, &queue, &renderer, &mesh, &atlas, &vfs);
+    let probes = GpuProbes::upload(&device, &queue, None);
+    let frame = renderer.create_frame_bind_group(&device, &resources.lightmap_view, &probes);
+
+    let light = DynamicLight {
+        brightness: 300.0,
+        ..DynamicLight::point(Vec3::new(0.0, 0.0, 48.0))
+    };
+    let mut shoot = |lights: &[DynamicLight]| {
+        render(
+            &device,
+            &queue,
+            &mut renderer,
+            &resources,
+            &mesh,
+            &frame,
+            &bsp,
+            lights,
+        )
+    };
+    let dark = shoot(&[]);
+    let unshadowed = shoot(&[light]);
+    let shadowed = shoot(&[DynamicLight {
+        shadows: true,
+        ..light
+    }]);
+
+    // The floor under the roof, and floor well outside its shadow (which
+    // reaches 24 units out; the floor 32, and this pixel is at about 28).
+    let (under, beside) = ((SIZE / 2, SIZE / 2), (51, SIZE / 2));
+    let at = |img: &[u8], (x, y): (u32, u32)| brightness(pixel(img, x, y));
+
+    assert!(
+        at(&unshadowed, under) > at(&dark, under) + 60,
+        "the light must brighten the floor: {} vs {}",
+        at(&unshadowed, under),
+        at(&dark, under)
+    );
+    assert!(
+        at(&shadowed, under) + 60 < at(&unshadowed, under),
+        "the roof must shadow the floor under it: {} vs {}",
+        at(&shadowed, under),
+        at(&unshadowed, under)
+    );
+    assert!(
+        at(&shadowed, beside) + 20 > at(&unshadowed, beside),
+        "and leave the rest lit: {} vs {}",
+        at(&shadowed, beside),
+        at(&unshadowed, beside)
     );
 }

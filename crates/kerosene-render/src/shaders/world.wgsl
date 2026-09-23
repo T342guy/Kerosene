@@ -33,6 +33,39 @@ struct Camera {
 @group(0) @binding(3) var probe_texture: texture_2d_array<f32>;
 @group(0) @binding(4) var probe_sampler: sampler;
 
+// Dynamic lights. `crates/kerosene-render/src/lights.rs` packs these and is
+// the reference for everything the light loop below does.
+struct GpuLight {
+    // xyz position, w range.
+    position_range: vec4<f32>,
+    // rgb intensity on the lightmap's scale, w 1 for a spot.
+    color_kind: vec4<f32>,
+    // xyz spot direction, w cos(outer half-angle).
+    direction_outer: vec4<f32>,
+    // x cos(inner half-angle), y cone exponent, z constant, w linear falloff.
+    cone_attn: vec4<f32>,
+    // x quadratic falloff, y first shadow layer or -1.
+    attn_shadow: vec4<f32>,
+};
+struct DynamicLights {
+    lights: array<GpuLight, 32>,
+    shadow_matrices: array<mat4x4<f32>, 16>,
+    // x light count.
+    count: vec4<u32>,
+    // xy target size, z near, w cluster far.
+    screen: vec4<f32>,
+    // xyz camera forward.
+    forward: vec4<f32>,
+};
+@group(0) @binding(5) var<uniform> dynamic_lights: DynamicLights;
+// A bit per light for each of the 16 x 9 x 24 clusters, four to a vec4.
+struct Clusters {
+    masks: array<vec4<u32>, 864>,
+};
+@group(0) @binding(6) var<uniform> clusters: Clusters;
+@group(0) @binding(7) var shadow_texture: texture_depth_2d_array;
+@group(0) @binding(8) var shadow_sampler: sampler_comparison;
+
 // A material is one sampler, a word saying which of its maps are real, and
 // six textures. The absent ones are bound to a neutral 1x1 texel, so every
 // material fills the same layout and there is one pipeline rather than a
@@ -190,6 +223,39 @@ fn shading_normal(input: VertexOut) -> vec3<f32> {
 const PI: f32 = 3.14159265;
 const DIELECTRIC_F0: f32 = 0.04;
 
+const MIN_ROUGHNESS: f32 = 0.045;
+
+fn d_ggx(n_dot_h: f32, alpha: f32) -> f32 {
+    let a2 = alpha * alpha;
+    let d = n_dot_h * n_dot_h * (a2 - 1.0) + 1.0;
+    return a2 / (PI * d * d);
+}
+
+fn v_smith(n_dot_v: f32, n_dot_l: f32, alpha: f32) -> f32 {
+    let a2 = alpha * alpha;
+    let gv = n_dot_l * sqrt(n_dot_v * n_dot_v * (1.0 - a2) + a2);
+    let gl = n_dot_v * sqrt(n_dot_l * n_dot_l * (1.0 - a2) + a2);
+    return 0.5 / max(gv + gl, 1e-5);
+}
+
+fn f_schlick(f0: vec3<f32>, v_dot_h: f32) -> vec3<f32> {
+    return f0 + (vec3<f32>(1.0) - f0) * pow(1.0 - clamp(v_dot_h, 0.0, 1.0), 5.0);
+}
+
+// Specular toward `v` from light along `l`, per unit of irradiance on a
+// surface facing it.
+fn specular_ggx(n: vec3<f32>, v: vec3<f32>, l: vec3<f32>, roughness: f32, f0: vec3<f32>) -> vec3<f32> {
+    let n_dot_l = dot(n, l);
+    let n_dot_v = dot(n, v);
+    if (n_dot_l <= 0.0 || n_dot_v <= 0.0) {
+        return vec3<f32>(0.0);
+    }
+    let h = normalize(v + l);
+    let r = clamp(roughness, MIN_ROUGHNESS, 1.0);
+    let alpha = r * r;
+    return f_schlick(f0, dot(v, h)) * (d_ggx(max(dot(n, h), 0.0), alpha) * v_smith(n_dot_v, n_dot_l, alpha) * n_dot_l);
+}
+
 // Specular colour at normal incidence: 4% grey for anything that is not
 // metal, the base colour for anything that is.
 fn f0_for(albedo: vec3<f32>, metalness: f32) -> vec3<f32> {
@@ -274,6 +340,133 @@ fn probe_radiance(probe: u32, dir: vec3<f32>, roughness: f32) -> vec3<f32> {
     return textureSampleLevel(probe_texture, probe_sampler, st.xy, layer, lod).rgb;
 }
 
+// ---- dynamic lights ---------------------------------------------------------
+
+// The bitmask of lights that can reach this fragment's cluster.
+fn cluster_mask(frag: vec2<f32>, world: vec3<f32>) -> u32 {
+    let screen = dynamic_lights.screen;
+    let tile = vec2<u32>(clamp(frag / screen.xy * vec2<f32>(16.0, 9.0), vec2<f32>(0.0), vec2<f32>(15.0, 8.0)));
+    let depth = dot(world - camera.position.xyz, dynamic_lights.forward.xyz);
+    var slice = 0u;
+    if (depth > screen.z) {
+        slice = min(u32(log(depth / screen.z) / log(screen.w / screen.z) * 24.0), 23u);
+    }
+    let index = (slice * 9u + tile.y) * 16u + tile.x;
+    return clusters.masks[index / 4u][index % 4u];
+}
+
+// How much of a light gets past its shadow map: 1 fully lit, 0 in shadow.
+// A point light's six faces are +X -X +Y -Y +Z -Z, picked by the major axis
+// of the direction from the light, as `DynamicLight::shadow_views` lays them.
+fn shadow_factor(first_layer: i32, light_pos: vec3<f32>, is_spot: bool, world: vec3<f32>, normal: vec3<f32>) -> f32 {
+    if (first_layer < 0) {
+        return 1.0;
+    }
+    var layer = first_layer;
+    if (!is_spot) {
+        let d = world - light_pos;
+        let a = abs(d);
+        if (a.x >= a.y && a.x >= a.z) {
+            layer = layer + select(1, 0, d.x >= 0.0);
+        } else if (a.y >= a.z) {
+            layer = layer + select(3, 2, d.y >= 0.0);
+        } else {
+            layer = layer + select(5, 4, d.z >= 0.0);
+        }
+    }
+    // Pushed out along the normal, further the further from the light, so a
+    // surface does not compare against its own stored depth and stripe.
+    let offset = normal * (0.75 + 0.004 * distance(world, light_pos));
+    let clip = dynamic_lights.shadow_matrices[layer] * vec4<f32>(world + offset, 1.0);
+    if (clip.w <= 0.0) {
+        return 1.0;
+    }
+    let ndc = clip.xyz / clip.w;
+    let uv = vec2<f32>(ndc.x * 0.5 + 0.5, 0.5 - ndc.y * 0.5);
+    if (any(uv < vec2<f32>(0.0)) || any(uv > vec2<f32>(1.0)) || ndc.z > 1.0) {
+        return 1.0;
+    }
+    // Four hardware-filtered taps: sixteen depth tests, a soft edge.
+    let texel = 1.0 / 512.0;
+    var lit = 0.0;
+    lit += textureSampleCompareLevel(shadow_texture, shadow_sampler, uv + vec2<f32>(-0.5, -0.5) * texel, layer, ndc.z);
+    lit += textureSampleCompareLevel(shadow_texture, shadow_sampler, uv + vec2<f32>(0.5, -0.5) * texel, layer, ndc.z);
+    lit += textureSampleCompareLevel(shadow_texture, shadow_sampler, uv + vec2<f32>(-0.5, 0.5) * texel, layer, ndc.z);
+    lit += textureSampleCompareLevel(shadow_texture, shadow_sampler, uv + vec2<f32>(0.5, 0.5) * texel, layer, ndc.z);
+    return lit * 0.25;
+}
+
+// Every dynamic light reaching this fragment: diffuse on `diffuse_color`
+// (the base colour with metal's share removed) plus GGX specular. Light
+// values are on the lightmap's scale, so a Lambert surface facing a light
+// gets `diffuse_color * intensity * n.l`, exactly as the bake would give it.
+fn dynamic_lighting(
+    frag: vec2<f32>,
+    world: vec3<f32>,
+    geometric: vec3<f32>,
+    n: vec3<f32>,
+    view: vec3<f32>,
+    diffuse_color: vec3<f32>,
+    roughness: f32,
+    f0: vec3<f32>,
+) -> vec3<f32> {
+    var total = vec3<f32>(0.0);
+    var mask = cluster_mask(frag, world);
+    while (mask != 0u) {
+        let i = firstTrailingBit(mask);
+        mask = mask & (mask - 1u);
+        if (i >= dynamic_lights.count.x) {
+            continue;
+        }
+        let light = dynamic_lights.lights[i];
+
+        let delta = light.position_range.xyz - world;
+        let dist = length(delta);
+        let range = light.position_range.w;
+        if (dist >= range) {
+            continue;
+        }
+        let l = delta / max(dist, 1e-4);
+        let n_dot_l = dot(n, l);
+        if (n_dot_l <= 0.0) {
+            continue;
+        }
+
+        // kerosene_math::light: falloff normalised at 100 units, times a
+        // window that fades the last of the range out.
+        let d = max(dist, 1.0);
+        let denom = light.cone_attn.z + light.cone_attn.w * d / 100.0 + light.attn_shadow.x * d * d / 10000.0;
+        var scale = select(0.0, 1.0 / denom, denom > 0.0);
+        let x = dist / range;
+        let w = 1.0 - x * x * x * x;
+        scale = scale * w * w;
+
+        let is_spot = light.color_kind.w > 0.5;
+        if (is_spot) {
+            let cos_angle = dot(-l, light.direction_outer.xyz);
+            let cos_outer = light.direction_outer.w;
+            let cos_inner = light.cone_attn.x;
+            if (cos_angle < cos_outer) {
+                continue;
+            }
+            if (cos_angle < cos_inner) {
+                let t = (cos_angle - cos_outer) / max(cos_inner - cos_outer, 1e-6);
+                scale = scale * pow(t, max(light.cone_attn.y, 0.01));
+            }
+        }
+
+        scale = scale * shadow_factor(i32(light.attn_shadow.y), light.position_range.xyz, is_spot, world, geometric);
+        if (scale <= 0.0) {
+            continue;
+        }
+        let radiance = light.color_kind.rgb * scale;
+        // Lambert is albedo / pi times irradiance, so the specular term,
+        // which is per unit irradiance, carries the pi back in.
+        total = total + diffuse_color * radiance * n_dot_l + specular_ggx(n, view, l, roughness, f0) * radiance * PI;
+    }
+    return total;
+}
+
 fn metalness(uv: vec2<f32>) -> f32 {
     // The neutral map is white, so without one this is the scalar alone.
     return clamp(material.metalness * textureSample(metalness_texture, base_sampler, uv).r, 0.0, 1.0);
@@ -348,9 +541,9 @@ fn fs_world(input: VertexOut) -> @location(0) vec4<f32> {
     // and blurred by roughness. A face with no probe reflects an even glow
     // the brightness of its own lightmap, which is right on average and
     // wrong in every particular -- the reason to place env_cubemaps.
+    let roughness = textureSample(roughness_texture, base_sampler, input.uv).r * material.roughness_factor;
+    let f0 = f0_for(albedo.rgb, metal);
     if ((has_map(MAP_ROUGHNESS) || metal > 0.0 || material.roughness_factor < 1.0) && specular_strength() > 0.0) {
-        let roughness = textureSample(roughness_texture, base_sampler, input.uv).r * material.roughness_factor;
-        let f0 = f0_for(albedo.rgb, metal);
         let n_dot_v = max(dot(n, view), 1e-4);
         var environment = light;
         if (input.probe != NO_PROBE) {
@@ -361,6 +554,20 @@ fn fs_world(input: VertexOut) -> @location(0) vec4<f32> {
         }
         color = color + environment * env_brdf(f0, roughness, n_dot_v) * specular_strength();
     }
+
+    // Dynamic lights, on top of the bake. They have a real direction, so the
+    // normal map and the specular lobe both answer to them properly -- the
+    // one place a world surface is lit the way a prop is.
+    color = color + dynamic_lighting(
+        input.clip_position.xy,
+        input.world_position,
+        geometric,
+        n,
+        view,
+        albedo.rgb * (1.0 - metal),
+        roughness,
+        f0 * specular_strength(),
+    );
 
     // Emissive is light leaving the surface, added in the same linear space
     // as everything else so it blooms and tone-maps along with a highlight

@@ -33,6 +33,7 @@
 //! no lights at runtime at all.
 
 pub mod doors;
+pub mod lights;
 pub mod logic;
 pub mod props;
 pub mod schema;
@@ -74,6 +75,7 @@ pub fn register(registry: &mut ClassRegistry) {
     scripted::register(registry);
     sound::register(registry);
     props::register(registry);
+    lights::register(registry);
 
     // Inputs every entity understands, as Source makes them.
     registry.register_common_input("Kill", input_kill);
