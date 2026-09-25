@@ -222,7 +222,25 @@ fn main() -> std::io::Result<()> {
     keypad.set("interactive", "1");
     keypad.connect(Connection::new("OnUnlock", "shutter", "Toggle"));
     keypad.connect(Connection::new("OnUnlock", "switch_click", "Play"));
+    keypad.connect(Connection::new("OnUnlock", "ach_keypad", "Unlock"));
     map.entities.push(keypad);
+
+    // The store: cracking the keypad is an achievement -- on Steam in a Steam
+    // build, kept for the session otherwise, and toasted by the HUD either
+    // way -- and friends see where the player is. The id is declared in
+    // kerosene.keroproj.
+    let id = map.next_id();
+    let mut achievement = Entity::new(id, "logic_achievement");
+    achievement.set_origin(Vec3::new(352.0, ROOM - 32.0, 32.0));
+    achievement.set("targetname", "ach_keypad");
+    achievement.set("achievement", "ACH_KEYPAD");
+    map.entities.push(achievement);
+
+    let id = map.next_id();
+    let mut presence = Entity::new(id, "logic_richpresence");
+    presence.set_origin(Vec3::new(384.0, ROOM - 32.0, 32.0));
+    presence.set("status", "Exploring kero_start");
+    map.entities.push(presence);
 
     let id = map.next_id();
     let mut screen = Entity::new(id, "point_worldpanel");

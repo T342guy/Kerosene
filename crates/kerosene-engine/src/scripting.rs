@@ -59,6 +59,7 @@ impl Engine {
                 .as_ref()
                 .map(|l| l.name.clone())
                 .unwrap_or_default(),
+            platform: self.platform.view(),
             ..Default::default()
         };
 
@@ -232,6 +233,9 @@ impl Engine {
                     normal,
                     size,
                 } => self.place_decal(&material, origin, normal, size),
+                // Applied now; what comes of it is dispatched at the end of
+                // the tick, or the frame, with everything else the store said.
+                ScriptAction::Platform(action) => self.platform_request(&action),
             }
         }
     }
@@ -295,6 +299,7 @@ impl Engine {
                     }
                 }
                 kind if self.ui_entity_request(kind, &request.payload, request.caller) => {}
+                kind if self.platform_entity_request(kind, &request.payload, request.caller) => {}
                 _ => {
                     // A kind the engine does not know may be one of the
                     // game's own: its class handlers have no other way to

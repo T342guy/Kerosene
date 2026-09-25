@@ -41,6 +41,15 @@ jobs:
       - name: Test
         run: cargo test --workspace
 
+      # Steam is an opt-in feature, so the workspace build above never sees
+      # it. Linting it here keeps it compiling; it links against the
+      # redistributable the steamworks crate carries, and needs no client.
+      - name: Clippy (steam)
+        run: cargo clippy -p kerosene-runtime -p kerosene-tools --features kerosene-runtime/steam,kerosene-tools/steam -- -D warnings
+
+      - name: Test (steam)
+        run: cargo test -p kerosene-platform --features steam
+
   build:
     name: build (${{ matrix.os }})
     strategy:
@@ -55,3 +64,5 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Build
         run: cargo build --workspace
+      - name: Build (steam)
+        run: cargo build -p kerosene-runtime --features steam

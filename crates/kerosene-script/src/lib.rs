@@ -56,6 +56,9 @@ pub mod hooks {
     pub const MAP_START: &str = "on_map_start";
     /// Called every tick, with the tick length in seconds.
     pub const TICK: &str = "on_tick";
+    /// Called for each store event -- an achievement unlocked, a score
+    /// posted, the overlay opened -- with its name and data.
+    pub const PLATFORM_EVENT: &str = "on_platform_event";
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -125,6 +128,9 @@ pub enum ScriptAction {
         normal: Vec3,
         size: f32,
     },
+    /// Something for the store: an achievement, a stat, a score. Made by
+    /// the `platform` (or `steam`) object.
+    Platform(kerosene_platform::PlatformAction),
 }
 
 /// The shared state script functions read and write.

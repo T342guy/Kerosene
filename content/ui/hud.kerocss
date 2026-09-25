@@ -171,3 +171,26 @@
     opacity: 0;
 }
 #toast.show { animation: toast 1.6s linear; }
+
+/* ---- achievement --------------------------------------------------------- */
+
+@keyframes achievement {
+    0% { opacity: 0; transform: translateX(40px); }
+    8% { opacity: 1; transform: translateX(0px); }
+    85% { opacity: 1; }
+    100% { opacity: 0; }
+}
+
+#achievement {
+    position: absolute;
+    top: 48px;
+    right: 48px;
+    flex-direction: column;
+    padding: 14px 22px;
+    border-radius: 6px;
+    border: 2px solid rgba(255, 168, 48, 0.9);
+    background-color: rgba(12, 14, 18, 0.82);
+    opacity: 0;
+}
+#achievement.show { animation: achievement 4s linear; }
+#achievement-name { font-size: 24px; font-weight: bold; }

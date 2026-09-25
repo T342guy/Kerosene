@@ -66,4 +66,11 @@
     </Panel>
 
     <Label id="toast"/>
+
+    <!-- An achievement, from Steam or -- off Steam -- the local store. The
+         script fills it in on `achievement_unlocked`. -->
+    <Panel id="achievement">
+        <Label class="caption" text="Achievement unlocked"/>
+        <Label id="achievement-name"/>
+    </Panel>
 </root>

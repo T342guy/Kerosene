@@ -127,7 +127,8 @@ pub enum Profile {
 }
 
 impl Profile {
-    fn dir(self) -> &'static str {
+    /// The directory under `target/` cargo builds this profile into.
+    pub fn dir(self) -> &'static str {
         match self {
             Profile::Debug => "debug",
             Profile::Release => "release",
@@ -227,6 +228,18 @@ pub fn built_binary(from: &Path, bin: &str, profile: Profile) -> Option<PathBuf>
     None
 }
 
+/// How to build, beyond which package and which profile.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct BuildOptions {
+    /// Cargo features to turn on, e.g. `steam`.
+    pub features: Vec<String>,
+    /// Build somewhere other than the workspace's own `target/`, so a build
+    /// with different flags does not throw away the everyday one.
+    pub target_dir: Option<PathBuf>,
+    /// `RUSTFLAGS` for the build: an rpath, a static C runtime.
+    pub rustflags: Option<String>,
+}
+
 /// Build a package and say where its binary is.
 ///
 /// Cargo's own output goes through `log`, a line at a time, so an editor can
@@ -238,36 +251,95 @@ pub fn build_package(
     profile: Profile,
     log: &mut dyn FnMut(&str),
 ) -> anyhow::Result<PathBuf> {
+    build_package_with(
+        project_dir,
+        package,
+        bin,
+        profile,
+        &BuildOptions::default(),
+        log,
+    )
+}
+
+/// [`build_package`], with features, a target directory and flags.
+pub fn build_package_with(
+    project_dir: &Path,
+    package: &str,
+    bin: Option<&str>,
+    profile: Profile,
+    options: &BuildOptions,
+    log: &mut dyn FnMut(&str),
+) -> anyhow::Result<PathBuf> {
     use anyhow::Context;
     use std::io::{BufRead, BufReader};
 
-    let mut args = vec!["build", "-p", package];
+    let mut args: Vec<String> = vec!["build".into(), "-p".into(), package.into()];
     if profile == Profile::Release {
-        args.push("--release");
+        args.push("--release".into());
     }
-    log(&format!("cargo {}", args.join(" ")));
-    let mut child = Command::new("cargo")
+    if !options.features.is_empty() {
+        args.push("--features".into());
+        args.push(options.features.join(","));
+    }
+    if let Some(dir) = &options.target_dir {
+        args.push("--target-dir".into());
+        args.push(dir.display().to_string());
+    }
+    let mut command = Command::new("cargo");
+    command
         .args(&args)
         .current_dir(project_dir)
         .stdout(Stdio::null())
-        .stderr(Stdio::piped())
-        .spawn()
-        .with_context(|| {
-            format!(
-                "running cargo in {}. A project with a `game` key is built from source.",
-                project_dir.display()
-            )
-        })?;
+        .stderr(Stdio::piped());
+    match &options.rustflags {
+        Some(flags) => {
+            log(&format!("RUSTFLAGS=\"{flags}\" cargo {}", args.join(" ")));
+            command.env("RUSTFLAGS", flags);
+        }
+        None => log(&format!("cargo {}", args.join(" "))),
+    }
+    let mut child = command.spawn().with_context(|| {
+        format!(
+            "running cargo in {}. A project with a `game` key is built from source.",
+            project_dir.display()
+        )
+    })?;
+    let mut missing_feature = false;
     if let Some(err) = child.stderr.take() {
         for line in BufReader::new(err).lines().map_while(Result::ok) {
+            missing_feature |= line.contains("does not have") && line.contains("feature");
             log(&line);
         }
     }
     let status = child.wait().context("waiting for cargo")?;
     if !status.success() {
+        if missing_feature {
+            anyhow::bail!(
+                "cargo build -p {package} failed: the package has no `{}` feature. \
+                 Add one to its Cargo.toml that turns on the engine's, e.g. \
+                 [features] steam = [\"kerosene/steam\"]",
+                options.features.join("`, `")
+            );
+        }
         anyhow::bail!("cargo build -p {package} failed ({status})");
     }
     let bin = bin.unwrap_or(package);
+    if let Some(dir) = &options.target_dir {
+        let file = if cfg!(windows) {
+            format!("{bin}.exe")
+        } else {
+            bin.to_string()
+        };
+        let built = dir.join(profile.dir()).join(file);
+        return if built.is_file() {
+            Ok(built)
+        } else {
+            Err(anyhow::anyhow!(
+                "cargo built {package}, but no binary `{bin}` is in {}",
+                built.parent().unwrap_or(dir).display()
+            ))
+        };
+    }
     built_binary(project_dir, bin, profile).with_context(|| {
         format!(
             "cargo built {package}, but no binary `{bin}` is under any target/{} above {}. \
@@ -349,6 +421,7 @@ mod tests {
             game: Some("my-game".into()),
             bin: Some("mygame".into()),
             dirs: None,
+            ..Default::default()
         };
         let runtime = Runtime::for_project(Some(&project));
         assert_eq!(

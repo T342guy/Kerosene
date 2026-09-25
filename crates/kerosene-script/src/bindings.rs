@@ -47,6 +47,19 @@ pub fn register(engine: &mut Engine, shared: &Rc<RefCell<Shared>>) {
     register_entities(engine, shared);
     register_sound(engine, shared);
     register_world(engine, shared);
+    register_platform(engine, shared);
+}
+
+/// The `platform` object, and its `steam` alias: see
+/// [`kerosene_platform::script`] for what it has.
+fn register_platform(engine: &mut Engine, shared: &Rc<RefCell<Shared>>) {
+    let view = Rc::clone(shared);
+    let sink = Rc::clone(shared);
+    kerosene_platform::script::register(
+        engine,
+        move || view.borrow().view.platform.clone(),
+        move |action| push(&sink, ScriptAction::Platform(action)),
+    );
 }
 
 // ---- vectors --------------------------------------------------------------

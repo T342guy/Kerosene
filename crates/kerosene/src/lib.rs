@@ -47,6 +47,7 @@ pub use kerosene_kv as kv;
 pub use kerosene_map as map;
 pub use kerosene_math as math;
 pub use kerosene_physics as physics;
+pub use kerosene_platform as platform;
 pub use kerosene_render as render;
 pub use kerosene_rigid as rigid;
 pub use kerosene_script as script;

@@ -15,6 +15,7 @@ pub mod init;
 pub mod panels;
 pub mod project;
 pub mod toolset;
+pub mod workshop;
 
 pub use entry::{Options, main_with};
 pub use toolset::{Launch, Tab, Toolset, run_gui};
@@ -37,6 +38,10 @@ pub const SUBCOMMANDS: &[(&str, &str)] = &[
     ("timbre", "compile sounds into .keroaud"),
     ("kiln", "build a whole project's content"),
     ("vault", "pack and inspect content archives"),
+    (
+        "workshop",
+        "upload a map to the Steam Workshop (a build with --features steam)",
+    ),
 ];
 
 /// Run one headless stage: `kerosene-tools <subcommand> <args...>`.
@@ -52,6 +57,7 @@ pub fn run_subcommand(name: &str, args: Vec<String>) -> anyhow::Result<()> {
         "timbre" => timbre::run(args),
         "kiln" => kiln::run(args),
         "vault" => vault::run(args),
+        "workshop" => workshop::run(args),
         other => {
             anyhow::bail!("unknown tool {other:?}; try `kerosene-tools` for the window");
         }

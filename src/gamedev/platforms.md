@@ -25,19 +25,20 @@ calls and that is a program, on every platform.
 
 ## Storefronts
 
-Nothing in the licence stops you selling on any of these. Nothing in the
-engine helps you with any of them yet.
+Nothing in the licence stops you selling on any of these. Steam is the one
+the engine integrates with; see [Steam](steam.md).
 
 | Store | What works | What is missing |
 |---|---|---|
 | itch.io | Zip the `kiln --ship` folder and upload it | A butler push target in Kiln |
-| Steam | Upload the same folder as a depot. The overlay hooks Vulkan and DX12 and should work without help | Steamworks entirely: no achievements, stats, cloud saves, Workshop, Steam Input, rich presence. The SDK is proprietary and cannot live in the tree, so this will be a Cargo feature when it exists |
+| Steam | The `steam` feature: achievements, stats, leaderboards, rich presence, cloud files, DLC, the overlay and Workshop mounting. `kiln --ship --steam` installs Valve's library and writes the SteamPipe scripts | Steam Input, lobbies and networking, leaderboard downloads |
 | GOG, Epic | The folder, as above | Everything the store's SDK offers |
 
-Workshop is worth a sentence because it is the one the engine is built for:
-open formats plus a `.vault` per map means a subscribed map could mount as
-one more VFS layer with no format work at all. That is the plan; none of it
-is written.
+The Workshop is worth a sentence because it is the store feature the engine
+is built for. The formats are open and each map is one `.vault`, so a
+subscribed map mounts as one more VFS layer with no format work at all. The
+engine does exactly that at startup, and `kerosene-tools workshop upload`
+puts a `.vault` up.
 
 ## Dedicated servers
 

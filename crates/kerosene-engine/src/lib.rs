@@ -32,6 +32,7 @@ pub mod input;
 pub mod launch;
 pub mod lights;
 pub mod physics;
+pub mod platform;
 pub mod scripting;
 pub mod streaming;
 pub mod triggers;

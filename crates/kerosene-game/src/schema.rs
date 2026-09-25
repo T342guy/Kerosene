@@ -667,4 +667,84 @@ class
     key { "name" "texture" "label" "Material" "type" "material" "default" "decals/crack" }
     key { "name" "size" "label" "Size (units)" "type" "float" "default" "32" }
 }
+
+class
+{
+    "name" "logic_achievement"
+    "base" "Entity" "base" "Point"
+    "help" "Awards one achievement: on Steam in a Steam build, kept for the session otherwise. The id must be listed in the project's \"achievements\" block."
+    key { "name" "achievement" "label" "Achievement id" "type" "string" "default" ""
+          "help" "The API name, as set up in Steamworks and the .keroproj, e.g. ACH_FIRST_DOOR." }
+    key { "name" "progressmax" "label" "Progress out of" "type" "integer" "default" "0"
+          "help" "What SetProgress counts toward. Reaching it unlocks." }
+    input  { "name" "Unlock" "help" "Award the achievement. Does nothing if it already is." }
+    input  { "name" "Clear" "help" "Take it back. For testing." }
+    input  { "name" "SetProgress" "parameter" "<current> [max]" "help" "Show progress toward it, as a store toast." }
+    output { "name" "OnUnlocked" "help" "Fired when the achievement is awarded, by this entity or anything else." }
+}
+
+class
+{
+    "name" "logic_stat"
+    "base" "Entity" "base" "Point"
+    "help" "Sets or adds to a stat. Fires when it changes and when it reaches a threshold; can award an achievement there. The stat must be listed in the project's \"stats\" block."
+    key { "name" "stat" "label" "Stat name" "type" "string" "default" "" }
+    key { "name" "threshold" "label" "Threshold" "type" "float" "default" "0"
+          "help" "OnThreshold fires when the stat reaches this. 0 for none." }
+    key { "name" "achievement" "label" "Achievement at threshold" "type" "string" "default" ""
+          "help" "Awarded when the threshold is reached, with progress shown on the way." }
+    input  { "name" "Set" "parameter" "<value>" }
+    input  { "name" "Add" "parameter" "[amount]" "help" "Add to the stat; 1 with no parameter." }
+    input  { "name" "Increment" "help" "Add 1." }
+    input  { "name" "Store" "help" "Send changed stats to the store now rather than with the next batch." }
+    output { "name" "OnChanged" "help" "The stat changed. The parameter is its new value." }
+    output { "name" "OnThreshold" "help" "The stat reached the threshold." }
+}
+
+class
+{
+    "name" "logic_leaderboard"
+    "base" "Entity" "base" "Point"
+    "help" "Posts scores to a leaderboard, created on first use. The result arrives a moment later."
+    key { "name" "leaderboard" "label" "Leaderboard" "type" "string" "default" "" }
+    key { "name" "sort" "label" "Better is" "type" "choices" "default" "desc"
+          choice { "value" "desc" "label" "Higher (points)" }
+          choice { "value" "asc" "label" "Lower (times)" } }
+    input  { "name" "Submit" "parameter" "<score>" "help" "Post a score. The player's best is kept." }
+    output { "name" "OnSubmitted" "help" "The score was posted. The parameter is the score." }
+    output { "name" "OnRankImproved" "help" "It beat the player's best. The parameter is the new global rank." }
+    output { "name" "OnFailed" "help" "The store could not be reached." }
+}
+
+class
+{
+    "name" "logic_richpresence"
+    "base" "Entity" "base" "Point"
+    "help" "What the player's friends see them doing. On Steam, the status key shows in the friends list's game info."
+    key { "name" "status" "label" "Status at start" "type" "string" "default" ""
+          "help" "Set when the map starts. Empty for none." }
+    input  { "name" "SetStatus" "parameter" "<text>" }
+    input  { "name" "SetKey" "parameter" "<key> <value>" "help" "Any rich presence key, e.g. steam_display #Status_Atrium." }
+    input  { "name" "Clear" "help" "Clear every key." }
+}
+
+class
+{
+    "name" "logic_platform"
+    "base" "Entity" "base" "Point"
+    "help" "The store itself: whether it is there, its overlay, and DLC."
+    key { "name" "dlc" "label" "DLC app id" "type" "integer" "default" "0"
+          "help" "What CheckDlc asks about when given no parameter." }
+    input  { "name" "Refresh" "help" "Fire OnAvailable or OnUnavailable again." }
+    input  { "name" "OpenOverlay" "parameter" "[dialog]" "help" "friends, achievements, stats, community, players, settings." }
+    input  { "name" "OpenUrl" "parameter" "<url>" "help" "Open a web page in the overlay." }
+    input  { "name" "OpenStore" "parameter" "[app id]" "help" "This game's store page, or another app's." }
+    input  { "name" "CheckDlc" "parameter" "[app id]" "help" "Ask whether a DLC is installed." }
+    output { "name" "OnAvailable" "help" "At map start: a store is connected." }
+    output { "name" "OnUnavailable" "help" "At map start: no store; achievements and stats are kept locally." }
+    output { "name" "OnOverlayOpened" }
+    output { "name" "OnOverlayClosed" }
+    output { "name" "OnDlcOwned" "help" "The parameter is the app id." }
+    output { "name" "OnDlcNotOwned" "help" "The parameter is the app id." }
+}
 "#;

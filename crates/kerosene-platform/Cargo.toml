@@ -1,0 +1,19 @@
+[package]
+name = "kerosene-platform"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Store integration -- achievements, stats, leaderboards, cloud, Workshop -- behind one seam."
+
+[features]
+# Steamworks, through Valve's SDK. Off by default: the SDK is proprietary and
+# a default build of Kerosene links nothing that is not free software. See
+# `src/steam.rs` and `src/gamedev/steam.md`.
+steam = ["dep:steamworks"]
+
+[dependencies]
+log.workspace = true
+rhai.workspace = true
+steamworks = { workspace = true, optional = true }

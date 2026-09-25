@@ -20,6 +20,7 @@
 - [Making a game](./gamedev/making-a-game.md)
 - [Publishing](./gamedev/publishing.md)
 - [Platforms & distribution](./gamedev/platforms.md)
+- [Steam](./gamedev/steam.md)
 - [Shipping checklist](./gamedev/shipping-checklist.md)
 - [FAQ](./gamedev/faq.md)
 
@@ -35,5 +36,6 @@
   - [Physics](./devnotes/physics.md)
   - [Audio and acoustics](./devnotes/audio.md)
   - [The game UI](./devnotes/ui.md)
+  - [The store (Steam)](./devnotes/platform.md)
   - [Tools and the build](./devnotes/tools-and-build.md)
   - [Testing](./devnotes/testing.md)

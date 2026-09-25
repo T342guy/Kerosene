@@ -141,4 +141,4 @@ game hold its fire too, and the stock game does.
   without one. Set `KEROSENE_UI_SHOT=<dir>` to get PNGs of the shipped HUD
   and pause menu.
 
-> Next: [Tools and the build](tools-and-build.md).
+> Next: [The store (Steam)](platform.md).

@@ -399,3 +399,42 @@ fn a_repeats_children_lay_out_in_its_parent() {
     let d = doc(&ui);
     assert_eq!(d.rect(d.find("last").unwrap())[0], 50.0);
 }
+
+#[test]
+fn the_platform_object_reads_published_keys_and_queues_actions() {
+    let (mut ui, mut store, f) = setup(
+        r#"<root>
+            <script>
+                fn on_event(name, data) {
+                    if name == "boss_dead" && !steam.is_unlocked("ACH_BOSS") {
+                        platform.unlock("ACH_BOSS");
+                        platform.add_stat("kills", 1);
+                    }
+                }
+            </script>
+            <Label id="who" text="{platform.user} {platform.stats.kills}"/>
+            <Label id="badge" visible="{platform.achievements.ACH_BOSS}"/>
+        </root>"#,
+        &[],
+    );
+    store.set("platform.user", "tester");
+    store.set("platform.stats.kills", 3.0);
+    store.set("platform.achievements.ACH_BOSS", false);
+    frame(&mut ui, &mut store, &f);
+    let who = doc(&ui).find("who").unwrap();
+    assert_eq!(doc(&ui).attr(who, "text"), Some("tester 3"));
+
+    store.emit("boss_dead", "");
+    let actions = frame(&mut ui, &mut store, &f);
+    use kerosene_platform::PlatformAction;
+    assert_eq!(
+        actions,
+        vec![
+            UiAction::Platform(PlatformAction::Unlock("ACH_BOSS".into())),
+            UiAction::Platform(PlatformAction::AddStat {
+                name: "kills".into(),
+                delta: 1.0
+            }),
+        ]
+    );
+}

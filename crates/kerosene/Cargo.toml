@@ -16,6 +16,11 @@ description = "The Kerosene engine, as one crate: what a game depends on."
 default = ["audio"]
 # Audio output. Needs ALSA headers on Linux; the mixer works without it.
 audio = ["kerosene-engine/audio"]
+# Steamworks: achievements, stats, leaderboards, cloud files, the Workshop.
+# Links Valve's SDK, which is not free software; see the Steam page of the
+# game developer docs before turning it on. `kiln --ship --steam` builds with
+# it and ships the redistributable library beside the game.
+steam = ["kerosene-engine/steam"]
 # The toolset -- Chisel, the compilers, Kiln -- as a library, so a game can
 # ship a `mygame-tools` binary that knows its classes and launches it.
 tools = ["dep:kerosene-tools", "dep:chisel"]
@@ -33,6 +38,7 @@ kerosene-map.workspace = true
 kerosene-bsp.workspace = true
 kerosene-script.workspace = true
 kerosene-ui.workspace = true
+kerosene-platform.workspace = true
 kerosene-audio.workspace = true
 kerosene-render.workspace = true
 kerosene-physics.workspace = true

@@ -323,3 +323,206 @@ fn walk(dir: &Path, out: &mut Vec<PathBuf>) {
         }
     }
 }
+
+// ---- --steam ------------------------------------------------------------
+
+impl Fixture {
+    /// The fixture as a Steam game with app id 480.
+    fn steam(name: &str, dev: bool) -> Fixture {
+        let mut f = Fixture::new(name);
+        let project = f.settings.project.as_mut().unwrap();
+        project.steam_appid = Some(480);
+        f.settings.steam = Some(crate::steam::SteamShip {
+            dev,
+            upload_as: None,
+        });
+        // Re-stamp the archive: the fixture's own writes came after it.
+        std::fs::write(f.settings.archive(), b"vault").unwrap();
+        f
+    }
+
+    /// A binary and a stand-in for Valve's library, where a build leaves it.
+    fn steam_build(&self) -> (PathBuf, PathBuf) {
+        let target = self.root.join("target/ship");
+        let out = target.join("release/build/steamworks-sys-0123abcd/out");
+        std::fs::create_dir_all(&out).unwrap();
+        let redist = out.join(crate::steam::redist_name());
+        std::fs::write(&redist, b"VALVE").unwrap();
+        let binary = target.join("release/kerosene");
+        std::fs::write(&binary, b"ELF").unwrap();
+        (binary, target)
+    }
+}
+
+#[test]
+fn a_steam_ship_installs_valves_library_beside_the_game() {
+    let f = Fixture::steam("steam-redist", false);
+    let (binary, target) = f.steam_build();
+    let redist = crate::steam::find_redist(&target, toolchain::Profile::Release)
+        .expect("the build's copy is found");
+    let shipped = ship_built(&f.settings, &f.dist(), &binary, Some(&redist)).unwrap();
+
+    let installed = f.dist().join(crate::steam::redist_name());
+    assert_eq!(shipped.steam_redist.as_deref(), Some(installed.as_path()));
+    assert_eq!(std::fs::read(installed).unwrap(), b"VALVE");
+    assert!(
+        !f.dist().join("steam_appid.txt").exists(),
+        "Valve asks that steam_appid.txt never ship"
+    );
+}
+
+#[test]
+fn a_dev_steam_ship_can_run_outside_the_client() {
+    let f = Fixture::steam("steam-dev", true);
+    let (binary, target) = f.steam_build();
+    let redist = crate::steam::find_redist(&target, toolchain::Profile::Release).unwrap();
+    ship_built(&f.settings, &f.dist(), &binary, Some(&redist)).unwrap();
+    assert_eq!(
+        std::fs::read_to_string(f.dist().join("steam_appid.txt")).unwrap(),
+        "480\n"
+    );
+}
+
+#[test]
+fn steampipe_scripts_are_written_beside_the_distribution() {
+    let f = Fixture::steam("steam-vdf", false);
+    let (binary, target) = f.steam_build();
+    let redist = crate::steam::find_redist(&target, toolchain::Profile::Release).unwrap();
+    let shipped = ship_built(&f.settings, &f.dist(), &binary, Some(&redist)).unwrap();
+
+    let scripts = shipped.steam_scripts.expect("scripts are written");
+    assert_eq!(scripts.app, f.root.join("steam_build/app_build_480.vdf"));
+    let app = std::fs::read_to_string(&scripts.app).unwrap();
+    assert!(app.contains("\"AppID\" \"480\""), "{app}");
+    assert!(app.contains("\"481\" \"depot_build_481.vdf\""), "{app}");
+    assert!(
+        app.contains(&format!(
+            "\"ContentRoot\" \"{}\"",
+            f.dist().display().to_string().replace('\\', "/")
+        )),
+        "{app}"
+    );
+    let depot = std::fs::read_to_string(&scripts.depot).unwrap();
+    assert!(depot.contains("\"DepotID\" \"481\""), "{depot}");
+    assert!(
+        depot.contains("\"FileExclusion\" \"steam_appid.txt\""),
+        "{depot}"
+    );
+    assert!(
+        !f.dist().join("steam_build").exists(),
+        "the scripts are not part of what players download"
+    );
+}
+
+#[test]
+fn the_readme_names_valves_library_only_when_it_ships() {
+    let f = Fixture::steam("steam-readme", false);
+    let (binary, target) = f.steam_build();
+    let redist = crate::steam::find_redist(&target, toolchain::Profile::Release).unwrap();
+    ship_built(&f.settings, &f.dist(), &binary, Some(&redist)).unwrap();
+    let readme = std::fs::read_to_string(f.dist().join("README.txt")).unwrap();
+    assert!(readme.contains("Steamworks SDK Access"), "{readme}");
+    assert!(!readme.contains("contains no Valve"), "{readme}");
+
+    let plain = Fixture::new("plain-readme");
+    plain.ship_with_binary().unwrap();
+    let readme = std::fs::read_to_string(plain.dist().join("README.txt")).unwrap();
+    assert!(!readme.contains("Steamworks"), "{readme}");
+    assert!(readme.contains("contains no Valve"), "{readme}");
+}
+
+#[test]
+fn a_plain_ship_carries_nothing_of_steams() {
+    let f = Fixture::new("no-steam");
+    let shipped = f.ship_with_binary().unwrap();
+    assert_eq!(shipped.steam_redist, None);
+    for file in std::fs::read_dir(f.dist()).unwrap().flatten() {
+        let name = file.file_name().to_string_lossy().to_lowercase();
+        assert!(!name.contains("steam"), "{name} in a non-Steam ship");
+    }
+    assert!(!f.root.join("steam_build").exists());
+}
+
+#[test]
+fn a_steam_ship_without_the_library_or_an_app_id_is_refused() {
+    let f = Fixture::steam("steam-missing", false);
+    let (binary, _) = f.steam_build();
+    let e = ship_built(&f.settings, &f.dist(), &binary, None).unwrap_err();
+    assert!(e.to_string().contains(crate::steam::redist_name()), "{e}");
+    assert!(!f.dist().exists(), "nothing half-assembled");
+
+    let mut f = Fixture::steam("steam-no-appid", false);
+    f.settings.project.as_mut().unwrap().steam_appid = None;
+    let (binary, target) = f.steam_build();
+    let redist = crate::steam::find_redist(&target, toolchain::Profile::Release).unwrap();
+    let e = ship_built(&f.settings, &f.dist(), &binary, Some(&redist)).unwrap_err();
+    assert!(e.to_string().contains("steam_appid"), "{e}");
+}
+
+#[test]
+fn the_newest_library_wins_when_several_builds_left_one() {
+    let root = scratch("steam-newest");
+    let build = root.join("release/build");
+    for (dir, body) in [("steamworks-sys-old", "old"), ("steamworks-sys-new", "new")] {
+        let out = build.join(dir).join("out");
+        std::fs::create_dir_all(&out).unwrap();
+        std::fs::write(out.join(crate::steam::redist_name()), body).unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
+    let found = crate::steam::find_redist(&root, toolchain::Profile::Release).unwrap();
+    assert_eq!(std::fs::read_to_string(found).unwrap(), "new");
+    assert!(
+        crate::steam::find_redist(&root.join("nowhere"), toolchain::Profile::Release).is_none()
+    );
+}
+
+#[test]
+fn a_steam_build_asks_for_the_feature_and_a_way_to_find_the_library() {
+    let options = crate::steam::build_options(true, Path::new("/t/ship"));
+    assert_eq!(options.features, vec!["steam".to_string()]);
+    assert_eq!(options.target_dir.as_deref(), Some(Path::new("/t/ship")));
+    let flags = options.rustflags.unwrap_or_default();
+    if cfg!(target_os = "linux") {
+        assert!(flags.contains("rpath,$ORIGIN"), "{flags}");
+    }
+    if cfg!(windows) {
+        assert!(flags.contains("crt-static"), "{flags}");
+    }
+    let plain = crate::steam::build_options(false, Path::new("/t/ship"));
+    assert!(plain.features.is_empty());
+    if !cfg!(windows) {
+        assert_eq!(
+            plain,
+            toolchain::BuildOptions::default(),
+            "an ordinary build is untouched"
+        );
+    }
+}
+
+#[test]
+fn the_shipped_project_keeps_what_the_store_needs() {
+    let mut f = Fixture::steam("steam-project", false);
+    {
+        let p = f.settings.project.as_mut().unwrap();
+        p.achievements = vec![("ACH_A".into(), "The \"first\" one".into())];
+        p.stats = vec![("kills".into(), "int".into())];
+        p.dlc = vec![(111, "Soundtrack".into())];
+    }
+    let (binary, target) = f.steam_build();
+    let redist = crate::steam::find_redist(&target, toolchain::Profile::Release).unwrap();
+    ship_built(&f.settings, &f.dist(), &binary, Some(&redist)).unwrap();
+
+    let path = f.dist().join("test_game.keroproj");
+    let shipped = Project::read(&path).unwrap();
+    assert_eq!(shipped.steam_appid, Some(480));
+    assert_eq!(
+        shipped.achievements,
+        vec![("ACH_A".to_string(), "The \"first\" one".to_string())]
+    );
+    assert_eq!(
+        shipped.stats,
+        vec![("kills".to_string(), "int".to_string())]
+    );
+    assert_eq!(shipped.dlc, vec![(111, "Soundtrack".to_string())]);
+    assert_eq!(shipped.start_map.as_deref(), Some("tg_intro"));
+}

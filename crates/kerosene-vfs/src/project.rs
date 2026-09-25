@@ -23,6 +23,27 @@
 //!     // key rather than separating with commas.
 //!     "dir"      "maps"
 //!     "dir"      "materials"
+//!
+//!     // Steam, for a build with the `steam` feature. See the Steam page of
+//!     // the game developer docs.
+//!     "steam_appid" "480"
+//!     "steam_depot" "481"            // defaults to the app id plus one
+//!
+//!     // What the game awards and counts. Declared, so a typo in a map is
+//!     // an error on the console rather than an achievement nobody gets.
+//!     "achievements"
+//!     {
+//!         "ACH_FIRST_DOOR"  "Open the first door"
+//!     }
+//!     "stats"
+//!     {
+//!         "doors_opened"    "int"
+//!         "distance"        "float"
+//!     }
+//!     "dlc"
+//!     {
+//!         "1234560"         "Soundtrack"
+//!     }
 //! }
 //! ```
 //!
@@ -39,7 +60,7 @@ use std::path::{Path, PathBuf};
 pub const EXTENSION: &str = "keroproj";
 
 /// What a project says about itself.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct Project {
     /// The file this was read from.
     pub path: PathBuf,
@@ -72,6 +93,17 @@ pub struct Project {
     ///
     /// [`root::CONTENT_DIRS`]: crate::root::CONTENT_DIRS
     pub dirs: Option<Vec<String>>,
+    /// The Steam app id, when the game ships on Steam.
+    pub steam_appid: Option<u32>,
+    /// The depot `kiln --ship --steam` uploads to. Defaults to the app id
+    /// plus one, which is what Steamworks gives a new app.
+    pub steam_depot: Option<u32>,
+    /// Declared achievements: id, then display name.
+    pub achievements: Vec<(String, String)>,
+    /// Declared stats: name, then `int` or `float`.
+    pub stats: Vec<(String, String)>,
+    /// Declared DLC: app id, then name.
+    pub dlc: Vec<(u32, String)>,
 }
 
 impl Project {
@@ -145,6 +177,18 @@ impl Project {
                     .collect();
                 (!named.is_empty()).then_some(named)
             },
+            steam_appid: number(block, "steam_appid", path)?,
+            steam_depot: number(block, "steam_depot", path)?,
+            achievements: pairs(block, "achievements"),
+            stats: pairs(block, "stats"),
+            dlc: pairs(block, "dlc")
+                .into_iter()
+                .map(|(id, name)| {
+                    id.parse::<u32>().map(|id| (id, name)).map_err(|_| {
+                        anyhow::anyhow!("{}: dlc `{id}` is not an app id", path.display())
+                    })
+                })
+                .collect::<anyhow::Result<_>>()?,
         })
     }
 
@@ -175,6 +219,29 @@ impl Project {
             .map_err(|e| anyhow::anyhow!("writing {}: {e}", path.display()))?;
         Ok(())
     }
+}
+
+/// An optional whole number, refused rather than ignored when it is not one:
+/// a mistyped app id quietly read as "none" would ship a game with Steam
+/// switched off.
+fn number(block: &KeyValues, key: &str, path: &Path) -> anyhow::Result<Option<u32>> {
+    match block.get(key).map(str::trim).filter(|v| !v.is_empty()) {
+        None => Ok(None),
+        Some(v) => v
+            .parse()
+            .map(Some)
+            .map_err(|_| anyhow::anyhow!("{}: {key} `{v}` is not a number", path.display())),
+    }
+}
+
+/// Every key/value pair in a named sub-block, in order.
+fn pairs(block: &KeyValues, name: &str) -> Vec<(String, String)> {
+    block
+        .blocks(name)
+        .flat_map(|b| b.pairs())
+        .map(|(k, v)| (k.trim().to_string(), v.trim().to_string()))
+        .filter(|(k, _)| !k.is_empty())
+        .collect()
 }
 
 /// The first project file directly in a directory, by name.

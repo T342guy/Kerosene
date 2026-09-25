@@ -11,6 +11,9 @@ authors.workspace = true
 # decides how a sound sounds is on regardless; this is only the last hop.
 default = ["audio"]
 audio = ["kerosene-audio/device"]
+# Steamworks: achievements, stats, leaderboards, cloud, the Workshop. Off by
+# default; see kerosene-platform.
+steam = ["kerosene-platform/steam"]
 
 [dependencies]
 kerosene-math.workspace = true
@@ -34,6 +37,7 @@ pollster.workspace = true
 env_logger.workspace = true
 kerosene-script.workspace = true
 kerosene-ui.workspace = true
+kerosene-platform.workspace = true
 kerosene-audio.workspace = true
 rhai.workspace = true
 kerosene-kv.workspace = true

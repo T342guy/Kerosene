@@ -130,6 +130,9 @@ pub enum UiAction {
     },
     HideLayer(String),
     Log(LogLevel, String),
+    /// Something for the store -- an achievement, a stat, a score -- from
+    /// the `platform` (or `steam`) object.
+    Platform(kerosene_platform::PlatformAction),
 }
 
 /// Keys the UI does something with. Everything else is left to the game.

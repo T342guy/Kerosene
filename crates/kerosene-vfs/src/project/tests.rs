@@ -246,3 +246,42 @@ fn a_blank_dir_key_is_dropped_rather_than_creating_the_root_again() {
         Some(vec!["maps".to_string()])
     );
 }
+
+#[test]
+fn steam_keys_and_declarations_are_read() {
+    let dir = scratch("steam-keys");
+    let path = dir.join("p.keroproj");
+    std::fs::write(
+        &path,
+        r#"project
+{
+    "steam_appid" "480"
+    "achievements" { "ACH_A" "First" "ACH_B" "Second" }
+    "stats" { "doors" "int" "distance" "float" }
+    "dlc" { "1234560" "Soundtrack" }
+}"#,
+    )
+    .unwrap();
+
+    let p = Project::read(&path).unwrap();
+    assert_eq!(p.steam_appid, Some(480));
+    assert_eq!(p.steam_depot, None);
+    assert_eq!(
+        p.achievements,
+        vec![
+            ("ACH_A".to_string(), "First".to_string()),
+            ("ACH_B".to_string(), "Second".to_string())
+        ]
+    );
+    assert_eq!(p.stats[1], ("distance".to_string(), "float".to_string()));
+    assert_eq!(p.dlc, vec![(1234560, "Soundtrack".to_string())]);
+}
+
+#[test]
+fn a_mistyped_app_id_is_an_error_not_steam_switched_off() {
+    let dir = scratch("bad-appid");
+    let path = dir.join("p.keroproj");
+    std::fs::write(&path, "project { \"steam_appid\" \"48O\" }").unwrap();
+    let e = Project::read(&path).unwrap_err().to_string();
+    assert!(e.contains("steam_appid"), "{e}");
+}

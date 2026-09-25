@@ -28,6 +28,7 @@ use std::process::Stdio;
 
 mod cli;
 pub mod ship;
+pub mod steam;
 
 pub use cli::run;
 
@@ -116,6 +117,9 @@ pub struct Settings {
     pub models_in_metres: bool,
     /// Where to assemble a distribution, when one was asked for.
     pub ship_to: Option<PathBuf>,
+    /// Ship for Steam: build with the `steam` feature and install Valve's
+    /// redistributable beside the game. See [`steam`].
+    pub steam: Option<steam::SteamShip>,
 }
 
 impl Default for Settings {
@@ -130,6 +134,7 @@ impl Default for Settings {
             force: false,
             models_in_metres: true,
             ship_to: None,
+            steam: None,
         }
     }
 }

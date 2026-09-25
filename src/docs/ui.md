@@ -141,6 +141,8 @@ Run `ui_dump` in the console for the live list. The engine publishes:
 | `map.name` | |
 | `ui.menu_open` | |
 | `cvar.NAME` | Any convar a layout reads |
+| `platform.available` `platform.name` `platform.user` `platform.overlay` | The store: Steam, or `none` |
+| `platform.achievements.ID` `platform.stats.NAME` `platform.dlc.APPID` `platform.names.ID` | Every declared one; `names` are the display names. See [Steam](../gamedev/steam.md) |
 
 The stock game (`kerosene::game::Stock`) adds its weapons and ability:
 
@@ -170,6 +172,7 @@ Events are one-off: something happened. Listen with `on:NAME` or a script's
 | `weapon_fired` | weapon | stock game |
 | `weapon_empty` `weapon_reload` `weapon_reloaded` | | stock game |
 | `ability_used` `ability_ready` | ability | stock game |
+| `achievement_unlocked` `stat_changed` `score_submitted` `overlay_opened` ... | see [Steam](../gamedev/steam.md#from-a-script-platform-or-steam) | the store |
 
 Send your own with `engine.ui_emit(...)`, `ui_event(...)` in a level script,
 `logic_ui`'s `Emit` input, or `ui_emit` at the console.
@@ -241,6 +244,7 @@ its own sandboxed Rhai VM, with the same limits as a level script, and:
 | `show_layer(layer, file)` `hide_layer(layer)` | |
 | `schedule(seconds, "function")` | Call a function later |
 | `time()` `print` `warn` `error` | |
+| `platform` (or `steam`) | The store, the same object level scripts have: `platform.unlock(id)`, `platform.user`, ... See [Scripting](scripting.md#the-store-platform-or-steam) |
 
 The engine calls two hooks if a script defines them: `on_load()` and
 `on_event(name, data)`. Code in an attribute (`onactivate="resume()"`) runs

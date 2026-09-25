@@ -514,3 +514,39 @@ fn unbounded_recursion_is_stopped() {
     host.load("m", r#" fn deep(n) { deep(n + 1) } "#).unwrap();
     assert!(host.run("deep(0)").is_err());
 }
+
+// ---- the store -------------------------------------------------------------
+
+#[test]
+fn the_platform_object_is_reachable_from_inside_functions() {
+    let mut host = host();
+    let mut view = world();
+    view.platform.user = "tester".into();
+    view.platform.achievements.insert("ACH_DOOR".into(), false);
+    host.set_view(view);
+    host.load(
+        "t.keroscript",
+        r#"
+        fn award() {
+            if !platform.is_unlocked("ACH_DOOR") { steam.unlock("ACH_DOOR"); }
+            platform.add_stat("doors", 1);
+        }
+        "#,
+    )
+    .unwrap();
+    host.call("award", vec![]).unwrap();
+    assert_eq!(
+        host.take_actions(),
+        vec![
+            ScriptAction::Platform(kerosene_platform::PlatformAction::Unlock("ACH_DOOR".into())),
+            ScriptAction::Platform(kerosene_platform::PlatformAction::AddStat {
+                name: "doors".into(),
+                delta: 1.0
+            }),
+        ]
+    );
+    assert_eq!(
+        host.run("platform.user").unwrap().as_deref(),
+        Some("tester")
+    );
+}

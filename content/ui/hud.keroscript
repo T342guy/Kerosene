@@ -18,8 +18,15 @@ fn toast(text) {
     t.trigger_class("show");
 }
 
+// The display name the project declares, or the id when it declares none.
+fn achievement(id) {
+    panel("achievement-name").set_text(store_or("platform.names." + id, id));
+    panel("achievement").trigger_class("show");
+}
+
 fn on_event(name, data) {
     switch name {
+        "achievement_unlocked" => achievement(data),
         "weapon_empty" => toast("Empty - press R"),
         "weapon_reload" => toast("Reloading"),
         "ability_ready" => toast("Dash ready"),

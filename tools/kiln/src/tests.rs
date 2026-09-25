@@ -42,6 +42,7 @@ fn the_archive_is_named_after_the_project_and_lives_in_the_content_tree() {
             game: None,
             bin: None,
             dirs: None,
+            ..Default::default()
         }),
         ..Settings::default()
     };

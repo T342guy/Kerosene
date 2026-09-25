@@ -39,6 +39,7 @@ pub mod animated;
 pub mod doors;
 pub mod lights;
 pub mod logic;
+pub mod platform;
 pub mod props;
 pub mod schema;
 pub mod scripted;
@@ -84,6 +85,7 @@ pub fn register(registry: &mut ClassRegistry) {
     lights::register(registry);
     animated::register(registry);
     ui::register(registry);
+    platform::register(registry);
 
     // Inputs every entity understands, as Source makes them.
     registry.register_common_input("Kill", input_kill);

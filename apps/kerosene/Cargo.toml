@@ -6,6 +6,10 @@ rust-version.workspace = true
 license.workspace = true
 authors.workspace = true
 
+[features]
+# `cargo run -p kerosene-runtime --features steam`, or `kiln --ship --steam`.
+steam = ["kerosene/steam"]
+
 [dependencies]
 kerosene.workspace = true
 anyhow.workspace = true

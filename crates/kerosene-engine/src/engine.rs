@@ -62,6 +62,9 @@ pub struct EngineConfig {
     /// Without it the console still works; it just cannot show anything the
     /// rest of the engine logged.
     pub log: Option<std::sync::Arc<kerosene_console::LogRelay>>,
+    /// The store: whether to try Steam, and what the game declares. The
+    /// default is no store, which is what tests and servers want.
+    pub platform: kerosene_platform::PlatformConfig,
 }
 
 impl Default for EngineConfig {
@@ -77,6 +80,7 @@ impl Default for EngineConfig {
             archives: Vec::new(),
             map: None,
             startup_commands: Vec::new(),
+            platform: kerosene_platform::PlatformConfig::default(),
         }
     }
 }
@@ -228,6 +232,9 @@ pub struct Engine {
     pub should_quit: bool,
     /// The game UI: its store, layers, world panels and decals.
     pub ui: crate::ui::GameUi,
+    /// The store the game ships on -- Steam, or nothing. See
+    /// [`crate::platform`].
+    pub platform: kerosene_platform::Platform,
 }
 
 /// The prop the pick-up tool is carrying, and the orientation that keeps its
@@ -311,6 +318,20 @@ impl Engine {
                 Err(e) => log::warn!("could not mount {}: {e}", archive.display()),
             }
         }
+        // The store comes up before the file system is sealed, because
+        // subscribed Workshop items are more archives to mount: a map from
+        // the Workshop is one more layer, found like any other.
+        let mut platform = kerosene_platform::Platform::new(config.platform.clone());
+        for (id, dir) in platform.workshop_items() {
+            match vfs.mount_archives_in(&dir, "WORKSHOP") {
+                Ok(0) => {}
+                Ok(n) => {
+                    log::info!("workshop item {id}: mounted {n} archive(s)");
+                    platform.note_workshop_mounted(id, dir);
+                }
+                Err(e) => log::warn!("workshop item {id}: {e}"),
+            }
+        }
         // Loose files win over packed ones, so a developer can drop a file
         // beside a shipped archive and see it immediately.
         let vfs = Arc::new(vfs);
@@ -319,6 +340,7 @@ impl Engine {
         register_cvars(&mut console);
         register_commands(&mut console);
         crate::ui::register(&mut console);
+        crate::platform::register(&mut console);
 
         // Wire `exec` to the filesystem.
         let exec_vfs = vfs.clone();
@@ -386,6 +408,7 @@ impl Engine {
             pending_map: config.map.clone(),
             should_quit: false,
             ui: crate::ui::GameUi::default(),
+            platform,
         };
 
         let vfs = engine.vfs.clone();
@@ -916,6 +939,7 @@ impl Engine {
             );
         }
 
+        self.dispatch_platform_events();
         self.publish_ui_state();
     }
 
@@ -2048,6 +2072,7 @@ pub fn take_console_requests(engine: &mut Engine) -> Vec<(String, String)> {
                 ));
             }
             kind if engine.ui_console_request(kind, &payload) => {}
+            kind if engine.platform_console_request(kind, &payload) => {}
             // Not ours. The console can ask for things the *host* owns --
             // opening the console itself, most obviously -- and the engine
             // has no business knowing a window exists. Handing them back

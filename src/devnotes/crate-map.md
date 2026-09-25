@@ -30,6 +30,7 @@ flowchart TB
     audio["kerosene-audio<br/>mixer, reverb"]
     script["kerosene-script<br/>Rhai layer"]
     ui["kerosene-ui<br/>game UI: layout, style, bindings"]
+    platform["kerosene-platform<br/>store seam: Steam or none"]
     facade["kerosene<br/>facade + Stock + launch"]
     runtime["apps/kerosene<br/>the runtime binary"]
 
@@ -68,6 +69,9 @@ flowchart TB
     audio --> engine
     script --> engine
     script --> ui
+    platform --> script
+    platform --> ui
+    platform --> engine
     vfs --> ui
     ui --> render
     ui --> engine
@@ -94,6 +98,7 @@ flowchart TB
     classDef mid fill:#AA00FF,color:#fff
     classDef runtimeC fill:#00C853,color:#fff
     class math,kv,console,config,vfs base
+    class platform base
     class asset,map,bsp,walk,physics,rigid,entity,render,audio,script mid
     class engine,game,facade,runtime runtimeC
 ```
@@ -222,6 +227,7 @@ The runtime binary `apps/kerosene/src/main.rs` is a call to
 | `kerosene-audio` | ADPCM, mixer, FDN reverb, device output | `src/mixer.rs`, `src/reverb.rs`, `src/compiled.rs` |
 | `kerosene-script` | Rhai VM, world snapshot, `ScriptAction` queue | `src/lib.rs`, `src/view.rs`, `src/bindings.rs` |
 | `kerosene-ui` | Game UI: XML/CSS/Rhai documents, store and bindings, flexbox, glyph atlas, display list | `src/document.rs`, `src/bind.rs`, `src/style.rs` |
+| `kerosene-platform` | The store: `Platform` (validation, batching, events) over a `Backend` -- Steam behind the `steam` feature, an offline stand-in otherwise -- and the Rhai `platform` object both script VMs register | `src/lib.rs`, `src/steam.rs`, `src/script.rs` |
 | `kerosene-toolui` | The tools' egui window host, theme and widgets | `src/lib.rs`, `src/theme.rs` |
 | `kerosene-engine` | `Engine`, `Game`, `host`, `launch`, streaming, acoustics glue | `src/engine.rs`, `src/host.rs` |
 | `kerosene-game` | Stock classes: doors, triggers, logic, props, sound | `src/doors.rs`, `src/logic.rs`, `src/props.rs` |

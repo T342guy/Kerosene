@@ -9,6 +9,7 @@ authors.workspace = true
 [dependencies]
 kerosene-script.workspace = true
 kerosene-vfs.workspace = true
+kerosene-platform.workspace = true
 log.workspace = true
 rhai.workspace = true
 taffy.workspace = true

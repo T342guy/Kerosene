@@ -9,5 +9,6 @@ authors.workspace = true
 [dependencies]
 kerosene-math.workspace = true
 rhai.workspace = true
+kerosene-platform.workspace = true
 log.workspace = true
 thiserror.workspace = true

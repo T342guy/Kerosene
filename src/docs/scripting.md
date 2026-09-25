@@ -43,6 +43,7 @@ Define these and the engine calls them.
 |---|---|
 | `on_map_start()` | Once, after every entity in the map has spawned |
 | `on_tick(dt)` | Every tick, with the tick length in seconds |
+| `on_platform_event(name, data)` | The store reported something: `achievement_unlocked`, `score_submitted`, `overlay_opened`, ... See [Steam](../gamedev/steam.md#from-a-script-platform-or-steam) |
 
 A function called through `CallScriptFunction` may take the caller's name, or
 take nothing — both spellings work, so the unused parameter is never forced on
@@ -118,6 +119,26 @@ the ordering and the delays are the ones the rest of the level plays by.
 | `place_decal(material, origin, normal, size)` | Project a decal |
 
 See [Game UI](ui.md).
+
+### The store: `platform` (or `steam`)
+
+Steam when the game is built with it, a stand-in otherwise. The same calls
+work on both.
+
+| | |
+|---|---|
+| `.available` `.name` `.user` `.language` `.overlay` | Read |
+| `.is_unlocked(id)` `.stat(name)` `.owns_dlc(appid)` `.achievements` `.stats` | Read |
+| `.unlock(id)` `.progress(id, current, max)` `.clear(id)` | Achievements; `clear` is for testing |
+| `.set_stat(name, v)` `.add_stat(name)` `.add_stat(name, d)` `.store_stats()` | Stats |
+| `.submit_score(board, score)` `.submit_score(board, score, lower_is_better)` | Leaderboards; the result comes to `on_platform_event` |
+| `.presence(key, value)` `.clear_presence()` | Rich presence |
+| `.open_overlay(dialog)` `.open_url(url)` `.open_store()` `.open_store(appid)` `.check_dlc(appid)` | |
+
+Achievement ids and stat names must be declared in the `.keroproj`. The
+object works inside functions, unlike top-level variables, and so `platform`
+and `steam` cannot be used as variable names. See
+[Steam](../gamedev/steam.md).
 
 ### Vectors
 

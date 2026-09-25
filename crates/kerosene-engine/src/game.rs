@@ -100,6 +100,11 @@ pub trait Game: 'static {
     /// choice in a dialogue. `source` is the layer (`hud`, `menu`) or world
     /// panel (`panel:<name>`) it came from.
     fn ui_event(&mut self, engine: &mut Engine, name: &str, data: &str, source: &str) {}
+
+    /// The store reported something: an achievement unlocked, a stat
+    /// changed, a score posted, the overlay opened. Entities wired to it and
+    /// the map's `on_platform_event` have already heard.
+    fn platform_event(&mut self, engine: &mut Engine, event: &kerosene_platform::PlatformEvent) {}
 }
 
 /// No game: no classes, nothing on any hook.

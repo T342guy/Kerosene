@@ -317,27 +317,30 @@ for completeness.
 
 ## 14. Integrations
 
-There are none. Which ones matter, in order of what they pay back:
+- ~~**Steamworks**~~ In, as the opt-in `steam` feature (see
+  [Steam](../gamedev/steam.md)). It covers:
+  - init and the relaunch through Steam
+  - the overlay, which pauses the game
+  - achievements (with progress), stats and leaderboards
+  - rich presence, DLC checks and the cloud file API
+  - Workshop items mounted as VFS layers, with `kerosene-tools workshop
+    upload` for putting a `.vault` up
 
-- **Steamworks**, via the `steamworks` crate over Valve's SDK. The SDK is
-  proprietary and cannot live in a GPL tree, so this is a Cargo feature
-  the engine is built with, and `kiln --ship --steam` copies
-  `steam_api.so`/`.dll` and writes `steam_appid.txt`. Then, in order:
-  - Init and `restart_app_if_necessary`. The overlay works over Vulkan and
-    DX12 without help.
-  - **Workshop.** Open formats plus a `.vault` per map means a map uploads
-    from Chisel, a player subscribes in-game, and the engine mounts the
-    download as one more VFS layer -- `kerosene-vfs` already does layered
-    search paths. No other engine at this size makes this this easy, and it
-    is the payoff of the open-formats thesis. See `positioning.md`.
-  - Achievements and stats, exposed as an entity (`logic_achievement`) and a
-    Rhai call, so a level can award one without code.
-  - Cloud saves, once save/load exists.
-  - Steam Input, for the gamepad story on Steam.
-  - Rich presence; later, lobbies and Steam Datagram Relay for networking.
-- **A platform trait** -- achievements, cloud, UGC, presence -- from the
-  start, so Steam is one implementation and GOG Galaxy or Epic Online
-  Services are another, and no game code names either.
+  All of it is reachable from entity I/O (`logic_achievement`, `logic_stat`,
+  `logic_leaderboard`, `logic_richpresence`, `logic_platform`), from Rhai (the
+  `platform` object, alias `steam`) and from game code. `kiln --ship --steam`
+  installs Valve's redistributable with an rpath and writes the SteamPipe
+  scripts.
+
+  Still missing:
+  - Steam Input
+  - lobbies and Steam Datagram Relay
+  - leaderboard downloads
+  - Workshop browsing in-game
+  - uploading from Chisel rather than the command line
+- ~~**A platform trait**~~ `kerosene-platform`'s `Backend`: Steam is one
+  implementation and the offline stand-in another, and no game code names
+  either. GOG Galaxy and Epic Online Services are not written.
 - **Discord** rich presence (`discord-rich-presence`). Trivial.
 - **Crash reporting** (section 13).
 - **itch.io** as a Kiln ship target, via butler.

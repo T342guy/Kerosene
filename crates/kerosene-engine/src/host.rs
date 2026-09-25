@@ -521,6 +521,10 @@ impl App {
         }
         report_unhandled(&mut self.engine, leftover);
 
+        // The store, every frame rather than every tick: the overlay's
+        // callbacks must keep flowing while the game is paused under it.
+        self.engine.platform_frame(real_dt);
+
         // The UI, after the ticks it shows the result of.
         if let Some(gfx) = &self.gfx {
             let viewport = (gfx.config.width, gfx.config.height);

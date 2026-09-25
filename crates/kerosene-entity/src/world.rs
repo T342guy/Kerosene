@@ -136,6 +136,13 @@ pub mod host_requests {
     /// Project a decal onto the nearest surface to the caller. The payload
     /// is `material size`.
     pub const PLACE_DECAL: &str = "place_decal";
+    /// Something for the store -- Steam, or nothing. The payload is a
+    /// platform action in its one-line form: `unlock ACH_X`,
+    /// `add_stat kills 1`, `score best_time 5230 asc`.
+    pub const PLATFORM: &str = "platform";
+    /// A `logic_platform` spawned or was asked to `Refresh`: the engine
+    /// answers by firing `OnAvailable` or `OnUnavailable` on the caller.
+    pub const PLATFORM_STATUS: &str = "platform_status";
 }
 
 impl EntityWorld {

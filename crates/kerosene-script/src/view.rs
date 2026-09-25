@@ -66,6 +66,9 @@ pub struct WorldView {
     pub map: String,
     /// Where the player is, if there is one.
     pub player: Option<EntityView>,
+    /// The store: achievements, stats, the player's name. Read through the
+    /// `platform` object.
+    pub platform: kerosene_platform::PlatformView,
 }
 
 impl WorldView {

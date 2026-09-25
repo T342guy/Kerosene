@@ -21,6 +21,7 @@ members = [
     "crates/kerosene-audio",
     "crates/kerosene-toolui",
     "crates/kerosene-ui",
+    "crates/kerosene-platform",
     "crates/kerosene",
     "apps/kerosene",
     "tools/chisel",
@@ -66,6 +67,7 @@ kerosene-script  = { path = "crates/kerosene-script" }
 kerosene-audio   = { path = "crates/kerosene-audio", default-features = false }
 kerosene-toolui  = { path = "crates/kerosene-toolui" }
 kerosene-ui      = { path = "crates/kerosene-ui" }
+kerosene-platform = { path = "crates/kerosene-platform" }
 kerosene         = { path = "crates/kerosene" }
 box3d-rust       = "0.2"
 
@@ -103,6 +105,14 @@ taffy       = { version = "0.9", default-features = false, features = ["std", "t
 roxmltree   = "0.21"
 ab_glyph    = "0.2"
 epaint_default_fonts = "0.32"
+# Steamworks, for `kerosene-platform`'s optional `steam` feature and nothing
+# else. The crate is MIT OR Apache-2.0; what it binds, Valve's SDK, is not
+# free software, which is why no default build enables it and the tree
+# vendors none of it. A game that turns it on is a Combined Work under the
+# Kerosene Exception, with the SDK as an Independent Module -- see
+# src/gamedev/steam.md. `raw-bindings` for the one call the wrapper lacks
+# (achievement progress toasts).
+steamworks  = { version = "0.13", features = ["raw-bindings"] }
 # Audio output. Needs ALSA headers on Linux (libasound2-dev); the mixer
 # itself is pure Rust and builds without it.
 cpal        = "0.18"

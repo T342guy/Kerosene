@@ -20,6 +20,7 @@
 //! | `show_layer(layer, file)` `hide_layer(layer)` | Other documents |
 //! | `schedule(seconds, "fn_name")` | Call a function later |
 //! | `time()` `print(x)` `warn(x)` | |
+//! | `platform` (also `steam`) | The store: `.unlock(id)`, `.add_stat(name, d)`, `.user`, ... -- see [`kerosene_platform::script`] |
 //!
 //! Hooks: `on_load()` once the layout is up, and `on_event(name, data)` for
 //! every event in the store.
@@ -209,6 +210,17 @@ pub(crate) fn register(engine: &mut rhai::Engine, shared: &Rc<RefCell<Shared>>) 
             sh.actions.push(action);
         }
     }
+    // The same object a level's scripts have, reading what the engine
+    // publishes under `platform.` -- so `{platform.user}` in a binding and
+    // `platform.user` in a script agree.
+    let view = shared.clone();
+    let sink = shared.clone();
+    kerosene_platform::script::register(
+        engine,
+        move || platform_view(&view.borrow().store),
+        move |a| action(&sink, UiAction::Platform(a)),
+    );
+
     let s = shared.clone();
     engine.register_fn("emit", move |name: &str, data: rhai::Dynamic| {
         action(
@@ -302,6 +314,47 @@ pub(crate) fn register(engine: &mut rhai::Engine, shared: &Rc<RefCell<Shared>>) 
             UiAction::Log(crate::LogLevel::Error, crate::bind::display(&x)),
         );
     });
+}
+
+/// Where the engine publishes the store's state.
+pub const PLATFORM_PREFIX: &str = "platform.";
+
+/// Read the platform's published keys back into the view a script reads.
+///
+/// `platform.available`, `.name`, `.user`, `.language`, `.overlay`, then
+/// `platform.achievements.<id>`, `platform.stats.<name>` and
+/// `platform.dlc.<appid>`.
+pub fn platform_view(store: &BTreeMap<String, Value>) -> kerosene_platform::PlatformView {
+    let mut view = kerosene_platform::PlatformView::default();
+    for (key, value) in store.range(PLATFORM_PREFIX.to_string()..) {
+        let Some(rest) = key.strip_prefix(PLATFORM_PREFIX) else {
+            break;
+        };
+        let text = || crate::bind::display(&value.to_dynamic());
+        match rest.split_once('.') {
+            None => match rest {
+                "available" => view.available = value.truthy(),
+                "name" => view.name = text(),
+                "user" => view.user = text(),
+                "language" => view.language = text(),
+                "overlay" => view.overlay = value.truthy(),
+                _ => {}
+            },
+            Some(("achievements", id)) => {
+                view.achievements.insert(id.to_string(), value.truthy());
+            }
+            Some(("stats", name)) => {
+                view.stats.insert(name.to_string(), value.as_f64());
+            }
+            Some(("dlc", id)) => {
+                if let Ok(id) = id.parse() {
+                    view.dlc.insert(id, value.truthy());
+                }
+            }
+            _ => {}
+        }
+    }
+    view
 }
 
 /// One document's script VM: the engine, what the files defined, and the

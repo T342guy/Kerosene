@@ -9,6 +9,8 @@
 //! kerosene-tools kiln --dry-run                    # say what would run
 //! kerosene-tools kiln --tools                      # which pieces are present
 //! kerosene-tools kiln --ship dist                  # build, then assemble
+//! kerosene-tools kiln --ship dist --steam          # ... for Steam, with Valve's library
+//! kerosene-tools kiln --ship dist --steam-upload me  # ... and upload it with steamcmd
 //! ```
 
 use crate::{Settings, Stage};
@@ -56,6 +58,21 @@ struct Args {
     /// Assemble a distribution into this directory once the content is built.
     #[arg(long, value_name = "DIR")]
     ship: Option<PathBuf>,
+
+    /// Ship for Steam: build with the `steam` feature, put Valve's
+    /// redistributable beside the game, and write SteamPipe build scripts.
+    #[arg(long)]
+    steam: bool,
+
+    /// With --steam: also write steam_appid.txt, so the build runs outside
+    /// the Steam client. For testing; it is never uploaded.
+    #[arg(long)]
+    steam_dev: bool,
+
+    /// With --steam: upload the build with steamcmd, signed in as this
+    /// account. steamcmd asks for the password itself.
+    #[arg(long, value_name = "ACCOUNT")]
+    steam_upload: Option<String>,
 }
 
 /// Entry point for the `kiln` subcommand of the unified toolset.
@@ -122,8 +139,17 @@ pub fn run(args: Vec<String>) -> Result<()> {
         ignore_leaks: args.ignore_leaks,
         force: args.force,
         models_in_metres: !args.model_units,
+        steam: (args.steam || args.steam_dev || args.steam_upload.is_some()).then(|| {
+            crate::steam::SteamShip {
+                dev: args.steam_dev,
+                upload_as: args.steam_upload.clone(),
+            }
+        }),
         ship_to: args.ship,
     };
+    if settings.steam.is_some() && settings.ship_to.is_none() {
+        bail!("--steam is a way of shipping; say where with --ship <dir>");
+    }
 
     let report = crate::build(&settings)?;
 

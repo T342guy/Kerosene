@@ -35,7 +35,13 @@
 //!   LICENSE-EXCEPTION  the Kerosene Exception: the linking permission and
 //!                      the attribution terms, full text
 //!   README.txt         what this is, and the notices the licence asks for
+//!   libsteam_api.so    with --steam: Valve's redistributable (steam_api64.dll,
+//!                      libsteam_api.dylib), found through an rpath
+//! steam_build/         with --steam: SteamPipe's app and depot build scripts,
+//!                      beside the distribution rather than in it
 //! ```
+//!
+//! See [`crate::steam`] for what `--steam` changes and why.
 
 use crate::{Settings, slug};
 use anyhow::{Context, Result, bail};
@@ -64,6 +70,16 @@ pub struct Shipped {
     pub archive: PathBuf,
     /// Every file written that exists to satisfy a licence.
     pub notices: Vec<PathBuf>,
+    /// With `--steam`: Valve's library, beside the game.
+    pub steam_redist: Option<PathBuf>,
+    /// With `--steam`: the SteamPipe build scripts.
+    pub steam_scripts: Option<crate::steam::BuildScripts>,
+}
+
+/// A game binary, and the Steam library its build produced.
+pub(crate) struct Built {
+    pub binary: PathBuf,
+    pub redist: Option<PathBuf>,
 }
 
 /// Assemble a distribution into `out`.
@@ -72,8 +88,8 @@ pub struct Shipped {
 /// and shipping last week's maps because nobody noticed the archive was stale
 /// is a bad enough failure to be worth refusing rather than warning about.
 pub fn ship(settings: &Settings, out: &Path) -> Result<Shipped> {
-    let source = game_binary(settings)?;
-    ship_from(settings, out, &source)
+    let built = game_binary(settings)?;
+    ship_built(settings, out, &built.binary, built.redist.as_deref())
 }
 
 /// Assemble from a binary that has already been found or built.
@@ -82,10 +98,34 @@ pub fn ship(settings: &Settings, out: &Path) -> Result<Shipped> {
 /// what goes into a distribution, and what must not, is the part worth
 /// pinning down, and running cargo to find out would make those tests
 /// minutes long and dependent on the machine.
+#[cfg(test)]
 pub(crate) fn ship_from(settings: &Settings, out: &Path, source: &Path) -> Result<Shipped> {
+    ship_built(settings, out, source, None)
+}
+
+/// [`ship_from`], with the Steam library a `--steam` build made.
+pub(crate) fn ship_built(
+    settings: &Settings,
+    out: &Path,
+    source: &Path,
+    redist: Option<&Path>,
+) -> Result<Shipped> {
     let archive = settings.archive();
     if !settings.dry_run {
         check_archive(settings, &archive)?;
+    }
+    // Checked before anything is written: a Steam build with no app id is
+    // a mistake to refuse, not a distribution to half-assemble.
+    let steam_ids = match &settings.steam {
+        Some(_) => Some(crate::steam::ids(settings.project.as_ref())?),
+        None => None,
+    };
+    if settings.steam.is_some() && redist.is_none() && !settings.dry_run {
+        bail!(
+            "a --steam ship needs Valve's {} from the build, and none was found. \
+             Is the game built with the `steam` feature?",
+            crate::steam::redist_name()
+        );
     }
 
     let name = match &settings.project {
@@ -108,6 +148,11 @@ pub(crate) fn ship_from(settings: &Settings, out: &Path, source: &Path) -> Resul
             .iter()
             .map(|n| out.join(n))
             .collect(),
+        steam_redist: settings
+            .steam
+            .as_ref()
+            .map(|_| out.join(crate::steam::redist_name())),
+        steam_scripts: None,
     };
 
     if settings.dry_run {
@@ -133,6 +178,45 @@ pub(crate) fn ship_from(settings: &Settings, out: &Path, source: &Path) -> Resul
     println!("  {} -> {}", source.display(), shipped.binary.display());
     println!("  {} -> {}", archive.display(), shipped.archive.display());
     println!("  wrote LICENSE, LICENSE-EXCEPTION and README.txt");
+
+    let mut shipped = shipped;
+    if let (Some(steam), Some((appid, depot)), Some(redist), Some(to)) = (
+        &settings.steam,
+        steam_ids,
+        redist,
+        shipped.steam_redist.clone(),
+    ) {
+        copy(redist, &to)?;
+        println!("  {} -> {}", redist.display(), to.display());
+        if steam.dev {
+            std::fs::write(out.join("steam_appid.txt"), format!("{appid}\n"))?;
+            println!("  wrote steam_appid.txt (for testing outside Steam; never uploaded)");
+        }
+        let scripts_dir = out.parent().unwrap_or(Path::new(".")).join("steam_build");
+        let title = settings
+            .project
+            .as_ref()
+            .map_or(name.as_str(), |p| p.name.as_str());
+        let scripts = crate::steam::write_build_scripts(
+            &scripts_dir,
+            out,
+            appid,
+            depot,
+            &format!("{title} {}", env!("CARGO_PKG_VERSION")),
+        )?;
+        println!(
+            "  wrote SteamPipe scripts in {}. Upload with:",
+            scripts_dir.display()
+        );
+        println!(
+            "    steamcmd {}",
+            crate::steam::upload_command("<account>", &scripts.app).join(" ")
+        );
+        if let Some(account) = &steam.upload_as {
+            crate::steam::upload(account, &scripts.app)?;
+        }
+        shipped.steam_scripts = Some(scripts);
+    }
     Ok(shipped)
 }
 
@@ -203,62 +287,147 @@ fn collect_newer(dir: &Path, skip: &Path, when: SystemTime, out: &mut Vec<PathBu
 ///
 /// A project that names a Cargo package is a game: build it. A project that
 /// names none is a content tree, and what it ships is the engine's own
-/// runtime -- which is already built and sitting beside `kiln`.
-fn game_binary(settings: &Settings) -> Result<PathBuf> {
+/// runtime -- which is already built and sitting beside `kiln`, unless the
+/// ship is for Steam, when it is built again from the engine's source with
+/// the `steam` feature.
+fn game_binary(settings: &Settings) -> Result<Built> {
+    let steam = settings.steam.is_some();
     let runtime = toolchain::Runtime::for_project(settings.project.as_ref());
-    match runtime {
+    let (name, bin, project_dir) = match runtime {
         toolchain::Runtime::Package {
             name,
             bin,
             project_dir,
-        } => {
-            if settings.dry_run {
-                println!("  would run: cargo build --release -p {name}");
-                return toolchain::built_binary(
-                    &project_dir,
-                    bin.as_deref().unwrap_or(&name),
-                    toolchain::Profile::Release,
-                )
-                .with_context(|| format!("{name} has not been built in release yet"));
-            }
-            println!("  building {name}");
-            let mut log = |line: &str| println!("  {line}");
-            toolchain::build_package(
-                &project_dir,
-                &name,
-                bin.as_deref(),
-                toolchain::Profile::Release,
-                &mut log,
+        } => (name, bin, project_dir),
+        _ if steam => {
+            let from = std::env::current_exe().unwrap_or_default();
+            let workspace = crate::steam::engine_workspace(&from)
+                .or_else(|| {
+                    std::env::current_dir()
+                        .ok()
+                        .and_then(|d| crate::steam::engine_workspace(&d))
+                })
+                .context(
+                    "a --steam ship of a project with no `game` package builds the engine's \
+                     runtime with Steam, which needs the Kerosene source. Run kiln from the \
+                     engine checkout, or give the project a game package with a `steam` feature.",
+                )?;
+            (
+                "kerosene-runtime".to_string(),
+                Some(toolchain::RUNTIME.to_string()),
+                workspace,
             )
         }
-        _ => toolchain::path(toolchain::RUNTIME).context(
-            "no `game` key in the project and no `kerosene` beside kiln, so there is \
+        _ => {
+            return toolchain::path(toolchain::RUNTIME)
+                .map(|binary| Built {
+                    binary,
+                    redist: None,
+                })
+                .context(
+                    "no `game` key in the project and no `kerosene` beside kiln, so there is \
              nothing to ship. Add `\"game\" \"<cargo package>\"` to the .keroproj, \
              or run kiln from beside the engine.",
-        ),
+                );
+        }
+    };
+
+    let target_dir = project_dir.join("target").join("ship");
+    let options = crate::steam::build_options(steam, &target_dir);
+    let bin_name = bin.as_deref().unwrap_or(&name).to_string();
+    if settings.dry_run {
+        println!(
+            "  would run: cargo build --release -p {name}{}",
+            if options.features.is_empty() {
+                String::new()
+            } else {
+                format!(" --features {}", options.features.join(","))
+            }
+        );
+        let binary = match &options.target_dir {
+            Some(dir) => dir.join(toolchain::Profile::Release.dir()).join(&bin_name),
+            None => toolchain::built_binary(&project_dir, &bin_name, toolchain::Profile::Release)
+                .with_context(|| format!("{name} has not been built in release yet"))?,
+        };
+        return Ok(Built {
+            binary,
+            redist: None,
+        });
     }
+    println!("  building {name}");
+    let mut log = |line: &str| println!("  {line}");
+    let binary = toolchain::build_package_with(
+        &project_dir,
+        &name,
+        bin.as_deref(),
+        toolchain::Profile::Release,
+        &options,
+        &mut log,
+    )?;
+    let redist = if steam {
+        Some(
+            crate::steam::find_redist(&target_dir, toolchain::Profile::Release).with_context(
+                || {
+                    format!(
+                        "{name} built with the steam feature, but no {} is under {}. \
+                         Does the game's `steam` feature turn on `kerosene/steam`?",
+                        crate::steam::redist_name(),
+                        target_dir.display()
+                    )
+                },
+            )?,
+        )
+    } else {
+        None
+    };
+    Ok(Built { binary, redist })
 }
 
 /// Write the project file the shipped game reads.
 ///
 /// Deliberately not a copy of the developer's own: theirs points at a content
 /// tree in a checkout and may name a Cargo package that is not being shipped.
-/// The shipped one says the two things a player's copy needs.
+/// The shipped one says what a player's copy needs: its name, where its
+/// content is, the map it starts on, and what it declares to the store --
+/// the Steam app id, achievements, stats and DLC -- without which a Steam
+/// build would start and never connect.
 fn write_project(settings: &Settings, path: &Path, name: &str) -> Result<()> {
-    let title = settings.project.as_ref().map_or(name, |p| p.name.as_str());
-    let mut body = String::new();
-    body.push_str("// Written by `kiln --ship`. The game reads this to find its content.\n");
-    body.push_str("project\n{\n");
-    body.push_str(&format!("\t\"name\" \"{title}\"\n"));
-    body.push_str("\t\"content\" \"content\"\n");
-    if let Some(map) = settings
-        .project
-        .as_ref()
-        .and_then(|p| p.start_map.as_deref())
-    {
-        body.push_str(&format!("\t\"startmap\" \"{map}\"\n"));
+    let project = settings.project.as_ref();
+    let title = project.map_or(name, |p| p.name.as_str());
+    let mut kv = kerosene_kv::KeyValues::new("project");
+    kv.push("name", title);
+    kv.push("content", "content");
+    if let Some(map) = project.and_then(|p| p.start_map.as_deref()) {
+        kv.push("startmap", map);
     }
-    body.push_str("}\n");
+    if let Some(p) = project {
+        if let Some(appid) = p.steam_appid {
+            kv.push("steam_appid", appid.to_string());
+        }
+        let mut block = |name: &str, pairs: Vec<(String, String)>| {
+            if pairs.is_empty() {
+                return;
+            }
+            let mut b = kerosene_kv::KeyValues::new(name);
+            for (k, v) in pairs {
+                b.push(k, v);
+            }
+            kv.push_block(b);
+        };
+        block("achievements", p.achievements.clone());
+        block("stats", p.stats.clone());
+        block(
+            "dlc",
+            p.dlc
+                .iter()
+                .map(|(id, n)| (id.to_string(), n.clone()))
+                .collect(),
+        );
+    }
+    let body = format!(
+        "// Written by `kiln --ship`. The game reads this to find its content.\n{}",
+        kv.to_text()
+    );
     std::fs::write(path, body).with_context(|| format!("writing {}", path.display()))?;
     Ok(())
 }
@@ -316,9 +485,19 @@ fn readme(settings: &Settings, name: &str) -> String {
          https://github.com/bodil/smartstring and under the terms of that licence.\n\
          MPL-2.0 is file-level copyleft: it reaches only its own files, and this\n\
          notice is what it asks of a program that carries them unmodified.\n\n\
-         This program contains no Valve or id Software code, assets or data, and is\n\
-         not affiliated with, endorsed by or sponsored by either company.\n",
+         This program contains no id Software code, assets or data, and is not\n\
+         affiliated with, endorsed by or sponsored by id Software or Valve.\n",
     );
+    if settings.steam.is_some() {
+        out.push_str(
+            "\nThis build includes the Steamworks API library (steam_api), which is\n\
+             Valve Corporation's and is redistributed under the Steamworks SDK Access\n\
+             Agreement. It is not part of Kerosene, is not covered by the GPL, and is\n\
+             an Independent Module under the Kerosene Exception.\n",
+        );
+    } else {
+        out.push_str("\nThis program contains no Valve code, assets or data.\n");
+    }
 
     out
 }

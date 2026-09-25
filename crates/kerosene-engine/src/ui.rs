@@ -315,6 +315,7 @@ impl Engine {
         store.set("player.z", origin.z.round());
         store.set("map.name", map);
         store.set("ui.menu_open", self.ui.system.is_visible(MENU_LAYER));
+        self.publish_platform_state();
 
         // Only the convars something reads: publishing all two hundred would
         // wake every binding on `cvar` whenever any one of them changed.
@@ -391,6 +392,7 @@ impl Engine {
                 self.with_game_mut(|game, engine| game.ui_event(engine, &name, &data, &source));
             }
             UiAction::Log(_, text) => self.console.print(text),
+            UiAction::Platform(action) => self.platform_request(&action),
             other => self.ui.host_actions.push(other),
         }
     }

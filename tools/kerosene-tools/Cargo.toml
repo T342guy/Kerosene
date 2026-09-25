@@ -13,6 +13,11 @@ authors.workspace = true
 # It depends on the tools' libraries, never on the engine: the boundary is the
 # same one that used to separate the programs from the runtime.
 
+[features]
+# `workshop upload`, through Valve's SDK. Off by default for the same reason
+# as the engine's: see kerosene-platform.
+steam = ["dep:steamworks"]
+
 [lib]
 name = "kerosene_tools"
 path = "src/lib.rs"
@@ -37,6 +42,7 @@ clap.workspace = true
 anyhow.workspace = true
 log.workspace = true
 env_logger.workspace = true
+steamworks = { workspace = true, optional = true }
 
 [[bin]]
 name = "kerosene-tools"

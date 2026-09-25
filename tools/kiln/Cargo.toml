@@ -14,6 +14,7 @@ alchemy = { path = "../alchemy" }
 # disagree about what compiling a sound means.
 timbre = { path = "../timbre" }
 kerosene-vfs.workspace = true
+kerosene-kv.workspace = true
 anyhow.workspace = true
 clap.workspace = true
 log.workspace = true

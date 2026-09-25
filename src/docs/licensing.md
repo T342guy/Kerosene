@@ -170,6 +170,26 @@ no dependencies of its own and no build script, chosen over a Jolt FFI wrapper
 specifically so the tree never has to vendor a C++ physics library, carry
 bindgen output, or require a C++ toolchain to link it.
 
+### Steamworks, which only a Steam build links
+
+The `steamworks` crate (MIT OR Apache-2.0) and the `steamworks-sys` crate
+under it are behind the opt-in `steam` feature of `kerosene-platform`, which
+is off in every default build. What they bind, and carry, is Valve's
+Steamworks SDK: its headers and its redistributable `steam_api` libraries.
+The SDK is not free software, and is distributed under the Steamworks SDK
+Access Agreement.
+
+That is why it is a feature and not a dependency. The Kerosene tree vendors
+none of the SDK, and nothing in the default build links it. The table above
+describes the default build, so the SDK is not in it.
+
+A game that turns the feature on is a Combined Work under the Exception, with
+the SDK as an Independent Module, which §1 permits. The engine part stays GPL
+with its source available; the SDK stays under Valve's terms. The GPL alone
+would not allow the combination, and this is one of the things the Exception
+is for. `kiln --ship --steam` writes a notice saying all of this into the
+shipped `README.txt`.
+
 ### The two MPL-2.0 dependencies
 
 **What MPL-2.0 asks**: file-level copyleft. A shipped, *unmodified* binary

@@ -100,7 +100,7 @@ roughly the order you will hit them; the fuller list is
 | Let players drop loose files beside the `.vault` | The feature that makes modding trivial makes tampering trivial too. There is no signing, no manifest, no integrity check on loose files — only per-entry CRCs *inside* the archive | `tools.md`, Vault; `crates/kerosene-vfs` |
 | Install the game somewhere read-only | The first run writes `engine.kconfig` into the content tree beside the binary. In a read-only install directory that write fails and the defaults apply every run | `crates/kerosene-config` |
 | Rely on the engine being deterministic (replays, ghosts) | Asserted, not audited: nothing replays a session yet to prove it | `missing-features.md` §4 |
-| Ship on Steam | Nothing stops you, and nothing helps: no Steamworks integration, so no achievements, cloud, Workshop or Steam Input. The overlay should work over Vulkan and DX12 without help | [Platforms](platforms.md) |
+| Ship on Steam | Build with the `steam` feature and ship with `kiln --ship --steam`. The drawbacks: your game links Valve's proprietary SDK, which the Exception permits but the GPL alone would not, and there is no Steam Input yet | [Steam](steam.md) |
 
 ## Forks and derived engines
 
@@ -195,6 +195,11 @@ Three properties are worth knowing:
   file in the content tree, stops the ship stage. Run `kiln` again first.
 * **The licence texts are compiled into `kiln`**, so shipping works from an
   installed toolset that is nowhere near a checkout.
+* **`--steam` adds Valve's library and nothing else.** It builds with the
+  `steam` feature, puts `libsteam_api` beside the game with an rpath to find
+  it, and writes SteamPipe scripts next to `dist/` rather than inside it. See
+  [Steam](steam.md#shipping-kiln---ship---steam). On Windows, every ship links
+  the C runtime statically, so players need no Visual C++ redistributable.
 
 What it leaves for you: the `README.txt` has an **Engine source** section
 that says the source must be available and asks you to say where — and, if

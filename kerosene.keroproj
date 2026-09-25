@@ -15,4 +15,12 @@ project
 
 	// What `kerosene` loads when nothing says otherwise.
 	"startmap" "kero_start"
+
+	// What the sample game awards. Off Steam these are kept for the session;
+	// in a build with the `steam` feature and a "steam_appid" they go to
+	// Steam, where each id must also be set up in Steamworks.
+	"achievements"
+	{
+		"ACH_KEYPAD" "Code breaker"
+	}
 }

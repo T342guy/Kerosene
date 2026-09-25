@@ -95,6 +95,18 @@ pub fn launch(game: impl Game, options: LaunchOptions) -> Result<()> {
     let headless = parsed.headless_ticks;
     let config = config_from(parsed, Some(log));
 
+    // Started from its folder rather than from Steam, a Steam game has no
+    // Steam session. Valve's answer is to start it again through the client
+    // and quit this copy; `restart_through_steam` knows when not to (debug
+    // builds, a `steam_appid.txt` beside the executable).
+    if config.platform.use_steam
+        && let Some(appid) = config.platform.steam_appid
+        && kerosene_platform::restart_through_steam(appid)
+    {
+        log::info!("relaunching through Steam");
+        return Ok(());
+    }
+
     match headless {
         Some(ticks) => run_headless(config, Box::new(game), ticks),
         None => crate::host::run_with(config, Box::new(game)),
@@ -109,6 +121,9 @@ pub struct ParsedArgs {
     pub map: Option<String>,
     pub commands: Vec<String>,
     pub headless_ticks: Option<u64>,
+    /// `--no-steam`: run without the store even when the build and the
+    /// project have it.
+    pub no_steam: bool,
 }
 
 /// Take a command line apart: `--content`, `--vault`, `--headless`, and
@@ -129,6 +144,7 @@ pub fn parse_args(args: &[String]) -> Result<ParsedArgs> {
                 let value = next(args, &mut i, "--vault")?;
                 parsed.archives.push(PathBuf::from(value));
             }
+            "--no-steam" => parsed.no_steam = true,
             "--headless" => {
                 let value = next(args, &mut i, "--headless")?;
                 parsed.headless_ticks = Some(value.parse()?);
@@ -164,6 +180,10 @@ pub fn config_from(
     parsed: ParsedArgs,
     log: Option<Arc<kerosene_console::LogRelay>>,
 ) -> EngineConfig {
+    // A headless run is a server or a test: it has no player signed in to a
+    // store, and no business asking the Steam client for one.
+    let wants_store = parsed.headless_ticks.is_none() && !parsed.no_steam;
+    let explicit_content = parsed.content_paths.first().cloned();
     let mut config = EngineConfig {
         // Headless has no listener, so opening a sound card would be work
         // nobody can hear.
@@ -211,6 +231,16 @@ pub fn config_from(
         }
     }
 
+    // What the project declares for the store: the Steam app id, its
+    // achievements, stats and DLC. Read from the project whichever way the
+    // content was found, since `--content` names a tree, not a game.
+    let project =
+        kerosene_vfs::root::find(explicit_content.as_deref(), None).and_then(|found| found.project);
+    if let Some(project) = project {
+        config.platform = platform_config(&project);
+    }
+    config.platform.use_steam = wants_store;
+
     // The engine config always exists: read it out of the content tree,
     // writing the defaults the first time anything runs. It is where the
     // renderer is chosen, so it is read before the window is made.
@@ -232,6 +262,22 @@ pub fn config_from(
         }
     }
     config
+}
+
+/// The store settings a project declares.
+pub fn platform_config(project: &kerosene_vfs::Project) -> kerosene_platform::PlatformConfig {
+    kerosene_platform::PlatformConfig {
+        steam_appid: project.steam_appid,
+        use_steam: false,
+        achievements: project.achievements.clone(),
+        stats: project
+            .stats
+            .iter()
+            .map(|(name, kind)| (name.clone(), kerosene_platform::StatKind::parse(kind)))
+            .collect(),
+        dlc: project.dlc.clone(),
+        local_cloud: None,
+    }
 }
 
 /// Requests only a window has anything to do with. Headless, there is no
@@ -268,6 +314,7 @@ pub fn run_headless(config: EngineConfig, game: Box<dyn Game>, ticks: u64) -> Re
     let started = std::time::Instant::now();
     for _ in 0..ticks {
         engine.tick(interval, &input);
+        engine.platform_frame(interval);
         engine.console.run_buffered();
         let mut unclaimed = take_console_requests(&mut engine);
         unclaimed.retain(|(kind, _)| !host_only(kind));
@@ -378,6 +425,8 @@ options:
                       content tree is mounted.
   --headless <ticks>  Simulate without a window, then report. This is what a
                       dedicated server runs.
+  --no-steam          Run without Steam even when the build and the project
+                      have it.
   --help              Show this.
 
 With no +map, the project's `startmap` is loaded if it names one.

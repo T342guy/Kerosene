@@ -45,6 +45,21 @@ In the order you will do them. Each item links to the page that explains it.
 - [ ] The engine commit you built against is tagged or written down, so the
       source pointer means something in a year.
 
+## If it ships on Steam
+
+- [ ] `steam_appid` in `.keroproj` is your app id, not 480.
+- [ ] Every achievement and stat the game awards is declared in the
+      `.keroproj` *and* set up under the same API name in Steamworks.
+      `achievement_list` in the console shows what the game declares.
+      ([Steam](steam.md#the-project-file))
+- [ ] `kerosene-tools kiln --ship dist --steam` succeeds, and `dist/` holds
+      Valve's `libsteam_api.so` / `steam_api64.dll` / `libsteam_api.dylib`
+      beside the game.
+- [ ] No `steam_appid.txt` is in what you upload. `--steam-dev` writes one
+      for testing, and the depot script excludes it anyway.
+- [ ] Started from Steam, `platform_status` says `steam (connected)`, and
+      Shift+Tab pauses the game.
+
 ## Before it goes out
 
 - [ ] Run `dist/<name>` from a *different* working directory. It must find
@@ -57,5 +72,4 @@ In the order you will do them. Each item links to the page that explains it.
       first to *run* it. Test there before announcing it.
       ([Platforms](platforms.md))
 - [ ] Your store page says the things the engine cannot do yet and your game
-      therefore does not: no save/load, no gamepad, no options menu, unless
-      you built them. ([Publishing](publishing.md#you-can-but))
+      therefore does not: no save/load, no gamepad, unless you built them. ([Publishing](publishing.md#you-can-but))
