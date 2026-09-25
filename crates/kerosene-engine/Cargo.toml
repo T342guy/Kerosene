@@ -33,6 +33,7 @@ wgpu.workspace = true
 pollster.workspace = true
 env_logger.workspace = true
 kerosene-script.workspace = true
+kerosene-ui.workspace = true
 kerosene-audio.workspace = true
 rhai.workspace = true
 kerosene-kv.workspace = true

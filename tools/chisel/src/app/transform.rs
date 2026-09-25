@@ -5,8 +5,8 @@
 
 use super::*;
 use kerosene_math::Quat;
-use kerosene_ui::theme::{self, colors};
-use kerosene_ui::widgets;
+use kerosene_toolui::theme::{self, colors};
+use kerosene_toolui::widgets;
 
 /// What the transform dialog does with its three numbers.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]

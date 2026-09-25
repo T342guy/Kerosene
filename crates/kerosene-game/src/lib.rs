@@ -26,6 +26,9 @@
 //! | `point_message` | Prints to the console |
 //! | `logic_script` | Runs a script function |
 //! | `ambient_generic` | A sound placed in the world |
+//! | `logic_ui` | Sends the game UI events and values |
+//! | `point_worldpanel` | A UI layout on a surface in the level |
+//! | `infodecal` | A decal placed by the mapper |
 //!
 //! Lighting entities (`light`, `light_spot`, `light_environment`) and
 //! reflection probes (`env_cubemap`) are read by Radiance at compile time and
@@ -41,6 +44,8 @@ pub mod schema;
 pub mod scripted;
 pub mod sound;
 pub mod triggers;
+pub mod ui;
+pub mod weapons;
 
 use kerosene_entity::{ClassDef, ClassRegistry, EntityId, EntityWorld, Value};
 use std::sync::Arc;
@@ -78,6 +83,7 @@ pub fn register(registry: &mut ClassRegistry) {
     props::register(registry);
     lights::register(registry);
     animated::register(registry);
+    ui::register(registry);
 
     // Inputs every entity understands, as Source makes them.
     registry.register_common_input("Kill", input_kill);

@@ -3,7 +3,7 @@
 //! Hammer-style Object Properties popup, and the right-click menu.
 
 use super::*;
-use kerosene_ui::theme;
+use kerosene_toolui::theme;
 
 impl ChiselApp {
     pub(super) fn commit_properties(&mut self) {

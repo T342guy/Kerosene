@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
 use super::*;
-use kerosene_ui::App as _;
+use kerosene_toolui::App as _;
 
 /// A content tree with the shipped crate model copied into it, so `LoupeApp`
 /// can find it the way it would a real one -- through the VFS and
@@ -60,7 +60,10 @@ fn selecting_a_model_loads_it_and_it_matches_its_own_validation() {
     app.select("props/crate");
 
     let model = app.model.as_ref().expect("the shipped model should load");
-    assert!(model.validate().is_ok(), "the shipped model should validate");
+    assert!(
+        model.validate().is_ok(),
+        "the shipped model should validate"
+    );
     assert!(!model.meshes.is_empty());
     assert!(app.load_error.is_none());
 

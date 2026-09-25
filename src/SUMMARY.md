@@ -12,6 +12,7 @@
 - [Missing features](./docs/missing-features.md)
 - [Positioning](./docs/positioning.md)
 - [Scripting](./docs/scripting.md)
+- [Game UI](./docs/ui.md)
 - [Tools](./docs/tools.md)
 
 # Game developer docs
@@ -33,5 +34,6 @@
   - [Rendering and streaming](./devnotes/rendering.md)
   - [Physics](./devnotes/physics.md)
   - [Audio and acoustics](./devnotes/audio.md)
+  - [The game UI](./devnotes/ui.md)
   - [Tools and the build](./devnotes/tools-and-build.md)
   - [Testing](./devnotes/testing.md)

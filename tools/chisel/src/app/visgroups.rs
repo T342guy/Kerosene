@@ -9,8 +9,8 @@
 
 use super::*;
 use crate::document::AutoGroup;
-use kerosene_ui::theme::{self, colors, icons};
-use kerosene_ui::widgets;
+use kerosene_toolui::theme::{self, colors, icons};
+use kerosene_toolui::widgets;
 
 /// What a row asked for, acted on after the tree is drawn so the map is not
 /// borrowed while it is being changed.

@@ -8,7 +8,7 @@
 //! not look right.
 
 use super::*;
-use kerosene_ui::theme::{self, colors, icons};
+use kerosene_toolui::theme::{self, colors, icons};
 
 impl ChiselApp {
     pub(super) fn status_bar(&mut self, ctx: &Context) {

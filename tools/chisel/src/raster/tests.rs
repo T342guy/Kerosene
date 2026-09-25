@@ -643,7 +643,7 @@ fn walkmap_mode_colours_each_face_by_its_rule() {
         let mut settings = Settings {
             shading: Shading::Walkmap,
             resolve: Some(&mut resolve),
-        ghost: None,
+            ghost: None,
         };
         render_with(
             document,

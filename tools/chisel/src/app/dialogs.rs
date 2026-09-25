@@ -2,8 +2,8 @@
 //! The modal questions: a name for the map, and whether to throw work away.
 
 use super::*;
-use kerosene_ui::theme::{self, colors, icons};
-use kerosene_ui::widgets;
+use kerosene_toolui::theme::{self, colors, icons};
+use kerosene_toolui::widgets;
 
 impl ChiselApp {
     /// The name field, and the "this will lose work" question.

@@ -9,8 +9,8 @@
 
 use std::path::{Path, PathBuf};
 
-use kerosene_ui::theme::{self, colors, icons};
-use kerosene_ui::widgets;
+use kerosene_toolui::theme::{self, colors, icons};
+use kerosene_toolui::widgets;
 
 /// What the tab asks the toolset to do, acted on after it is drawn.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -358,7 +358,7 @@ mod tests {
     #[test]
     fn the_tab_draws_with_and_without_a_project() {
         let ctx = egui::Context::default();
-        kerosene_ui::theme::install(&ctx);
+        kerosene_toolui::theme::install(&ctx);
         let mut panel = ProjectPanel::new(PathBuf::from("/nowhere"), None, "inferred".into());
         assert_eq!(panel.name(), "nowhere");
         let output = ctx.run(egui::RawInput::default(), |ctx| {

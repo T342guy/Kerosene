@@ -13,7 +13,7 @@ kerosene-audio = { workspace = true, features = ["device"] }
 kerosene-kv.workspace = true
 symphonia.workspace = true
 kerosene-vfs.workspace = true
-kerosene-ui.workspace = true
+kerosene-toolui.workspace = true
 egui.workspace = true
 anyhow.workspace = true
 clap.workspace = true

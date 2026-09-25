@@ -12,7 +12,9 @@
 | `texture.kconfig` | Texture set definition | text (KeyValues) | Alchemy, by hand | (no equivalent) |
 | `.keromdl` | Model | binary | Forge | `.mdl` |
 | `.kerodef` | Entity class definitions | text (KeyValues) | the game, by hand | `.fgd` |
-| `.keroscript` | Level script | text (Rhai) | by hand | `.nut` (VScript) |
+| `.keroscript` | Level script, UI script | text (Rhai) | by hand | `.nut` (VScript) |
+| `.keroui` | UI layout | text (XML) | by hand | Panorama `.xml` |
+| `.kerocss` | UI stylesheet | text (CSS subset) | by hand | Panorama `.css` |
 | `.kerosnd` | Sound script | text (KeyValues) | by hand | `game_sounds.txt` |
 | `.keroaud` | Compiled sound | binary | Timbre | `.wav` (ADPCM) |
 | `.wav` `.flac` `.mp3` | Sound sources | binary | any audio tool | `.wav` |

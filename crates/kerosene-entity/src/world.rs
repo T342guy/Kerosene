@@ -125,6 +125,17 @@ pub mod host_requests {
     pub const PHYS_WAKE: &str = "phys_wake";
     /// Put a physics prop to sleep. The payload is ignored.
     pub const PHYS_SLEEP: &str = "phys_sleep";
+    /// Send the game UI an event. The payload is `name [data]`.
+    pub const UI_EMIT: &str = "ui_emit";
+    /// Publish a value to the game UI. The payload is `key value`.
+    pub const UI_SET: &str = "ui_set";
+    /// Show a UI layer. The payload is `layer file`.
+    pub const UI_SHOW: &str = "ui_show";
+    /// Hide a UI layer. The payload is its name.
+    pub const UI_HIDE: &str = "ui_hide";
+    /// Project a decal onto the nearest surface to the caller. The payload
+    /// is `material size`.
+    pub const PLACE_DECAL: &str = "place_decal";
 }
 
 impl EntityWorld {

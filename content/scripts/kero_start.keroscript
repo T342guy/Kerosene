@@ -18,6 +18,11 @@ fn on_map_start() {
     // out of it.
     play_sound("ambient/room_tone", Vector(256.0, 256.0, 128.0));
 
+    // What the HUD's objective line shows. The HUD binds to the key; the
+    // script only says what it is. `ui_event` would do for a one-off
+    // notification instead of a lasting value.
+    ui_set("objective.text", "Open the shutter: the keypad code is 1234");
+
     // Wiring done in code rather than in the editor. Useful for things a
     // designer would otherwise have to repeat on every one of a group.
     for light in find_by_class("light_environment") {

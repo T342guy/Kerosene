@@ -3,7 +3,7 @@
 //! popup draws, and the wiring editor both of them share.
 
 use super::*;
-use kerosene_ui::theme::{self, colors};
+use kerosene_toolui::theme::{self, colors};
 
 /// A number that several faces may or may not agree on.
 ///
@@ -704,9 +704,9 @@ pub(super) fn property_grid(
 
 /// The SmartEdit switch.
 pub(super) fn raw_toggle(ui: &mut egui::Ui, raw: &mut bool) {
-    kerosene_ui::widgets::icon_toggle(
+    kerosene_toolui::widgets::icon_toggle(
         ui,
-        kerosene_ui::theme::icons::BRACKETS_CURLY,
+        kerosene_toolui::theme::icons::BRACKETS_CURLY,
         "Raw keys: every key as plain text, only the keys the object carries. \
          Off, the game's definition picks a widget for each key.",
         raw,

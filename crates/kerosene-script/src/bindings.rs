@@ -40,6 +40,7 @@ fn push(shared: &Rc<RefCell<Shared>>, action: ScriptAction) {
 }
 
 pub fn register(engine: &mut Engine, shared: &Rc<RefCell<Shared>>) {
+    register_ui(engine, shared);
     register_vector(engine);
     register_output(engine, shared);
     register_console(engine, shared);
@@ -364,6 +365,78 @@ pub fn parse_id_target(target: &str) -> Option<u64> {
 }
 
 // ---- sound ----------------------------------------------------------------
+
+/// The game UI: values its layouts bind to, events they listen for, and its
+/// layers. Anything is accepted as a value and published as its text, so
+/// `ui_set("objective.count", 3)` and `ui_set("objective.text", "Find it")`
+/// both do what they look like.
+fn register_ui(engine: &mut Engine, shared: &Rc<RefCell<Shared>>) {
+    let sink = Rc::clone(shared);
+    engine.register_fn("ui_set", move |key: &str, value: rhai::Dynamic| {
+        push(
+            &sink,
+            ScriptAction::UiSet {
+                key: key.to_string(),
+                value: value.to_string(),
+            },
+        )
+    });
+    let sink = Rc::clone(shared);
+    engine.register_fn("ui_event", move |name: &str| {
+        push(
+            &sink,
+            ScriptAction::UiEvent {
+                name: name.to_string(),
+                data: String::new(),
+            },
+        )
+    });
+    let sink = Rc::clone(shared);
+    engine.register_fn("ui_event", move |name: &str, data: rhai::Dynamic| {
+        push(
+            &sink,
+            ScriptAction::UiEvent {
+                name: name.to_string(),
+                data: data.to_string(),
+            },
+        )
+    });
+    let sink = Rc::clone(shared);
+    engine.register_fn("ui_show", move |layer: &str, path: &str| {
+        push(
+            &sink,
+            ScriptAction::UiLayer {
+                layer: layer.to_string(),
+                path: path.to_string(),
+            },
+        )
+    });
+    let sink = Rc::clone(shared);
+    engine.register_fn("ui_hide", move |layer: &str| {
+        push(
+            &sink,
+            ScriptAction::UiLayer {
+                layer: layer.to_string(),
+                path: String::new(),
+            },
+        )
+    });
+    let sink = Rc::clone(shared);
+    engine.register_fn(
+        "place_decal",
+        move |material: &str, origin: Vec3, normal: Vec3, size: rhai::FLOAT| {
+            push(
+                &sink,
+                ScriptAction::PlaceDecal {
+                    material: material.to_string(),
+                    origin,
+                    normal,
+                    size: size as f32,
+                },
+            )
+        },
+    );
+}
 
 fn register_sound(engine: &mut Engine, shared: &Rc<RefCell<Shared>>) {
     let sink = Rc::clone(shared);

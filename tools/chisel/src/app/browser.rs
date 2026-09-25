@@ -2,8 +2,8 @@
 //! The asset browser: materials and models, as pictures.
 
 use super::*;
-use kerosene_ui::theme::{self, colors, icons};
-use kerosene_ui::widgets;
+use kerosene_toolui::theme::{self, colors, icons};
+use kerosene_toolui::widgets;
 
 impl ChiselApp {
     /// The asset browser: a window with room to look in.

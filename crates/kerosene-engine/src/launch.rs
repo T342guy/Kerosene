@@ -234,11 +234,20 @@ pub fn config_from(
     config
 }
 
+/// Requests only a window has anything to do with. Headless, there is no
+/// keyboard to bind and no console to open, and `config.cfg` is full of
+/// bindings; saying so for each would bury every warning that matters.
+fn host_only(kind: &str) -> bool {
+    use kerosene_console::requests::*;
+    [BIND, UNBIND, UNBIND_ALL, BIND_LIST, TOGGLE_CONSOLE].contains(&kind)
+}
+
 /// Run the simulation with no display for `ticks` ticks, then report.
 pub fn run_headless(config: EngineConfig, game: Box<dyn Game>, ticks: u64) -> Result<()> {
     let mut engine = Engine::with_game(&config, game);
     engine.console.run_buffered();
-    let unclaimed = take_console_requests(&mut engine);
+    let mut unclaimed = take_console_requests(&mut engine);
+    unclaimed.retain(|(kind, _)| !host_only(kind));
     report_unhandled(&mut engine, unclaimed);
 
     // The configured map is already pending inside the engine; taking it
@@ -260,7 +269,8 @@ pub fn run_headless(config: EngineConfig, game: Box<dyn Game>, ticks: u64) -> Re
     for _ in 0..ticks {
         engine.tick(interval, &input);
         engine.console.run_buffered();
-        let unclaimed = take_console_requests(&mut engine);
+        let mut unclaimed = take_console_requests(&mut engine);
+        unclaimed.retain(|(kind, _)| !host_only(kind));
         report_unhandled(&mut engine, unclaimed);
         // `map` from a script or a startup command lands here, since there
         // is no `frame` to pick it up.

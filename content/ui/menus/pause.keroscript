@@ -1,0 +1,18 @@
+// The pause menu's behaviour. Functions here are what the buttons'
+// `onactivate` attributes call.
+
+fn on_load() {
+    set_store("ui.page", "main");
+}
+
+fn resume() {
+    set_store("ui.page", "main");
+    // Hiding the menu layer is all it takes: the host sees no layer wants
+    // the mouse any more and hands it back to the game.
+    hide_layer("menu");
+}
+
+fn restart() {
+    command("map " + store("map.name"));
+    resume();
+}

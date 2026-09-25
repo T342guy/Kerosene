@@ -35,6 +35,7 @@ pub mod physics;
 pub mod scripting;
 pub mod streaming;
 pub mod triggers;
+pub mod ui;
 
 pub use collision::{LevelCollision, Mover};
 pub use engine::{Engine, EngineConfig, Level, PlayerState};

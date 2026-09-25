@@ -2,9 +2,9 @@
 //! Compiling: the settings dialog and what happens when a compile ends.
 
 use super::*;
-use kerosene_ui::output::{Level, Line};
-use kerosene_ui::theme::{self, colors, icons};
-use kerosene_ui::widgets;
+use kerosene_toolui::output::{Level, Line};
+use kerosene_toolui::theme::{self, colors, icons};
+use kerosene_toolui::widgets;
 
 impl ChiselApp {
     /// Pick up whatever the compile left behind.

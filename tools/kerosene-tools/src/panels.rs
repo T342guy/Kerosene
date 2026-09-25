@@ -10,9 +10,9 @@
 //! The log itself is shown by the toolset's output panel, alongside the
 //! editor's compile log, rather than by each form separately.
 
-use kerosene_ui::output::Line as OutputLine;
-use kerosene_ui::theme::{self, colors, icons};
-use kerosene_ui::widgets;
+use kerosene_toolui::output::Line as OutputLine;
+use kerosene_toolui::theme::{self, colors, icons};
+use kerosene_toolui::widgets;
 use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
 use std::process::{Command, Stdio};

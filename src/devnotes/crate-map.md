@@ -29,6 +29,7 @@ flowchart TB
     game["kerosene-game<br/>stock classes"]
     audio["kerosene-audio<br/>mixer, reverb"]
     script["kerosene-script<br/>Rhai layer"]
+    ui["kerosene-ui<br/>game UI: layout, style, bindings"]
     facade["kerosene<br/>facade + Stock + launch"]
     runtime["apps/kerosene<br/>the runtime binary"]
 
@@ -66,6 +67,10 @@ flowchart TB
     render --> engine
     audio --> engine
     script --> engine
+    script --> ui
+    vfs --> ui
+    ui --> render
+    ui --> engine
     engine -. "dev-dep, tests" .-> game
     engine --> facade
     game --> facade
@@ -216,6 +221,8 @@ The runtime binary `apps/kerosene/src/main.rs` is a call to
 | `kerosene-anim` | skeleton, clip sampling, crossfade, skinning palette | `src/lib.rs` |
 | `kerosene-audio` | ADPCM, mixer, FDN reverb, device output | `src/mixer.rs`, `src/reverb.rs`, `src/compiled.rs` |
 | `kerosene-script` | Rhai VM, world snapshot, `ScriptAction` queue | `src/lib.rs`, `src/view.rs`, `src/bindings.rs` |
+| `kerosene-ui` | Game UI: XML/CSS/Rhai documents, store and bindings, flexbox, glyph atlas, display list | `src/document.rs`, `src/bind.rs`, `src/style.rs` |
+| `kerosene-toolui` | The tools' egui window host, theme and widgets | `src/lib.rs`, `src/theme.rs` |
 | `kerosene-engine` | `Engine`, `Game`, `host`, `launch`, streaming, acoustics glue | `src/engine.rs`, `src/host.rs` |
 | `kerosene-game` | Stock classes: doors, triggers, logic, props, sound | `src/doors.rs`, `src/logic.rs`, `src/props.rs` |
 | `kerosene` | Facade, `Stock`, `launch`, prelude | `src/lib.rs` |

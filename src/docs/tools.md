@@ -992,7 +992,7 @@ than a second implementation.
 
 ## Where the window comes from
 
-`kerosene-ui` is a window with egui in it, and the look every tool shares:
+`kerosene-toolui` is a window with egui in it, and the look every tool shares:
 winit's application handler, a wgpu surface, an egui integration and the frame
 loop that drives them, plus `theme` (the palette, the spacing and the
 [Phosphor](https://phosphoricons.com/) icon font, installed once by `run`),

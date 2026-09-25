@@ -1,0 +1,29 @@
+// The HUD's script: the few things that are events rather than state.
+//
+// Everything else on the HUD is a binding in hud.keroui. A toast is not: it is
+// "something just happened", shown once and gone, so it listens for the
+// event and sets the text itself.
+
+fn on_load() {
+    // Screen overlays -- the damage flash, the low-health tint -- live on their
+    // own layer, over the HUD and under any menu.
+    show_layer("overlay", "ui/overlays/damage.keroui");
+}
+
+fn toast(text) {
+    let t = panel("toast");
+    t.set_text(text);
+    // trigger_class, not add_class: the animation restarts even when the
+    // class is already there from the last toast.
+    t.trigger_class("show");
+}
+
+fn on_event(name, data) {
+    switch name {
+        "weapon_empty" => toast("Empty - press R"),
+        "weapon_reload" => toast("Reloading"),
+        "ability_ready" => toast("Dash ready"),
+        "player_died" => toast("You died"),
+        "map_loaded" => toast(data),
+    }
+}

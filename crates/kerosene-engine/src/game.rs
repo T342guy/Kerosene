@@ -95,6 +95,11 @@ pub trait Game: 'static {
     /// this layer, so a HUD is display-only during play and a menu drawn
     /// after the mouse is released is clickable.
     fn ui(&mut self, engine: &mut Engine, ctx: &egui::Context) {}
+
+    /// An event a UI document emitted: a menu button, a keypad code, a
+    /// choice in a dialogue. `source` is the layer (`hud`, `menu`) or world
+    /// panel (`panel:<name>`) it came from.
+    fn ui_event(&mut self, engine: &mut Engine, name: &str, data: &str, source: &str) {}
 }
 
 /// No game: no classes, nothing on any hook.

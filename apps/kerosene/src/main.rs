@@ -14,7 +14,7 @@ use kerosene::{LaunchOptions, launch};
 
 fn main() -> anyhow::Result<()> {
     launch(
-        kerosene::game::Stock,
+        kerosene::game::Stock::default(),
         LaunchOptions {
             name: "Kerosene",
             version: env!("CARGO_PKG_VERSION"),

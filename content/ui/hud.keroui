@@ -1,0 +1,69 @@
+<!--
+    The stock HUD. Everything on it is bound to a value the engine or the
+    game publishes -- run `ui_dump` in the console to see them all -- so the
+    only script it needs is for the one-off toasts at the bottom.
+
+    Edit this, hud.kerocss or hud.keroscript while the game is running and
+    the HUD reloads a second later.
+-->
+<root>
+    <styles>
+        <include src="ui/hud.kerocss"/>
+    </styles>
+    <scripts>
+        <include src="ui/hud.keroscript"/>
+    </scripts>
+
+    <!-- One crosshair per weapon, chosen by class: `xh-pistol`,
+         `xh-shotgun`, `xh-rifle`. The stylesheet decides which parts each
+         shows. It kicks while firing and dims while reloading. -->
+    <Panel id="crosshair" class="crosshair xh-{weapon.active}"
+           class:firing="{weapon.firing}" class:reloading="{weapon.reloading}">
+        <Panel class="xh-ring"/>
+        <Panel class="xh-dot"/>
+        <Panel class="xh-line xh-up"/>
+        <Panel class="xh-line xh-down"/>
+        <Panel class="xh-line xh-left"/>
+        <Panel class="xh-line xh-right"/>
+    </Panel>
+
+    <Panel id="objective" visible="{objective.text}">
+        <Label class="caption" text="Objective"/>
+        <Label id="objective-text" text="{objective.text}"/>
+    </Panel>
+
+    <Panel id="vitals" class="corner">
+        <Label class="caption" text="Health"/>
+        <Label id="health" class="big" text="{player.health}" class:low="{player.health <= 25}"/>
+        <ProgressBar id="health-bar" value="{player.health / 100.0}" class:low="{player.health <= 25}"/>
+    </Panel>
+
+    <!-- A cooldown sweep: `-kero-fill` clips the ring to the fraction
+         charged, clockwise from twelve. -->
+    <Panel id="ability" class:ready="{ability.dash.ready}">
+        <Panel class="ability-ring"/>
+        <Panel class="ability-charge" style:kero-fill="radial({ability.dash.charge})"/>
+        <Label class="ability-name" text="Dash"/>
+        <Label class="ability-time" visible="{!ability.dash.ready}" text="{ability.dash.remaining}"/>
+    </Panel>
+
+    <Panel id="arms" class="corner">
+        <!-- A slot per weapon the player carries, however many that is. -->
+        <Panel id="slots">
+            <Repeat count="{weapon.count}">
+                <Panel class="slot" class:active="{weapons[index.to_string()].active}">
+                    <Label class="slot-key" text="{index + 1}"/>
+                    <Label class="slot-name" text="{weapons[index.to_string()].name}"/>
+                </Panel>
+            </Repeat>
+        </Panel>
+        <Label class="caption" text="{weapon.active}"/>
+        <Panel class="ammo-row" class:empty="{weapon.ammo == 0}">
+            <Label id="clip" class="big" text="{weapon.ammo}" class:low="{weapon.ammo * 4 <= weapon.clip}"/>
+            <Label id="reserve" text="/ {weapon.reserve}"/>
+        </Panel>
+        <ProgressBar id="reload-bar" visible="{weapon.reloading}" value="{weapon.reload_progress}"/>
+    </Panel>
+
+    <Label id="toast"/>
+</root>

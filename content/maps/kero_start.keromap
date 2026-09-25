@@ -1414,10 +1414,9 @@ entity
 {
 	"id" "144"
 	"classname" "point_sound"
-	"origin" "240 56 64"
+	"origin" "240 8 64"
 	"targetname" "switch_click"
 	"sound" "ui/click"
-	"volume" "10"
 }
 entity
 {
@@ -1498,20 +1497,68 @@ entity
 entity
 {
 	"id" "153"
+	"classname" "point_worldpanel"
+	"origin" "352 511 72"
+	"targetname" "keypad"
+	"angles" "0 270 0"
+	"layout" "ui/panels/keypad.keroui"
+	"width" "40"
+	"height" "56"
+	"resolution" "448"
+	"brightness" "1.2"
+	"interactive" "1"
+	connections
+	{
+		"OnUnlock" "shutter,Toggle,,0,-1"
+		"OnUnlock" "switch_click,Play,,0,-1"
+	}
+}
+entity
+{
+	"id" "154"
+	"classname" "point_worldpanel"
+	"origin" "511 400 120"
+	"targetname" "status_screen"
+	"angles" "0 180 0"
+	"layout" "ui/panels/status.keroui"
+	"width" "128"
+	"height" "72"
+	"resolution" "360"
+	"brightness" "1.5"
+}
+entity
+{
+	"id" "155"
+	"classname" "infodecal"
+	"origin" "200 200 4"
+	"texture" "decals/crack"
+	"size" "48"
+}
+entity
+{
+	"id" "156"
+	"classname" "infodecal"
+	"origin" "300 150 4"
+	"texture" "decals/crack"
+	"size" "32"
+}
+entity
+{
+	"id" "157"
 	"classname" "light"
 	"origin" "256 256 192"
 	"_light" "255 240 214 320"
 }
 entity
 {
-	"id" "154"
+	"id" "158"
 	"classname" "light"
 	"origin" "784 256 192"
 	"_light" "214 230 255 320"
 }
 entity
 {
-	"id" "155"
+	"id" "159"
 	"classname" "light_environment"
 	"origin" "512 256 224"
 	"pitch" "-45"
@@ -1521,26 +1568,17 @@ entity
 }
 entity
 {
-	"id" "156"
+	"id" "160"
 	"classname" "prop_dynamic_spawner"
-	"origin" "680 112 96"
+	"origin" "760 96 96"
 	"model" "props/cube"
-	"spawncount" "5"
+	"spawncount" "3"
 	"spawnflags" "1"
-	"friction" "1"
-	"mass" "100"
-	"elasticity" "0.1"
 }
 entity
 {
-	"id" "157"
+	"id" "161"
 	"classname" "info_player_start"
 	"origin" "128 256 16"
 	"angles" "0 0 0"
-}
-cordon
-{
-	"mins" "-32 -32 -32"
-	"maxs" "1072 544 288"
-	"active" "0"
 }

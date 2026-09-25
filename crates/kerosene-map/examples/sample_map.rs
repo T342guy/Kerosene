@@ -203,6 +203,51 @@ fn main() -> std::io::Result<()> {
         },
     );
 
+    // The game UI in the world. A keypad on the north wall -- the code is
+    // 1234, and the HUD's objective says so -- that toggles the shutter, the
+    // same thing the button does, through a panel's output instead of a
+    // brush's. And a screen on the dividing wall showing live state, which
+    // is what a world panel is for when nobody is pressing it.
+    let id = map.next_id();
+    let mut keypad = Entity::new(id, "point_worldpanel");
+    keypad.set_origin(Vec3::new(352.0, ROOM - 1.0, 72.0));
+    keypad.set("targetname", "keypad");
+    // Facing -Y, out of the north wall into the room.
+    keypad.set("angles", "0 270 0");
+    keypad.set("layout", "ui/panels/keypad.keroui");
+    keypad.set("width", "40");
+    keypad.set("height", "56");
+    keypad.set("resolution", "448");
+    keypad.set("brightness", "1.2");
+    keypad.set("interactive", "1");
+    keypad.connect(Connection::new("OnUnlock", "shutter", "Toggle"));
+    keypad.connect(Connection::new("OnUnlock", "switch_click", "Play"));
+    map.entities.push(keypad);
+
+    let id = map.next_id();
+    let mut screen = Entity::new(id, "point_worldpanel");
+    screen.set_origin(Vec3::new(wall_x0 - 1.0, 400.0, 120.0));
+    screen.set("targetname", "status_screen");
+    // Facing -X, back into the first room.
+    screen.set("angles", "0 180 0");
+    screen.set("layout", "ui/panels/status.keroui");
+    screen.set("width", "128");
+    screen.set("height", "72");
+    screen.set("resolution", "360");
+    screen.set("brightness", "1.5");
+    map.entities.push(screen);
+
+    // Decals a mapper placed: cracks in the floor near the spawn. Each lands
+    // on whatever surface is nearest its origin when the map starts.
+    for (x, y, size) in [(200.0, 200.0, 48.0), (300.0, 150.0, 32.0)] {
+        let id = map.next_id();
+        let mut decal = Entity::new(id, "infodecal");
+        decal.set_origin(Vec3::new(x, y, 4.0));
+        decal.set("texture", "decals/crack");
+        decal.set("size", format!("{size}"));
+        map.entities.push(decal);
+    }
+
     // Lighting: a lamp in each room, plus sun and sky.
     for (i, x) in [ROOM * 0.5, ROOM * 1.5 + T].iter().enumerate() {
         let id = map.next_id();

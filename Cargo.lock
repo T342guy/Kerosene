@@ -392,7 +392,7 @@ dependencies = [
  "kerosene-map",
  "kerosene-math",
  "kerosene-render",
- "kerosene-ui",
+ "kerosene-toolui",
  "kerosene-vfs",
  "log",
 ]
@@ -1171,6 +1171,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "grid"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b40ca9252762c466af32d0b1002e91e4e1bc5398f77455e55474deb466355ff5"
+
+[[package]]
 name = "half"
 version = "2.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1501,6 +1507,7 @@ dependencies = [
  "kerosene-rigid",
  "kerosene-script",
  "kerosene-tools",
+ "kerosene-ui",
  "kerosene-vfs",
  "kerosene-walk",
  "log",
@@ -1599,6 +1606,7 @@ dependencies = [
  "kerosene-render",
  "kerosene-rigid",
  "kerosene-script",
+ "kerosene-ui",
  "kerosene-vfs",
  "log",
  "pollster",
@@ -1690,9 +1698,11 @@ dependencies = [
  "kerosene-bsp",
  "kerosene-console",
  "kerosene-math",
+ "kerosene-ui",
  "kerosene-vfs",
  "log",
  "naga",
+ "png",
  "pollster",
  "wgpu",
 ]
@@ -1737,7 +1747,7 @@ dependencies = [
  "env_logger",
  "forge",
  "kerosene-console",
- "kerosene-ui",
+ "kerosene-toolui",
  "kerosene-vfs",
  "kiln",
  "log",
@@ -1750,7 +1760,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "kerosene-ui"
+name = "kerosene-toolui"
 version = "0.1.0-prealpha.4"
 dependencies = [
  "anyhow",
@@ -1763,6 +1773,20 @@ dependencies = [
  "pollster",
  "wgpu",
  "winit",
+]
+
+[[package]]
+name = "kerosene-ui"
+version = "0.1.0-prealpha.4"
+dependencies = [
+ "ab_glyph",
+ "epaint_default_fonts",
+ "kerosene-script",
+ "kerosene-vfs",
+ "log",
+ "rhai",
+ "roxmltree",
+ "taffy",
 ]
 
 [[package]]
@@ -1900,7 +1924,7 @@ dependencies = [
  "chisel",
  "egui",
  "kerosene-asset",
- "kerosene-ui",
+ "kerosene-toolui",
  "kerosene-vfs",
 ]
 
@@ -2799,6 +2823,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "roxmltree"
+version = "0.21.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f1964b10c76125c36f8afe190065a4bf9a87bf324842c05701330bba9f1cacbb"
+dependencies = [
+ "memchr",
+]
+
+[[package]]
 name = "rustc-hash"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3191,6 +3224,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "taffy"
+version = "0.9.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "41ba83ebaf2954d31d05d67340fd46cebe99da2b7133b0dd68d70c65473a437b"
+dependencies = [
+ "arrayvec",
+ "grid",
+ "serde",
+ "slotmap",
+]
+
+[[package]]
 name = "termcolor"
 version = "1.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3255,7 +3300,7 @@ dependencies = [
  "env_logger",
  "kerosene-audio",
  "kerosene-kv",
- "kerosene-ui",
+ "kerosene-toolui",
  "kerosene-vfs",
  "log",
  "symphonia",

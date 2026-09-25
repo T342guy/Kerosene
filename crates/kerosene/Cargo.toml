@@ -32,6 +32,7 @@ kerosene-vfs.workspace = true
 kerosene-map.workspace = true
 kerosene-bsp.workspace = true
 kerosene-script.workspace = true
+kerosene-ui.workspace = true
 kerosene-audio.workspace = true
 kerosene-render.workspace = true
 kerosene-physics.workspace = true

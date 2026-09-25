@@ -1,0 +1,42 @@
+<!--
+    A keypad, for a point_worldpanel. The code is checked in the script; a
+    right one emits OnUnlock, which fires the panel entity's output of the
+    same name -- wire it to whatever the keypad should open.
+
+    reference-height is the panel texture's height (the entity's
+    `resolution`), so sizes here are in the texture's own pixels.
+-->
+<root reference-height="448">
+    <styles>
+        <include src="ui/panels/keypad.kerocss"/>
+    </styles>
+    <scripts>
+        <include src="ui/panels/keypad.keroscript"/>
+    </scripts>
+
+    <Panel id="keypad">
+        <Label id="display" text="{keypad.shown}" class:ok="{keypad.state == 'ok'}" class:bad="{keypad.state == 'bad'}"/>
+        <Panel class="keys">
+            <Panel class="keyrow">
+                <Button text="1" onactivate="press('1')"/>
+                <Button text="2" onactivate="press('2')"/>
+                <Button text="3" onactivate="press('3')"/>
+            </Panel>
+            <Panel class="keyrow">
+                <Button text="4" onactivate="press('4')"/>
+                <Button text="5" onactivate="press('5')"/>
+                <Button text="6" onactivate="press('6')"/>
+            </Panel>
+            <Panel class="keyrow">
+                <Button text="7" onactivate="press('7')"/>
+                <Button text="8" onactivate="press('8')"/>
+                <Button text="9" onactivate="press('9')"/>
+            </Panel>
+            <Panel class="keyrow">
+                <Button class="clear" text="C" onactivate="clear()"/>
+                <Button text="0" onactivate="press('0')"/>
+                <Button class="enter" text="OK" onactivate="submit()"/>
+            </Panel>
+        </Panel>
+    </Panel>
+</root>

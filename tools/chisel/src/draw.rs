@@ -793,7 +793,10 @@ fn draw_tool_preview(
         let (h, v, _) = viewport.kind.axes();
         let anchor = viewport.world_to_screen(drag.current);
         let snap = if document.grid.snap {
-            format!(" (snap: {} ku)", kerosene_math::format_float(document.grid.size))
+            format!(
+                " (snap: {} ku)",
+                kerosene_math::format_float(document.grid.size)
+            )
         } else {
             String::new()
         };

@@ -1,0 +1,58 @@
+@keyframes shake {
+    0% { transform: translateX(0px); }
+    25% { transform: translateX(-10px); }
+    50% { transform: translateX(10px); }
+    75% { transform: translateX(-6px); }
+    100% { transform: translateX(0px); }
+}
+
+#keypad {
+    width: 100%;
+    height: 100%;
+    padding: 18px;
+    gap: 14px;
+    background: linear-gradient(to bottom, #2a2f38, #15181d);
+    border: 4px #0b0d10;
+    border-radius: 14px;
+}
+#keypad.shake { animation: shake 0.35s linear; }
+
+#display {
+    height: 72px;
+    padding: 0px 16px;
+    font-size: 52px;
+    letter-spacing: 12px;
+    text-align: right;
+    vertical-align: center;
+    color: #8fe08a;
+    background-color: #06120a;
+    border: 2px #0f2a16;
+    border-radius: 6px;
+}
+#display.ok { color: #d9ffd6; background-color: #1d5a24; }
+#display.bad { color: #ffd4cf; background-color: #5a1d1d; }
+
+.keys {
+    gap: 10px;
+    flex-grow: 1;
+}
+.keyrow {
+    flex-direction: row;
+    gap: 10px;
+    flex-grow: 1;
+    flex-basis: 0px;
+}
+.keys Button {
+    flex-grow: 1;
+    flex-basis: 0px;
+    font-size: 40px;
+    font-weight: bold;
+    background-color: #3a404b;
+    border: 2px #20242b;
+    border-radius: 8px;
+    padding: 0px;
+}
+.keys Button:hover { background-color: #4b5361; }
+.keys Button:active { background-color: #ffa830; color: #1a1a1a; }
+.keys .enter { background-color: #2f6d36; }
+.keys .clear { background-color: #6d2f2f; }

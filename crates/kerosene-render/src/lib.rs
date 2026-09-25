@@ -20,11 +20,13 @@
 
 pub mod brdf;
 pub mod camera;
+pub mod decals;
 pub mod gpu;
 pub mod lightmap;
 pub mod lights;
 pub mod mesh;
 pub mod probes;
+pub mod ui;
 
 pub use camera::{Camera, Frustum, vertical_fov};
 pub use lightmap::{ATLAS_FORMAT, ATLAS_SIZE, AtlasRect, LightmapAtlas};

@@ -279,7 +279,10 @@ mod tests {
         for &(p, y, r) in &[(5.0, 20.0, -10.0), (40.0, -120.0, 80.0)] {
             let a = Angles::new(p, y, r);
             let back = Angles::from_quat(a.to_quat());
-            assert!((angle_diff(back.pitch, p)).abs() < 0.01, "{a:?} -> {back:?}");
+            assert!(
+                (angle_diff(back.pitch, p)).abs() < 0.01,
+                "{a:?} -> {back:?}"
+            );
             assert!((angle_diff(back.yaw, y)).abs() < 0.01, "{a:?} -> {back:?}");
             assert!((angle_diff(back.roll, r)).abs() < 0.01, "{a:?} -> {back:?}");
         }

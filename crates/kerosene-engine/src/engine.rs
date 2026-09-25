@@ -226,6 +226,8 @@ pub struct Engine {
     pending_map: Option<String>,
     /// Set by the `quit` command.
     pub should_quit: bool,
+    /// The game UI: its store, layers, world panels and decals.
+    pub ui: crate::ui::GameUi,
 }
 
 /// The prop the pick-up tool is carrying, and the orientation that keeps its
@@ -316,6 +318,7 @@ impl Engine {
         let mut console = Console::new();
         register_cvars(&mut console);
         register_commands(&mut console);
+        crate::ui::register(&mut console);
 
         // Wire `exec` to the filesystem.
         let exec_vfs = vfs.clone();
@@ -382,6 +385,7 @@ impl Engine {
             tick_count: 0,
             pending_map: config.map.clone(),
             should_quit: false,
+            ui: crate::ui::GameUi::default(),
         };
 
         let vfs = engine.vfs.clone();
@@ -581,6 +585,10 @@ impl Engine {
             sky_color,
         });
         self.load_generation += 1;
+        // Before the entities' spawn requests are taken: an `infodecal`
+        // places its decal there, and clearing the old map's after would
+        // take the new one with them.
+        self.ui_map_loaded();
         self.spawn_player();
         self.time = 0.0;
         self.tick_count = 0;
@@ -788,7 +796,13 @@ impl Engine {
         self.audio.set_volume(self.console.float("volume"));
         self.update_acoustics();
 
-        if input.use_key && !self.player.use_held {
+        // An interactive world panel under the crosshair takes the press
+        // first: pressing use on a keypad presses its key, not the wall.
+        let use_edge = input.use_key && !self.player.use_held;
+        let attack_edge = input.attack && !self.player.attack_held;
+        let panel_took = self.world_panel_input(input.use_key, input.attack, use_edge, attack_edge);
+
+        if use_edge && !panel_took {
             self.use_what_is_in_front();
         }
         self.player.use_held = input.use_key;
@@ -797,7 +811,7 @@ impl Engine {
         // putting a crate down where you are standing and hurling it across
         // the room are different intentions, and a single key that always did
         // the second gave no way to express the first.
-        if input.attack && !self.player.attack_held {
+        if attack_edge && !panel_took {
             self.throw_held_prop();
         }
         self.player.attack_held = input.attack;
@@ -901,6 +915,8 @@ impl Engine {
                 vec![rhai::Dynamic::from(dt as f64)],
             );
         }
+
+        self.publish_ui_state();
     }
 
     /// Which way the player is leaning, on the floor plane.
@@ -1269,7 +1285,9 @@ impl Engine {
             "{reason}: -{amount:.0} hp ({:.0} left)",
             self.player.health.max(0.0)
         ));
+        self.ui_emit("player_damaged", format!("{amount:.0}"));
         if self.player.health <= 0.0 {
+            self.ui_emit("player_died", reason);
             self.console.print("you died");
             self.player.health = 100.0;
             self.spawn_player();
@@ -2029,6 +2047,7 @@ pub fn take_console_requests(engine: &mut Engine) -> Vec<(String, String)> {
                     engine.physics.body_count(),
                 ));
             }
+            kind if engine.ui_console_request(kind, &payload) => {}
             // Not ours. The console can ask for things the *host* owns --
             // opening the console itself, most obviously -- and the engine
             // has no business knowing a window exists. Handing them back

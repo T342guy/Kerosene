@@ -408,6 +408,12 @@ pub const PACKED: &[&str] = &[
     "kerosnd",
     "keroaud",
     "kerodef",
+    // The game UI: layouts and stylesheets are read as they are written, and
+    // fonts a stylesheet names with `@font-face` are loaded as they are.
+    "keroui",
+    "kerocss",
+    "ttf",
+    "otf",
 ];
 
 fn pack(settings: &Settings, archive: &Path) -> Result<()> {

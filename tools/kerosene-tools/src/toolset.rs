@@ -13,10 +13,10 @@
 
 use anyhow::Result;
 use chisel::ChiselApp;
-use kerosene_ui::App as _;
-use kerosene_ui::output::{OutputPanel, Source};
-use kerosene_ui::theme::{self, colors, icons};
-use kerosene_ui::widgets;
+use kerosene_toolui::App as _;
+use kerosene_toolui::output::{OutputPanel, Source};
+use kerosene_toolui::theme::{self, colors, icons};
+use kerosene_toolui::widgets;
 use std::path::PathBuf;
 use timbre::gui::Timbre;
 
@@ -380,7 +380,7 @@ impl Toolset {
     }
 }
 
-impl kerosene_ui::App for Toolset {
+impl kerosene_toolui::App for Toolset {
     fn ui(&mut self, ctx: &egui::Context) {
         self.shortcuts(ctx);
         self.activity_bar(ctx);
@@ -479,13 +479,13 @@ impl kerosene_ui::App for Toolset {
 /// Open the toolset window.
 pub fn run_gui(launch: Launch) -> Result<()> {
     let toolset = Toolset::open(launch)?;
-    kerosene_ui::run("Kerosene toolset", (1600, 950), toolset)
+    kerosene_toolui::run("Kerosene toolset", (1600, 950), toolset)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use kerosene_ui::App;
+    use kerosene_toolui::App;
 
     /// A toolset over an empty directory: no project, no content.
     fn toolset_in(name: &str) -> (Toolset, PathBuf) {
@@ -559,7 +559,7 @@ mod tests {
     fn every_tab_draws_a_frame_without_a_content_tree() {
         let (mut toolset, root) = toolset_in("tabs");
         let ctx = egui::Context::default();
-        kerosene_ui::theme::install(&ctx);
+        kerosene_toolui::theme::install(&ctx);
         for tab in Tab::ALL {
             toolset.tab = tab;
             toolset.output.open = true;

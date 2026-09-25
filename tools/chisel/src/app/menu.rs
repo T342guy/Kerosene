@@ -5,8 +5,8 @@
 //! the reference card: open it once and the keys are there to be read.
 
 use super::*;
-use kerosene_ui::theme::{self, colors, icons};
-use kerosene_ui::widgets::{menu_item, menu_item_enabled};
+use kerosene_toolui::theme::{self, colors, icons};
+use kerosene_toolui::widgets::{menu_item, menu_item_enabled};
 
 impl ChiselApp {
     pub(super) fn menu_bar(&mut self, ctx: &Context) {

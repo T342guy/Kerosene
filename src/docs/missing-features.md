@@ -40,10 +40,8 @@ elsewhere in these docs.
   wait on this.
 - **`volume` is the only sound convar an options screen could set.** There
   is no separate music or effects volume.
-- **`kerosene-ui` is not a UI toolkit.** It is the window that hosts the
-  tools -- winit, a wgpu surface and egui in three hundred lines. The name is
-  spoken for by the thing a game actually needs (section 8), and freeing it
-  is cheaper now than later.
+- ~~**`kerosene-ui` is not a UI toolkit.**~~ Fixed: the tools' egui host is
+  now `kerosene-toolui`, and `kerosene-ui` is the game UI (section 8).
 - **Chisel is a quarter of the codebase in one crate.** Eighteen thousand
   lines; worth splitting before the GPU viewport lands.
 
@@ -95,8 +93,11 @@ for completeness.
   notional direction rather than the real one -- radiosity normal mapping in
   Radiance is the fix.
 - **Level of detail.** No LOD for models or geometry.
-- **Decals / projected textures.** None. A bullet hole is the first thing a
-  weapon needs.
+- ~~**Decals / projected textures.**~~ Mesh decals: cut from the world's
+  triangles when placed, lit by the lightmap under them and by dynamic
+  lights, from `infodecal`, the `decal` command, scripts and the stock
+  weapons (see [Game UI](ui.md#decals)). Not on moving brushes or props, and
+  a section streamed in after a decal was placed does not get it.
 - **Particles / VFX.** None. Muzzle flash, sparks, dust.
 - **Reflections.** `env_cubemap` probes, baked by Radiance and reflected by
   every smooth or metal surface (nearest visible probe, blurred by roughness).
@@ -207,21 +208,22 @@ for completeness.
 
 ## 8. UI and HUD
 
-- **In-game HUD / menus.** A game draws its own with egui through
-  `Game::ui`, over the world and under the console, with the pointer
-  reaching it whenever the mouse is not captured. Nothing is provided on
-  top of that: no main menu, pause menu, options screen or dialogue boxes
-  to reuse.
+- ~~**In-game HUD / menus.**~~ `kerosene-ui`: XML layouts, CSS styles and
+  Rhai scripts, with bindings to published game state, hot reload, a stock
+  HUD, damage overlay, pause menu with options, and world panels. See
+  [Game UI](ui.md). Still missing: a main menu before any map is loaded, and
+  dialogue boxes.
 - **The attribution screen.** The licence exception requires every game to
   show "Built with Kerosene" when it starts. The engine should draw that
   itself, so a game meets the condition by default and a fork inherits it;
   today each game draws it in `Game::ui`.
-- **Gameplay UI toolkit.** egui is what `Game::ui` gets, which is a real
-  widget system, but it looks like a tool; there is no theming, atlas font
-  or textured-quad layer for a game that wants to look like one.
+- ~~**Gameplay UI toolkit.**~~ See above. What is left: scrolling
+  containers, grid layout, and text shaping beyond kerning (no ligatures or
+  right-to-left scripts).
 - **Localization.** No string tables or translation. Cheap now, painful to
   retrofit.
-- **Runtime text/font rendering** for gameplay. Only console and editor fonts.
+- ~~**Runtime text/font rendering**~~ for gameplay: a glyph atlas over
+  ab_glyph, with `@font-face` for a game's own fonts.
 
 ## 9. Input
 
@@ -234,9 +236,10 @@ for completeness.
 
 ## 10. Gameplay systems (beyond the FPS sandbox)
 
-- **Weapons and combat.** No weapons, hitscan, ammo, or reload. Named as the
-  gap three times in `positioning.md`; nothing is started. Hitscan through
-  the existing traces is the first version.
+- **Weapons and combat.** A stub exists (`kerosene_game::weapons`): three
+  hitscan weapons with ammo, reload and spread, and a dash on a cooldown,
+  there to feed the HUD. Nothing takes damage, and there are no projectiles,
+  viewmodels or firing sounds.
 - **Damage model.** Only player fall damage. No damage types, armor, enemy
   health, or hit reactions, and no `OnDamaged` output on entities.
 - **Inventory / items / pickups.** None.

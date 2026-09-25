@@ -1,0 +1,52 @@
+/* Menus: the pause menu, and a starting point for any other. */
+
+#backdrop {
+    position: absolute;
+    left: 0px; top: 0px; right: 0px; bottom: 0px;
+    background: linear-gradient(to right, rgba(6, 8, 12, 0.92), rgba(6, 8, 12, 0.35));
+    justify-content: center;
+    padding-left: 120px;
+}
+
+#menu {
+    width: 520px;
+    gap: 28px;
+    animation: slide-in 0.25s ease-out;
+}
+
+@keyframes slide-in {
+    from { opacity: 0; transform: translateX(-40px); }
+    to { opacity: 1; transform: translateX(0px); }
+}
+
+#brand { flex-direction: row; align-items: center; gap: 20px; }
+#logo { width: 72px; height: 72px; }
+.title { font-size: 56px; font-weight: bold; letter-spacing: 4px; text-transform: uppercase; }
+.subtitle { font-size: 18px; color: rgba(242, 237, 228, 0.6); }
+
+.page { gap: 10px; }
+
+.page Button {
+    justify-content: flex-start;
+    padding: 14px 22px;
+    font-size: 26px;
+    background-color: rgba(255, 255, 255, 0.04);
+    border-radius: 6px;
+}
+.page Button:hover, .page Button:focus {
+    background-color: rgba(255, 168, 48, 0.25);
+    transform: translateX(8px);
+}
+.page Button.danger:hover, .page Button.danger:focus {
+    background-color: rgba(255, 70, 50, 0.35);
+}
+
+.setting {
+    flex-direction: row;
+    align-items: center;
+    gap: 18px;
+    padding: 8px 0px;
+}
+.setting .name { width: 180px; color: rgba(242, 237, 228, 0.8); }
+.setting .value { width: 60px; text-align: right; color: #ffa830; }
+.setting Slider { flex-grow: 1; }

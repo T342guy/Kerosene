@@ -235,7 +235,7 @@ appears in the result.
 and `ctrl-1`..`ctrl-6`. Each tab is the tool it used to be: `ChiselApp`,
 `timbre::gui::Timbre`, `loupe`, and the project/build/archive panels in
 `tools/kerosene-tools/src/panels.rs` and `project.rs`. One output panel
-(`kerosene_ui::output::OutputPanel`) receives every job's log.
+(`kerosene_toolui::output::OutputPanel`) receives every job's log.
 
 `tools/kerosene-tools/src/project.rs` is where the window opens. It counts
 maps, compiled maps, materials, models, sounds and scripts so a person arriving

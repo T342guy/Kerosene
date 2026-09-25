@@ -112,6 +112,19 @@ pub enum ScriptAction {
     },
     /// Stop every sound.
     StopAllSounds,
+    /// Publish a value to the game UI.
+    UiSet { key: String, value: String },
+    /// Send the game UI an event.
+    UiEvent { name: String, data: String },
+    /// Show a layout on a UI layer, or hide the layer (`path` empty).
+    UiLayer { layer: String, path: String },
+    /// Project a decal onto the surface at `origin`, facing along `normal`.
+    PlaceDecal {
+        material: String,
+        origin: Vec3,
+        normal: Vec3,
+        size: f32,
+    },
 }
 
 /// The shared state script functions read and write.
@@ -131,6 +144,27 @@ pub(crate) struct Shared {
 /// I/O loop, and the engine already refuses to dispatch forever for the same
 /// reason.
 pub const MAX_ACTIONS: usize = 4096;
+
+/// A Rhai engine with the bounds every Kerosene script runs under.
+///
+/// Shared with the UI's scripts (`kerosene-ui`), which are content in exactly
+/// the same sense a level's are and get exactly the same limits.
+pub fn sandboxed_engine() -> rhai::Engine {
+    let mut engine = rhai::Engine::new();
+
+    // Bounds, not trust. A level's scripts are content, and content is
+    // edited by people who make mistakes; an infinite loop should stop the
+    // script rather than the game.
+    engine.set_max_operations(2_000_000);
+    engine.set_max_call_levels(64);
+    engine.set_max_expr_depths(128, 64);
+    engine.set_max_string_size(64 * 1024);
+    engine.set_max_array_size(16 * 1024);
+    // No file system and no module loading from inside a script: `import`
+    // would be a way around every bound above.
+    engine.set_module_resolver(rhai::module_resolvers::DummyModuleResolver::new());
+    engine
+}
 
 /// A script VM with the engine's bindings in it.
 pub struct ScriptHost {
@@ -153,20 +187,7 @@ impl Default for ScriptHost {
 impl ScriptHost {
     pub fn new() -> ScriptHost {
         let shared = Rc::new(RefCell::new(Shared::default()));
-        let mut engine = rhai::Engine::new();
-
-        // Bounds, not trust. A level's scripts are content, and content is
-        // edited by people who make mistakes; an infinite loop should stop the
-        // script rather than the game.
-        engine.set_max_operations(2_000_000);
-        engine.set_max_call_levels(64);
-        engine.set_max_expr_depths(128, 64);
-        engine.set_max_string_size(64 * 1024);
-        engine.set_max_array_size(16 * 1024);
-        // No file system and no module loading from inside a script: `import`
-        // would be a way around every bound above.
-        engine.set_module_resolver(rhai::module_resolvers::DummyModuleResolver::new());
-
+        let mut engine = sandboxed_engine();
         bindings::register(&mut engine, &shared);
 
         ScriptHost {

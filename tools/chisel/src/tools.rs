@@ -603,7 +603,9 @@ fn default_depth(document: &Document, viewport: &Viewport) -> f32 {
 /// placed the entity at another would be worse than no ghost at all.
 pub fn entity_placement_point(document: &Document, viewport: &Viewport, x: f32, y: f32) -> Vec3 {
     let depth = default_depth(document, viewport);
-    document.grid.snap_point(viewport.screen_to_world(x, y, depth))
+    document
+        .grid
+        .snap_point(viewport.screen_to_world(x, y, depth))
 }
 
 /// Where a 3D pick ray places a point entity: on the nearest solid it hits,

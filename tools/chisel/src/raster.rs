@@ -334,7 +334,15 @@ pub fn render_with(
     outline(&mut image, &face_at);
     markers(document, &mut image, &mut depth, eye, basis, project);
     if let Some(ghost) = &settings.ghost {
-        draw_ghost(&mut image, &mut depth, &mut face_at, eye, basis, project, ghost);
+        draw_ghost(
+            &mut image,
+            &mut depth,
+            &mut face_at,
+            eye,
+            basis,
+            project,
+            ghost,
+        );
     }
     image
 }
@@ -672,7 +680,8 @@ fn draw_ghost(
 ) {
     for triangle_indices in ghost.model.indices.as_chunks::<3>().0 {
         let corners: [Vec3; 3] = std::array::from_fn(|i| {
-            let local = Vec3::from_array(ghost.model.vertices[triangle_indices[i] as usize].position);
+            let local =
+                Vec3::from_array(ghost.model.vertices[triangle_indices[i] as usize].position);
             ghost.pose.to_world(local)
         });
 

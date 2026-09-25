@@ -13,6 +13,7 @@ kerosene-asset.workspace = true
 kerosene-anim.workspace = true
 kerosene-vfs.workspace = true
 kerosene-console.workspace = true
+kerosene-ui.workspace = true
 glam.workspace = true
 wgpu.workspace = true
 bytemuck.workspace = true
@@ -22,3 +23,5 @@ pollster.workspace = true
 
 [dev-dependencies]
 naga = { version = "25", features = ["wgsl-in"] }
+# `ui_smoke` writes what it drew to a PNG when asked to, for looking at.
+png.workspace = true

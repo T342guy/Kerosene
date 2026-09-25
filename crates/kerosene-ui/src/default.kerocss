@@ -1,0 +1,106 @@
+/* The stylesheet every layout starts from, before its own. It gives the
+   built-in controls a plain, usable look; a layout's own sheet overrides any
+   of it. */
+
+.root {
+    font-size: 24px;
+    color: white;
+}
+
+Label {
+    flex-shrink: 0;
+}
+
+Button {
+    flex-direction: row;
+    justify-content: center;
+    align-items: center;
+    padding: 10px 24px;
+    background-color: rgba(255, 255, 255, 0.08);
+    border-radius: 4px;
+    transition: background-color 0.12s ease-out, transform 0.12s ease-out;
+}
+Button:hover, Button:focus {
+    background-color: rgba(255, 255, 255, 0.2);
+}
+Button:active {
+    background-color: rgba(255, 255, 255, 0.3);
+    transform: scale(0.98);
+}
+Button:disabled {
+    opacity: 0.4;
+}
+
+Slider {
+    width: 280px;
+    height: 28px;
+    justify-content: center;
+}
+.slider-track {
+    height: 6px;
+    border-radius: 3px;
+    background-color: rgba(255, 255, 255, 0.2);
+    flex-direction: row;
+}
+.slider-fill {
+    height: 100%;
+    border-radius: 3px;
+    background-color: #ffa830;
+}
+.slider-thumb {
+    position: absolute;
+    top: 4px;
+    width: 20px;
+    height: 20px;
+    margin-left: -10px;
+    border-radius: 50%;
+    background-color: white;
+}
+Slider:hover .slider-thumb, Slider:focus .slider-thumb {
+    background-color: #ffe0b0;
+}
+
+Toggle {
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
+}
+.toggle-box {
+    width: 24px;
+    height: 24px;
+    border: 2px rgba(255, 255, 255, 0.8);
+    border-radius: 4px;
+    padding: 3px;
+}
+.toggle-knob {
+    flex-grow: 1;
+    border-radius: 2px;
+}
+Toggle:checked .toggle-knob {
+    background-color: #ffa830;
+}
+Toggle:focus .toggle-box, Toggle:hover .toggle-box {
+    border-color: #ffa830;
+}
+
+ProgressBar {
+    height: 8px;
+    flex-direction: row;
+    background-color: rgba(255, 255, 255, 0.2);
+}
+.progress-fill {
+    height: 100%;
+    background-color: white;
+}
+
+TextEntry {
+    min-width: 200px;
+    padding: 6px 10px;
+    background-color: rgba(0, 0, 0, 0.5);
+    border: 1px rgba(255, 255, 255, 0.3);
+    white-space: nowrap;
+    overflow: hidden;
+}
+TextEntry:focus {
+    border-color: #ffa830;
+}

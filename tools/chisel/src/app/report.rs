@@ -8,8 +8,8 @@
 //! open. The history is the undo stack with names on it.
 
 use super::*;
-use kerosene_ui::theme::{self, colors, icons};
-use kerosene_ui::widgets;
+use kerosene_toolui::theme::{self, colors, icons};
+use kerosene_toolui::widgets;
 
 /// Which entities the report lists.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]

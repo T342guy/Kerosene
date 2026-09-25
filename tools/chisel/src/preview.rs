@@ -114,9 +114,7 @@ pub fn model_zoomed(
     };
 
     for (material, start, end) in ranges {
-        let texture = resolve
-            .as_deref_mut()
-            .and_then(|resolve| resolve(material));
+        let texture = resolve.as_deref_mut().and_then(|resolve| resolve(material));
         let flat = texture
             .as_ref()
             .map_or_else(|| TextureCache::fallback_colour(material), |t| t.average);

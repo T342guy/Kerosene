@@ -1,0 +1,32 @@
+<!--
+    Full-screen overlays: a red flash from the edges when the player is hurt,
+    a steady tint while health is low, and a blue flash on a dash. Pointer
+    events are off: nothing here is ever in the way.
+-->
+<root z="10">
+    <style>
+        @keyframes flash { from { opacity: 1; } to { opacity: 0; } }
+        @keyframes throb { from { opacity: 0.35; } to { opacity: 0.8; } }
+
+        .fill { position: absolute; left: 0px; top: 0px; right: 0px; bottom: 0px; pointer-events: none; }
+        .edge { position: absolute; }
+        .top { left: 0px; right: 0px; top: 0px; height: 30%; background: linear-gradient(to bottom, rgba(170, 0, 0, 0.7), rgba(170, 0, 0, 0)); }
+        .bottom { left: 0px; right: 0px; bottom: 0px; height: 30%; background: linear-gradient(to top, rgba(170, 0, 0, 0.7), rgba(170, 0, 0, 0)); }
+        .left { left: 0px; top: 0px; bottom: 0px; width: 22%; background: linear-gradient(to right, rgba(170, 0, 0, 0.7), rgba(170, 0, 0, 0)); }
+        .right { right: 0px; top: 0px; bottom: 0px; width: 22%; background: linear-gradient(to left, rgba(170, 0, 0, 0.7), rgba(170, 0, 0, 0)); }
+
+        #hurt { opacity: 0; }
+        #hurt.hit { animation: flash 0.7s ease-out; }
+        #lowhealth { animation: throb 0.9s ease-in-out infinite alternate; }
+        #dash { opacity: 0; background-color: rgba(120, 180, 255, 0.35); -kero-blend: additive; }
+        #dash.go { animation: flash 0.35s ease-out; }
+    </style>
+
+    <Panel id="hurt" class="fill" on:player_damaged="target.trigger_class('hit')">
+        <Panel class="edge top"/><Panel class="edge bottom"/><Panel class="edge left"/><Panel class="edge right"/>
+    </Panel>
+    <Panel id="lowhealth" class="fill" visible="{player.alive && player.health <= 25}">
+        <Panel class="edge left"/><Panel class="edge right"/>
+    </Panel>
+    <Panel id="dash" class="fill" on:ability_used="target.trigger_class('go')"/>
+</root>

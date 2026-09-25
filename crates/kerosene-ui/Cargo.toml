@@ -7,13 +7,11 @@ license.workspace = true
 authors.workspace = true
 
 [dependencies]
-anyhow.workspace = true
+kerosene-script.workspace = true
+kerosene-vfs.workspace = true
 log.workspace = true
-kerosene-config.workspace = true
-egui.workspace = true
-egui-phosphor.workspace = true
-egui-wgpu.workspace = true
-egui-winit.workspace = true
-wgpu.workspace = true
-winit.workspace = true
-pollster.workspace = true
+rhai.workspace = true
+taffy.workspace = true
+roxmltree.workspace = true
+ab_glyph.workspace = true
+epaint_default_fonts.workspace = true

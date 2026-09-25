@@ -215,6 +215,23 @@ impl Engine {
                     }
                 }
                 ScriptAction::StopAllSounds => self.audio.stop_all(),
+                ScriptAction::UiSet { key, value } => {
+                    self.ui_set(&key, kerosene_ui::Value::parse(&value));
+                }
+                ScriptAction::UiEvent { name, data } => self.ui_emit(&name, data),
+                ScriptAction::UiLayer { layer, path } => {
+                    if path.is_empty() {
+                        self.ui_hide(&layer);
+                    } else {
+                        self.ui_show(&layer, &path);
+                    }
+                }
+                ScriptAction::PlaceDecal {
+                    material,
+                    origin,
+                    normal,
+                    size,
+                } => self.place_decal(&material, origin, normal, size),
             }
         }
     }
@@ -277,6 +294,7 @@ impl Engine {
                         self.console.warn("Sleep: not a physics prop");
                     }
                 }
+                kind if self.ui_entity_request(kind, &request.payload, request.caller) => {}
                 _ => {
                     // A kind the engine does not know may be one of the
                     // game's own: its class handlers have no other way to

@@ -16,8 +16,8 @@
 use chisel::textures::TextureCache;
 use egui::Color32;
 use kerosene_asset::Model;
-use kerosene_ui::theme::{self, colors, icons};
-use kerosene_ui::widgets;
+use kerosene_toolui::theme::{self, colors, icons};
+use kerosene_toolui::widgets;
 use kerosene_vfs::Vfs;
 use std::path::PathBuf;
 
@@ -147,10 +147,7 @@ impl LoupeApp {
                     ui.spacing_mut().item_spacing.y = 1.0;
                     for name in names {
                         let selected = self.selected.as_deref() == Some(&name);
-                        if ui
-                            .selectable_label(selected, theme::mono(&name))
-                            .clicked()
-                        {
+                        if ui.selectable_label(selected, theme::mono(&name)).clicked() {
                             self.select(&name);
                         }
                     }
@@ -209,13 +206,17 @@ impl LoupeApp {
             };
             match &mut self.render {
                 Some(rendered) => {
-                    rendered.texture.set(color_image, egui::TextureOptions::LINEAR);
+                    rendered
+                        .texture
+                        .set(color_image, egui::TextureOptions::LINEAR);
                     rendered.key = key;
                 }
                 None => {
-                    let texture =
-                        ui.ctx()
-                            .load_texture("loupe-view", color_image, egui::TextureOptions::LINEAR);
+                    let texture = ui.ctx().load_texture(
+                        "loupe-view",
+                        color_image,
+                        egui::TextureOptions::LINEAR,
+                    );
                     self.render = Some(Rendered { key, texture });
                 }
             }
@@ -294,7 +295,7 @@ impl LoupeApp {
     }
 }
 
-impl kerosene_ui::App for LoupeApp {
+impl kerosene_toolui::App for LoupeApp {
     fn window_title(&self) -> String {
         match &self.selected {
             Some(name) => format!("{name} -- Loupe"),

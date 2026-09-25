@@ -108,6 +108,17 @@ the ordering and the delays are the ones the rest of the level plays by.
 | `time()` `tick()` `map_name()` | Where and when you are |
 | `print(x)` `warn(x)` `error(x)` | Console output, with severity |
 
+### The game UI
+
+| | |
+|---|---|
+| `ui_set(key, value)` | Publish a value layouts can bind to: `ui_set("objective.text", "Find the key")` |
+| `ui_event(name)` `ui_event(name, data)` | An event every layout hears |
+| `ui_show(layer, file)` `ui_hide(layer)` | Show or hide a layout |
+| `place_decal(material, origin, normal, size)` | Project a decal |
+
+See [Game UI](ui.md).
+
 ### Vectors
 
 ```rhai

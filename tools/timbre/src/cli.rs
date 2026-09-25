@@ -168,5 +168,5 @@ fn build(content: Option<PathBuf>, force: bool) -> Result<()> {
 fn edit(content: Option<PathBuf>) -> Result<()> {
     let root = content_root(content)?;
     let app = crate::gui::Timbre::open(&root)?;
-    kerosene_ui::run("Timbre -- Kerosene sound compiler", (1180, 760), app)
+    kerosene_toolui::run("Timbre -- Kerosene sound compiler", (1180, 760), app)
 }

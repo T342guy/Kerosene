@@ -19,6 +19,7 @@ members = [
     "crates/kerosene-game",
     "crates/kerosene-script",
     "crates/kerosene-audio",
+    "crates/kerosene-toolui",
     "crates/kerosene-ui",
     "crates/kerosene",
     "apps/kerosene",
@@ -63,6 +64,7 @@ kerosene-engine  = { path = "crates/kerosene-engine" }
 kerosene-game    = { path = "crates/kerosene-game" }
 kerosene-script  = { path = "crates/kerosene-script" }
 kerosene-audio   = { path = "crates/kerosene-audio", default-features = false }
+kerosene-toolui  = { path = "crates/kerosene-toolui" }
 kerosene-ui      = { path = "crates/kerosene-ui" }
 kerosene         = { path = "crates/kerosene" }
 box3d-rust       = "0.2"
@@ -84,7 +86,7 @@ egui        = "0.32"
 egui-wgpu   = "0.32"
 egui-winit  = { version = "0.32", default-features = false, features = ["links", "wayland", "x11"] }
 # Icon font for the tools. MIT OR Apache-2.0, and the only thing in the tree
-# that looks like a UI asset; kept behind kerosene-ui so every tool draws the
+# that looks like a UI asset; kept behind kerosene-toolui so every tool draws the
 # same glyphs.
 egui-phosphor = "0.10"
 # Decodes the window icon. Already in the tree under `image`; the engine
@@ -94,6 +96,13 @@ pollster    = "0.4"
 # Scripting. Pure Rust, no C toolchain, and small enough to embed without the
 # engine becoming a host for someone else's runtime.
 rhai        = "1"
+# The game UI (kerosene-ui). Flexbox layout and an XML reader, both pure Rust
+# and MIT/Apache; the font rasteriser and the fallback font are the ones egui
+# already brings into the tree.
+taffy       = { version = "0.9", default-features = false, features = ["std", "taffy_tree", "flexbox", "content_size"] }
+roxmltree   = "0.21"
+ab_glyph    = "0.2"
+epaint_default_fonts = "0.32"
 # Audio output. Needs ALSA headers on Linux (libasound2-dev); the mixer
 # itself is pure Rust and builds without it.
 cpal        = "0.18"

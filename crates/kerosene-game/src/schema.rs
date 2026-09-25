@@ -621,4 +621,50 @@ class
     input  { "name" "Display" "help" "The same as Show." }
     output { "name" "OnShowMessage" }
 }
+// ------------------------------------------------------------------- ui ----
+
+class
+{
+    "name" "logic_ui"
+    "base" "Entity" "base" "Point"
+    "help" "Wiring into the game UI. Send its HUD an event, publish a value a layout binds to, or show and hide a layer."
+    input  { "name" "Emit" "parameter" "<event> [data]"
+             "help" "An event every UI document hears: on:<event> handlers and on_event() run." }
+    input  { "name" "SetValue" "parameter" "<key> <value>"
+             "help" "Publish a value, e.g. objective.text Find the key. Layouts bound to it update." }
+    input  { "name" "ShowLayer" "parameter" "<layer> <file>" "help" "e.g. overlay ui/overlays/intro.keroui" }
+    input  { "name" "HideLayer" "parameter" "<layer>" }
+}
+
+class
+{
+    "name" "point_worldpanel"
+    "base" "Entity" "base" "Point"
+    "help" "A UI layout shown on a surface in the level: a screen, a keypad, a sign. It faces along its angles; place it just in front of a wall."
+    key { "name" "angles" "label" "Facing (pitch yaw roll)" "type" "angles" "default" "0 0 0" }
+    key { "name" "layout" "label" "Layout" "type" "string" "default" "ui/panels/keypad.keroui"
+          "help" "The .keroui file to show." }
+    key { "name" "width" "label" "Width (units)" "type" "float" "default" "32" }
+    key { "name" "height" "label" "Height (units)" "type" "float" "default" "32" }
+    key { "name" "resolution" "label" "Pixels tall" "type" "integer" "default" "512"
+          "help" "The texture's height; its width follows the panel's shape." }
+    key { "name" "brightness" "label" "Brightness" "type" "float" "default" "1"
+          "help" "How brightly the screen glows. 1 is a surface lit to full." }
+    key { "name" "interactive" "label" "Interactive" "type" "boolean" "default" "0"
+          "help" "Whether the player can point at it and press use to click." }
+    key { "name" "startdisabled" "label" "Start hidden" "type" "boolean" "default" "0" }
+    input  { "name" "Enable" "help" "Show the panel." }
+    input  { "name" "Disable" "help" "Hide the panel." }
+    input  { "name" "Emit" "parameter" "<event> [data]" "help" "An event for the panel's layout." }
+    output { "name" "OnPanelEvent" "help" "Fired for every event the panel's script emits, with the event's name as the parameter. An event whose name starts with On also fires the output of that name, with its data." }
+}
+
+class
+{
+    "name" "infodecal"
+    "base" "Entity" "base" "Point"
+    "help" "A decal -- a sign, a stain, a crack -- projected onto the surface nearest to it when the map starts."
+    key { "name" "texture" "label" "Material" "type" "material" "default" "decals/crack" }
+    key { "name" "size" "label" "Size (units)" "type" "float" "default" "32" }
+}
 "#;

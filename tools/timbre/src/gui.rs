@@ -20,8 +20,8 @@ use egui::{Pos2, Rect, Sense, Stroke, StrokeKind, Vec2};
 use kerosene_audio::compiled::{Encoding, Loop};
 use kerosene_audio::wav::Sound;
 use kerosene_audio::{Mixer, SoundHandle, SoundParams};
-use kerosene_ui::theme::{self, colors, icons};
-use kerosene_ui::widgets;
+use kerosene_toolui::theme::{self, colors, icons};
+use kerosene_toolui::widgets;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
@@ -341,7 +341,7 @@ fn envelope_of(sound: &Sound, columns: usize) -> Vec<(f32, f32)> {
         .collect()
 }
 
-impl kerosene_ui::App for Timbre {
+impl kerosene_toolui::App for Timbre {
     fn window_title(&self) -> String {
         match self.selected.and_then(|i| self.entries.get(i)) {
             Some(entry) => format!("{} -- Timbre", entry.name),

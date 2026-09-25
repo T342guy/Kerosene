@@ -1,0 +1,50 @@
+// The keypad's logic. State lives in the store (`keypad.*`) rather than in
+// script variables because Rhai functions cannot see a script's top-level
+// variables -- and because in the store, the display can bind to it.
+
+fn on_load() {
+    clear();
+}
+
+fn show(entry) {
+    set_store("keypad.entry", entry);
+    // Dashes for the digits not entered yet.
+    let shown = entry;
+    while shown.len() < 4 {
+        shown += "-";
+    }
+    set_store("keypad.shown", shown);
+}
+
+fn press(key) {
+    let entry = store_or("keypad.entry", "");
+    if entry.len() >= 4 {
+        entry = "";
+    }
+    show(entry + key);
+    set_store("keypad.state", "");
+    play_sound("ui/click");
+}
+
+fn clear() {
+    show("");
+    set_store("keypad.state", "");
+}
+
+// The code. A function rather than a variable, since functions are what
+// other functions can see.
+fn code() {
+    "1234"
+}
+
+fn submit() {
+    if store_or("keypad.entry", "") == code() {
+        set_store("keypad.state", "ok");
+        // Fires the panel entity's OnUnlock output.
+        emit("OnUnlock", code());
+    } else {
+        set_store("keypad.state", "bad");
+        panel("keypad").trigger_class("shake");
+    }
+    schedule(1.5, "clear");
+}

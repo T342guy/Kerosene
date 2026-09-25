@@ -2,8 +2,8 @@
 //! The inspector panel: faces, brushes and entities.
 
 use super::*;
-use kerosene_ui::theme::{self, colors, icons};
-use kerosene_ui::widgets;
+use kerosene_toolui::theme::{self, colors, icons};
+use kerosene_toolui::widgets;
 
 impl ChiselApp {
     /// The panel on the right: what is selected, the tool's settings, and

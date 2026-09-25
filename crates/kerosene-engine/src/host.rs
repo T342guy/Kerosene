@@ -18,12 +18,16 @@ use crate::input::InputSystem;
 use crate::physics::{is_physics_prop, is_static_prop};
 use kerosene_console::ConsoleUi;
 use kerosene_math::Pose;
+use kerosene_render::decals::DecalSpec;
 use kerosene_render::gpu::{
     CameraUniform, GpuModel, GpuProbes, LineVertex, MAX_MODELS, MapResources, ModelInstance,
     ModelUniform, Renderer, ToneMapOperator, load_model,
 };
+use kerosene_render::gpu::{DecalDraw, GpuDecals};
 use kerosene_render::lights::LightFrame;
-use kerosene_render::{Camera, FrameStats, Frustum, LightmapAtlas, WorldMesh};
+use kerosene_render::ui::{PanelQuad, UiRenderer};
+use kerosene_render::{Camera, FrameStats, Frustum, LightmapAtlas, WorldMesh, WorldVertex};
+use kerosene_ui::{UiInput, UiKey};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
@@ -47,6 +51,17 @@ struct Gfx {
     egui: egui::Context,
     egui_state: egui_winit::State,
     egui_renderer: egui_wgpu::Renderer,
+    /// The game UI: HUD, menus, overlays and world panels.
+    ui_renderer: UiRenderer,
+    decals: GpuDecals,
+}
+
+/// Decals cut out of the loaded sections' geometry, by decal id: each is
+/// cut once, when it first appears, not every frame.
+#[derive(Default)]
+struct DecalCache {
+    generation: Option<u64>,
+    cut: HashMap<u64, Vec<(usize, Vec<WorldVertex>)>>,
 }
 
 /// The GPU side of one section: its mesh, its buffers and materials, and
@@ -113,6 +128,11 @@ struct App {
     /// The probe each static prop reflects. Chosen once -- a static prop
     /// does not move -- rather than traced for every frame.
     static_probes: HashMap<kerosene_entity::EntityId, u32>,
+    decal_cache: DecalCache,
+    /// Whether a UI layer had the mouse and keyboard last frame, so the
+    /// frame it lets go can hand the mouse back to the game.
+    menu_open: bool,
+    shift_held: bool,
 }
 
 /// Start the engine with a window and no game.
@@ -139,6 +159,9 @@ pub fn run_with(config: EngineConfig, game: Box<dyn Game>) -> anyhow::Result<()>
         console_ui: ConsoleUi::new(),
         model_cache: HashMap::new(),
         static_probes: HashMap::new(),
+        decal_cache: DecalCache::default(),
+        menu_open: false,
+        shift_held: false,
     };
 
     event_loop.run_app(&mut app)?;
@@ -187,7 +210,7 @@ impl ApplicationHandler for App {
             if event.state == ElementState::Pressed && !event.repeat {
                 match action {
                     Intercepted::ToggleConsole => self.toggle_console(),
-                    Intercepted::ReleaseMouse => self.set_mouse_capture(false),
+                    Intercepted::ReleaseMouse => self.escape(),
                 }
             }
             return;
@@ -211,6 +234,17 @@ impl ApplicationHandler for App {
             if swallow {
                 return;
             }
+        }
+
+        if let WindowEvent::ModifiersChanged(modifiers) = &event {
+            self.shift_held = modifiers.state().shift_key();
+        }
+
+        // A UI layer that wants input -- a menu -- is modal: the pointer and
+        // keys are its, and none reaches a binding. The console, above, still
+        // comes first.
+        if !self.console_ui.open && self.engine.ui_wants_input() && self.ui_window_event(&event) {
+            return;
         }
 
         match event {
@@ -352,6 +386,77 @@ impl App {
         }
     }
 
+    /// Escape, with the console closed: the pause menu if there is one,
+    /// else just the mouse back.
+    fn escape(&mut self) {
+        if !self.engine.toggle_pause_menu() {
+            self.set_mouse_capture(false);
+        }
+        self.sync_menu();
+    }
+
+    /// Hand the mouse to the UI when a menu opens and back to the game when
+    /// it closes, however it closed: Escape, a Resume button, a script.
+    fn sync_menu(&mut self) {
+        let wants = self.engine.ui_wants_input();
+        if wants == self.menu_open {
+            return;
+        }
+        self.menu_open = wants;
+        if wants {
+            self.input.release_all();
+            self.set_mouse_capture(false);
+        } else if self.engine.level.is_some() && !self.console_ui.open {
+            self.set_mouse_capture(true);
+        }
+    }
+
+    /// Give a window event to the UI. `true` if it is the UI's.
+    fn ui_window_event(&mut self, event: &WindowEvent) -> bool {
+        match event {
+            WindowEvent::CursorMoved { position, .. } => {
+                self.engine.ui_input(UiInput::PointerMove {
+                    x: position.x as f32,
+                    y: position.y as f32,
+                });
+                true
+            }
+            WindowEvent::MouseInput { state, button, .. } => {
+                if *button == MouseButton::Left {
+                    self.engine.ui_input(UiInput::PointerButton {
+                        down: *state == ElementState::Pressed,
+                    });
+                }
+                true
+            }
+            WindowEvent::KeyboardInput { event, .. } => {
+                if event.state != ElementState::Pressed {
+                    return true;
+                }
+                let key = match event.physical_key {
+                    PhysicalKey::Code(code) => ui_key(code, self.shift_held),
+                    _ => None,
+                };
+                match key {
+                    Some(key) => {
+                        self.engine.ui_input(UiInput::Key(key));
+                    }
+                    None => {
+                        if let Some(text) = event
+                            .text
+                            .as_ref()
+                            .filter(|t| !t.chars().any(char::is_control))
+                        {
+                            self.engine.ui_input(UiInput::Text(text.to_string()));
+                        }
+                    }
+                }
+                true
+            }
+            _ => false,
+        }
+    }
+
     fn set_mouse_capture(&mut self, capture: bool) {
         let Some(gfx) = &self.gfx else { return };
         self.mouse_captured = capture;
@@ -415,6 +520,14 @@ impl App {
             }
         }
         report_unhandled(&mut self.engine, leftover);
+
+        // The UI, after the ticks it shows the result of.
+        if let Some(gfx) = &self.gfx {
+            let viewport = (gfx.config.width, gfx.config.height);
+            self.engine.ui_frame(real_dt, viewport);
+        }
+        self.engine.ui.host_actions.clear();
+        self.sync_menu();
 
         if self.engine.should_quit {
             event_loop.exit();
@@ -848,6 +961,77 @@ impl App {
                 label: Some("frame"),
             });
 
+        // The UI's side of the frame, before any pass that uses it: glyphs
+        // and images it asked for, world panels drawn into their textures,
+        // and decals cut out of whatever geometry is loaded.
+        let ui = &mut self.engine.ui;
+        gfx.ui_renderer
+            .upload_atlas(&gfx.queue, &mut ui.system.fonts.atlas);
+        if std::mem::take(&mut ui.images_stale) {
+            gfx.ui_renderer.forget_images();
+        }
+        gfx.ui_renderer.sync_images(
+            &gfx.device,
+            &gfx.queue,
+            &self.engine.vfs,
+            &mut ui.system.images,
+        );
+        let mut panel_quads = Vec::new();
+        for p in &ui.panels {
+            if let Some((list, revision)) = ui.system.panel_display(&p.name) {
+                gfx.ui_renderer.render_panel(
+                    &gfx.device,
+                    &gfx.queue,
+                    &mut encoder,
+                    &p.name,
+                    list,
+                    revision,
+                );
+                panel_quads.push(PanelQuad {
+                    name: p.name.clone(),
+                    corners: p.corners,
+                    brightness: p.brightness,
+                });
+            }
+        }
+        gfx.ui_renderer
+            .retain_panels(|name| ui.panels.iter().any(|p| p.name == name));
+        gfx.ui_renderer.prepare_world_panels(
+            &gfx.device,
+            &gfx.queue,
+            camera.view_projection(),
+            gfx.renderer.msaa_samples(),
+            &panel_quads,
+        );
+        if let Some(map) = &self.map {
+            cut_decals(&mut self.decal_cache, map, &ui.decals);
+            let mut draws = Vec::new();
+            for decal in &ui.decals.list {
+                for (section, vertices) in self.decal_cache.cut.get(&decal.id).into_iter().flatten()
+                {
+                    draws.push(DecalDraw {
+                        section: *section,
+                        material: &decal.material,
+                        vertices,
+                    });
+                }
+            }
+            let revision = ui.decals.revision.wrapping_add(map.generation << 32);
+            gfx.decals.prepare(
+                &gfx.device,
+                &gfx.queue,
+                &gfx.renderer,
+                &self.engine.vfs,
+                revision,
+                &draws,
+            );
+            for missing in std::mem::take(&mut gfx.decals.missing) {
+                self.engine
+                    .console
+                    .warn(format!("decal material {missing} would not load"));
+            }
+        }
+
         // Shadow maps first: each layer is the world from one light's point
         // of view, culled by that light's own PVS and frustum -- the same
         // leaf walk the camera uses, from somewhere else.
@@ -952,6 +1136,21 @@ impl App {
                 }
                 pass.pop_debug_group();
 
+                // Decals, on the surfaces they were cut from, with each
+                // section's own lightmap.
+                pass.push_debug_group("decals");
+                for (index, section) in map.loaded() {
+                    let drawn = gfx.decals.draw_section(
+                        &gfx.renderer,
+                        &mut pass,
+                        &section.frame_bind_group,
+                        index,
+                    );
+                    self.stats.draw_calls += drawn.draw_calls;
+                    self.stats.triangles += drawn.triangles;
+                }
+                pass.pop_debug_group();
+
                 // Then the brush entities, each where it has got to.
                 // They are not in the world's PVS -- their leaves are
                 // their own -- so a leaf walk cannot find them, which is
@@ -1008,6 +1207,10 @@ impl App {
                 }
                 pass.pop_debug_group();
 
+                pass.push_debug_group("world panels");
+                gfx.ui_renderer.draw_world_panels(&mut pass);
+                pass.pop_debug_group();
+
                 // The physics debug overlay, drawn last so it sits on top.
                 if let Some(buffer) = &line_buffer {
                     pass.push_debug_group("debug lines");
@@ -1025,6 +1228,21 @@ impl App {
         // HDR scene to the swapchain. The UI draws after, over the result,
         // so it is never tone-mapped: a console should be the colour it is.
         gfx.renderer.tonemap(&mut encoder, &view);
+
+        // The game UI over the scene, and the console (egui) over that.
+        let list = self.engine.ui.system.display_list();
+        if !list.is_empty() {
+            gfx.ui_renderer.draw(
+                &gfx.device,
+                &gfx.queue,
+                &mut encoder,
+                &view,
+                gfx.config.format,
+                "screen",
+                list,
+                false,
+            );
+        }
 
         if self.console_ui.open || self.engine.game().is_some_and(|g| g.wants_ui()) {
             draw_ui(
@@ -1294,6 +1512,8 @@ async fn create_gfx(event_loop: &ActiveEventLoop, config: &EngineConfig) -> anyh
     // No depth attachment for the UI pass: the console is an overlay and is
     // meant to be in front of everything.
     let egui_renderer = egui_wgpu::Renderer::new(&device, format, None, 1, false);
+    let ui_renderer = UiRenderer::new(&device, &queue);
+    let decals = GpuDecals::new(&device, &queue);
 
     Ok(Gfx {
         window,
@@ -1305,6 +1525,55 @@ async fn create_gfx(event_loop: &ActiveEventLoop, config: &EngineConfig) -> anyh
         egui,
         egui_state,
         egui_renderer,
+        ui_renderer,
+        decals,
+    })
+}
+
+/// Cut any decal not cut yet out of the loaded sections, and forget the ones
+/// that have gone.
+///
+/// A section that streams in after a decal was placed does not get it: a
+/// decal is cut once, against what was resident, like Source's.
+fn cut_decals(cache: &mut DecalCache, map: &LoadedMap, decals: &crate::ui::Decals) {
+    if cache.generation != Some(map.generation) {
+        cache.cut.clear();
+        cache.generation = Some(map.generation);
+    }
+    cache
+        .cut
+        .retain(|id, _| decals.list.iter().any(|d| d.id == *id));
+    for d in &decals.list {
+        if cache.cut.contains_key(&d.id) {
+            continue;
+        }
+        let mut spec = DecalSpec::new(&d.material, d.origin, d.normal, d.size);
+        spec.rotation = d.rotation;
+        let pieces = map
+            .loaded()
+            .filter_map(|(index, section)| {
+                let surfaces = section.mesh.model_surfaces.first().map(Vec::as_slice);
+                let cut = kerosene_render::decals::build(&section.mesh, &spec, surfaces);
+                (!cut.is_empty()).then_some((index, cut))
+            })
+            .collect();
+        cache.cut.insert(d.id, pieces);
+    }
+}
+
+/// A key the UI does something with.
+fn ui_key(code: KeyCode, shift: bool) -> Option<UiKey> {
+    Some(match code {
+        KeyCode::Tab if shift => UiKey::BackTab,
+        KeyCode::Tab => UiKey::Tab,
+        KeyCode::Enter | KeyCode::NumpadEnter => UiKey::Enter,
+        KeyCode::Space => UiKey::Space,
+        KeyCode::ArrowUp => UiKey::Up,
+        KeyCode::ArrowDown => UiKey::Down,
+        KeyCode::ArrowLeft => UiKey::Left,
+        KeyCode::ArrowRight => UiKey::Right,
+        KeyCode::Backspace => UiKey::Backspace,
+        _ => return None,
     })
 }
 

@@ -19,5 +19,5 @@ path = "src/lib.rs"
 chisel = { path = "../chisel" }
 kerosene-asset.workspace = true
 kerosene-vfs.workspace = true
-kerosene-ui.workspace = true
+kerosene-toolui.workspace = true
 egui.workspace = true

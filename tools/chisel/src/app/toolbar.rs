@@ -10,8 +10,8 @@
 //! for it.
 
 use super::*;
-use kerosene_ui::theme::{self, colors, icons};
-use kerosene_ui::widgets;
+use kerosene_toolui::theme::{self, colors, icons};
+use kerosene_toolui::widgets;
 
 impl ToolKind {
     /// The icon on the tool strip.
@@ -209,8 +209,16 @@ impl ChiselApp {
                         toolbar_gap(ui);
                         use crate::gizmo::GizmoMode;
                         for (mode, glyph, tip) in [
-                            (Some(GizmoMode::Move), icons::ARROWS_OUT_CARDINAL, "move gizmo"),
-                            (Some(GizmoMode::Rotate), icons::ARROWS_CLOCKWISE, "rotate gizmo"),
+                            (
+                                Some(GizmoMode::Move),
+                                icons::ARROWS_OUT_CARDINAL,
+                                "move gizmo",
+                            ),
+                            (
+                                Some(GizmoMode::Rotate),
+                                icons::ARROWS_CLOCKWISE,
+                                "rotate gizmo",
+                            ),
                         ] {
                             let mut on = self.gizmo_mode == mode;
                             if widgets::icon_toggle(ui, glyph, tip, &mut on).clicked() {

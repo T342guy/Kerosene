@@ -140,7 +140,14 @@ fn point_segment_distance(x: f32, y: f32, a: (f32, f32), b: (f32, f32)) -> f32 {
 
 /// The move-arrow, or rotation-ring, handle nearest a screen point, if the
 /// pointer landed close enough to one to grab it.
-pub fn hit(mode: GizmoMode, pivot: Vec3, radius: f32, viewport: &Viewport, x: f32, y: f32) -> Option<GizmoAxis> {
+pub fn hit(
+    mode: GizmoMode,
+    pivot: Vec3,
+    radius: f32,
+    viewport: &Viewport,
+    x: f32,
+    y: f32,
+) -> Option<GizmoAxis> {
     let mut best: Option<(f32, GizmoAxis)> = None;
     for axis in GizmoAxis::all() {
         let distance = match mode {
@@ -325,7 +332,10 @@ mod tests {
     fn the_pivot_projects_to_the_pane_centre() {
         let v = looking_down_y();
         let (x, y) = project(&v, Vec3::ZERO).expect("in front of the camera");
-        assert!((x - 400.0).abs() < 1e-3 && (y - 300.0).abs() < 1e-3, "{x} {y}");
+        assert!(
+            (x - 400.0).abs() < 1e-3 && (y - 300.0).abs() < 1e-3,
+            "{x} {y}"
+        );
     }
 
     #[test]
@@ -364,7 +374,10 @@ mod tests {
             hit(GizmoMode::Move, Vec3::ZERO, 100.0, &v, hx, hy),
             Some(GizmoAxis::X)
         );
-        assert_eq!(hit(GizmoMode::Move, Vec3::ZERO, 100.0, &v, 10.0, 590.0), None);
+        assert_eq!(
+            hit(GizmoMode::Move, Vec3::ZERO, 100.0, &v, 10.0, 590.0),
+            None
+        );
     }
 
     #[test]
@@ -428,15 +441,24 @@ mod tests {
             ..looking_down_y()
         };
         let (origin, direction) = v.pick_ray(400.0, 300.0);
-        assert!(GizmoDrag::begin(GizmoMode::Move, GizmoAxis::X, Vec3::ZERO, origin, direction).is_none());
+        assert!(
+            GizmoDrag::begin(GizmoMode::Move, GizmoAxis::X, Vec3::ZERO, origin, direction)
+                .is_none()
+        );
     }
 
     #[test]
     fn a_rotate_drag_reports_no_turn_at_its_own_start() {
         let v = looking_down_y();
         let start = v.pick_ray(450.0, 300.0);
-        let drag = GizmoDrag::begin(GizmoMode::Rotate, GizmoAxis::Y, Vec3::ZERO, start.0, start.1)
-            .expect("off-centre, so a reference direction exists");
+        let drag = GizmoDrag::begin(
+            GizmoMode::Rotate,
+            GizmoAxis::Y,
+            Vec3::ZERO,
+            start.0,
+            start.1,
+        )
+        .expect("off-centre, so a reference direction exists");
         match drag.update(start.0, start.1) {
             Some(GizmoUpdate::Rotate(_, q)) => {
                 assert!(q.angle_between(Quat::IDENTITY) < 1e-3, "{q:?}");
@@ -449,8 +471,14 @@ mod tests {
     fn a_quarter_turn_on_screen_is_a_quarter_turn_about_the_axis() {
         let v = looking_down_y();
         let start = v.pick_ray(450.0, 300.0);
-        let drag = GizmoDrag::begin(GizmoMode::Rotate, GizmoAxis::Y, Vec3::ZERO, start.0, start.1)
-            .expect("off-centre, so a reference direction exists");
+        let drag = GizmoDrag::begin(
+            GizmoMode::Rotate,
+            GizmoAxis::Y,
+            Vec3::ZERO,
+            start.0,
+            start.1,
+        )
+        .expect("off-centre, so a reference direction exists");
 
         // From level with the pivot to straight above it: a quarter of the
         // way round the ring.
@@ -476,8 +504,14 @@ mod tests {
         let v = looking_down_y();
         let (origin, direction) = v.pick_ray(400.0, 300.0);
         assert!(
-            GizmoDrag::begin(GizmoMode::Rotate, GizmoAxis::Y, Vec3::ZERO, origin, direction)
-                .is_none()
+            GizmoDrag::begin(
+                GizmoMode::Rotate,
+                GizmoAxis::Y,
+                Vec3::ZERO,
+                origin,
+                direction
+            )
+            .is_none()
         );
     }
 }

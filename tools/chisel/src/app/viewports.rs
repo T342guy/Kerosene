@@ -3,8 +3,8 @@
 
 use super::*;
 use kerosene_math::Quat;
-use kerosene_ui::theme::{self, colors, icons};
-use kerosene_ui::widgets;
+use kerosene_toolui::theme::{self, colors, icons};
+use kerosene_toolui::widgets;
 
 /// The height of the strip across the top of each pane, in points.
 const PANE_HEADER: f32 = 22.0;
@@ -128,9 +128,11 @@ impl ChiselApp {
                 crate::tools::entity_placement_point(&self.document, viewport, x, y)
             } else {
                 let (origin, direction) = viewport.pick_ray(x, y);
-                self.document
-                    .grid
-                    .snap_point(crate::tools::pick_point_3d(&self.document, origin, direction))
+                self.document.grid.snap_point(crate::tools::pick_point_3d(
+                    &self.document,
+                    origin,
+                    direction,
+                ))
             };
             self.entity_hover = Some((index, point));
         } else if self.entity_hover.is_some_and(|(i, _)| i == index) && !response.hovered() {
@@ -634,7 +636,9 @@ impl ChiselApp {
         // live preview a plain move or resize already gets.
         if let Some(update) = self.gizmo_preview {
             let polygons = match update {
-                crate::gizmo::GizmoUpdate::Move(delta) => draw::ghost_outline(&self.document, delta),
+                crate::gizmo::GizmoUpdate::Move(delta) => {
+                    draw::ghost_outline(&self.document, delta)
+                }
                 crate::gizmo::GizmoUpdate::Rotate(pivot, rotation) => {
                     draw::transformed_outline(&self.document, |p| pivot + rotation * (p - pivot))
                 }
@@ -725,7 +729,8 @@ impl ChiselApp {
             let radius = crate::gizmo::world_radius(&viewport, pivot, crate::gizmo::TARGET_PIXELS);
             if let Some(axis) = crate::gizmo::hit(mode, pivot, radius, &viewport, x, y) {
                 let (origin, direction) = viewport.pick_ray(x, y);
-                self.gizmo_drag = crate::gizmo::GizmoDrag::begin(mode, axis, pivot, origin, direction);
+                self.gizmo_drag =
+                    crate::gizmo::GizmoDrag::begin(mode, axis, pivot, origin, direction);
             }
         }
 
@@ -759,8 +764,7 @@ impl ChiselApp {
                         if rotation != Quat::IDENTITY {
                             self.document.rotate_selection(pivot, rotation);
                             let (_, angle) = rotation.to_axis_angle();
-                            self.status =
-                                format!("rotated {:.1} degrees", angle.to_degrees());
+                            self.status = format!("rotated {:.1} degrees", angle.to_degrees());
                         }
                     }
                 }
