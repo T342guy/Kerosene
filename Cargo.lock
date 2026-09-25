@@ -1513,6 +1513,7 @@ dependencies = [
  "kerosene-walk",
  "log",
  "rhai",
+ "serde_json",
  "winit",
 ]
 
@@ -1614,6 +1615,8 @@ dependencies = [
  "pollster",
  "resonance",
  "rhai",
+ "serde",
+ "serde_json",
  "umbra",
  "wgpu",
  "winit",
@@ -1632,6 +1635,8 @@ dependencies = [
  "kerosene-math",
  "kerosene-physics",
  "log",
+ "serde",
+ "serde_json",
  "thiserror 2.0.20",
 ]
 
@@ -1648,6 +1653,7 @@ dependencies = [
  "kerosene-math",
  "kerosene-physics",
  "log",
+ "serde_json",
 ]
 
 [[package]]
@@ -1743,6 +1749,7 @@ dependencies = [
  "kerosene-platform",
  "log",
  "rhai",
+ "serde_json",
  "thiserror 2.0.20",
 ]
 

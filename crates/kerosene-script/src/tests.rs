@@ -550,3 +550,33 @@ fn the_platform_object_is_reachable_from_inside_functions() {
         Some("tester")
     );
 }
+
+#[test]
+fn plain_variables_are_saved_and_put_back_over_the_top_level() {
+    let source = r#"
+        let visits = 0;
+        let best = 1.5;
+        let seen = ["a", "b"];
+        let flags = #{ door: true, code: "1234" };
+        let later = || 1;
+        fn visit() { visits += 1; }
+    "#;
+    let mut a = host();
+    a.load("map.keroscript", source).unwrap();
+    a.run("visits = 3; best = 0.25; seen.push(\"c\");").unwrap();
+    let saved = a.variables();
+    assert!(!saved.contains_key("later"), "a closure is not data");
+    let text = serde_json::to_string(&saved).unwrap();
+
+    let mut b = host();
+    b.load("map.keroscript", source).unwrap();
+    b.set_variables(&serde_json::from_str(&text).unwrap());
+    assert_eq!(
+        b.run(r#"`${visits} ${best} ${seen} ${flags.code} ${flags.door}`"#)
+            .unwrap()
+            .as_deref(),
+        Some(r#"3 0.25 ["a", "b", "c"] 1234 true"#)
+    );
+    // A restored integer is still an integer to arithmetic.
+    assert_eq!(b.run("visits + 1").unwrap().as_deref(), Some("4"));
+}

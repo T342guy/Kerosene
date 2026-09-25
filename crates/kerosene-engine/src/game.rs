@@ -55,7 +55,8 @@ pub trait Game: 'static {
     fn setup(&mut self, engine: &mut Engine) {}
 
     /// A map has loaded: its entities are spawned, the player is placed, the
-    /// map script has run its `on_map_start`.
+    /// map script has run its `on_map_start`. Also called when a saved game
+    /// or a level change loads one, followed by [`load`](Game::load).
     fn map_loaded(&mut self, engine: &mut Engine) {}
 
     /// The start of a tick, before the player moves. The place to change
@@ -100,6 +101,20 @@ pub trait Game: 'static {
     /// choice in a dialogue. `source` is the layer (`hud`, `menu`) or world
     /// panel (`panel:<name>`) it came from.
     fn ui_event(&mut self, engine: &mut Engine, name: &str, data: &str, source: &str) {}
+
+    /// What this game keeps in a saved game: its inventory, its quest
+    /// flags, anything the engine does not own. Also what a level change
+    /// carries to the next map. Called between ticks; `Null`, the default,
+    /// keeps nothing.
+    fn save(&mut self, engine: &mut Engine) -> serde_json::Value {
+        serde_json::Value::Null
+    }
+
+    /// Take back what [`save`](Game::save) returned, after a saved game or
+    /// a level change has loaded its map. [`map_loaded`](Game::map_loaded)
+    /// has already run, so this overrides whatever a fresh map would have
+    /// set up. Not called when there was nothing saved.
+    fn load(&mut self, engine: &mut Engine, data: &serde_json::Value) {}
 
     /// The store reported something: an achievement unlocked, a stat
     /// changed, a score posted, the overlay opened. Entities wired to it and

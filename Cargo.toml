@@ -105,6 +105,11 @@ taffy       = { version = "0.9", default-features = false, features = ["std", "t
 roxmltree   = "0.21"
 ab_glyph    = "0.2"
 epaint_default_fonts = "0.32"
+# Save games. MIT OR Apache-2.0, and already in the tree underneath other
+# crates; a `.kerosave` is JSON so a player, a modder or a bug report can
+# read one without a tool.
+serde       = { version = "1", features = ["derive"] }
+serde_json  = "1"
 # Steamworks, for `kerosene-platform`'s optional `steam` feature and nothing
 # else. The crate is MIT OR Apache-2.0; what it binds, Valve's SDK, is not
 # free software, which is why no default build enables it and the tree

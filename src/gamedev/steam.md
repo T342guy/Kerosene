@@ -179,8 +179,9 @@ There are two ways to do it:
 - **The cloud API.** `cloud_write` / `cloud_read` store named files in the
   game's cloud quota.
 
-Off Steam, the stand-in keeps "cloud" files in memory. Save/load, when it
-lands, uses these calls.
+Off Steam, the stand-in keeps "cloud" files in memory. Saved games use these
+calls on their own: every save is mirrored to the cloud, and the newer copy
+wins on load. See [Saving and level changes](saving.md#cloud-saves).
 
 ## The Workshop
 

@@ -228,6 +228,9 @@ pub struct Engine {
     pub tick_count: u64,
     /// Set when the console asks for a different map.
     pending_map: Option<String>,
+    /// A saved game to load, or a level change to make, at the start of the
+    /// next frame. See [`crate::save`].
+    pub(crate) pending_change: Option<crate::save::PendingChange>,
     /// Set by the `quit` command.
     pub should_quit: bool,
     /// The game UI: its store, layers, world panels and decals.
@@ -341,6 +344,7 @@ impl Engine {
         register_commands(&mut console);
         crate::ui::register(&mut console);
         crate::platform::register(&mut console);
+        crate::save::register(&mut console);
 
         // Wire `exec` to the filesystem.
         let exec_vfs = vfs.clone();
@@ -406,6 +410,7 @@ impl Engine {
             time: 0.0,
             tick_count: 0,
             pending_map: config.map.clone(),
+            pending_change: None,
             should_quit: false,
             ui: crate::ui::GameUi::default(),
             platform,
@@ -539,6 +544,20 @@ impl Engine {
 
     /// Load a map by name, e.g. `kero_start`.
     pub fn load_map(&mut self, name: &str) -> anyhow::Result<()> {
+        self.load_level(name, None)
+    }
+
+    /// Load a map, fresh from its file or as a saved game left it.
+    ///
+    /// One path for both, so a restored level is built exactly the way a
+    /// fresh one is -- geometry, physics, streaming, the UI's reset -- and
+    /// differs only where the save has something to say: which entities
+    /// exist, where the player is, what the scripts remember.
+    pub(crate) fn load_level(
+        &mut self,
+        name: &str,
+        save: Option<&crate::save::SaveGame>,
+    ) -> anyhow::Result<()> {
         let path = format!("maps/{name}.kerobsp");
         let bytes = match self.vfs.read(&path) {
             Ok(bytes) => bytes,
@@ -566,10 +585,25 @@ impl Engine {
         // A fresh entity world per map: nothing from the last one should
         // survive, and a stale handle must not resolve.
         // t3; this part appears to carefully reset and load map data.
-        self.entities = EntityWorld::new(self.registry.clone());
-        self.entities.set_trace(self.console.int("developer") >= 2);
-        let count = self.entities.load_from_bsp(&bsp)?;
-        self.console.print(format!("{count} entities"));
+        match save {
+            None => {
+                self.entities = EntityWorld::new(self.registry.clone());
+                self.entities.set_trace(self.console.int("developer") >= 2);
+                let count = self.entities.load_from_bsp(&bsp)?;
+                self.console.print(format!("{count} entities"));
+            }
+            Some(save) => {
+                // Into a world of its own first: a save that will not go
+                // back must leave the level that is running untouched.
+                let mut world = EntityWorld::new(self.registry.clone());
+                world.set_trace(self.console.int("developer") >= 2);
+                let count = world
+                    .restore(&save.world)
+                    .map_err(|e| anyhow::anyhow!("the save's entities would not restore: {e}"))?;
+                self.entities = world;
+                self.console.print(format!("{count} entities restored"));
+            }
+        }
 
         // Static world geometry, so rigid-body props have something to land
         // on. Built before `bsp` moves into `level`.
@@ -612,22 +646,29 @@ impl Engine {
         // places its decal there, and clearing the old map's after would
         // take the new one with them.
         self.ui_map_loaded();
-        self.spawn_player();
-        self.time = 0.0;
-        self.tick_count = 0;
         self.accumulator = 0.0;
-
         // Whatever the last level was playing is not playing any more.
         self.audio.stop_all();
 
-        // A map's script loads after every entity exists, so `on_map_start`
-        // can find them. A map without one is the normal case and is silent.
-        self.load_map_script(name);
-        // ...and any `logic_script` that named a file of its own got its
-        // request in during spawn.
-        self.take_entity_requests();
-        self.call_script_hook(kerosene_script::hooks::MAP_START, vec![]);
-        self.with_game_mut(|game, engine| game.map_loaded(engine));
+        let Some(save) = save else {
+            self.spawn_player();
+            self.time = 0.0;
+            self.tick_count = 0;
+            // A map's script loads after every entity exists, so
+            // `on_map_start` can find them. A map without one is the normal
+            // case and is silent.
+            self.load_map_script(name);
+            // ...and any `logic_script` that named a file of its own got its
+            // request in during spawn.
+            self.take_entity_requests();
+            self.call_script_hook(kerosene_script::hooks::MAP_START, vec![]);
+            self.with_game_mut(|game, engine| game.map_loaded(engine));
+            return Ok(());
+        };
+
+        self.time = save.time;
+        self.tick_count = save.tick;
+        self.restore_from(save);
         Ok(())
     }
 
@@ -1182,6 +1223,10 @@ impl Engine {
             self.player.movement.on_ground = false;
         }
 
+        if let Some((map, landmark)) = crate::triggers::changelevel_of(&self.entities, id) {
+            self.change_level(&map, landmark.as_deref());
+        }
+
         if let Some(target) = crate::triggers::teleport_target(&self.entities, id) {
             let destination = self
                 .entities
@@ -1433,10 +1478,11 @@ impl Engine {
     /// the current tick is standing on.
     pub fn request_map(&mut self, name: &str) {
         self.pending_map = Some(name.to_string());
+        self.pending_change = None;
     }
 
     pub fn has_pending_map(&self) -> bool {
-        self.pending_map.is_some()
+        self.pending_map.is_some() || self.pending_change.is_some()
     }
 
     /// Take the requested map without loading it, for a host that wants to
@@ -1456,6 +1502,15 @@ impl Engine {
         {
             self.console.error(format!("{e}"));
         }
+        if let Some(change) = self.pending_change.take() {
+            self.make_change(change);
+        }
+    }
+
+    /// Forget the carried prop without throwing it: its physics world is
+    /// about to be replaced.
+    pub(crate) fn held_prop_clear(&mut self) {
+        self.held_prop = None;
     }
 
     /// The prop the pick-up tool is carrying, if any.
@@ -2073,6 +2128,7 @@ pub fn take_console_requests(engine: &mut Engine) -> Vec<(String, String)> {
             }
             kind if engine.ui_console_request(kind, &payload) => {}
             kind if engine.platform_console_request(kind, &payload) => {}
+            kind if engine.save_console_request(kind, &payload) => {}
             // Not ours. The console can ask for things the *host* owns --
             // opening the console itself, most obviously -- and the engine
             // has no business knowing a window exists. Handing them back

@@ -3,7 +3,7 @@
 
 use crate::set_field;
 use kerosene_entity::io::InputEvent;
-use kerosene_entity::{ClassDef, ClassRegistry, EntityId, EntityWorld, Value};
+use kerosene_entity::{ClassDef, ClassRegistry, EntityId, EntityWorld, Value, host_requests};
 
 pub fn register(registry: &mut ClassRegistry) {
     registry.register(
@@ -37,6 +37,9 @@ pub fn register(registry: &mut ClassRegistry) {
             .on_think(think_auto)
             .output("OnMapSpawn"),
     );
+
+    // A checkpoint: saves the game when told to.
+    registry.register(ClassDef::new("logic_autosave").input("Save", input_autosave));
 
     registry.register(
         ClassDef::new("math_counter")
@@ -303,4 +306,15 @@ fn think_timer(world: &mut EntityWorld, id: EntityId) {
         .map(|e| e.fields.f32("refiretime", 1.0))
         .unwrap_or(1.0);
     world.set_think_delay(id, interval.max(0.01));
+}
+
+/// `Save`: save the game under `savename`, `auto` if it names none.
+fn input_autosave(world: &mut EntityWorld, id: EntityId, e: &InputEvent) -> bool {
+    let name = world
+        .get(id)
+        .and_then(|en| en.fields.text("savename").map(|n| n.trim().to_string()))
+        .filter(|n| !n.is_empty())
+        .unwrap_or_else(|| "auto".to_string());
+    world.request(host_requests::SAVE, name, id, e.activator);
+    true
 }

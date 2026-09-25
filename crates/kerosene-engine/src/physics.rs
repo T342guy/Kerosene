@@ -328,7 +328,44 @@ impl PhysicsProps {
         }
         self.previous.retain(|id, _| self.props.contains_key(id));
 
-        // Give every physics prop without a body one, shaped from its model.
+        self.adopt_props(entities, vfs);
+
+        // Moving brush entities follow their entity's pose, so a door that
+        // opened or closed this tick blocks (or stops blocking) immediately.
+        for entity in entities.iter() {
+            let Some(model) = entity.brush_model else {
+                continue;
+            };
+            let Some(mover) = self.movers.get(&model) else {
+                continue;
+            };
+            let rotation = Quat::from_mat3(&entity.angles.to_mat3());
+            let position = entity.origin + mover.pivot;
+            for &body in &mover.bodies {
+                self.rigid.set_body_transform(body, position, rotation);
+            }
+        }
+
+        // Advance, then push every body's pose back into its entity.
+        self.rigid.step(dt);
+        for (&id, prop) in &self.props {
+            let (position, rotation) = self.rigid.body_transform(prop.body);
+            let origin = position - rotation * prop.center;
+            let angles = Angles::from_quat(rotation);
+            if let Some(e) = entities.get_mut(id) {
+                e.origin = origin;
+                e.angles = angles;
+            }
+        }
+    }
+
+    /// Give every physics prop without a body one, shaped from its model,
+    /// where its entity stands.
+    ///
+    /// `sync_and_step` does this each tick; a restored game does it once
+    /// straight away, so velocities can be put back on the bodies before
+    /// anything steps.
+    pub fn adopt_props(&mut self, entities: &EntityWorld, vfs: &Vfs) {
         // The body's mass, friction and bounciness come from the entity's
         // object properties (`mass`, `friction`, `elasticity`) so a designer
         // can make a heavy crate or a slippery one without touching code.
@@ -385,34 +422,39 @@ impl PhysicsProps {
                 },
             );
         }
+    }
 
-        // Moving brush entities follow their entity's pose, so a door that
-        // opened or closed this tick blocks (or stops blocking) immediately.
-        for entity in entities.iter() {
-            let Some(model) = entity.brush_model else {
-                continue;
-            };
-            let Some(mover) = self.movers.get(&model) else {
-                continue;
-            };
-            let rotation = Quat::from_mat3(&entity.angles.to_mat3());
-            let position = entity.origin + mover.pivot;
-            for &body in &mover.bodies {
-                self.rigid.set_body_transform(body, position, rotation);
-            }
-        }
+    /// Every prop's motion: `(entity, linear, angular, awake)`. What a saved
+    /// game needs beyond the poses its entities already hold.
+    pub fn prop_motion(&self) -> Vec<(EntityId, Vec3, Vec3, bool)> {
+        self.props
+            .iter()
+            .map(|(&id, p)| {
+                (
+                    id,
+                    self.rigid.linear_velocity(p.body),
+                    self.rigid.angular_velocity(p.body),
+                    self.rigid.is_awake(p.body),
+                )
+            })
+            .collect()
+    }
 
-        // Advance, then push every body's pose back into its entity.
-        self.rigid.step(dt);
-        for (&id, prop) in &self.props {
-            let (position, rotation) = self.rigid.body_transform(prop.body);
-            let origin = position - rotation * prop.center;
-            let angles = Angles::from_quat(rotation);
-            if let Some(e) = entities.get_mut(id) {
-                e.origin = origin;
-                e.angles = angles;
-            }
-        }
+    /// Put a prop's motion back. `false` if it has no body.
+    pub fn set_prop_motion(
+        &mut self,
+        id: EntityId,
+        linear: Vec3,
+        angular: Vec3,
+        awake: bool,
+    ) -> bool {
+        let Some(prop) = self.props.get(&id) else {
+            return false;
+        };
+        self.rigid.set_linear_velocity(prop.body, linear);
+        self.rigid.set_angular_velocity(prop.body, angular);
+        self.rigid.set_awake(prop.body, awake);
+        true
     }
 
     /// Number of dynamic prop bodies currently simulated.

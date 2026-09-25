@@ -221,7 +221,7 @@ The runtime binary `apps/kerosene/src/main.rs` is a call to
 | `kerosene-walk` | `.kerowalk` walkmap and navigation graph | `src/lib.rs`, `src/nav.rs` |
 | `kerosene-physics` | Source `gamemovement`, `CollisionWorld` trait | `src/movement.rs`, `src/world.rs` |
 | `kerosene-rigid` | box3d-rust wrapper, inches native | `src/lib.rs` |
-| `kerosene-entity` | Entity slots, fields, I/O queue, class registry, schema | `src/world.rs`, `src/io.rs`, `src/schema.rs` |
+| `kerosene-entity` | Entity slots, fields, I/O queue, class registry, schema, save snapshots | `src/world.rs`, `src/io.rs`, `src/schema.rs`, `src/snapshot.rs` |
 | `kerosene-render` | CPU PVS/mesh build, lightmap atlas, dynamic lights, probes, wgpu backend | `src/mesh.rs`, `src/gpu.rs`, `src/lightmap.rs` |
 | `kerosene-anim` | skeleton, clip sampling, crossfade, skinning palette | `src/lib.rs` |
 | `kerosene-audio` | ADPCM, mixer, FDN reverb, device output | `src/mixer.rs`, `src/reverb.rs`, `src/compiled.rs` |
@@ -229,7 +229,7 @@ The runtime binary `apps/kerosene/src/main.rs` is a call to
 | `kerosene-ui` | Game UI: XML/CSS/Rhai documents, store and bindings, flexbox, glyph atlas, display list | `src/document.rs`, `src/bind.rs`, `src/style.rs` |
 | `kerosene-platform` | The store: `Platform` (validation, batching, events) over a `Backend` -- Steam behind the `steam` feature, an offline stand-in otherwise -- and the Rhai `platform` object both script VMs register | `src/lib.rs`, `src/steam.rs`, `src/script.rs` |
 | `kerosene-toolui` | The tools' egui window host, theme and widgets | `src/lib.rs`, `src/theme.rs` |
-| `kerosene-engine` | `Engine`, `Game`, `host`, `launch`, streaming, acoustics glue | `src/engine.rs`, `src/host.rs` |
+| `kerosene-engine` | `Engine`, `Game`, `host`, `launch`, streaming, acoustics glue, saved games | `src/engine.rs`, `src/host.rs`, `src/save.rs` |
 | `kerosene-game` | Stock classes: doors, triggers, logic, props, sound | `src/doors.rs`, `src/logic.rs`, `src/props.rs` |
 | `kerosene` | Facade, `Stock`, `launch`, prelude | `src/lib.rs` |
 

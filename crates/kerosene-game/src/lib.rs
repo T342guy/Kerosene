@@ -59,6 +59,9 @@ pub fn register(registry: &mut ClassRegistry) {
         "worldspawn",
         "info_player_start",
         "info_target",
+        // A named point two maps share, which a level change places the
+        // player relative to. Read by the engine; nothing to do here.
+        "info_landmark",
         "light",
         "light_spot",
         "light_environment",

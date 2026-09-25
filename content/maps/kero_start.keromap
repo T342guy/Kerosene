@@ -1512,11 +1512,19 @@ entity
 		"OnUnlock" "shutter,Toggle,,0,-1"
 		"OnUnlock" "switch_click,Play,,0,-1"
 		"OnUnlock" "ach_keypad,Unlock,,0,-1"
+		"OnUnlock" "checkpoint,Save,,0,-1"
 	}
 }
 entity
 {
 	"id" "154"
+	"classname" "logic_autosave"
+	"origin" "320 480 32"
+	"targetname" "checkpoint"
+}
+entity
+{
+	"id" "155"
 	"classname" "logic_achievement"
 	"origin" "352 480 32"
 	"targetname" "ach_keypad"
@@ -1524,14 +1532,14 @@ entity
 }
 entity
 {
-	"id" "155"
+	"id" "156"
 	"classname" "logic_richpresence"
 	"origin" "384 480 32"
 	"status" "Exploring kero_start"
 }
 entity
 {
-	"id" "156"
+	"id" "157"
 	"classname" "point_worldpanel"
 	"origin" "511 400 120"
 	"targetname" "status_screen"
@@ -1544,7 +1552,7 @@ entity
 }
 entity
 {
-	"id" "157"
+	"id" "158"
 	"classname" "infodecal"
 	"origin" "200 200 4"
 	"texture" "decals/crack"
@@ -1552,7 +1560,7 @@ entity
 }
 entity
 {
-	"id" "158"
+	"id" "159"
 	"classname" "infodecal"
 	"origin" "300 150 4"
 	"texture" "decals/crack"
@@ -1560,21 +1568,21 @@ entity
 }
 entity
 {
-	"id" "159"
+	"id" "160"
 	"classname" "light"
 	"origin" "256 256 192"
 	"_light" "255 240 214 320"
 }
 entity
 {
-	"id" "160"
+	"id" "161"
 	"classname" "light"
 	"origin" "784 256 192"
 	"_light" "214 230 255 320"
 }
 entity
 {
-	"id" "161"
+	"id" "162"
 	"classname" "light_environment"
 	"origin" "512 256 224"
 	"pitch" "-45"
@@ -1584,7 +1592,7 @@ entity
 }
 entity
 {
-	"id" "162"
+	"id" "163"
 	"classname" "prop_dynamic_spawner"
 	"origin" "760 96 96"
 	"model" "props/cube"
@@ -1593,7 +1601,7 @@ entity
 }
 entity
 {
-	"id" "163"
+	"id" "164"
 	"classname" "info_player_start"
 	"origin" "128 256 16"
 	"angles" "0 0 0"

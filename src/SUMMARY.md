@@ -20,6 +20,7 @@
 - [Making a game](./gamedev/making-a-game.md)
 - [Publishing](./gamedev/publishing.md)
 - [Platforms & distribution](./gamedev/platforms.md)
+- [Saving and level changes](./gamedev/saving.md)
 - [Steam](./gamedev/steam.md)
 - [Shipping checklist](./gamedev/shipping-checklist.md)
 - [FAQ](./gamedev/faq.md)

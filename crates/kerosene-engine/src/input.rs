@@ -122,6 +122,8 @@ impl InputSystem {
             ("e", "+use"),
             ("f", "flashlight"),
             ("`", "toggleconsole"),
+            ("f5", "quicksave"),
+            ("f9", "quickload"),
             // Escape is not bound: the host intercepts it before bindings
             // are consulted (see `host::intercepted`), so a binding here
             // would never fire.

@@ -15,6 +15,7 @@ kerosene-bsp.workspace = true
 glam.workspace = true
 log.workspace = true
 kerosene-map.workspace = true
+serde_json.workspace = true
 
 [dev-dependencies]
 kerosene-kv.workspace = true

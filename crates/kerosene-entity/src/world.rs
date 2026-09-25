@@ -73,12 +73,12 @@ impl Entity {
 
 /// Every entity in the running level, plus the queue that drives their I/O.
 pub struct EntityWorld {
-    slots: Vec<Option<Entity>>,
-    generations: Vec<u32>,
-    free: Vec<u32>,
-    by_name: HashMap<String, Vec<EntityId>>,
-    queue: BinaryHeap<PendingEvent>,
-    sequence: u64,
+    pub(crate) slots: Vec<Option<Entity>>,
+    pub(crate) generations: Vec<u32>,
+    pub(crate) free: Vec<u32>,
+    pub(crate) by_name: HashMap<String, Vec<EntityId>>,
+    pub(crate) queue: BinaryHeap<PendingEvent>,
+    pub(crate) sequence: u64,
     /// Game time in seconds.
     pub time: f32,
     pub registry: Arc<ClassRegistry>,
@@ -143,6 +143,11 @@ pub mod host_requests {
     /// A `logic_platform` spawned or was asked to `Refresh`: the engine
     /// answers by firing `OnAvailable` or `OnUnavailable` on the caller.
     pub const PLATFORM_STATUS: &str = "platform_status";
+    /// Move to another map, carrying the player across. The payload is
+    /// `map [landmark]`.
+    pub const CHANGE_LEVEL: &str = "changelevel";
+    /// Save the game. The payload is the save's name.
+    pub const SAVE: &str = "save";
 }
 
 impl EntityWorld {

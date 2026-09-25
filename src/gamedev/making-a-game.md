@@ -273,6 +273,8 @@ construction), `setup`, `map_loaded`, then per tick `pre_tick` (before the
 player moves — change movement convars here), `tick` (after entities have
 thought), with `entity_request` and `console_request` answering anything
 the engine did not understand, and `ui` each frame while `wants_ui` says so.
+`save` and `load` keep the game's own state in saved games and carry it
+across level changes; see [Saving and level changes](saving.md).
 One rule: a hook must not make the engine call another hook on the same
 game, so `tick` uses `engine.request_map(..)` rather than `load_map` (the
 inner hook would be skipped and logged, not run). Everything else on

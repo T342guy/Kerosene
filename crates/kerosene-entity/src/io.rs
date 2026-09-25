@@ -5,7 +5,7 @@ use crate::world::EntityId;
 use std::cmp::Ordering;
 
 /// One wire: an output on this entity connected to an input on another.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Connection {
     pub output: String,
     /// `targetname` to fire at, or one of [`crate::targets`].

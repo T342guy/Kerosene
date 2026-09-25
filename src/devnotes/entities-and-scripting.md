@@ -153,7 +153,7 @@ flowchart LR
     handler["Class input/think handler"] -- "world.request(kind, payload, caller, activator)" --> buf["EntityWorld.requests"]
     buf --> take["Engine::take_entity_requests()"]
     take --> known{"host_requests::* ?"}
-    known -- "script, script_call, script_file,<br/>play_sound, stop_sound,<br/>phys_wake, phys_sleep" --> eng["Engine handles it"]
+    known -- "script, script_call, script_file,<br/>play_sound, stop_sound,<br/>phys_wake, phys_sleep,<br/>ui_*, platform, changelevel, save" --> eng["Engine handles it"]
     known -- no --> game{"game.entity_request()?"}
     game -- no --> report["console: unknown host request"]
 
@@ -166,6 +166,42 @@ flowchart LR
 The list of engine-known requests is exactly `host_requests` in `world.rs`.
 Everything else is the game's. This is what keeps the entity world a plain data
 structure and why the engine never links the game except in tests.
+
+## Snapshots: saving the world
+
+`crates/kerosene-entity/src/snapshot.rs` writes an `EntityWorld` down as a
+`WorldSnapshot` and reads it back. It is what `crates/kerosene-engine/src/save.rs`
+puts in a `.kerosave`. A snapshot holds:
+
+- every live slot's entity: fields, connections, pose, `next_think` and
+  brush model
+- every slot's generation, and the free list in order
+- the I/O queue in firing order, with its sequence counter
+- the entity time
+
+Four decisions keep it honest:
+
+- **Handles survive.** Each entity goes back into its own slot at its own
+  generation. An `EntityId` held anywhere (a queued event, a script's
+  integer, the game's state) names the same entity after a load, and the
+  next `spawn` returns the handle it would have returned.
+- **Spawn handlers do not run.** Running them would re-fire `logic_auto` and
+  reset counters. Classes that keep something outside their fields register
+  `ClassDef::on_restore` instead. Only `ambient_generic` does, to ask for its
+  looping sound again.
+- **Restore is all or nothing.** The engine restores into a fresh
+  `EntityWorld` and swaps it in only on success. A damaged save leaves the
+  running level alone.
+- **Floats are made finite.** JSON has no NaN, and one bad field should not
+  make a game unsaveable.
+
+The engine rebuilds everything else around the restored world the way a fresh
+load does, through the same `Engine::load_level`. Physics bodies come from the
+entities' poses (`PhysicsProps::adopt_props`), with the saved velocities put
+back before anything steps.
+
+`tests/save.rs` holds this to the strongest form available: 200 ticks played
+from a save must end in a snapshot equal to the 200 ticks played before it.
 
 ## Triggers
 

@@ -103,6 +103,25 @@ pub fn teleport_target(world: &EntityWorld, id: EntityId) -> Option<String> {
     (!target.is_empty()).then(|| target.to_string())
 }
 
+/// Where a `trigger_changelevel` goes: its `map`, and the `landmark` both
+/// maps share, if it names one.
+pub fn changelevel_of(world: &EntityWorld, id: EntityId) -> Option<(String, Option<String>)> {
+    let entity = world.get(id)?;
+    if !entity.classname.eq_ignore_ascii_case("trigger_changelevel") {
+        return None;
+    }
+    let map = entity.fields.text("map")?.trim().to_string();
+    if map.is_empty() {
+        return None;
+    }
+    let landmark = entity
+        .fields
+        .text("landmark")
+        .map(|l| l.trim().to_string())
+        .filter(|l| !l.is_empty());
+    Some((map, landmark))
+}
+
 /// Damage a `trigger_hurt` deals per second, if any.
 pub fn hurt_per_second(world: &EntityWorld, id: EntityId) -> f32 {
     world.get(id).map_or(0.0, |e| {

@@ -35,9 +35,9 @@ elsewhere in these docs.
   genre, bug reports that reproduce, and a regression harness for the
   movement solver. The determinism claim in `positioning.md` is unproven
   until something replays.
-- **No game-state serialization at all.** There is no `serde` anywhere in the
-  tree. Save/load, state that survives a map transition, and cloud saves all
-  wait on this.
+- ~~**No game-state serialization at all.**~~ Fixed: saved games are JSON
+  through `serde`, level changes carry state across, and saves mirror to the
+  store's cloud. See [Saving and level changes](../gamedev/saving.md).
 - **`volume` is the only sound convar an options screen could set.** There
   is no separate music or effects volume.
 - ~~**`kerosene-ui` is not a UI toolkit.**~~ Fixed: the tools' egui host is
@@ -245,10 +245,12 @@ for completeness.
 - **Inventory / items / pickups.** None.
 - **Objectives / quests / missions.** None.
 - **Dialogue system.** None.
-- **Save/load.** No game-state serialization; the console `.cfg` persists but
-  gameplay state does not.
-- **Persistent game flow.** Map transitions exist, but no state carries
-  between them (health carries across respawn within a map, not across maps).
+- ~~**Save/load.**~~ Fixed: `save`, `load`, F5 and F9, `logic_autosave`
+  checkpoints. See [Saving and level changes](../gamedev/saving.md).
+- ~~**Persistent game flow.**~~ Fixed: `trigger_changelevel` and
+  `changelevel` carry the player's health and the game's own state (through
+  `Game::save` and `Game::load`) into the next map, lined up by an
+  `info_landmark`.
 - **Difficulty / game settings.** None.
 - **Entity classes.** The set is enough for the sample map and thin for a
   real one. Missing from Source's glue, roughly in the order a mapper hits

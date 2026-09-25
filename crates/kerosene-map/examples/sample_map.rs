@@ -223,7 +223,16 @@ fn main() -> std::io::Result<()> {
     keypad.connect(Connection::new("OnUnlock", "shutter", "Toggle"));
     keypad.connect(Connection::new("OnUnlock", "switch_click", "Play"));
     keypad.connect(Connection::new("OnUnlock", "ach_keypad", "Unlock"));
+    keypad.connect(Connection::new("OnUnlock", "checkpoint", "Save"));
     map.entities.push(keypad);
+
+    // A checkpoint: cracking the keypad saves the game as `auto`, which F9's
+    // `quickload` does not touch and `load auto` brings back.
+    let id = map.next_id();
+    let mut checkpoint = Entity::new(id, "logic_autosave");
+    checkpoint.set_origin(Vec3::new(320.0, ROOM - 32.0, 32.0));
+    checkpoint.set("targetname", "checkpoint");
+    map.entities.push(checkpoint);
 
     // The store: cracking the keypad is an achievement -- on Steam in a Steam
     // build, kept for the session otherwise, and toasted by the HUD either

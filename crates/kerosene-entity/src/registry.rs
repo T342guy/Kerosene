@@ -15,6 +15,12 @@ pub type SpawnHandler = fn(&mut EntityWorld, EntityId);
 /// Called when the entity's scheduled think time arrives.
 pub type ThinkHandler = fn(&mut EntityWorld, EntityId);
 
+/// Called for each entity when a saved game puts it back, instead of its
+/// spawn handler. Its fields are already what they were when the game was
+/// saved; this is for anything that lived outside them -- a looping sound
+/// that has to be asked for again, say.
+pub type RestoreHandler = fn(&mut EntityWorld, EntityId);
+
 /// Called when an input is delivered. Returns whether it was handled, so that
 /// an unhandled input can be reported rather than silently swallowed.
 pub type InputHandler = fn(&mut EntityWorld, EntityId, &crate::io::InputEvent) -> bool;
@@ -24,6 +30,7 @@ pub struct ClassDef {
     pub classname: &'static str,
     pub spawn: Option<SpawnHandler>,
     pub think: Option<ThinkHandler>,
+    pub restore: Option<RestoreHandler>,
     /// Input name to handler. Names are matched case-insensitively, because
     /// map files spell them inconsistently.
     pub inputs: Vec<(&'static str, InputHandler)>,
@@ -44,6 +51,7 @@ impl ClassDef {
             classname,
             spawn: None,
             think: None,
+            restore: None,
             inputs: Vec::new(),
             outputs: Vec::new(),
         }
@@ -56,6 +64,13 @@ impl ClassDef {
 
     pub fn on_think(mut self, f: ThinkHandler) -> Self {
         self.think = Some(f);
+        self
+    }
+
+    /// What to do when a saved game brings this entity back. Most classes
+    /// need nothing: everything they know is in their fields.
+    pub fn on_restore(mut self, f: RestoreHandler) -> Self {
+        self.restore = Some(f);
         self
     }
 
@@ -153,5 +168,9 @@ impl ClassRegistry {
 
     pub fn think_handler(&self, classname: &str) -> Option<ThinkHandler> {
         self.get(classname).and_then(|c| c.think)
+    }
+
+    pub fn restore_handler(&self, classname: &str) -> Option<RestoreHandler> {
+        self.get(classname).and_then(|c| c.restore)
     }
 }

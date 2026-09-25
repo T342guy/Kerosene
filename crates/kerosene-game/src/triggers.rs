@@ -15,7 +15,7 @@
 
 use crate::set_field;
 use kerosene_entity::io::InputEvent;
-use kerosene_entity::{ClassDef, ClassRegistry, EntityId, EntityWorld, Value};
+use kerosene_entity::{ClassDef, ClassRegistry, EntityId, EntityWorld, Value, host_requests};
 
 pub fn register(registry: &mut ClassRegistry) {
     for name in [
@@ -25,27 +25,62 @@ pub fn register(registry: &mut ClassRegistry) {
         "trigger_push",
         "trigger_teleport",
     ] {
-        registry.register(
-            ClassDef::new(name)
-                .on_spawn(spawn_trigger)
-                .input("Enable", |w, id, _| {
-                    set_field(w, id, "disabled", Value::Bool(false));
-                    true
-                })
-                .input("Disable", input_disable)
-                .input("Toggle", |w, id, _| {
-                    let off = w
-                        .get(id)
-                        .map(|e| e.fields.bool("disabled", false))
-                        .unwrap_or(false);
-                    set_field(w, id, "disabled", Value::Bool(!off));
-                    true
-                })
-                .output("OnStartTouch")
-                .output("OnEndTouch")
-                .output("OnTrigger"),
-        );
+        registry.register(trigger(name));
     }
+    // Walking in is handled by the engine, which owns the player it carries
+    // across; the input is for a level change something else decides on.
+    registry.register(trigger("trigger_changelevel").input("ChangeLevel", input_change_level));
+}
+
+/// A trigger class: the inputs that flip `disabled`, the outputs the engine
+/// fires.
+fn trigger(name: &'static str) -> ClassDef {
+    ClassDef::new(name)
+        .on_spawn(spawn_trigger)
+        .input("Enable", |w, id, _| {
+            set_field(w, id, "disabled", Value::Bool(false));
+            true
+        })
+        .input("Disable", input_disable)
+        .input("Toggle", |w, id, _| {
+            let off = w
+                .get(id)
+                .map(|e| e.fields.bool("disabled", false))
+                .unwrap_or(false);
+            set_field(w, id, "disabled", Value::Bool(!off));
+            true
+        })
+        .output("OnStartTouch")
+        .output("OnEndTouch")
+        .output("OnTrigger")
+}
+
+/// Go now, without waiting for the player to walk in.
+fn input_change_level(world: &mut EntityWorld, id: EntityId, e: &InputEvent) -> bool {
+    let Some(entity) = world.get(id) else {
+        return false;
+    };
+    let map = entity
+        .fields
+        .text("map")
+        .map(|m| m.trim().to_string())
+        .unwrap_or_default();
+    if map.is_empty() {
+        log::warn!("trigger_changelevel: ChangeLevel with no `map` set");
+        return false;
+    }
+    let landmark = entity
+        .fields
+        .text("landmark")
+        .map(|l| l.trim().to_string())
+        .unwrap_or_default();
+    world.request(
+        host_requests::CHANGE_LEVEL,
+        format!("{map} {landmark}").trim_end().to_string(),
+        id,
+        e.activator,
+    );
+    true
 }
 
 fn spawn_trigger(world: &mut EntityWorld, id: EntityId) {

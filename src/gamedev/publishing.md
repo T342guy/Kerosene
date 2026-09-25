@@ -88,7 +88,7 @@ roughly the order you will hit them; the fuller list is
 | What | The drawback | Source |
 |---|---|---|
 | Ship on Windows or macOS | CI builds both (`.github/workflows/ci.yml`), so they compile. Nobody has *run* the result by hand. Budget the time to be the first | README, "Known limits"; `missing-features.md` §13 |
-| Ship a game with save/load | There is no game-state serialisation at all — no `serde` in the tree. State does not survive a map transition, let alone a restart | `missing-features.md` §1, §10 |
+| Ship a game with save/load | It works — `save`, `load`, F5/F9, checkpoints, level changes, cloud mirroring — but there is no stock save/load menu yet, only the console and keys. A save is tied to the compiled map: rebuild a map after release and old saves of it may load with things out of place | [Saving and level changes](saving.md) |
 | Ship with a menu, HUD or options screen | `Game::ui` draws egui over the world, so a HUD or menu is yours to write; there is no stock menu, and no stock attribution screen either, so the one the licence requires is a few lines in `ui` for now | `missing-features.md` §8 |
 | Ship with an options screen for sound | `volume` is the only sound convar. There is no separate music or effects volume to set | `missing-features.md` §1 |
 | Ship with gamepad support | Keyboard and mouse only; no action-map layer, no rebinding UI | `missing-features.md` §9 |

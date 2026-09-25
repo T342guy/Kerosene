@@ -54,6 +54,9 @@ pub use kerosene_script as script;
 pub use kerosene_ui as ui;
 pub use kerosene_vfs as vfs;
 pub use kerosene_walk as walk;
+/// What [`Game::save`](engine::Game::save) returns and
+/// [`Game::load`](engine::Game::load) takes.
+pub use serde_json;
 
 pub use {anyhow, egui, glam, log, rhai, winit};
 
@@ -189,6 +192,17 @@ pub mod game {
         fn map_loaded(&mut self, engine: &mut Engine) {
             // A fresh map is a fresh loadout.
             self.arsenal = Arsenal::default();
+            self.publish(engine);
+        }
+
+        fn save(&mut self, _: &mut Engine) -> serde_json::Value {
+            serde_json::json!({ "arsenal": self.arsenal.save() })
+        }
+
+        fn load(&mut self, engine: &mut Engine, data: &serde_json::Value) {
+            if let Some(arsenal) = data.get("arsenal") {
+                self.arsenal.load(arsenal);
+            }
             self.publish(engine);
         }
 

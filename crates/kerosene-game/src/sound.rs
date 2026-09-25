@@ -35,6 +35,7 @@ pub fn register(registry: &mut ClassRegistry) {
     registry.register(
         ClassDef::new("ambient_generic")
             .on_spawn(spawn)
+            .on_restore(restore)
             .input("PlaySound", play)
             .input("StopSound", stop)
             .input("Toggle", toggle)
@@ -138,6 +139,19 @@ fn set_volume(world: &mut EntityWorld, id: EntityId, event: &InputEvent) -> bool
         start(world, id, None);
     }
     true
+}
+
+/// A saved game came back with this ambience playing: ask for the sound
+/// again, which the mixer forgot with the rest of the old level. `OnPlay`
+/// already fired, the first time.
+fn restore(world: &mut EntityWorld, id: EntityId) {
+    let playing = world
+        .get(id)
+        .is_some_and(|e| e.fields.bool("playing", false));
+    let name = sound_name(world, id);
+    if playing && !name.is_empty() {
+        world.request(host_requests::PLAY_SOUND, name, id, None);
+    }
 }
 
 fn start(world: &mut EntityWorld, id: EntityId, activator: Option<EntityId>) {

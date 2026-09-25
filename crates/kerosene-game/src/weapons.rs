@@ -212,6 +212,76 @@ impl Arsenal {
         self.weapons.get(self.active)
     }
 
+    /// What a saved game or a level change keeps: rounds, the weapon in
+    /// hand, cooldowns. Weapons are named rather than numbered, so a save
+    /// outlives a change to the order they are defined in.
+    pub fn save(&self) -> serde_json::Value {
+        let name = |i: usize| self.weapons.get(i).map(|w| w.def.name);
+        serde_json::json!({
+            "active": name(self.active),
+            "previous": name(self.previous),
+            "weapons": self.weapons.iter().map(|w| serde_json::json!({
+                "name": w.def.name,
+                "ammo": w.ammo,
+                "reserve": w.reserve,
+            })).collect::<Vec<_>>(),
+            "abilities": self.abilities.iter().map(|a| serde_json::json!({
+                "name": a.name,
+                "remaining": a.remaining,
+            })).collect::<Vec<_>>(),
+        })
+    }
+
+    /// Take back what [`save`](Arsenal::save) wrote. Anything it names that
+    /// this arsenal does not have is ignored; anything it leaves out stays
+    /// as it is. A reload in progress is not resumed.
+    pub fn load(&mut self, data: &serde_json::Value) {
+        let index = |key: &str| {
+            let name = data.get(key)?.as_str()?;
+            self.weapons.iter().position(|w| w.def.name == name)
+        };
+        let (active, previous) = (index("active"), index("previous"));
+        let number =
+            |v: &serde_json::Value, key: &str| v.get(key).and_then(serde_json::Value::as_f64);
+        for saved in data
+            .get("weapons")
+            .and_then(|w| w.as_array())
+            .into_iter()
+            .flatten()
+        {
+            let Some(name) = saved.get("name").and_then(|n| n.as_str()) else {
+                continue;
+            };
+            if let Some(w) = self.weapons.iter_mut().find(|w| w.def.name == name) {
+                if let Some(n) = number(saved, "ammo") {
+                    w.ammo = (n.max(0.0) as u32).min(w.def.clip);
+                }
+                if let Some(n) = number(saved, "reserve") {
+                    w.reserve = n.max(0.0) as u32;
+                }
+            }
+        }
+        for saved in data
+            .get("abilities")
+            .and_then(|a| a.as_array())
+            .into_iter()
+            .flatten()
+        {
+            let Some(name) = saved.get("name").and_then(|n| n.as_str()) else {
+                continue;
+            };
+            if let Some(a) = self.abilities.iter_mut().find(|a| a.name == name)
+                && let Some(n) = number(saved, "remaining")
+            {
+                a.remaining = (n as f32).clamp(0.0, a.cooldown);
+            }
+        }
+        self.active = active.unwrap_or(self.active);
+        self.previous = previous.unwrap_or(self.previous);
+        self.reloading = 0.0;
+        self.flash = 0.0;
+    }
+
     pub fn is_reloading(&self) -> bool {
         self.reloading > 0.0
     }
@@ -537,5 +607,30 @@ mod tests {
         );
         assert_eq!(get("weapon.ammo"), Some(StateValue::Number(12.0)));
         assert_eq!(get("ability.dash.ready"), Some(StateValue::Flag(true)));
+    }
+
+    #[test]
+    fn an_arsenal_saves_and_loads_by_name() {
+        let mut a = Arsenal::default();
+        a.weapons[0].ammo = 3;
+        a.weapons[1].reserve = 5;
+        a.select_slot(2);
+        a.use_ability("dash");
+        let text = a.save().to_string();
+
+        let mut b = Arsenal::default();
+        b.load(&serde_json::from_str(&text).unwrap());
+        assert_eq!(b.weapons[0].ammo, 3);
+        assert_eq!(b.weapons[1].reserve, 5);
+        assert_eq!(b.current().unwrap().def.slot, 2);
+        assert!(!b.abilities[0].ready(), "the cooldown came along");
+        // `last` goes back to what was held before, as before the save.
+        b.last();
+        assert_eq!(b.current().unwrap().def.slot, 1);
+
+        // Rubbish is ignored rather than trusted.
+        let mut c = Arsenal::default();
+        c.load(&serde_json::json!({"active": "nope", "weapons": [{"name": "nope", "ammo": 9}, {"ammo": 1}]}));
+        assert_eq!(c.weapons, Arsenal::default().weapons);
     }
 }

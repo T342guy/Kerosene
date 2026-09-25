@@ -298,6 +298,26 @@ impl Engine {
                         self.console.warn("Sleep: not a physics prop");
                     }
                 }
+                kerosene_entity::host_requests::CHANGE_LEVEL => {
+                    let mut words = request.payload.split_whitespace();
+                    match words.next() {
+                        Some(map) => self.change_level(map, words.next()),
+                        None => self
+                            .console
+                            .warn(format!("{caller}: ChangeLevel with no map to go to")),
+                    }
+                }
+                kerosene_entity::host_requests::SAVE => {
+                    let name = request.payload.trim();
+                    let name = if name.is_empty() {
+                        crate::save::AUTO
+                    } else {
+                        name
+                    };
+                    if let Err(e) = self.save_game(name) {
+                        self.console.warn(format!("autosave: {e}"));
+                    }
+                }
                 kind if self.ui_entity_request(kind, &request.payload, request.caller) => {}
                 kind if self.platform_entity_request(kind, &request.payload, request.caller) => {}
                 _ => {

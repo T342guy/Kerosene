@@ -478,7 +478,37 @@ class
           "help" "The targetname of an info_target, or anything else with a position." }
 }
 
+class
+{
+    "name" "trigger_changelevel"
+    "kind" "brush"
+    "base" "Entity" "base" "Switchable" "base" "Trigger"
+    "help" "Moves the player to another map when they walk in, keeping their health and whatever the game carries -- an inventory, say. With a landmark, they arrive where they stood relative to it, so a corridor that crosses the seam is walked straight through."
+    key { "name" "map" "label" "Map" "type" "string"
+          "help" "The map to go to, by name: kero_start, not maps/kero_start.kerobsp." }
+    key { "name" "landmark" "label" "Landmark" "type" "target_destination"
+          "help" "The targetname of an info_landmark placed at the same spot in both maps. Empty starts the player at the next map's spawn point." }
+    input { "name" "ChangeLevel" "help" "Go now, whether or not the player is inside." }
+}
+
+class
+{
+    "name" "info_landmark"
+    "base" "Entity" "base" "Point"
+    "help" "A point two maps share, for a level change to line them up by. Give it the same name and the same place, relative to the geometry either side of the seam, in both."
+}
+
 // ----------------------------------------------------------------- logic ---
+
+class
+{
+    "name" "logic_autosave"
+    "base" "Entity" "base" "Point"
+    "help" "A checkpoint: saves the game when told to. Wire a trigger_once to its Save input."
+    key { "name" "savename" "label" "Save name" "type" "string" "default" "auto"
+          "help" "The name the save is written under. Letters, digits, - and _." }
+    input { "name" "Save" "help" "Save the game now." }
+}
 
 class
 {

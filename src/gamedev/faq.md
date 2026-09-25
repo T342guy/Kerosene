@@ -71,8 +71,8 @@ read theirs, and the project ships no Valve or id content. Bring your own.
 
 **Is it game-ready?**
 No. It is pre-alpha. Everything works end to end — draw a level, compile it,
-walk around it — but save/load, menus, gamepads, networking, animation and
-crash reporting do not exist. ([Publishing](publishing.md#you-can-but))
+walk around it, save and load — but menus, gamepads, networking and crash
+reporting do not exist yet. ([Publishing](publishing.md#you-can-but))
 
 **Does it run on Windows or macOS?**
 It builds on both in CI. Nobody has run the result by hand.

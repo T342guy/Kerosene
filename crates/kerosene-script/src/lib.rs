@@ -316,12 +316,105 @@ impl ScriptHost {
             .map_err(|e| ScriptError::Runtime(format!("{name}: {e}")))
     }
 
+    /// The scripts' top-level variables, for a saved game.
+    ///
+    /// Only what is plain data -- numbers, text, booleans, and arrays and
+    /// maps of them -- because that is what a save file can hold and what a
+    /// level script keeps its state in. Anything else (a function pointer,
+    /// an engine object) is left out and comes back as whatever the file's
+    /// top level sets it to. Shadowed variables are written once, newest.
+    pub fn variables(&self) -> serde_json::Map<String, serde_json::Value> {
+        let mut out = serde_json::Map::new();
+        for (name, _, value) in self.scope.iter_raw() {
+            if out.contains_key(name) {
+                continue;
+            }
+            if let Some(v) = to_json(value) {
+                out.insert(name.to_string(), v);
+            }
+        }
+        out
+    }
+
+    /// Put saved variables back, over whatever the scripts' top level set.
+    /// A variable the scripts no longer declare is added anyway, so a
+    /// function that reads it still finds it.
+    pub fn set_variables(&mut self, vars: &serde_json::Map<String, serde_json::Value>) {
+        for (name, value) in vars {
+            let value = from_json(value);
+            if self.scope.is_constant(name).unwrap_or(false) {
+                continue;
+            }
+            self.scope.set_or_push(name.clone(), value);
+        }
+    }
+
     /// Call a hook if the scripts defined one. Missing hooks are normal.
     pub fn call_hook(&mut self, name: &str, args: Vec<rhai::Dynamic>) -> Result<(), ScriptError> {
         match self.call(name, args) {
             Err(ScriptError::NoSuchFunction(_)) => Ok(()),
             other => other,
         }
+    }
+}
+
+/// A script value as JSON, if it is plain data.
+fn to_json(value: &rhai::Dynamic) -> Option<serde_json::Value> {
+    use serde_json::Value as J;
+    if value.is_unit() {
+        return Some(J::Null);
+    }
+    if let Ok(b) = value.as_bool() {
+        return Some(J::Bool(b));
+    }
+    if let Ok(i) = value.as_int() {
+        return Some(J::from(i));
+    }
+    if let Ok(f) = value.as_float() {
+        // NaN has no JSON spelling; nor does a variable anyone meant.
+        return serde_json::Number::from_f64(f).map(J::Number);
+    }
+    if let Ok(c) = value.as_char() {
+        return Some(J::String(c.to_string()));
+    }
+    if value.is_string() {
+        return Some(J::String(value.clone().into_string().ok()?));
+    }
+    if value.is_array() {
+        let array = value.read_lock::<rhai::Array>()?;
+        return array
+            .iter()
+            .map(to_json)
+            .collect::<Option<Vec<_>>>()
+            .map(J::Array);
+    }
+    if value.is_map() {
+        let map = value.read_lock::<rhai::Map>()?;
+        let mut out = serde_json::Map::new();
+        for (k, v) in map.iter() {
+            out.insert(k.to_string(), to_json(v)?);
+        }
+        return Some(J::Object(out));
+    }
+    None
+}
+
+fn from_json(value: &serde_json::Value) -> rhai::Dynamic {
+    use serde_json::Value as J;
+    match value {
+        J::Null => rhai::Dynamic::UNIT,
+        J::Bool(b) => (*b).into(),
+        J::Number(n) => match n.as_i64() {
+            Some(i) => i.into(),
+            None => n.as_f64().unwrap_or_default().into(),
+        },
+        J::String(s) => s.clone().into(),
+        J::Array(a) => a.iter().map(from_json).collect::<rhai::Array>().into(),
+        J::Object(o) => o
+            .iter()
+            .map(|(k, v)| (k.as_str().into(), from_json(v)))
+            .collect::<rhai::Map>()
+            .into(),
     }
 }
 

@@ -549,6 +549,10 @@ impl App {
         let loaded = self.map.as_ref().map(|m| m.generation);
         if current != loaded {
             self.rebuild_map();
+            // The view is the host's -- it comes from the mouse -- so a new
+            // map's spawn facing, a saved game's, or the one a level change
+            // carried across, is taken here or never seen.
+            self.input.view_angles = self.engine.player.view_angles;
         }
         self.stream_sections();
 

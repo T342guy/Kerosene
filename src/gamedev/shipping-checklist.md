@@ -72,4 +72,4 @@ In the order you will do them. Each item links to the page that explains it.
       first to *run* it. Test there before announcing it.
       ([Platforms](platforms.md))
 - [ ] Your store page says the things the engine cannot do yet and your game
-      therefore does not: no save/load, no gamepad, unless you built them. ([Publishing](publishing.md#you-can-but))
+      therefore does not: no gamepad, unless you built it. ([Publishing](publishing.md#you-can-but))

@@ -43,6 +43,7 @@ kerosene-audio.workspace = true
 kerosene-render.workspace = true
 kerosene-physics.workspace = true
 kerosene-rigid.workspace = true
+serde_json.workspace = true
 kerosene-config.workspace = true
 kerosene-kv.workspace = true
 kerosene-asset.workspace = true

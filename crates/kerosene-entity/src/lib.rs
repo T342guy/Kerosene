@@ -28,12 +28,16 @@
 pub mod io;
 mod registry;
 pub mod schema;
+mod snapshot;
 mod value;
 mod world;
 
 pub use io::{Connection, InputEvent, PendingEvent, Target};
-pub use registry::{ClassDef, ClassRegistry, InputHandler, SpawnHandler, ThinkHandler};
+pub use registry::{
+    ClassDef, ClassRegistry, InputHandler, RestoreHandler, SpawnHandler, ThinkHandler,
+};
 pub use schema::{ClassKind, ClassSpec, IoSpec, KeyKind, KeySpec, Schema, SchemaError};
+pub use snapshot::{SavedEntity, SavedEvent, SavedTarget, SavedValue, WorldSnapshot};
 pub use value::{Fields, Value};
 pub use world::{Entity, EntityId, EntityWorld, HostRequest, SpawnError, host_requests};
 
