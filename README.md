@@ -2,6 +2,14 @@
 
 ![Kerosene](./.github/Images/kerosene-readme-banner.png)
 
+<div align="center">
+
+![Crates.io License](https://img.shields.io/crates/l/kerosene)
+![Crates.io Dependents](https://img.shields.io/crates/dependents/kerosene)
+![Crates.io Version](https://img.shields.io/crates/v/kerosene)
+
+</div>
+
 **A Rust game crate for brush-built 3D games.** Add `kerosene` to a Cargo
 project, implement one trait, and you have a game: a movement solver in the
 Quake-to-Source lineage, levels compiled from convex brushes into a BSP tree
