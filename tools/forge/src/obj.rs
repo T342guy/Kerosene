@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! Reading Wavefront OBJ, Forge's source mesh format.
 //!
 //! OBJ is chosen for the same reason `.keromap` is text: it is what every

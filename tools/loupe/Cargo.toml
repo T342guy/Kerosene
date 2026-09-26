@@ -1,10 +1,15 @@
 [package]
-name = "loupe"
+name = "kerosene-loupe"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 authors.workspace = true
+description = "Loupe: an inspector for Kerosene's compiled files."
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 # A model viewer: what Half-Life Model Viewer is to a `.mdl`, for a
 # `.keromdl`. It renders through Chisel's own model-preview rasteriser
@@ -16,7 +21,7 @@ name = "loupe"
 path = "src/lib.rs"
 
 [dependencies]
-chisel = { path = "../chisel" }
+chisel.workspace = true
 kerosene-asset.workspace = true
 kerosene-vfs.workspace = true
 kerosene-toolui.workspace = true

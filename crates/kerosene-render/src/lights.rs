@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! Dynamic lights: the ones that exist at draw time.
 //!
 //! Everything else in the world is lit by Radiance, ahead of time. A dynamic

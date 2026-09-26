@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! What the editor knows about a map that the game never needs to.
 //!
 //! VisGroups, groups, a cordon, an object's colour and comments: none of it

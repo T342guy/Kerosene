@@ -5,6 +5,11 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 authors.workspace = true
+description = "The Kerosene game engine's mixer: spatial sound, reverb and compiled audio."
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [features]
 # On by default, but separable: the mixer is pure Rust and the tests need no

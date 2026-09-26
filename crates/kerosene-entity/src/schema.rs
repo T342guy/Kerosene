@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! Entity class definitions -- what an editor needs to show for a class.
 //!
 //! The engine reads whatever keys a map happens to carry: an entity is a bag
@@ -40,6 +40,7 @@ use std::collections::BTreeMap;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum SchemaError {
     #[error(transparent)]
     Parse(#[from] kerosene_kv::ParseError),

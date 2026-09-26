@@ -1,0 +1,9 @@
+# Shortcuts for the everyday loop. Each runs this game's own toolset, which
+# knows its classes and builds and launches it.
+[alias]
+# Build whatever content changed, then play: `cargo play`, `cargo play +map @MAP@`.
+play = "run --features tools --bin @PACKAGE@-tools -- play"
+# The toolset window, or any stage: `cargo tools`, `cargo tools chisel`.
+tools = "run --features tools --bin @PACKAGE@-tools --"
+# Build everything properly and assemble a copy to hand out, in dist/.
+ship = "run --features tools --bin @PACKAGE@-tools -- kiln --ship dist"

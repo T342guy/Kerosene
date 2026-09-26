@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! Kiln -- building a project's content.
 //!
 //! Everything a project ships has a source that is not what the engine loads:
@@ -106,9 +106,14 @@ pub struct Settings {
     pub dry_run: bool,
     /// Compile a map even if it leaks.
     pub ignore_leaks: bool,
-    /// Rebuild sounds whose compiled form is already newer than the source.
-    /// For when the compiler changed and the sources did not.
+    /// Rebuild everything, even what is already newer than its source. For
+    /// when a compiler changed and the sources did not.
     pub force: bool,
+    /// How many threads each compiler may use. `None` for one per core.
+    pub jobs: Option<usize>,
+    /// Keep the compilers' own output to errors; say only what each stage
+    /// did.
+    pub quiet: bool,
     /// Treat `.obj` source as metres rather than kerosene units.
     ///
     /// True by default because modelling packages work in metres and a model
@@ -120,6 +125,9 @@ pub struct Settings {
     /// Ship for Steam: build with the `steam` feature and install Valve's
     /// redistributable beside the game. See [`steam`].
     pub steam: Option<steam::SteamShip>,
+    /// Ship for this target triple rather than this machine. Best effort:
+    /// building on each platform is the supported way.
+    pub target: Option<String>,
 }
 
 impl Default for Settings {
@@ -132,9 +140,12 @@ impl Default for Settings {
             dry_run: false,
             ignore_leaks: false,
             force: false,
+            jobs: None,
+            quiet: false,
             models_in_metres: true,
             ship_to: None,
             steam: None,
+            target: None,
         }
     }
 }
@@ -203,7 +214,14 @@ pub struct Report {
     pub sounds: usize,
     pub sounds_skipped: usize,
     pub models: usize,
+    /// Models already newer than their source.
+    pub models_skipped: usize,
     pub maps: usize,
+    /// Maps whose compiled form is newer than the source, and was built at
+    /// least as thoroughly as this build asks for.
+    pub maps_skipped: usize,
+    /// Whether the archive was already newer than everything in it.
+    pub pack_skipped: bool,
     /// Maps that compiled but do not seal the world.
     pub leaking: Vec<String>,
     pub packed: Option<PathBuf>,
@@ -260,9 +278,11 @@ pub fn build(settings: &Settings) -> Result<Report> {
 
     if settings.runs(Stage::Models) {
         say("models");
-        report.models = build_models(settings)?;
-        if report.models == 0 {
+        (report.models, report.models_skipped) = build_models(settings)?;
+        if report.models + report.models_skipped == 0 {
             println!("  no .obj, .gltf or .glb sources under art/")
+        } else if report.models == 0 {
+            println!("  up to date")
         }
     }
 
@@ -273,15 +293,27 @@ pub fn build(settings: &Settings) -> Result<Report> {
             println!("  no .keromap sources under maps/")
         }
         for map in &maps {
+            if !settings.force && map_is_current(map, settings.fast) {
+                report.maps_skipped += 1;
+                continue;
+            }
             build_map(settings, map, &mut report)?;
+            report.maps += 1;
         }
-        report.maps = maps.len();
+        if !maps.is_empty() && report.maps == 0 {
+            println!("  up to date")
+        }
     }
 
     if settings.runs(Stage::Pack) {
         say("pack");
         let archive = settings.archive();
-        pack(settings, &archive)?;
+        if !settings.force && !settings.dry_run && archive_is_current(&settings.content, &archive) {
+            println!("  up to date");
+            report.pack_skipped = true;
+        } else {
+            pack(settings, &archive)?;
+        }
         report.packed = Some(archive);
     }
 
@@ -300,14 +332,59 @@ fn say(stage: &str) {
     println!("==> {stage}");
 }
 
-/// Compile every `.obj`, `.gltf` and `.glb` under the art tree.
-fn build_models(settings: &Settings) -> Result<usize> {
+/// Whether `output` exists and was written no earlier than `source` was
+/// last changed. A missing or unreadable time is "not current": rebuilding
+/// something needlessly is cheap, skipping something stale is not.
+pub fn is_current(source: &Path, output: &Path) -> bool {
+    let modified = |p: &Path| p.metadata().and_then(|m| m.modified()).ok();
+    match (modified(source), modified(output)) {
+        (Some(source), Some(output)) => output >= source,
+        _ => false,
+    }
+}
+
+/// The file beside a compiled map that says how thoroughly it was built:
+/// `full`, or `fast` for one whose visibility and lighting were skimped.
+fn build_stamp(map: &Path) -> PathBuf {
+    map.with_extension("kerobuild")
+}
+
+/// Whether a map's compiled form is newer than its source and was built at
+/// least as thoroughly as this build wants: a fast build is current for
+/// another fast build, never for a full one.
+fn map_is_current(map: &Path, fast: bool) -> bool {
+    let compiled = map.with_extension("kerobsp");
+    if !is_current(map, &compiled) || !is_current(map, &build_stamp(map)) {
+        return false;
+    }
+    let stamp = std::fs::read_to_string(build_stamp(map)).unwrap_or_default();
+    match stamp.trim() {
+        "full" => true,
+        "fast" => fast,
+        _ => false,
+    }
+}
+
+/// Whether an archive is newer than every file it would pack.
+fn archive_is_current(content: &Path, archive: &Path) -> bool {
+    archive.is_file()
+        && ship::newer_than(content, archive).iter().all(|p| {
+            !p.extension()
+                .and_then(|e| e.to_str())
+                .is_some_and(|e| PACKED.contains(&e.to_ascii_lowercase().as_str()))
+        })
+}
+
+/// Compile every `.obj`, `.gltf` and `.glb` under the art tree that is newer
+/// than its model. Returns how many were built and how many were current.
+fn build_models(settings: &Settings) -> Result<(usize, usize)> {
     let art = settings.content.join("art");
     let mut sources = sources(&art, "obj");
     sources.extend(self::sources(&art, "gltf"));
     sources.extend(self::sources(&art, "glb"));
     sources.sort();
     let mut built = 0;
+    let mut current = 0;
 
     for source in &sources {
         // `art/props/crate.obj` becomes `models/props/crate.keromdl`: the
@@ -319,6 +396,10 @@ fn build_models(settings: &Settings) -> Result<usize> {
             .unwrap_or(source)
             .with_extension("keromdl");
         let out = settings.content.join("models").join(&relative);
+        if !settings.force && is_current(source, &out) {
+            current += 1;
+            continue;
+        }
 
         let mut args = vec![
             "compile".to_string(),
@@ -336,7 +417,7 @@ fn build_models(settings: &Settings) -> Result<usize> {
         run_tool("forge", &args, settings)?;
         built += 1;
     }
-    Ok(built)
+    Ok((built, current))
 }
 
 /// Take one map through the four compilers.
@@ -394,6 +475,13 @@ fn build_map(settings: &Settings, map: &Path, report: &mut Report) -> Result<()>
         args.push("--fast".into())
     }
     run_tool("radiance", &args, settings)?;
+    // Written last, so a build that stopped part way leaves no stamp and is
+    // done again next time.
+    if !settings.dry_run {
+        let how = if settings.fast { "fast" } else { "full" };
+        std::fs::write(build_stamp(map), format!("{how}\n"))
+            .with_context(|| format!("writing {}", build_stamp(map).display()))?;
+    }
     Ok(())
 }
 
@@ -483,10 +571,18 @@ fn run_tool(tool: &str, args: &[String], settings: &Settings) -> Result<()> {
         return Ok(());
     }
 
-    let status = toolchain::command(tool)
-        .args(args)
-        .stdout(Stdio::inherit())
-        .stderr(Stdio::inherit())
+    let mut command = toolchain::command(tool);
+    command.args(args).stderr(Stdio::inherit());
+    command.stdout(if settings.quiet {
+        Stdio::null()
+    } else {
+        Stdio::inherit()
+    });
+    // The compilers parallelise with rayon, which reads this.
+    if let Some(jobs) = settings.jobs {
+        command.env("RAYON_NUM_THREADS", jobs.max(1).to_string());
+    }
+    let status = command
         .status()
         .with_context(|| format!("running the {tool} stage"))?;
 

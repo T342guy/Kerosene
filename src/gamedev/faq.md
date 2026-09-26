@@ -70,13 +70,24 @@ read theirs, and the project ships no Valve or id content. Bring your own.
 ([Licensing](../docs/licensing.md#names-and-trademarks))
 
 **Is it game-ready?**
-No. It is pre-alpha. Everything works end to end — draw a level, compile it,
-walk around it, save and load — but menus, gamepads, networking and crash
-reporting do not exist yet. ([Publishing](publishing.md#you-can-but))
+Not yet. It is 1.0.0 alpha. Everything works end to end — make a game with
+`kerosene-tools new`, draw a level, compile it, walk around it, save and
+load — but main menus, gamepads, combat, networking and crash reporting do
+not exist yet. ([Publishing](publishing.md#you-can-but))
+
+**How do I start?**
+`cargo install kerosene-tools`, `kerosene-tools new mygame`, `cargo play`.
+([Getting started](getting-started.md))
+
+**Will an update break my game?**
+Not without saying so. Kerosene's version follows Semantic Versioning on the
+`kerosene` crate's API: `cargo update` takes fixes and additions, and a
+breaking change waits for a major version, with the changelog saying what to
+change. The 1.0.0 alphas are the exception. ([Versioning](../docs/versioning.md))
 
 **Does it run on Windows or macOS?**
-It builds on both in CI. Nobody has run the result by hand.
-([Platforms](platforms.md))
+CI runs every test on both, and makes and plays a new game on each. Nobody
+has played one there by hand yet. ([Platforms](platforms.md))
 
 **Can players mod a shipped game?**
 Yes, trivially: a loose file under `content/` shadows the same path in the

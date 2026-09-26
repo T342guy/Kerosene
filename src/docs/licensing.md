@@ -4,8 +4,17 @@ Kerosene is licensed under the **GNU General Public License, version 3 or
 later, with the Kerosene Exception** — additional terms under the GPL's
 section 7. Both texts ship in the repository, `LICENSE` and
 `LICENSE-EXCEPTION`; `Cargo.toml` declares
-`license = "GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0"`, and
+`license = "GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0"`, and
 every source file carries the matching `SPDX-License-Identifier` line.
+
+`AdditionRef-` is SPDX's prefix (from version 2.3) for an addition to a
+licence that is not on SPDX's own list of exceptions, which the Kerosene
+Exception is not. It is what makes the expression one that tools can read:
+Cargo, `cargo-deny` and anything else that audits a dependency tree see
+the GPL *and* the Exception — including its permission to link Kerosene
+statically — rather than refusing the line or reading it as the GPL alone.
+Earlier versions spelled it `LicenseRef-Kerosene-Exception-1.0`, which SPDX
+does not allow after `WITH`; the terms are the same.
 
 `NOTICE` states what that means on one page; this document explains the
 reasoning, walks the exception clause by clause, and then does the dependency

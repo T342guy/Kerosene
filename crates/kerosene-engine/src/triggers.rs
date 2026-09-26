@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! What a trigger volume does to the player: the engine's side of triggers.
 //!
 //! A trigger is a brush that is not solid but that the player can be inside

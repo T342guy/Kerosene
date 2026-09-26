@@ -42,33 +42,54 @@ members = [
 version = "1.0.0-a1"
 edition = "2024"
 rust-version = "1.94"
-license = "GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0"
+license = "GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0"
 authors = ["T342guy"]
 repository = "https://github.com/t342guy/kerosene"
+homepage = "https://github.com/t342guy/kerosene"
+keywords = ["gamedev", "game-engine", "bsp", "level-editor", "3d"]
+categories = ["game-engines", "game-development"]
 
 [workspace.dependencies]
-kerosene-math    = { path = "crates/kerosene-math" }
-kerosene-kv      = { path = "crates/kerosene-kv" }
-kerosene-config  = { path = "crates/kerosene-config" }
-kerosene-console = { path = "crates/kerosene-console" }
-kerosene-vfs     = { path = "crates/kerosene-vfs" }
-kerosene-asset   = { path = "crates/kerosene-asset" }
-kerosene-map     = { path = "crates/kerosene-map" }
-kerosene-bsp     = { path = "crates/kerosene-bsp" }
-kerosene-walk    = { path = "crates/kerosene-walk" }
-kerosene-physics = { path = "crates/kerosene-physics" }
-kerosene-rigid   = { path = "crates/kerosene-rigid" }
-kerosene-entity  = { path = "crates/kerosene-entity" }
-kerosene-render  = { path = "crates/kerosene-render" }
-kerosene-anim    = { path = "crates/kerosene-anim" }
-kerosene-engine  = { path = "crates/kerosene-engine" }
-kerosene-game    = { path = "crates/kerosene-game" }
-kerosene-script  = { path = "crates/kerosene-script" }
-kerosene-audio   = { path = "crates/kerosene-audio", default-features = false }
-kerosene-toolui  = { path = "crates/kerosene-toolui" }
-kerosene-ui      = { path = "crates/kerosene-ui" }
-kerosene-platform = { path = "crates/kerosene-platform" }
-kerosene         = { path = "crates/kerosene" }
+# Every Kerosene crate is one version, and each names the others at exactly
+# that version: they are released together and never mixed. The version is
+# the `kerosene` crate's; see src/docs/versioning.md and scripts/bump-version.sh.
+kerosene-math    = { version = "=1.0.0-a1", path = "crates/kerosene-math" }
+kerosene-kv      = { version = "=1.0.0-a1", path = "crates/kerosene-kv" }
+kerosene-config  = { version = "=1.0.0-a1", path = "crates/kerosene-config" }
+kerosene-console = { version = "=1.0.0-a1", path = "crates/kerosene-console" }
+kerosene-vfs     = { version = "=1.0.0-a1", path = "crates/kerosene-vfs" }
+kerosene-asset   = { version = "=1.0.0-a1", path = "crates/kerosene-asset" }
+kerosene-map     = { version = "=1.0.0-a1", path = "crates/kerosene-map" }
+kerosene-bsp     = { version = "=1.0.0-a1", path = "crates/kerosene-bsp" }
+kerosene-walk    = { version = "=1.0.0-a1", path = "crates/kerosene-walk" }
+kerosene-physics = { version = "=1.0.0-a1", path = "crates/kerosene-physics" }
+kerosene-rigid   = { version = "=1.0.0-a1", path = "crates/kerosene-rigid" }
+kerosene-entity  = { version = "=1.0.0-a1", path = "crates/kerosene-entity" }
+kerosene-render  = { version = "=1.0.0-a1", path = "crates/kerosene-render" }
+kerosene-anim    = { version = "=1.0.0-a1", path = "crates/kerosene-anim" }
+kerosene-engine  = { version = "=1.0.0-a1", path = "crates/kerosene-engine" }
+kerosene-game    = { version = "=1.0.0-a1", path = "crates/kerosene-game" }
+kerosene-script  = { version = "=1.0.0-a1", path = "crates/kerosene-script" }
+kerosene-audio   = { version = "=1.0.0-a1", path = "crates/kerosene-audio", default-features = false }
+kerosene-toolui  = { version = "=1.0.0-a1", path = "crates/kerosene-toolui" }
+kerosene-ui      = { version = "=1.0.0-a1", path = "crates/kerosene-ui" }
+kerosene-platform = { version = "=1.0.0-a1", path = "crates/kerosene-platform" }
+kerosene         = { version = "=1.0.0-a1", path = "crates/kerosene" }
+
+# The tools, as libraries. Published as kerosene-<tool>, since the short
+# names were taken on crates.io; code still says `chisel::`, `kiln::`.
+chisel           = { package = "kerosene-chisel", version = "=1.0.0-a1", path = "tools/chisel" }
+cleave           = { package = "kerosene-cleave", version = "=1.0.0-a1", path = "tools/cleave" }
+umbra            = { package = "kerosene-umbra", version = "=1.0.0-a1", path = "tools/umbra" }
+resonance        = { package = "kerosene-resonance", version = "=1.0.0-a1", path = "tools/resonance" }
+radiance         = { package = "kerosene-radiance", version = "=1.0.0-a1", path = "tools/radiance" }
+alchemy          = { package = "kerosene-alchemy", version = "=1.0.0-a1", path = "tools/alchemy" }
+timbre           = { package = "kerosene-timbre", version = "=1.0.0-a1", path = "tools/timbre" }
+forge            = { package = "kerosene-forge", version = "=1.0.0-a1", path = "tools/forge" }
+vault            = { package = "kerosene-vault", version = "=1.0.0-a1", path = "tools/vault" }
+kiln             = { package = "kerosene-kiln", version = "=1.0.0-a1", path = "tools/kiln" }
+loupe            = { package = "kerosene-loupe", version = "=1.0.0-a1", path = "tools/loupe" }
+kerosene-tools   = { version = "=1.0.0-a1", path = "tools/kerosene-tools" }
 box3d-rust       = "0.2"
 
 anyhow      = "1"
@@ -143,5 +164,5 @@ opt-level = 2
 # Chisel rasterises its 3D pane in software, a pixel at a time. Unoptimised
 # that is a tenth of a second per frame, which is the difference between an
 # editor that can be dragged around and one that cannot.
-[profile.dev.package.chisel]
+[profile.dev.package.kerosene-chisel]
 opt-level = 2

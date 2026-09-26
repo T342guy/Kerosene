@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! Listening to one leaf: rays out, a room's figures back.
 //!
 //! Sound in a room is energy bouncing between surfaces and losing a share at

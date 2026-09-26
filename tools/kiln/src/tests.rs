@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 use super::*;
 
 fn scratch(name: &str) -> PathBuf {
@@ -184,4 +184,77 @@ fn sources_are_never_packed() {
     for compiled in ["kerotex", "keromdl", "kerobsp"] {
         assert!(PACKED.contains(&compiled), "{compiled} should be packed");
     }
+}
+
+/// Set a file's modification time, so a test can say which is newer without
+/// sleeping.
+fn age(path: &Path, seconds_ago: u64) {
+    let when = std::time::SystemTime::now() - std::time::Duration::from_secs(seconds_ago);
+    std::fs::File::options()
+        .write(true)
+        .open(path)
+        .unwrap()
+        .set_modified(when)
+        .unwrap();
+}
+
+#[test]
+fn an_output_newer_than_its_source_is_current_and_one_older_is_not() {
+    let dir = scratch("current");
+    let (source, output) = (dir.join("a.obj"), dir.join("a.keromdl"));
+    touch(&source);
+    assert!(!is_current(&source, &output), "no output yet");
+    touch(&output);
+    age(&source, 60);
+    assert!(is_current(&source, &output));
+    age(&output, 120);
+    assert!(!is_current(&source, &output), "the source changed since");
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn a_fast_map_is_current_for_a_fast_build_and_never_for_a_full_one() {
+    let dir = scratch("stamp");
+    let map = dir.join("maps/a.keromap");
+    touch(&map);
+    age(&map, 60);
+    touch(&map.with_extension("kerobsp"));
+    assert!(
+        !map_is_current(&map, true),
+        "no stamp, no telling how it was built"
+    );
+
+    std::fs::write(build_stamp(&map), "fast\n").unwrap();
+    assert!(map_is_current(&map, true));
+    assert!(
+        !map_is_current(&map, false),
+        "a full build lights it properly"
+    );
+
+    std::fs::write(build_stamp(&map), "full\n").unwrap();
+    assert!(map_is_current(&map, true));
+    assert!(map_is_current(&map, false));
+
+    age(&map.with_extension("kerobsp"), 120);
+    assert!(!map_is_current(&map, true), "edited since it was compiled");
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn an_archive_is_current_until_something_it_packs_is_newer() {
+    let dir = scratch("pack");
+    let archive = dir.join("content.vault");
+    touch(&dir.join("materials/a.keromat"));
+    touch(&dir.join("art/a.png"));
+    age(&dir.join("materials/a.keromat"), 60);
+    assert!(!archive_is_current(&dir, &archive), "no archive yet");
+    touch(&archive);
+    assert!(
+        archive_is_current(&dir, &archive),
+        "a newer source that is never packed does not matter"
+    );
+    touch(&dir.join("materials/b.keromat"));
+    age(&archive, 30);
+    assert!(!archive_is_current(&dir, &archive));
+    let _ = std::fs::remove_dir_all(dir);
 }

@@ -1,0 +1,119 @@
+//! The game: everything that is @NAME@ and not Kerosene.
+//!
+//! One class of its own, `item_pickup`, on top of the stock ones (doors,
+//! triggers, lights, sounds). The starter map wires a `trigger_once` to one:
+//! walk into it, and the pickup vanishes, the game counts it, and the count
+//! survives a save (F5, F9) and a level change.
+
+use kerosene::entity::InputEvent;
+use kerosene::prelude::*;
+
+/// What the editor knows about this game's classes. Shown in Chisel after
+/// the stock ones.
+pub const SCHEMA: &str = r#"
+class
+{
+    "name" "item_pickup"
+    "base" "Entity" "base" "Point"
+    "help" "Something to pick up. Its Pickup input takes it."
+    key { "name" "item" "label" "Item" "type" "string" "default" "gem"
+          "help" "What the player gets." }
+    input  { "name" "Pickup" "help" "The player takes it." }
+    output { "name" "OnPickup" }
+}
+"#;
+
+/// The request kind a pickup leaves for the game. Namespaced, so it cannot
+/// collide with the engine's own.
+const PICKUP: &str = "@PACKAGE@.pickup";
+
+#[derive(Default)]
+pub struct @TYPE@ {
+    /// What the player has picked up, in order.
+    items: Vec<String>,
+}
+
+// Class handlers get the entity world and nothing else, so they can be
+// tested without an engine. One that needs the game leaves a request, and
+// `entity_request` below picks it up at the end of the tick.
+fn input_pickup(world: &mut EntityWorld, id: EntityId, event: &InputEvent) -> bool {
+    let item = world
+        .get(id)
+        .and_then(|e| e.fields.text("item").map(|t| t.into_owned()))
+        .unwrap_or_else(|| "gem".into());
+    world.request(PICKUP, item, id, event.activator);
+    world.fire_output(id, "OnPickup", event.activator, None);
+    world.remove(id);
+    true
+}
+
+impl @TYPE@ {
+    fn publish(&self, engine: &mut Engine) {
+        engine.ui_set("items.count", self.items.len() as f64);
+    }
+}
+
+impl Game for @TYPE@ {
+    fn classes(&self, registry: &mut ClassRegistry) {
+        kerosene::game::register(registry); // the stock classes
+        registry.register(
+            ClassDef::new("item_pickup")
+                .input("Pickup", input_pickup)
+                .output("OnPickup"),
+        );
+    }
+
+    fn schema(&self) -> &'static str {
+        SCHEMA
+    }
+
+    fn setup(&mut self, engine: &mut Engine) {
+        engine.console.register_command(
+            "items",
+            ConVarFlags::NONE,
+            "List what has been picked up.",
+            |con, _| con.request("@PACKAGE@.items", ""),
+        );
+    }
+
+    fn map_loaded(&mut self, engine: &mut Engine) {
+        self.publish(engine);
+    }
+
+    fn entity_request(&mut self, engine: &mut Engine, request: &HostRequest) -> bool {
+        if request.kind != PICKUP {
+            return false;
+        }
+        self.items.push(request.payload.clone());
+        engine.console.print(format!("picked up a {}", request.payload));
+        engine.ui_emit("item_picked_up", request.payload.clone());
+        self.publish(engine);
+        true
+    }
+
+    fn console_request(&mut self, engine: &mut Engine, kind: &str, _: &str) -> bool {
+        if kind != "@PACKAGE@.items" {
+            return false;
+        }
+        let listing = match self.items.is_empty() {
+            true => "nothing yet".to_string(),
+            false => self.items.join(", "),
+        };
+        engine.console.print(listing);
+        true
+    }
+
+    fn save(&mut self, _: &mut Engine) -> kerosene::serde_json::Value {
+        kerosene::serde_json::json!({ "items": self.items })
+    }
+
+    fn load(&mut self, engine: &mut Engine, data: &kerosene::serde_json::Value) {
+        self.items = data["items"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|v| v.as_str().map(String::from))
+            .collect();
+        self.publish(engine);
+    }
+}

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! `.keroaud` -- compiled audio, the format Timbre writes and the engine reads.
 //!
 //! Every other kind of content in this engine has a source and a compiled

@@ -1,8 +1,8 @@
-// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! What Chisel sees when it starts, without opening a window.
 //!
 //! ```text
-//! cargo run -p chisel --example diagnose -- [map.keromap] [--content <dir>] [--build]
+//! cargo run -p kerosene-chisel --example diagnose -- [map.keromap] [--content <dir>] [--build]
 //! ```
 //!
 //! For the one question a level editor cannot answer for itself: *why is there

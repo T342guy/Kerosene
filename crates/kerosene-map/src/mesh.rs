@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! Meshes: world geometry stored as vertices and faces rather than planes.
 //!
 //! A brush is the intersection of half-spaces, which makes it convex, sealed

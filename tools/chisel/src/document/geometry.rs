@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! Clip, carve, hollow, rotate, flip and align, on whatever is selected.
 //!
 //! The geometry itself is in `kerosene_map` ([`Solid::clip`] and friends);

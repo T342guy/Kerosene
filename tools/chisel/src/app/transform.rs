@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! Cutting and turning the selection: the clip tool's Enter, carve,
 //! hollow and its dialog, the transform dialog, flips, the quick 90-degree
 //! turn, and align to grid.

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! The game UI against a real, compiled map: the store, the HUD, decals and
 //! world panels, headless.
 
@@ -103,10 +103,7 @@ fn setup(name: &str, script: &str) -> (Engine, PathBuf) {
     std::fs::write(dir.join("scripts/uimap.keroscript"), script).unwrap();
     std::fs::write(dir.join("ui/keypad.keroui"), KEYPAD).unwrap();
     std::fs::write(dir.join("ui/hud.keroui"), HUD).unwrap();
-    let mut engine = common::stock(&EngineConfig {
-        content_paths: vec![dir.clone()],
-        ..Default::default()
-    });
+    let mut engine = common::stock(&EngineConfig::default().with_content(dir.clone()));
     engine.console.set("ui_hud", "ui/hud.keroui");
     engine.load_map("uimap").unwrap();
     (engine, dir)
@@ -254,10 +251,17 @@ fn pressing_use_on_a_world_panel_clicks_it_and_its_output_opens_the_door() {
 }
 
 #[test]
-fn the_pause_menu_needs_a_map_and_its_file() {
+fn the_pause_menu_falls_back_to_the_base_one_and_a_games_own_wins() {
     let (mut engine, dir) = setup("menu", "");
-    // No ui/menus/pause.keroui in this tree.
+    // No ui/menus/pause.keroui in this tree: the engine's base content has one.
+    assert!(engine.toggle_pause_menu());
+    assert!(engine.toggle_pause_menu(), "and it closes");
+    // No file at all is no menu.
+    engine.console.set("ui_pausemenu", "");
     assert!(!engine.toggle_pause_menu());
+    engine.console.set("ui_pausemenu", "ui/menus/pause.keroui");
+
+    // The game's own, over the base one.
     std::fs::create_dir_all(dir.join("ui/menus")).unwrap();
     std::fs::write(
         dir.join("ui/menus/pause.keroui"),
@@ -270,6 +274,15 @@ fn the_pause_menu_needs_a_map_and_its_file() {
     assert_eq!(
         engine.ui.store.get("ui.menu_open"),
         Some(&Value::Bool(true))
+    );
+    assert!(
+        engine
+            .ui
+            .system
+            .document("menu")
+            .and_then(|d| d.find("resume"))
+            .is_some(),
+        "the game's menu, not the base one"
     );
     assert!(engine.toggle_pause_menu());
     assert!(!engine.ui_wants_input());

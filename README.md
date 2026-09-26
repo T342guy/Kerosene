@@ -2,19 +2,59 @@
 
 ![Kerosene](./.github/Images/kerosene-readme-banner.png)
 
-A brush-based 3D game engine in Rust, built the way Valve's Source engine is
-built: levels are convex solids carved into a BSP tree, visibility and lighting
-are computed once at build time by compilers, and the engine loads the result.
-The compilers and the editor are one executable, `kerosene-tools`, kept apart
-from the engine by the same boundary Source kept between its tools and its
-game DLL.
+**A Rust game crate for brush-built 3D games.** Add `kerosene` to a Cargo
+project, implement one trait, and you have a game: a movement solver in the
+Quake-to-Source lineage, levels compiled from convex brushes into a BSP tree
+with baked visibility, lighting and acoustics, Source-style entity I/O,
+physics props, a game UI, saved games and Steam. The editor and every
+compiler come with it, as a library your game re-hosts, so the whole thing
+builds from source on your own machine — Linux, Windows or macOS — with
+nothing to install but Rust.
 
-That boundary is the point. Source's real design achievement was never its
-renderer — it was that Hammer, `vbsp`, `vvis`, `vrad`, `studiomdl` and VTFEdit
-are *separate from the game* and share file formats. You can script them, run
-them on a build server, replace one, or write your own. Kerosene keeps that
-shape: the toolset's stages stay separate subcommands, so each is still
-scriptable and replaceable, while one binary carries them all.
+```sh
+cargo install kerosene-tools
+kerosene-tools new mygame
+cd mygame
+cargo play
+```
+
+(Until the first crates.io release, install from the repository:
+`cargo install --git https://github.com/t342guy/kerosene kerosene-tools`.)
+
+That is a game: a Cargo package with a `Game` of its own, a starter map, and
+the editor and compilers knowing its classes. `cargo play` builds whatever
+content changed and runs it; `cargo tools chisel` opens the editor;
+`cargo ship` builds a copy to hand out. [Getting
+started](src/gamedev/getting-started.md) walks through it.
+
+```rust
+use kerosene::prelude::*;
+
+#[derive(Default)]
+struct MyGame;
+
+impl Game for MyGame {
+    fn classes(&self, registry: &mut ClassRegistry) {
+        kerosene::game::register(registry); // doors, triggers, lights, sounds
+        registry.register(ClassDef::new("item_pickup"));
+    }
+}
+
+fn main() -> anyhow::Result<()> {
+    launch(MyGame, LaunchOptions::new("My Game", env!("CARGO_PKG_VERSION")))
+}
+```
+
+It is built the way Valve's Source engine is built: levels are convex solids
+carved into a BSP tree, visibility and lighting are computed once at build
+time by compilers, and the engine loads the result. The compilers are kept
+apart from the engine by the same boundary Source kept between its tools and
+its game DLL, and that boundary is the point. Source's real design
+achievement was never its renderer — it was that Hammer, `vbsp`, `vvis`,
+`vrad`, `studiomdl` and VTFEdit are *separate from the game* and share file
+formats. You can script them, run them on a build server, replace one, or
+write your own. Kerosene keeps that shape: each stage is still a separate,
+scriptable subcommand, and one binary carries them all.
 
 ```
    art/*.png ──alchemy──► materials/*.kerotex + *.keromat ─────────────┐
@@ -53,9 +93,10 @@ powers of two land on architectural sizes: a 16 ku grid gives stair risers and
 door frames that are already right. See
 [`kerosene_math::units`](crates/kerosene-math/src/units.rs).
 
-## The tools
+## The tools come with it
 
-One application, `kerosene-tools`. Open it with no arguments and you get one
+One application, `kerosene-tools` — and, in a game made with `new`, the same
+application as the game's own `mygame-tools`, knowing its classes. Open it with no arguments and you get one
 window holding every tool: a project page, the world editor, the sound
 editor, a build form and an archive form, switched with an activity bar down
 the left edge, and one output panel every job logs into. None of it is the
@@ -77,13 +118,15 @@ engine.
 The stages also run headless, as subcommands, for scripts and build servers:
 `kerosene-tools cleave map.keromap`, `kerosene-tools kiln`, and so on.
 
-The engine itself is the separate `kerosene` binary.
+The engine is the `kerosene` crate, and a game is a binary that depends on
+it; `kerosene`, the stock runtime, is that with the stock game.
 
 ---
 
-## Quick start
+## Working on Kerosene itself
 
-Requires a Rust toolchain (edition 2024; developed against 1.94).
+Everything above is for making a game. To build this repository — the
+engine, the tools and the sample content — you need Rust 1.94 or later.
 
 ```sh
 cargo build --release              # the engine and the toolset
@@ -244,6 +287,20 @@ removing it would change the game.
 
 ```
 crates/
+  kerosene            the game crate: what a game depends on, and the API
+                      Kerosene's version follows (see Versioning)
+  kerosene-engine     the host: the simulation, with and without a window;
+                      the Game trait; base/, the content every game starts with
+  kerosene-game       the stock entity classes — the game DLL analogue
+  kerosene-entity     entities, their fields, and the I/O event queue
+  kerosene-physics    player movement and collision response
+  kerosene-rigid      rigid-body props on Box3D (box3d-rust)
+  kerosene-render     the wgpu renderer, lightmap atlas, PVS culling
+  kerosene-ui         the game UI: layouts, stylesheets, store, UI scripts
+  kerosene-script     Rhai map scripting
+  kerosene-platform   the store: Steam, or nothing
+  kerosene-audio      the mixer, spatial sound and reverb
+  kerosene-anim       skeletal animation
   kerosene-math       vectors, planes, convex windings with exact clipping
   kerosene-kv         KeyValues, the text format .keromap and materials use
   kerosene-config     engine.kconfig — the settings every program shares
@@ -252,73 +309,68 @@ crates/
   kerosene-asset      .kerotex textures, .keromat materials, .keromdl models
   kerosene-map        .keromap — the editable map format
   kerosene-bsp        .kerobsp — the compiled map, plus tracing and PVS
-  kerosene-physics    player movement and collision response
-  kerosene-rigid      rigid-body props on Box3D (box3d-rust)
-  kerosene-entity     entities, their fields, and the I/O event queue
-  kerosene-render     the wgpu renderer, lightmap atlas, PVS culling
-  kerosene-engine     the host: ties it together, with and without a window;
-                      the Game trait a game implements
-  kerosene-game       the stock entity classes — the game DLL analogue
-  kerosene            the engine as one crate: what a game depends on
-tools/
-  chisel cleave umbra resonance radiance alchemy forge vault kiln
+  kerosene-walk       walkable-surface data for navigation
+tools/                published as kerosene-<tool>
+  chisel cleave umbra resonance radiance alchemy forge timbre vault kiln loupe
+  kerosene-tools      all of them as one application, and `new` and `play`
 apps/
-  kerosene        the runtime
-kerosene.keroproj  the project file: what content tree this is, and where
-content/          sample art, models, materials, the sample level, and the
-                  archive packed from them -- a content tree, the thing every
-                  tool and the engine go looking for
-docs/             architecture, formats, tools, scripting, audio,
-                  licensing, configuration, positioning, missing features
+  kerosene            the stock runtime (package kerosene-runtime)
+kerosene.keroproj     the project file: what content tree this is, and where
+content/              sample art, models, materials, the sample level, and the
+                      archive packed from them
+src/                  the book: getting started, the game developer guide,
+                      the engine's documentation and the devnotes
 ```
 
-Read [`docs/architecture.md`](docs/architecture.md) for how the pieces fit,
-[`docs/formats.md`](docs/formats.md) for the file formats, and
-[`docs/tools.md`](docs/tools.md) for the full tool reference.
-[`docs/scripting.md`](docs/scripting.md) covers the script API,
-[`docs/audio.md`](docs/audio.md) sound,
-[`docs/configuration.md`](docs/configuration.md) the engine config, and
-[`docs/licensing.md`](docs/licensing.md) the dependency audit and the
-provenance of the algorithms. [`docs/positioning.md`](docs/positioning.md)
+Read [`docs/architecture.md`](src/docs/architecture.md) for how the pieces fit,
+[`docs/formats.md`](src/docs/formats.md) for the file formats, and
+[`docs/tools.md`](src/docs/tools.md) for the full tool reference.
+[`docs/scripting.md`](src/docs/scripting.md) covers the script API,
+[`docs/audio.md`](src/docs/audio.md) sound,
+[`docs/configuration.md`](src/docs/configuration.md) the engine config, and
+[`docs/licensing.md`](src/docs/licensing.md) the dependency audit and the
+provenance of the algorithms. [`docs/positioning.md`](src/docs/positioning.md)
 argues what the engine is shaped to be good at, and
-[`docs/missing-features.md`](docs/missing-features.md) inventories what it
+[`docs/missing-features.md`](src/docs/missing-features.md) inventories what it
 does not have yet.
 
 ---
 
 ## Status
 
-Everything above works end to end: you can draw a level in Chisel, compile it
-through all three stages, and walk around it. 1600 tests cover the pieces and
-the seams between them, including a suite that builds a map in memory,
-compiles it, loads it and plays it.
+Kerosene is **1.0.0 alpha**: it works end to end, and its API may still
+change between alphas. From `1.0.0` on, the `kerosene` crate follows
+Semantic Versioning, and everything that counts as a breaking change is
+written down in [Versioning](src/docs/versioning.md). What changed, release
+by release, is in [`CHANGELOG.md`](CHANGELOG.md).
+
+You can make a game with `kerosene-tools new`, draw its levels in Chisel,
+compile them, and play, save and load them. More than two thousand tests
+cover the pieces and the seams between them, including suites that build
+maps in memory, compile them, load them and play them, and CI makes and runs
+a new game on Linux, Windows and macOS.
 
 Known limits, stated plainly:
 
 - **No networking yet.** The engine is structured for a client/server split —
   the simulation runs without a display, which is the hard part — but the
   wire protocol and prediction are not written.
-- **No skeletal animation.** `.keromdl` carries bones and per-vertex weights, and
-  Forge preserves them, but nothing animates them yet.
-- **No Windows or macOS build has been tried by hand.** CI builds both, so
-  a tree that stops compiling there is caught; nothing has been *run* there.
-- **No game UI, no save/load, no demo recording.** The developer console is
-  the only overlay; nothing serialises game state; nothing records a session.
+- **No combat, NPCs or particles yet.** The stock weapons are a starting
+  point for the HUD, not a combat system. These are on the roadmap in
+  [Missing features](src/docs/missing-features.md).
 - **Chisel's 3D view is software-rasterised, not GPU-rendered.** Occlusion is
   correct — it has a real depth buffer — and it draws materials, mipped and
-  perspective-correct. There is no lighting and there are no shadows, and it
-  reads the *compiled* textures, so the content has to be built first. The
+  perspective-correct. There is no lighting and there are no shadows. The
   compiled map in the engine is one keystroke away.
 - **No block compression for textures.** `.kerotex` is uncompressed.
-- **Sound is stereo, and does not know about walls.** Falloff and panning are
-  there; occlusion, reverb and doppler are not, so a sound through a wall is
-  as loud as one in the room.
+- **Not on crates.io yet.** Until the first release is published, `new`
+  takes `--kerosene-git` or `--kerosene-path` to depend on a checkout.
 
 ## Licence
 
 **GPL-3.0-or-later WITH the Kerosene Exception.** The full texts are
 `LICENSE` and `LICENSE-EXCEPTION`, and every source file carries an
-`SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0`
+`SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0`
 line.
 
 The exception is what makes a game possible: it lets you link Kerosene,
@@ -330,5 +382,5 @@ starts, and a modified engine says "modified from Kerosene", names the
 version it diverged from, and is published whole. The project's preference:
 if you change Kerosene itself, contribute the change back as a pull request
 rather than releasing a modified fork.
-[`docs/licensing.md`](docs/licensing.md) explains all of this properly,
+[`docs/licensing.md`](src/docs/licensing.md) explains all of this properly,
 along with the full dependency audit and the provenance of the algorithms.

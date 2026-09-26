@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! The editing tools: select, block, shape, entity, texture.
 //!
 //! Each tool is a small state machine over a drag. Keeping them here, away

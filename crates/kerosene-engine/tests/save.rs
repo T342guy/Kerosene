@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! Saved games and level changes, against real compiled maps.
 
 use cleave::{CompileOptions, compile};
@@ -149,10 +149,7 @@ fn setup(name: &str) -> (Engine, PathBuf) {
     }
     std::fs::write(dir.join("scripts/keep.keroscript"), SCRIPT).unwrap();
     let mut engine = Engine::with_game(
-        &EngineConfig {
-            content_paths: vec![dir.clone()],
-            ..Default::default()
-        },
+        &EngineConfig::default().with_content(dir.clone()),
         Box::new(Keeper { coins: 0 }),
     );
     engine.load_map("keep").unwrap();
@@ -264,7 +261,7 @@ fn a_level_change_carries_the_player_across_the_landmark() {
 
     fire(&mut engine, "exit", "ChangeLevel");
     run(&mut engine, 1);
-    assert_eq!(engine.level.as_ref().unwrap().name, "next");
+    assert_eq!(engine.level().unwrap().name, "next");
     assert_eq!(engine.player.health, 64.0);
     assert_eq!(
         engine.player.movement.origin,
@@ -284,7 +281,7 @@ fn a_level_change_carries_the_player_across_the_landmark() {
     // A map that does not exist leaves the player where they are.
     engine.console.execute_user("changelevel nowhere");
     console(&mut engine);
-    assert_eq!(engine.level.as_ref().unwrap().name, "next");
+    assert_eq!(engine.level().unwrap().name, "next");
     let _ = std::fs::remove_dir_all(dir);
 }
 
@@ -333,7 +330,7 @@ fn bad_saves_are_refused_and_the_running_level_kept() {
     let e = engine.load_game("twisted").unwrap_err().to_string();
     assert!(e.contains("would not restore"), "{e}");
     assert_eq!(engine.entities.len(), before, "the level is untouched");
-    assert_eq!(engine.level.as_ref().unwrap().name, "keep");
+    assert_eq!(engine.level().unwrap().name, "keep");
 
     // A save from a newer engine is not guessed at.
     save.format = 99;
@@ -398,7 +395,7 @@ fn a_falling_prop_is_still_falling_after_a_load() {
     let prop = engine.spawn_prop("props/cube", Vec3::new(200.0, 128.0, 100.0));
     run(&mut engine, 10);
     let motion = |e: &Engine| {
-        e.physics
+        e.physics()
             .prop_motion()
             .into_iter()
             .find(|m| m.0 == prop)
@@ -425,5 +422,58 @@ fn a_falling_prop_is_still_falling_after_a_load() {
         (again - settled).length() < 1.0,
         "lands where it landed before: {again:?} vs {settled:?}"
     );
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn a_paused_world_does_not_tick_and_does_not_catch_up_after() {
+    let (mut engine, dir) = setup("pause");
+    let input = InputState::default();
+    assert!(engine.frame(0.1, &input) > 0, "running, a frame ticks");
+
+    // The pause menu, the console or a window in the background.
+    engine.set_host_paused(true);
+    assert!(engine.is_paused());
+    let at = engine.tick_count();
+    for _ in 0..30 {
+        assert_eq!(engine.frame(0.1, &input), 0);
+    }
+    assert_eq!(engine.tick_count(), at, "no ticks while paused");
+    engine.set_host_paused(false);
+    let ran = engine.frame(1.0 / 64.0, &input);
+    assert!(
+        ran <= 1,
+        "three seconds paused is not three seconds of catch-up"
+    );
+
+    // Only when asked: a server or a game that pauses its own way turns it off.
+    engine.console.execute("sv_pause_on_menu 0");
+    engine.set_host_paused(true);
+    assert!(!engine.is_paused());
+    engine.set_host_paused(false);
+
+    // The command pauses whatever else is open, and toggles.
+    engine.console.execute("pause");
+    console(&mut engine);
+    assert!(engine.is_paused());
+    assert_eq!(engine.frame(0.1, &input), 0);
+    engine.console.execute("pause");
+    console(&mut engine);
+    assert!(!engine.is_paused());
+
+    // A game in the background falls silent when asked to, paused or not.
+    let volume = |engine: &Engine| {
+        engine.audio.with_mixer(|m| {
+            m.apply_control();
+            m.volume
+        })
+    };
+    engine.console.execute("volume 0.5");
+    engine.set_background(true);
+    engine.frame(0.0, &input);
+    assert_eq!(volume(&engine), 0.0);
+    engine.set_background(false);
+    engine.frame(0.0, &input);
+    assert!((volume(&engine) - 0.5).abs() < 1e-6);
     let _ = std::fs::remove_dir_all(dir);
 }

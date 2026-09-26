@@ -5,7 +5,16 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 authors.workspace = true
-description = "The Kerosene engine, as one crate: what a game depends on."
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+readme = "../../README.md"
+description = "A Rust game crate for brush-built 3D games: add it, implement Game, and play. Engine and tools in one."
+
+# docs.rs builds the tools too, and not Steam: that links Valve's SDK.
+[package.metadata.docs.rs]
+features = ["tools"]
 
 # The one crate a game names. Everything below is re-exported as a module,
 # so a game's Cargo.toml has one Kerosene line and its code says
@@ -28,7 +37,7 @@ tools = ["dep:kerosene-tools", "dep:chisel"]
 [dependencies]
 # Named without its default so that a game's `default-features = false`
 # reaches the engine's audio switch rather than being silently ignored.
-kerosene-engine = { path = "../kerosene-engine", default-features = false }
+kerosene-engine = { version = "=1.0.0-a1", path = "../kerosene-engine", default-features = false }
 kerosene-game.workspace = true
 kerosene-entity.workspace = true
 kerosene-math.workspace = true
@@ -54,5 +63,5 @@ rhai.workspace = true
 winit.workspace = true
 anyhow.workspace = true
 log.workspace = true
-kerosene-tools = { path = "../../tools/kerosene-tools", optional = true }
-chisel = { path = "../../tools/chisel", optional = true }
+kerosene-tools = { workspace = true, optional = true }
+chisel = { workspace = true, optional = true }

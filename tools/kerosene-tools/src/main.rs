@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! `kerosene-tools` -- the Kerosene toolset.
 //!
 //! Run with no subcommand it opens the one window that holds every tool: a
@@ -23,9 +23,8 @@
 //! its own `Options` -- see `kerosene_tools::entry`.
 
 fn main() -> anyhow::Result<()> {
-    kerosene_tools::main_with(kerosene_tools::Options {
-        name: "kerosene-tools",
-        version: env!("CARGO_PKG_VERSION"),
-        ..Default::default()
-    })
+    kerosene_tools::main_with(kerosene_tools::Options::new(
+        "kerosene-tools",
+        env!("CARGO_PKG_VERSION"),
+    ))
 }

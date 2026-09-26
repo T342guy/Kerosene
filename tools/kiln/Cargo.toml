@@ -1,18 +1,28 @@
 [package]
-name = "kiln"
+name = "kerosene-kiln"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 authors.workspace = true
+description = "Kiln: builds a whole Kerosene project's content and assembles a distribution."
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+# Published as kerosene-kiln; the library keeps its short name.
+[lib]
+name = "kiln"
+path = "src/lib.rs"
 
 [dependencies]
 # The texture build is a library call, not a subprocess: Chisel makes the same
 # one, and two callers of the same step must not be able to disagree.
-alchemy = { path = "../alchemy" }
+alchemy.workspace = true
 # Same reasoning: Timbre's window and this build must not be able to
 # disagree about what compiling a sound means.
-timbre = { path = "../timbre" }
+timbre.workspace = true
 kerosene-vfs.workspace = true
 kerosene-kv.workspace = true
 anyhow.workspace = true

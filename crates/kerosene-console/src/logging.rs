@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! Where the game's log lines go.
 //!
 //! Two things used to be true at once: the console kept a scrollback of
@@ -277,6 +277,17 @@ pub fn install(level: log::LevelFilter) -> Arc<LogRelay> {
 /// backtrace, and the last few lines the log had seen -- which say which map
 /// was loading and what the console was doing. The relay's file, if one is
 /// open, is flushed first so its tail is not lost with the process.
+/// The game's name, when a crash should also be put in front of the player
+/// in a message box. Set by [`crash_dialog`].
+static CRASH_DIALOG: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+
+/// Show a crash in a message box titled `game` as well as writing it to
+/// `crash.log`. For a game with a window, whose player has no terminal to
+/// see the report in; a headless server leaves it off.
+pub fn crash_dialog(game: &str) {
+    let _ = CRASH_DIALOG.set(game.to_string());
+}
+
 pub fn install_crash_handler(relay: Option<Arc<LogRelay>>) {
     use std::fmt::Write as _;
     let previous = std::panic::take_hook();
@@ -305,11 +316,19 @@ pub fn install_crash_handler(relay: Option<Arc<LogRelay>>) {
         let candidates = beside_exe
             .into_iter()
             .chain(std::iter::once(std::path::PathBuf::from("crash.log")));
+        let mut written = None;
         for path in candidates {
             if std::fs::write(&path, &report).is_ok() {
                 eprintln!("crash report written to {}", path.display());
+                written = Some(path);
                 break;
             }
+        }
+        if let Some(game) = CRASH_DIALOG.get() {
+            let whence = written
+                .map(|p| format!("\n\nThe report is in {}.", p.display()))
+                .unwrap_or_default();
+            crate::dialog::show_error(&format!("{game} crashed"), &format!("{info}{whence}"));
         }
         previous(info);
     }));

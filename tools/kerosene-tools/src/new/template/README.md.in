@@ -1,0 +1,23 @@
+# @NAME@
+
+A game on [Kerosene](https://github.com/t342guy/kerosene).
+
+```sh
+cargo play                 # build what changed, then play
+cargo play +map @MAP@      # any console command after it
+cargo tools chisel content/maps/@MAP@.keromap   # edit the map
+cargo ship                 # build everything properly, into dist/
+```
+
+The first `cargo play` builds the engine and its tools, which takes a few
+minutes. After that it rebuilds only what changed.
+
+- `src/game.rs`: the game. One class of its own, `item_pickup`.
+- `src/main.rs`: the binary. `@PACKAGE@ --headless 600` is a dedicated server.
+- `src/tools.rs`: the editor and compilers, knowing this game's classes.
+- `content/`: maps, textures, models, sounds, scripts and UI. Anything the
+  engine's base content has (dev textures, the stock HUD) can be replaced by
+  putting a file at the same path here.
+
+On Linux, sound needs the ALSA headers (`libasound2-dev` or
+`alsa-lib-devel`). Without them, build with `--no-default-features`.

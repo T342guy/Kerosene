@@ -5,6 +5,11 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 authors.workspace = true
+description = "The Kerosene game engine: the simulation, the host window and the Game trait."
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [features]
 # Audio output needs ALSA headers on Linux. The mixer and everything that
@@ -52,9 +57,9 @@ serde_json.workspace = true
 # The stock classes, for tests that play a map. The engine itself has no
 # game: see `src/game.rs`.
 kerosene-game.workspace = true
-cleave = { path = "../../tools/cleave" }
-umbra = { path = "../../tools/umbra" }
-resonance = { path = "../../tools/resonance" }
+cleave.workspace = true
+umbra.workspace = true
+resonance.workspace = true
 kerosene-asset.workspace = true
 kerosene-map.workspace = true
 kerosene-bsp.workspace = true

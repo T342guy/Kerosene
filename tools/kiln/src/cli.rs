@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! The command-line surface of Kiln, exposed as a `run` the unified toolset
 //! calls for the `kiln` subcommand.
 //!
@@ -7,10 +7,12 @@
 //! kerosene-tools kiln --content path/to/content    # or from there
 //! kerosene-tools kiln --only maps --fast           # just relight, quickly
 //! kerosene-tools kiln --dry-run                    # say what would run
+//! kerosene-tools kiln --force -j 4                 # rebuild everything, on four threads
 //! kerosene-tools kiln --tools                      # which pieces are present
 //! kerosene-tools kiln --ship dist                  # build, then assemble
 //! kerosene-tools kiln --ship dist --steam          # ... for Steam, with Valve's library
 //! kerosene-tools kiln --ship dist --steam-upload me  # ... and upload it with steamcmd
+//! kerosene-tools kiln --ship dist --target x86_64-pc-windows-msvc  # for another platform
 //! ```
 
 use crate::{Settings, Stage};
@@ -43,9 +45,17 @@ struct Args {
     #[arg(long)]
     ignore_leaks: bool,
 
-    /// Rebuild sounds even when their compiled form looks up to date.
+    /// Rebuild everything, even what is already newer than its source.
     #[arg(long)]
     force: bool,
+
+    /// How many threads each compiler may use. One per core by default.
+    #[arg(long, short = 'j', value_name = "N")]
+    jobs: Option<usize>,
+
+    /// Keep the compilers' own output to errors.
+    #[arg(long, short = 'q')]
+    quiet: bool,
 
     /// Treat `.obj` sources as kerosene units rather than metres.
     #[arg(long)]
@@ -73,6 +83,12 @@ struct Args {
     /// account. steamcmd asks for the password itself.
     #[arg(long, value_name = "ACCOUNT")]
     steam_upload: Option<String>,
+
+    /// With --ship: build for this target triple, e.g.
+    /// x86_64-pc-windows-msvc. Needs that target installed with rustup and
+    /// a linker for it; building on each platform is the supported way.
+    #[arg(long, value_name = "TRIPLE")]
+    target: Option<String>,
 }
 
 /// Entry point for the `kiln` subcommand of the unified toolset.
@@ -138,6 +154,8 @@ pub fn run(args: Vec<String>) -> Result<()> {
         dry_run: args.dry_run,
         ignore_leaks: args.ignore_leaks,
         force: args.force,
+        jobs: args.jobs,
+        quiet: args.quiet,
         models_in_metres: !args.model_units,
         steam: (args.steam || args.steam_dev || args.steam_upload.is_some()).then(|| {
             crate::steam::SteamShip {
@@ -146,7 +164,11 @@ pub fn run(args: Vec<String>) -> Result<()> {
             }
         }),
         ship_to: args.ship,
+        target: args.target,
     };
+    if settings.target.is_some() && settings.ship_to.is_none() {
+        bail!("--target says what to ship for; say where with --ship <dir>");
+    }
     if settings.steam.is_some() && settings.ship_to.is_none() {
         bail!("--steam is a way of shipping; say where with --ship <dir>");
     }
@@ -155,13 +177,16 @@ pub fn run(args: Vec<String>) -> Result<()> {
 
     println!();
     println!(
-        "built {} textures ({} up to date), {} sounds ({} up to date), {} models, {} maps",
+        "built {} textures ({} up to date), {} sounds ({} up to date), \
+         {} models ({} up to date), {} maps ({} up to date)",
         report.textures,
         report.textures_skipped,
         report.sounds,
         report.sounds_skipped,
         report.models,
-        report.maps
+        report.models_skipped,
+        report.maps,
+        report.maps_skipped
     );
     if let Some(archive) = &report.packed {
         println!("packed into {}", archive.display());

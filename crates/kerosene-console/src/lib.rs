@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! The console: convars, concommands, and the command buffer.
 //!
 //! Source's defining trait is that nearly every knob in the engine is a
@@ -23,6 +23,7 @@
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 
+pub mod dialog;
 pub mod logging;
 pub mod overlay;
 mod tokenize;

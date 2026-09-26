@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 // Shadow maps: depth from a light's point of view, and nothing else.
 //
 // One entry point serves world geometry and studio models alike: both put

@@ -1,16 +1,17 @@
-// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! The window icon: the Kerosene mark, compiled into every binary that
 //! opens a window.
 //!
-//! The picture lives with the rest of the project's artwork in
-//! `.github/Images/` and is included from there, so there is one copy of it
-//! and the README, the toolset and the game all show the same mark. It is
-//! decoded once, at startup; a window without an icon is a grey square in a
-//! taskbar, which is not a thing anyone should have to recognise.
+//! The picture lives in this crate's `assets/` so that the crate carries it
+//! when it is packaged: included from anywhere outside the crate, it would
+//! build here and not from crates.io. There is one copy, and the toolset
+//! and the game both show it. It is decoded once, at startup; a window
+//! without an icon is a grey square in a taskbar, which is not a thing
+//! anyone should have to recognise.
 
 /// The mark, as the repository keeps it. 256 pixels square: big enough for
 /// a dock, and every platform scales down better than it scales up.
-const PNG: &[u8] = include_bytes!("../../../.github/Images/kerosene-icon-256.png");
+const PNG: &[u8] = include_bytes!("../assets/kerosene-icon-256.png");
 
 /// A decoded icon: RGBA pixels, row-major, and its size.
 #[derive(Clone, Debug, PartialEq, Eq)]

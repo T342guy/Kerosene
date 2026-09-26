@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! Assembling a distribution -- the step after the content is built.
 //!
 //! Everything up to here produces *content*: textures, models, maps, and a
@@ -120,11 +120,12 @@ pub(crate) fn ship_built(
         Some(_) => Some(crate::steam::ids(settings.project.as_ref())?),
         None => None,
     };
+    let os = crate::steam::TargetOs::of(settings.target.as_deref());
     if settings.steam.is_some() && redist.is_none() && !settings.dry_run {
         bail!(
             "a --steam ship needs Valve's {} from the build, and none was found. \
              Is the game built with the `steam` feature?",
-            crate::steam::redist_name()
+            crate::steam::redist_name_for(os)
         );
     }
 
@@ -132,11 +133,7 @@ pub(crate) fn ship_built(
         Some(project) => slug(&project.name),
         None => "kerosene".to_string(),
     };
-    let exe = if cfg!(windows) {
-        format!("{name}.exe")
-    } else {
-        name.clone()
-    };
+    let exe = os.exe(&name);
 
     let shipped = Shipped {
         root: out.to_path_buf(),
@@ -151,7 +148,7 @@ pub(crate) fn ship_built(
         steam_redist: settings
             .steam
             .as_ref()
-            .map(|_| out.join(crate::steam::redist_name())),
+            .map(|_| out.join(crate::steam::redist_name_for(os))),
         steam_scripts: None,
     };
 
@@ -202,7 +199,7 @@ pub(crate) fn ship_built(
             out,
             appid,
             depot,
-            &format!("{title} {}", env!("CARGO_PKG_VERSION")),
+            &build_description(title, game_version(settings).as_deref()),
         )?;
         println!(
             "  wrote SteamPipe scripts in {}. Upload with:",
@@ -257,7 +254,7 @@ fn check_archive(settings: &Settings, archive: &Path) -> Result<()> {
 ///
 /// The archive is written last, so anything newer than it changed after the
 /// pack and is not in it.
-fn newer_than(dir: &Path, reference: &Path) -> Vec<PathBuf> {
+pub(crate) fn newer_than(dir: &Path, reference: &Path) -> Vec<PathBuf> {
     let Ok(when) = reference.metadata().and_then(|m| m.modified()) else {
         return Vec::new();
     };
@@ -299,7 +296,10 @@ fn game_binary(settings: &Settings) -> Result<Built> {
             bin,
             project_dir,
         } => (name, bin, project_dir),
-        _ if steam => {
+        // Steam, or another platform: the stock runtime is built from the
+        // engine's source, since the copy beside kiln is this machine's
+        // and has no Steam in it.
+        _ if steam || settings.target.is_some() => {
             let from = std::env::current_exe().unwrap_or_default();
             let workspace = crate::steam::engine_workspace(&from)
                 .or_else(|| {
@@ -308,9 +308,9 @@ fn game_binary(settings: &Settings) -> Result<Built> {
                         .and_then(|d| crate::steam::engine_workspace(&d))
                 })
                 .context(
-                    "a --steam ship of a project with no `game` package builds the engine's \
-                     runtime with Steam, which needs the Kerosene source. Run kiln from the \
-                     engine checkout, or give the project a game package with a `steam` feature.",
+                    "a --steam or --target ship of a project with no `game` package builds \
+                     the engine's runtime from source, which needs the Kerosene checkout. Run \
+                     kiln from the engine checkout, or give the project a game package.",
                 )?;
             (
                 "kerosene-runtime".to_string(),
@@ -333,19 +333,26 @@ fn game_binary(settings: &Settings) -> Result<Built> {
     };
 
     let target_dir = project_dir.join("target").join("ship");
-    let options = crate::steam::build_options(steam, &target_dir);
+    let options = crate::steam::build_options_for(steam, &target_dir, settings.target.as_deref());
     let bin_name = bin.as_deref().unwrap_or(&name).to_string();
     if settings.dry_run {
         println!(
-            "  would run: cargo build --release -p {name}{}",
+            "  would run: cargo build --release -p {name}{}{}",
             if options.features.is_empty() {
                 String::new()
             } else {
                 format!(" --features {}", options.features.join(","))
+            },
+            match &options.target {
+                Some(t) => format!(" --target {t}"),
+                None => String::new(),
             }
         );
         let binary = match &options.target_dir {
-            Some(dir) => dir.join(toolchain::Profile::Release.dir()).join(&bin_name),
+            Some(dir) => dir
+                .join(settings.target.as_deref().unwrap_or(""))
+                .join(toolchain::Profile::Release.dir())
+                .join(&bin_name),
             None => toolchain::built_binary(&project_dir, &bin_name, toolchain::Profile::Release)
                 .with_context(|| format!("{name} has not been built in release yet"))?,
         };
@@ -366,21 +373,60 @@ fn game_binary(settings: &Settings) -> Result<Built> {
     )?;
     let redist = if steam {
         Some(
-            crate::steam::find_redist(&target_dir, toolchain::Profile::Release).with_context(
-                || {
-                    format!(
-                        "{name} built with the steam feature, but no {} is under {}. \
-                         Does the game's `steam` feature turn on `kerosene/steam`?",
-                        crate::steam::redist_name(),
-                        target_dir.display()
-                    )
-                },
-            )?,
+            crate::steam::find_redist_for(
+                &target_dir,
+                toolchain::Profile::Release,
+                settings.target.as_deref(),
+            )
+            .with_context(|| {
+                format!(
+                    "{name} built with the steam feature, but no {} is under {}. \
+                     Does the game's `steam` feature turn on `kerosene/steam`?",
+                    crate::steam::redist_name_for(crate::steam::TargetOs::of(
+                        settings.target.as_deref()
+                    )),
+                    target_dir.display()
+                )
+            })?,
         )
     } else {
         None
     };
     Ok(Built { binary, redist })
+}
+
+/// What SteamPipe calls a build: the game's name and its own version.
+pub(crate) fn build_description(title: &str, version: Option<&str>) -> String {
+    match version {
+        Some(v) => format!("{title} {v}"),
+        None => title.to_string(),
+    }
+}
+
+/// The version the game's own `Cargo.toml` gives it, or the stock
+/// runtime's -- which is Kerosene's -- for a project with no game package.
+/// Asked of Cargo, which knows how a workspace-inherited version resolves.
+fn game_version(settings: &Settings) -> Option<String> {
+    let (package, dir) = match toolchain::Runtime::for_project(settings.project.as_ref()) {
+        toolchain::Runtime::Package {
+            name, project_dir, ..
+        } => (name, project_dir),
+        _ => return Some(env!("CARGO_PKG_VERSION").to_string()),
+    };
+    let output = std::process::Command::new("cargo")
+        .args(["pkgid", "-p", &package])
+        .current_dir(dir)
+        .output()
+        .ok()?;
+    version_of_pkgid(String::from_utf8_lossy(&output.stdout).trim())
+}
+
+/// The version in a `cargo pkgid`: `path+file:///x#name@1.2.3`, or
+/// `...#1.2.3` when the name is the directory's.
+pub(crate) fn version_of_pkgid(id: &str) -> Option<String> {
+    let tail = id.rsplit('#').next()?;
+    let version = tail.rsplit('@').next()?;
+    (!version.is_empty() && version.chars().next()?.is_ascii_digit()).then(|| version.to_string())
 }
 
 /// Write the project file the shipped game reads.

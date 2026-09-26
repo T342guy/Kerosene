@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! Vault -- the Kerosene content archive tool.
 //!
 //! Packs a content tree into a single `.vault` file, the VPK analogue. A mod
@@ -50,6 +50,12 @@ enum Command {
         /// Skip files matching these substrings. Repeatable.
         #[arg(long = "exclude")]
         excludes: Vec<String>,
+        /// Only include what this file lists: one virtual path per line, a
+        /// directory ending in `/` taking everything under it. `#` starts a
+        /// comment. Every line must match something, so a renamed file is an
+        /// error here rather than a hole in the archive.
+        #[arg(long = "list")]
+        list: Option<PathBuf>,
     },
     /// List an archive's contents.
     List {
@@ -81,14 +87,57 @@ pub fn run(args: Vec<String>) -> Result<()> {
             output,
             extensions,
             excludes,
-        } => pack(&directory, &output, &extensions, &excludes),
+            list,
+        } => {
+            let listed = match list {
+                Some(file) => Some(read_list(&file)?),
+                None => None,
+            };
+            pack(
+                &directory,
+                &output,
+                &extensions,
+                &excludes,
+                listed.as_deref(),
+            )
+        }
         Command::List { archive, long } => list(&archive, long),
         Command::Verify { archive } => verify(&archive),
         Command::Unpack { archive, output } => unpack(&archive, &output),
     }
 }
 
-fn pack(dir: &Path, out: &Path, extensions: &[String], excludes: &[String]) -> Result<()> {
+/// A pack list: its lines, without comments or blanks, as virtual paths.
+fn read_list(file: &Path) -> Result<Vec<String>> {
+    let text = std::fs::read_to_string(file)
+        .with_context(|| format!("reading the list {}", file.display()))?;
+    Ok(parse_list(&text))
+}
+
+fn parse_list(text: &str) -> Vec<String> {
+    text.lines()
+        .map(|line| line.split('#').next().unwrap_or("").trim())
+        .filter(|line| !line.is_empty())
+        .map(|line| line.replace('\\', "/").to_lowercase())
+        .collect()
+}
+
+/// Whether a list entry takes a virtual path: the same file, or a
+/// directory (ending in `/`) the file is under.
+fn listed(entry: &str, virtual_path: &str) -> bool {
+    match entry.strip_suffix('/') {
+        Some(_) => virtual_path.starts_with(entry),
+        None => virtual_path == entry,
+    }
+}
+
+fn pack(
+    dir: &Path,
+    out: &Path,
+    extensions: &[String],
+    excludes: &[String],
+    list: Option<&[String]>,
+) -> Result<()> {
     if !dir.is_dir() {
         bail!("{} is not a directory", dir.display());
     }
@@ -104,12 +153,23 @@ fn pack(dir: &Path, out: &Path, extensions: &[String], excludes: &[String]) -> R
 
     let mut total = 0u64;
     let mut skipped = 0usize;
+    let mut used = vec![false; list.map_or(0, <[String]>::len)];
     for (disk, virtual_path) in files {
         if !wanted.is_empty() {
             let ext = virtual_path.rsplit('.').next().unwrap_or("").to_lowercase();
             if !wanted.contains(&ext) {
                 skipped += 1;
                 continue;
+            }
+        }
+        if let Some(list) = list {
+            let folded = virtual_path.to_lowercase();
+            match list.iter().position(|entry| listed(entry, &folded)) {
+                Some(i) => used[i] = true,
+                None => {
+                    skipped += 1;
+                    continue;
+                }
             }
         }
         if excludes.iter().any(|e| virtual_path.contains(e.as_str())) {
@@ -120,6 +180,22 @@ fn pack(dir: &Path, out: &Path, extensions: &[String], excludes: &[String]) -> R
         builder
             .add_file(&virtual_path, &disk)
             .with_context(|| format!("adding {}", disk.display()))?;
+    }
+
+    if let Some(list) = list {
+        let unmatched: Vec<&str> = list
+            .iter()
+            .zip(&used)
+            .filter(|(_, used)| !**used)
+            .map(|(entry, _)| entry.as_str())
+            .collect();
+        if !unmatched.is_empty() {
+            bail!(
+                "the list names what {} does not have (or the filters took): {}",
+                dir.display(),
+                unmatched.join(", ")
+            );
+        }
     }
 
     if builder.is_empty() {
@@ -249,4 +325,37 @@ fn unpack(path: &Path, out: &Path) -> Result<()> {
     }
     println!("vault: extracted {written} files to {}", out.display());
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_list_takes_files_and_directories_and_ignores_comments() {
+        let list = parse_list("# base\nui/\n  maps/Start.kerobsp  # the demo\n\n");
+        assert_eq!(list, ["ui/", "maps/start.kerobsp"]);
+        assert!(listed("ui/", "ui/menus/pause.keroui"));
+        assert!(!listed("ui/", "uix/hud.keroui"));
+        assert!(listed("maps/start.kerobsp", "maps/start.kerobsp"));
+        assert!(!listed("maps/start.kerobsp", "maps/start.kerobsp.bak"));
+    }
+
+    #[test]
+    fn a_list_entry_that_matches_nothing_is_an_error() {
+        let dir = std::env::temp_dir().join(format!("vault-list-{}", std::process::id()));
+        std::fs::create_dir_all(dir.join("ui")).unwrap();
+        std::fs::write(dir.join("ui/hud.keroui"), "x").unwrap();
+        std::fs::write(dir.join("other.keroui"), "y").unwrap();
+        let out = dir.join("out.vault");
+        let list = parse_list("ui/\n");
+        pack(&dir, &out, &[], &[], Some(&list)).unwrap();
+        let archive = kerosene_vfs::Archive::open(&out).unwrap();
+        assert_eq!(archive.len(), 1, "only what the list names");
+
+        let list = parse_list("ui/\nmaps/gone.kerobsp\n");
+        let err = pack(&dir, &out, &[], &[], Some(&list)).unwrap_err();
+        assert!(err.to_string().contains("maps/gone.kerobsp"), "{err}");
+        let _ = std::fs::remove_dir_all(dir);
+    }
 }

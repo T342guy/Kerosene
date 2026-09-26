@@ -1,0 +1,13 @@
+//! @NAME@.
+//!
+//! The whole binary: the game, handed to the engine. `cargo play` builds the
+//! content and runs this; `@PACKAGE@ --headless 600` is a dedicated server.
+
+mod game;
+
+fn main() -> kerosene::anyhow::Result<()> {
+    kerosene::launch(
+        game::@TYPE@::default(),
+        kerosene::LaunchOptions::new("@NAME@", env!("CARGO_PKG_VERSION")),
+    )
+}

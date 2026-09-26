@@ -5,6 +5,11 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 authors.workspace = true
+description = "Engine settings, the renderer choice and the window icon for the Kerosene game engine."
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [dependencies]
 # The file format. `engineconf.keroconfig` is KeyValues, like everything else

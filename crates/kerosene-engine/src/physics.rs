@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! Rigid-body props, driven by [`kerosene_rigid`].
 //!
 //! Player movement stays in [`kerosene_physics`] -- that is Source's

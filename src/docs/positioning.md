@@ -18,8 +18,8 @@ the project.
 Unity is roughly two decades and thousands of engineer-years. Matching it means
 a shader graph, an animation state machine, terrain, particles, LOD, five
 platform backends, an asset store, and console certification. That is not a
-roadmap; it is a company. Kerosene is around 73,000 lines across eighteen
-crates and ten tools.
+roadmap; it is a company. Kerosene is around 125,000 lines across twenty
+engine crates and eleven tools.
 
 But "compete with Unity" is the wrong frame, and the architecture already says
 so. The README's thesis -- the tools are separate from the engine and share
@@ -31,6 +31,38 @@ more than feature parity in a race that cannot be won.
 
 The useful question is not "how do we catch up" but "what is this shaped to be
 best at".
+
+## A crate, not an editor you live inside
+
+The other thing Unity structurally cannot be is a dependency. A Unity game is
+a folder the editor owns; the engine arrives as an installer, is upgraded by
+a hub, and runs your code inside its own. Kerosene inverts that. The game is
+a Cargo package, `kerosene` is a line in its `Cargo.toml`, and `cargo play`
+is the loop. The editor and the compilers are a library the game re-hosts as
+its own binary, so the tools a studio ships to its modders know its classes
+and launch its game.
+
+That buys things a Rust developer already expects and a game engine rarely
+gives:
+
+- **The whole stack builds from source,** on the developer's machine,
+  with nothing installed but Rust. There is no binary blob, no account, and
+  no version of the engine that exists only on someone else's server.
+- **Every platform is the same three commands.** A game that builds on Linux
+  builds on Windows and macOS, because it is the same code; CI makes and runs
+  a new game on all three on every push.
+- **Versions mean something.** The engine's version is the game crate's API
+  under Semantic Versioning ([Versioning](versioning.md)), so upgrading is a
+  `cargo update` that cannot break a game, or a major version with a
+  changelog that says what to change — not a project-upgrade dialog.
+- **Nothing is hidden.** A game can read the engine's source in its editor,
+  step into it in a debugger, and patch it with a `[patch]` section when it
+  must, and it is all one `cargo doc` away.
+
+The price is the Rust toolchain as a prerequisite, and the first build
+taking minutes rather than seconds. For the audience this is shaped for —
+people who would rather have the engine's source than its installer — that
+is the right trade.
 
 ## The Titanfall argument
 

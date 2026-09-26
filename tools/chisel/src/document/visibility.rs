@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! What is shown, what selects together, and what the cordon keeps.
 //!
 //! Past a couple of hundred brushes a map is unreadable in the 2D panes: the

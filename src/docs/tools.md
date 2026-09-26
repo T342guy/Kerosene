@@ -84,7 +84,7 @@ The status bar says what it found: `20 classes, 41 materials` when the content
 is there, `no entity classes` in red when it is not, and `n materials unbuilt`
 in amber when a material has no texture behind it. If the first is red, nothing
 in the editor will look right, and `kerosene-tools chisel --help` lists the search order.
-`cargo run -p chisel --example diagnose` prints the same thing without opening
+`cargo run -p kerosene-chisel --example diagnose` prints the same thing without opening
 a window -- discovery, classes, materials, which materials have no texture, and
 which maps have never been compiled -- which is the fastest way to answer "why
 does Chisel show no entities". It changes nothing unless given `--build`.
@@ -324,7 +324,7 @@ chosen shape uses are shown. The preview draws the actual shape and the number
 of brushes it will cost, not the box it is being fitted into. A whole arch is
 one undo step.
 
-`cargo run -p chisel --example shape_sheet -- shapes.png` renders every shape
+`cargo run -p kerosene-chisel --example shape_sheet -- shapes.png` renders every shape
 in both orientations. Geometry has a way of being valid and still wrong; a
 test can say the brushes are solid, only a picture can say they are an arch.
 
@@ -907,6 +907,8 @@ the thing they set it for.
 | `r_dynamic` `r_shadows` | dynamic lights (`light_dynamic`, the flashlight) and their real-time shadows |
 | `flashlight` / `cl_flashlight` | toggle the flashlight (bound to F) / whether it is on |
 | `volume` `snd_reverb` `snd_reverb_preset` | sound; see [`audio.md`](audio.md#how-a-room-sounds) |
+| `sv_pause_on_menu` / `pause` | stop the world while the pause menu, console or Steam overlay is open, or the window is in the background (default on) / pause whatever is open |
+| `snd_mute_losefocus` | silence the game while its window is in the background (default on) |
 | `developer` | verbosity; `2` also traces entity I/O |
 
 `sv_air_max_wishspeed` is the air-speed cap that makes bunny-hopping and

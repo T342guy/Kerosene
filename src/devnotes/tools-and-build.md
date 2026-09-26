@@ -45,18 +45,34 @@ own tools that know its classes:
 ```rust
 const SCHEMA: &str = include_str!("../content/mygame.kerodef");
 fn main() -> anyhow::Result<()> {
-    kerosene_tools::main_with(kerosene_tools::Options {
-        name: "mygame-tools",
-        schema: &[SCHEMA],
-        game: Some("mygame"),
-        ..Default::default()
-    })
+    kerosene_tools::main_with(
+        kerosene_tools::Options::new("mygame-tools", env!("CARGO_PKG_VERSION"))
+            .schema(&[SCHEMA])
+            .game("mygame"),
+    )
 }
 ```
 
 `Options::runtime()` returns a `Runtime::Package` built from the working
-directory, so F9 in the editor builds and launches the game rather than a
-binary called `kerosene`.
+directory, so F9 in the editor and `play` build and launch the game rather
+than a binary called `kerosene`.
+
+Two subcommands exist for game crates rather than for content:
+
+- **`new`** (`src/new.rs`) writes a game crate from the templates in
+  `src/new/template/`: a package, its toolset binary, cargo aliases, a
+  project file and a starter map built with `kerosene-map`. It depends on the
+  Kerosene the toolset was built from: the checkout's path, the release tag
+  when installed from git, or the crates.io version.
+- **`play`** (`src/play.rs`) runs Kiln's content stages incrementally, with
+  the maps' expensive passes skipped unless `--full`, then
+  `toolchain::resolve` to build and run the game.
+
+Kiln decides what is current by file times: an output no older than its
+source is skipped, a map also needs a `.kerobuild` stamp saying it was built
+at least as thoroughly as asked (`fast` or `full`), and the archive is
+skipped when nothing it would pack is newer than it. `--force` rebuilds
+everything.
 
 ## Finding the content
 

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! Reading glTF 2.0 (`.gltf` and `.glb`) into a `.keromdl`.
 //!
 //! glTF is what every current DCC tool exports with a skeleton and its

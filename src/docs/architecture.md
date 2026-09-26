@@ -115,16 +115,27 @@ Nothing points upward. `kerosene-math` knows about nothing; `kerosene-engine` kn
 about everything except the game. The tools sit off to the side, depending on
 the format crates but never on the engine.
 
-`kerosene` is the facade: every crate above re-exported as a module, the stock
-game wrapped as `kerosene::game::Stock`, and `launch`. It is the one crate a
-game names, and the runtime binary is a call into it.
+`kerosene` is the top of it all, and the product: the game crate. It
+re-exports the engine's stable crates as modules and the rest under
+`kerosene::internals`, wraps the stock game as `kerosene::game::Stock`, and
+provides `launch`. It is the one crate a game names, its API is what
+Kerosene's version number follows ([Versioning](versioning.md)), and the
+runtime binary is a call into it.
+
+Underneath everything is the engine's **base content**,
+`crates/kerosene-engine/base/base.vault`: the developer textures, the stock
+props, sounds and UI, and a demo map, compiled into the engine and mounted
+as the last layer of the file system. A game with no content of its own
+still has something to show, and a game's own file at the same path always
+wins.
 
 ### The game seam
 
 The engine has no game of its own. `kerosene-engine` defines a `Game` trait
--- `classes`, `setup`, `map_loaded`, `pre_tick`, `tick`, `entity_request`,
-`console_request`, `wants_ui`, `ui` -- and runs whatever implements it, with
-`&mut Engine` in every hook. `kerosene-game` is the stock implementation's
+-- `classes`, `schema`, `setup`, `map_loaded`, `pre_tick`, `tick`,
+`entity_request`, `console_request`, `wants_ui`, `ui`, `ui_event`, `save`,
+`load` and `platform_event`, every one with a default -- and runs whatever
+implements it, with `&mut Engine` in every hook. `kerosene-game` is the stock implementation's
 classes and knows nothing of the engine; the engine tests against it as a
 dev-dependency and `kerosene::game::Stock` is the type that joins the two.
 

@@ -1,10 +1,20 @@
 [package]
-name = "umbra"
+name = "kerosene-umbra"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 authors.workspace = true
+description = "Umbra: the Kerosene potentially-visible-set compiler."
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+# Published as kerosene-umbra; the library keeps its short name.
+[lib]
+name = "umbra"
+path = "src/lib.rs"
 
 [dependencies]
 kerosene-math.workspace = true

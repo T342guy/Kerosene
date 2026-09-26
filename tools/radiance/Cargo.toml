@@ -1,10 +1,20 @@
 [package]
-name = "radiance"
+name = "kerosene-radiance"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 authors.workspace = true
+description = "Radiance: the Kerosene static lighting baker."
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+# Published as kerosene-radiance; the library keeps its short name.
+[lib]
+name = "radiance"
+path = "src/lib.rs"
 
 [dependencies]
 kerosene-math.workspace = true

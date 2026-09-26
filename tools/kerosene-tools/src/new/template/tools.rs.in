@@ -1,0 +1,13 @@
+//! @NAME@'s tools: the Kerosene editor and compilers, knowing this game's
+//! classes, and building and launching this game on F9 and `play`.
+
+#[allow(dead_code)] // Only the schema is wanted here; the game is main.rs's.
+mod game;
+
+fn main() -> kerosene::anyhow::Result<()> {
+    kerosene::tools::main_with(
+        kerosene::tools::Options::new("@PACKAGE@-tools", env!("CARGO_PKG_VERSION"))
+            .schema(&[game::SCHEMA])
+            .game("@PACKAGE@"),
+    )
+}

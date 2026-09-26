@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! `.keroproj` -- a project's own account of where its content is.
 //!
 //! Everything up to here *infers* the content root: climb the tree looking
@@ -198,6 +198,17 @@ impl Project {
     /// to be edited by hand afterwards, so it is written with the comments a
     /// person would want and nothing they would have to work around.
     pub fn write_new(path: &Path, name: &str, content_relative: &str) -> anyhow::Result<()> {
+        Self::write_with(path, name, content_relative, &[])
+    }
+
+    /// [`Project::write_new`], with more keys after `name` and `content`:
+    /// `startmap`, `game`, anything the project file knows.
+    pub fn write_with(
+        path: &Path,
+        name: &str,
+        content_relative: &str,
+        extra: &[(&str, &str)],
+    ) -> anyhow::Result<()> {
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)
                 .map_err(|e| anyhow::anyhow!("creating {}: {e}", parent.display()))?;
@@ -208,6 +219,9 @@ impl Project {
         let mut kv = KeyValues::new("project");
         kv.push("name", name);
         kv.push("content", content_relative);
+        for (key, value) in extra {
+            kv.push(*key, *value);
+        }
         let body = format!(
             "// A Kerosene project. Every tool reads this to find the content\n\
              // tree, so there is one answer rather than one guess per tool.\n\

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! Moving brushes: doors, buttons, rotating brushes and switchable ones.
 //!
 //! A door and a button are the same machine. Both travel along an axis by

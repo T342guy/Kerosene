@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! The game UI, wired to the engine.
 //!
 //! `kerosene-ui` is a UI with no game in it; this is where it meets one. The
@@ -314,7 +314,10 @@ impl Engine {
         store.set("player.y", origin.y.round());
         store.set("player.z", origin.z.round());
         store.set("map.name", map);
+        let paused = self.is_paused();
+        let store = &mut self.ui.store;
         store.set("ui.menu_open", self.ui.system.is_visible(MENU_LAYER));
+        store.set("game.paused", paused);
         self.publish_platform_state();
 
         // Only the convars something reads: publishing all two hundred would

@@ -11,9 +11,14 @@
 *.kerotex
 *.keroaud
 *.vault
+# ...except the engine's base content, which is compiled into the engine and
+# so has to be there for a clone to build. See crates/kerosene-engine/base.
+!crates/kerosene-engine/base/base.vault
 *.keroprt
 *.keroleak
 *.kerowalk
+# How thoroughly Kiln last built each map (fast or full).
+*.kerobuild
 content/maps/*.kerobsp
 
 # Config files are *authored*, not generated, so they are committed. The one

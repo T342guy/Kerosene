@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 // World panels: a UI document's texture, on a quad in the level.
 //
 // Drawn in the HDR scene pass with the depth test, so a wall in front of a

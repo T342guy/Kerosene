@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! Entity storage, spawning, and the tick that drives them.
 
 use crate::MAX_EVENTS_PER_TICK;
@@ -27,6 +27,7 @@ pub struct EntityId {
 }
 
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum SpawnError {
     #[error("the map's entity lump did not parse: {0}")]
     BadEntityLump(#[from] kerosene_kv::ParseError),

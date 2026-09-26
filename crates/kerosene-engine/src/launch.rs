@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! Starting a game from the command line: what a game's `main` is.
 //!
 //! ```text
@@ -22,12 +22,10 @@
 //!
 //! ```no_run
 //! # struct MyGame; impl kerosene_engine::Game for MyGame {}
+//! use kerosene_engine::launch::{LaunchOptions, launch};
+//!
 //! fn main() -> anyhow::Result<()> {
-//!     kerosene_engine::launch::launch(MyGame, kerosene_engine::launch::LaunchOptions {
-//!         name: "My Game",
-//!         version: env!("CARGO_PKG_VERSION"),
-//!         ..Default::default()
-//!     })
+//!     launch(MyGame, LaunchOptions::new("My Game", env!("CARGO_PKG_VERSION")))
 //! }
 //! ```
 //!
@@ -41,13 +39,30 @@ use kerosene_math::Angles;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-/// What the binary calls itself, for `--help` and the log.
+/// Who is launching: the game's name and version, and what it wants said
+/// about it. Built with [`LaunchOptions::new`]:
+///
+/// ```
+/// # use kerosene_engine::launch::LaunchOptions;
+/// let options = LaunchOptions::new("My Game", env!("CARGO_PKG_VERSION"))
+///     .extra_help("game options:\n  --hard  Start on hard.");
+/// assert_eq!(options.app_id, "my-game");
+/// ```
+///
+/// Non-exhaustive, so a new option is never a breaking change for a game.
 #[derive(Clone, Debug)]
+#[non_exhaustive]
 pub struct LaunchOptions {
-    /// The game's name, as `--help` prints it.
+    /// The game's name: the window's title, `--help`'s first word and the
+    /// crash box's heading.
     pub name: &'static str,
-    /// Its version, beside the name.
+    /// The game's own version, not Kerosene's: pass
+    /// `env!("CARGO_PKG_VERSION")` from the game's crate.
     pub version: &'static str,
+    /// What the desktop knows the game as: the Wayland app id and X11
+    /// `WM_CLASS`, which a `.desktop` file's icon is matched by. The name,
+    /// lowercased with spaces as dashes, unless set.
+    pub app_id: String,
     /// Lines appended to `--help`, for a game with flags of its own to
     /// mention. Empty for none.
     pub extra_help: &'static str,
@@ -56,14 +71,59 @@ pub struct LaunchOptions {
     pub args: Option<Vec<String>>,
 }
 
-impl Default for LaunchOptions {
-    fn default() -> Self {
+impl LaunchOptions {
+    /// A game called `name`, at `version` -- its own version, from its own
+    /// `Cargo.toml`.
+    pub fn new(name: &'static str, version: &'static str) -> Self {
         LaunchOptions {
-            name: "Kerosene",
-            version: env!("CARGO_PKG_VERSION"),
+            name,
+            version,
+            app_id: app_id_for(name),
             extra_help: "",
             args: None,
         }
+    }
+
+    /// Say what the desktop should know the game as. See
+    /// [`LaunchOptions::app_id`](struct.LaunchOptions.html#structfield.app_id).
+    pub fn app_id(mut self, id: impl Into<String>) -> Self {
+        self.app_id = id.into();
+        self
+    }
+
+    /// Add lines to the end of `--help`.
+    pub fn extra_help(mut self, text: &'static str) -> Self {
+        self.extra_help = text;
+        self
+    }
+
+    /// Parse these arguments rather than the process's own.
+    pub fn args<I, S>(mut self, args: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.args = Some(args.into_iter().map(Into::into).collect());
+        self
+    }
+}
+
+/// A name as an app id: lowercase, with anything but letters and digits a
+/// single dash. "My Game!" is `my-game`.
+fn app_id_for(name: &str) -> String {
+    let mut id = String::new();
+    for c in name.chars() {
+        if c.is_ascii_alphanumeric() {
+            id.push(c.to_ascii_lowercase());
+        } else if !id.is_empty() && !id.ends_with('-') {
+            id.push('-');
+        }
+    }
+    let id = id.trim_end_matches('-');
+    if id.is_empty() {
+        "kerosene".to_string()
+    } else {
+        id.to_string()
     }
 }
 
@@ -93,7 +153,20 @@ pub fn launch(game: impl Game, options: LaunchOptions) -> Result<()> {
 
     let parsed = parse_args(&args)?;
     let headless = parsed.headless_ticks;
-    let config = config_from(parsed, Some(log));
+    let mut config = config_from(parsed, Some(log));
+    config.title = options.name.to_string();
+    config.app_id = options.app_id.clone();
+    config.version = options.version.to_string();
+    log::info!(
+        "{} {} (Kerosene {})",
+        options.name,
+        options.version,
+        crate::VERSION
+    );
+    // A player with a window has no terminal to read a crash report in.
+    if headless.is_none() {
+        kerosene_console::logging::crash_dialog(options.name);
+    }
 
     // Started from its folder rather than from Steam, a Steam game has no
     // Steam session. Valve's answer is to start it again through the client
@@ -225,10 +298,22 @@ pub fn config_from(
                 config.content_paths.push(found.root);
             }
             None => {
-                log::warn!("{}", kerosene_vfs::root::describe(&None));
+                // Not an error any more: the engine's base content is a
+                // game's worth of textures, sounds, UI and a map to walk
+                // around. `content/` is where anything it writes goes.
+                log::info!(
+                    "no content tree found: running on the engine's base content. \
+                     Start from a project directory, or pass --content, for a game's own."
+                );
                 config.content_paths.push(PathBuf::from("content"));
             }
         }
+    }
+    // With nothing saying which map, the base content's demo rather than an
+    // empty window.
+    if config.map.is_none() && config.base_content {
+        log::info!("no start map: opening {}", crate::base::DEMO_MAP);
+        config.map = Some(crate::base::DEMO_MAP.to_string());
     }
 
     // What the project declares for the store: the Steam app id, its
@@ -244,7 +329,9 @@ pub fn config_from(
     // The engine config always exists: read it out of the content tree,
     // writing the defaults the first time anything runs. It is where the
     // renderer is chosen, so it is read before the window is made.
-    if let Some(root) = config.content_paths.first().cloned() {
+    // A tree that is not there -- a game running on the base content alone --
+    // runs on the defaults rather than creating a directory to write them to.
+    if let Some(root) = config.content_paths.first().filter(|r| r.is_dir()).cloned() {
         let conf = kerosene_config::EngineConf::load_or_create(&root);
         config.renderer = conf.renderer;
         config.window_width = conf.width;
@@ -485,13 +572,18 @@ mod tests {
     }
 
     #[test]
+    fn an_app_id_is_the_name_lowercased_and_dashed() {
+        assert_eq!(app_id_for("My Game!"), "my-game");
+        assert_eq!(app_id_for("  Half  Life 3 "), "half-life-3");
+        assert_eq!(app_id_for("???"), "kerosene");
+        assert_eq!(LaunchOptions::new("A B", "1").app_id("ab").app_id, "ab");
+    }
+
+    #[test]
     fn help_names_the_game_and_carries_its_extra_lines() {
-        let text = help_text(&LaunchOptions {
-            name: "My Game",
-            version: "1.0",
-            extra_help: "game options:\n  --cheats  Yes.",
-            args: None,
-        });
+        let text = help_text(
+            &LaunchOptions::new("My Game", "1.0").extra_help("game options:\n  --cheats  Yes."),
+        );
         assert!(text.starts_with("My Game 1.0\n"));
         assert!(text.contains("usage: my-game [options]"));
         assert!(text.ends_with("  --cheats  Yes.\n"));

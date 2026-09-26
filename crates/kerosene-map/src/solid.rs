@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! Brush solids and their faces.
 
 use crate::editor::{EditorData, kv_get, kv_remove, kv_set, unknown_pairs};

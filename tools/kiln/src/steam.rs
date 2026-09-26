@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! `kiln --ship dist --steam`: a distribution Steam can run and SteamPipe
 //! can upload.
 //!
@@ -42,31 +42,81 @@ pub struct SteamShip {
     pub upload_as: Option<String>,
 }
 
-/// The library `steamworks-sys` links, as it is named on this platform.
-pub fn redist_name() -> &'static str {
-    if cfg!(windows) {
-        "steam_api64.dll"
-    } else if cfg!(target_os = "macos") {
-        "libsteam_api.dylib"
-    } else {
-        "libsteam_api.so"
+/// The operating system a ship is for: this machine's, or a target
+/// triple's.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TargetOs {
+    Windows,
+    MacOs,
+    /// Linux, and anything else Unix-like.
+    Linux,
+}
+
+impl TargetOs {
+    /// This machine.
+    pub fn host() -> TargetOs {
+        if cfg!(windows) {
+            TargetOs::Windows
+        } else if cfg!(target_os = "macos") {
+            TargetOs::MacOs
+        } else {
+            TargetOs::Linux
+        }
+    }
+
+    /// A target triple's, or this machine's when there is none.
+    pub fn of(target: Option<&str>) -> TargetOs {
+        match target {
+            Some(t) if t.contains("windows") => TargetOs::Windows,
+            Some(t) if t.contains("apple") || t.contains("darwin") => TargetOs::MacOs,
+            Some(_) => TargetOs::Linux,
+            None => TargetOs::host(),
+        }
+    }
+
+    /// An executable's file name on it.
+    pub fn exe(self, stem: &str) -> String {
+        match self {
+            TargetOs::Windows => format!("{stem}.exe"),
+            _ => stem.to_string(),
+        }
     }
 }
 
-/// How to build a game that ships.
+/// The library `steamworks-sys` links, as it is named on this platform.
+pub fn redist_name() -> &'static str {
+    redist_name_for(TargetOs::host())
+}
+
+/// The library `steamworks-sys` links, as it is named on `os`.
+pub fn redist_name_for(os: TargetOs) -> &'static str {
+    match os {
+        TargetOs::Windows => "steam_api64.dll",
+        TargetOs::MacOs => "libsteam_api.dylib",
+        TargetOs::Linux => "libsteam_api.so",
+    }
+}
+
+/// How to build a game that ships, for this machine.
+pub fn build_options(steam: bool, target_dir: &Path) -> BuildOptions {
+    build_options_for(steam, target_dir, None)
+}
+
+/// How to build a game that ships, for `target` or this machine.
 ///
 /// `steam` adds the feature and, off Windows, the rpath. Windows gets a
 /// static C runtime regardless.
-pub fn build_options(steam: bool, target_dir: &Path) -> BuildOptions {
+pub fn build_options_for(steam: bool, target_dir: &Path, target: Option<&str>) -> BuildOptions {
+    let os = TargetOs::of(target);
     let mut flags: Vec<&str> = Vec::new();
-    if cfg!(windows) {
+    if os == TargetOs::Windows {
         flags.push("-C target-feature=+crt-static");
     }
     if steam {
-        if cfg!(target_os = "macos") {
-            flags.push("-C link-arg=-Wl,-rpath,@executable_path");
-        } else if !cfg!(windows) {
-            flags.push("-C link-arg=-Wl,-rpath,$ORIGIN");
+        match os {
+            TargetOs::MacOs => flags.push("-C link-arg=-Wl,-rpath,@executable_path"),
+            TargetOs::Linux => flags.push("-C link-arg=-Wl,-rpath,$ORIGIN"),
+            TargetOs::Windows => {}
         }
     }
     BuildOptions {
@@ -75,16 +125,34 @@ pub fn build_options(steam: bool, target_dir: &Path) -> BuildOptions {
         } else {
             Vec::new()
         },
-        // Only a build with different flags needs a directory of its own.
-        target_dir: (!flags.is_empty() || steam).then(|| target_dir.to_path_buf()),
+        // Only a build with different flags, or for another target, needs
+        // a directory of its own.
+        target_dir: (!flags.is_empty() || steam || target.is_some())
+            .then(|| target_dir.to_path_buf()),
         rustflags: (!flags.is_empty()).then(|| flags.join(" ")),
+        target: target.map(str::to_string),
     }
 }
 
 /// The newest Steam redistributable under a target directory's build
 /// scripts' output: `<target>/<profile>/build/steamworks-sys-*/out/`.
 pub fn find_redist(target_dir: &Path, profile: Profile) -> Option<PathBuf> {
-    let build = target_dir.join(profile.dir()).join("build");
+    find_redist_for(target_dir, profile, None)
+}
+
+/// [`find_redist`], for a build for `target`: cargo puts those one
+/// directory deeper, under the triple.
+pub fn find_redist_for(
+    target_dir: &Path,
+    profile: Profile,
+    target: Option<&str>,
+) -> Option<PathBuf> {
+    let name = redist_name_for(TargetOs::of(target));
+    let base = match target {
+        Some(triple) => target_dir.join(triple),
+        None => target_dir.to_path_buf(),
+    };
+    let build = base.join(profile.dir()).join("build");
     let mut best: Option<(SystemTime, PathBuf)> = None;
     for entry in std::fs::read_dir(build).into_iter().flatten().flatten() {
         if !entry
@@ -94,7 +162,7 @@ pub fn find_redist(target_dir: &Path, profile: Profile) -> Option<PathBuf> {
         {
             continue;
         }
-        let candidate = entry.path().join("out").join(redist_name());
+        let candidate = entry.path().join("out").join(name);
         let Ok(when) = candidate.metadata().and_then(|m| m.modified()) else {
             continue;
         };

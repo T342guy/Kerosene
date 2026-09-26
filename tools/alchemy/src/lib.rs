@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! Alchemy -- the Kerosene texture and material tool.
 //!
 //! Turns source art into the formats the engine loads: `.png` and friends into

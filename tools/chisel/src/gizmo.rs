@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! The move and rotate gizmo: on-screen handles in the 3D pane that do
 //! directly what the transform dialog already can, for a hand that would
 //! rather drag an axis than type three numbers into a box.

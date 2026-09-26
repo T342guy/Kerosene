@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! `logic_script` -- the entity that gives a level a script.
 //!
 //! Entity I/O is a graph, and a graph is the right shape for most of what a

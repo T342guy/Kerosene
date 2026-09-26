@@ -7,33 +7,35 @@ developer stands: what a project is, what it looks like on disk, how it gets
 built, and what has to be true before you hand it to somebody.
 
 > [!WARNING]
-> Kerosene is pre-alpha. Everything described here works, but the list of
+> Kerosene is 1.0.0 alpha. Everything described here works, but the list of
 > things a finished game needs and the engine does not yet have is long — see
 > [Publishing](publishing.md#you-can-but) and
 > [Missing features](../docs/missing-features.md) before you commit to it.
+
+New here? [Getting started](getting-started.md) has you playing a game of
+your own in five minutes; this page is what is going on underneath.
 
 ## Two shapes of project
 
 A Kerosene project is a directory with a `.keroproj` file at the top and a
 content tree beside it. There are two kinds, and the difference is one key.
 
-**A content-only project.** Maps, materials, models, sounds and scripts, and
-nothing compiled. The game binary is the stock `kerosene` runtime, unmodified.
-All of the behaviour comes from entity I/O wired in Chisel and from Rhai
-scripts (see [Scripting](../docs/scripting.md)), using the entity classes
-that ship in `kerosene-game`. This is a mod, in Source's sense, and it is the
-cheaper of the two by a long way: no Rust, no build of the engine, nothing to
-maintain when the engine moves.
-
 **A game crate.** Your own Rust binary, depending on `kerosene`, with your
-own entity classes and rules. This is what you want when the stock classes
-are not enough — a weapon, an inventory, an NPC — because those cannot be
-scripted: Rhai is deliberately sandboxed and cannot allocate an entity, touch
-the renderer or open a file. The engine is a dependency, never a fork: your
-crate implements one trait, `Game`, and hands it to `launch`; nothing in the
-engine's source is edited to add a mechanic. [A game crate](#a-game-crate)
-below is the whole of it, and the stock `kerosene` runtime is the same thing
-with the stock game: `apps/kerosene/src/main.rs` is five lines.
+own entity classes and rules: what `kerosene-tools new` makes. The engine is
+a dependency, never a fork: your crate implements one trait, `Game`, and
+hands it to `launch`; nothing in the engine's source is edited to add a
+mechanic. [A game crate](#a-game-crate) below is the whole of it, and the
+stock `kerosene` runtime is the same thing with the stock game:
+`apps/kerosene/src/main.rs` is five lines.
+
+**A content-only project**, or a mod, in Source's sense: maps, materials,
+models, sounds and scripts, and nothing compiled. The game binary is the stock
+`kerosene` runtime, unmodified, and all of the behaviour comes from entity I/O
+wired in Chisel and from Rhai scripts (see [Scripting](../docs/scripting.md)),
+using the entity classes that ship in `kerosene-game`. No Rust and no build
+of the engine — but also nothing the stock classes cannot do, because Rhai is
+deliberately sandboxed and cannot allocate an entity, touch the renderer or
+open a file. `kerosene-tools new --content-only` makes one.
 
 The key that turns one into the other is `game`.
 
@@ -98,13 +100,16 @@ flowchart LR
     K -->|"--ship dist"| D[dist/<br/>hand it to someone]
 ```
 
-Day to day:
+Day to day, in a game crate:
 
 ```sh
-cargo run --release -p kerosene-tools -- chisel content/maps/mg_intro.keromap
-kerosene-tools kiln                  # or the Build tab, or F9 in Chisel
-kerosene                             # loads startmap
+cargo play                            # build what changed, then play
+cargo tools chisel content/maps/mg_intro.keromap
+cargo ship                            # build it all properly, into dist/
 ```
+
+and in a content-only project, the same with the toolset itself:
+`kerosene-tools play`, `kerosene-tools chisel …`, `kerosene-tools kiln --ship dist`.
 
 Chisel's `F9` compiles the current map and launches the engine on it, and
 builds any textures added since the editor opened. `kiln --only maps --fast`
@@ -123,14 +128,19 @@ and what it cannot do for you.
 ## A game crate
 
 The engine is one crate, `kerosene`, and a game is a crate that depends on
-it. Nothing else of the engine is named; every engine crate is a module of
-it (`kerosene::engine`, `kerosene::entity`, `kerosene::math`, …), and so are
-the third-party crates your own signatures mention — `kerosene::egui`,
-`kerosene::glam`, `kerosene::rhai` — so the versions can never disagree.
+it. Nothing else of the engine is named; the engine's public parts are
+modules of it (`kerosene::engine`, `kerosene::entity`, `kerosene::math`, …),
+and so are the third-party crates your own signatures mention —
+`kerosene::egui`, `kerosene::glam`, `kerosene::rhai` — so the versions can
+never disagree. Its version follows SemVer on exactly that API; see
+[Versioning](../docs/versioning.md) for what is covered, and what, under
+`kerosene::internals`, is not.
 
 You need Rust 1.94 or later (the workspace is edition 2024). On Linux the
 default `audio` feature wants the ALSA headers (`libasound2-dev`);
-`default-features = false` builds without a sound device.
+`--no-default-features` builds without a sound device.
+
+`kerosene-tools new` writes all of the following; this is what it means.
 
 ```toml
 [package]
@@ -139,10 +149,13 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-kerosene = { git = "https://github.com/t342guy/kerosene" }   # or a path
+kerosene = { version = "1.0.0-a1", default-features = false }
 
 [features]
+default = ["audio"]
+audio = ["kerosene/audio"]
 tools = ["kerosene/tools"]
+steam = ["kerosene/steam"]
 
 [[bin]]
 name = "mygame"
@@ -152,8 +165,14 @@ path = "src/main.rs"
 name = "mygame-tools"
 path = "src/tools.rs"
 required-features = ["tools"]
+
+# The engine optimised even in a debug build.
+[profile.dev.package."*"]
+opt-level = 2
 ```
 
+The engine's default features are off and passed through as the game's own,
+so `cargo build --no-default-features` reaches the engine's audio switch.
 `required-features` is what keeps the toolset — egui, the compilers, the
 audio decoders Timbre uses — out of a plain `cargo build` of the game.
 Features are per package, not per binary, so without it the game binary
@@ -257,7 +276,7 @@ mod game;
 fn main() -> kerosene::anyhow::Result<()> {
     kerosene::launch(
         game::MyGame::default(),
-        kerosene::LaunchOptions { name: "My Game", version: env!("CARGO_PKG_VERSION"), ..Default::default() },
+        kerosene::LaunchOptions::new("My Game", env!("CARGO_PKG_VERSION")),
     )
 }
 ```
@@ -266,7 +285,10 @@ fn main() -> kerosene::anyhow::Result<()> {
 `--vault`, `--headless`, `+command` arguments, finding the project file and
 its start map, the saved engine settings, every `.vault` in the tree, and
 then a window or a headless run. `mygame --headless 600 +map mg_intro` is
-your dedicated server.
+your dedicated server. The name is the window's title and the desktop's
+name for the game (`.app_id(..)` to choose another), and the version —
+yours, not Kerosene's — is what `version` in the console and the log print
+beside Kerosene's own.
 
 The hooks, in the order the engine calls them: `classes` (once, at
 construction), `setup`, `map_loaded`, then per tick `pre_tick` (before the
@@ -278,8 +300,9 @@ across level changes; see [Saving and level changes](saving.md).
 One rule: a hook must not make the engine call another hook on the same
 game, so `tick` uses `engine.request_map(..)` rather than `load_map` (the
 inner hook would be skipped and logged, not run). Everything else on
-`&mut Engine` — `console`, `entities`, `physics`, `player`, `audio`,
-`vfs`, `script` — is yours.
+`&mut Engine` is yours: the fields `console`, `entities`, `player`, `ui`,
+`audio` and `platform`, and methods such as `vfs()`, `time()`,
+`map_name()`, `run_script(..)` and `quit()`.
 
 Input reaches a game the way it reaches the engine: as console commands.
 Register `+fire`/`-fire` in `setup` and bind them in `cfg/autoexec.cfg`;
@@ -336,19 +359,20 @@ the editor and F9 building and launching *your* binary:
 mod game;
 
 fn main() -> kerosene::anyhow::Result<()> {
-    kerosene::tools::main_with(kerosene::tools::Options {
-        name: "mygame-tools",
-        version: env!("CARGO_PKG_VERSION"),
-        schema: &[game::SCHEMA],
-        game: Some("mygame"),
-        ..Default::default()
-    })
+    kerosene::tools::main_with(
+        kerosene::tools::Options::new("mygame-tools", env!("CARGO_PKG_VERSION"))
+            .schema(&[game::SCHEMA])
+            .game("mygame"),
+    )
 }
 ```
 
 ```sh
 cargo run --features tools --bin mygame-tools -- chisel content/maps/mg_intro.keromap
 ```
+
+which `.cargo/config.toml` shortens to `cargo tools chisel …`; `cargo play`
+is `mygame-tools play`, and `cargo ship` is `mygame-tools kiln --ship dist`.
 
 F9 runs `cargo build -p mygame` (a debug build, for the edit-compile-play
 loop) and launches `target/debug/mygame` on the compiled map, with cargo's

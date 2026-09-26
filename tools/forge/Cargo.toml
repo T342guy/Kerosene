@@ -1,10 +1,20 @@
 [package]
-name = "forge"
+name = "kerosene-forge"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 authors.workspace = true
+description = "Forge: the Kerosene model compiler, from OBJ and glTF."
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+# Published as kerosene-forge; the library keeps its short name.
+[lib]
+name = "forge"
+path = "src/lib.rs"
 
 [dependencies]
 kerosene-asset.workspace = true

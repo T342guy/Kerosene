@@ -1,10 +1,20 @@
 [package]
-name = "alchemy"
+name = "kerosene-alchemy"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 authors.workspace = true
+description = "Alchemy: the Kerosene texture compiler and material authoring tool."
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+# Published as kerosene-alchemy; the library keeps its short name.
+[lib]
+name = "alchemy"
+path = "src/lib.rs"
 
 [dependencies]
 kerosene-asset.workspace = true
@@ -22,4 +32,4 @@ glam.workspace = true
 # compiler actually understands, and every tool it understands must have a
 # texture. Offering one it treats as world geometry would silently wall off a
 # doorway.
-cleave = { path = "../cleave" }
+cleave.workspace = true

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! Streamed sections, end to end: a map with a far room in a streamed
 //! visgroup is compiled with vis, loaded, and the section comes and goes as
 //! the player approaches and leaves.
@@ -93,10 +93,7 @@ fn engine_on(bsp: &Bsp) -> Engine {
     let dir = std::env::temp_dir().join(format!("kerosene-stream-{}", std::process::id()));
     std::fs::create_dir_all(dir.join("maps")).unwrap();
     std::fs::write(dir.join("maps/hall.kerobsp"), bsp.to_bytes()).unwrap();
-    let mut engine = common::stock(&EngineConfig {
-        content_paths: vec![dir],
-        ..Default::default()
-    });
+    let mut engine = common::stock(&EngineConfig::default().with_content(dir));
     engine.load_map("hall").expect("loads");
     engine
 }
@@ -122,14 +119,14 @@ fn the_far_section_loads_as_the_player_approaches_and_unloads_after_they_leave()
         SectionState::Unloaded,
         "three doorways away, nothing of the far room is wanted"
     );
-    let hulls_before = engine.physics.static_body_count();
+    let hulls_before = engine.physics().static_body_count();
 
     // Teleport into the far room; the next tick wants it.
     engine.player.movement.origin = Vec3::new(1300.0, 128.0, 8.0);
     idle(&mut engine, 0.1);
     assert_eq!(engine.streaming().unwrap().state(far), SectionState::Wanted);
     assert_eq!(
-        engine.physics.static_body_count(),
+        engine.physics().static_body_count(),
         hulls_before + 2,
         "the crates' hulls arrive with the section"
     );
@@ -150,7 +147,7 @@ fn the_far_section_loads_as_the_player_approaches_and_unloads_after_they_leave()
         engine.streaming().unwrap().state(far),
         SectionState::Unloaded
     );
-    assert_eq!(engine.physics.static_body_count(), hulls_before);
+    assert_eq!(engine.physics().static_body_count(), hulls_before);
 }
 
 #[test]

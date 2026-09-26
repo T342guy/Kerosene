@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! On-disk lump structures for `.kerobsp`.
 //!
 //! Every struct here is `#[repr(C)]` and padding-free so it can be

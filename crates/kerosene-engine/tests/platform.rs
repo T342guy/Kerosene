@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! The store against a real, compiled map, with no store: the entity I/O
 //! classes, the map script's `platform` object and its hook, all answered by
 //! the null backend exactly as Steam would answer them.
@@ -159,19 +159,19 @@ fn setup(name: &str) -> (Engine, PathBuf) {
     assert!(out.leak.is_none());
     std::fs::write(dir.join("maps/store.kerobsp"), out.bsp.to_bytes()).unwrap();
     std::fs::write(dir.join("scripts/store.keroscript"), SCRIPT).unwrap();
-    let mut engine = common::stock(&EngineConfig {
-        content_paths: vec![dir.clone()],
-        platform: PlatformConfig {
-            achievements: ["ACH_DOOR", "ACH_TEN", "ACH_SCRIPT"]
-                .iter()
-                .map(|a| (a.to_string(), a.to_string()))
-                .collect(),
-            stats: vec![("doors".into(), StatKind::Int)],
-            dlc: vec![(111, "Soundtrack".into())],
-            ..Default::default()
-        },
-        ..Default::default()
-    });
+    let mut engine = common::stock(
+        &EngineConfig::default()
+            .with_content(dir.clone())
+            .with_platform(PlatformConfig {
+                achievements: ["ACH_DOOR", "ACH_TEN", "ACH_SCRIPT"]
+                    .iter()
+                    .map(|a| (a.to_string(), a.to_string()))
+                    .collect(),
+                stats: vec![("doors".into(), StatKind::Int)],
+                dlc: vec![(111, "Soundtrack".into())],
+                ..Default::default()
+            }),
+    );
     engine.load_map("store").unwrap();
     (engine, dir)
 }

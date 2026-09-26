@@ -1,12 +1,15 @@
-// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! Kerosene, as one crate.
 //!
 //! A game depends on this and nothing else of the engine:
 //!
 //! ```toml
 //! [dependencies]
-//! kerosene = { git = "https://github.com/t342guy/kerosene" }
+//! kerosene = "1.0.0-a1"
 //! ```
+//!
+//! -- or, quicker, `kerosene-tools new mygame` makes a game crate with the
+//! editor, the compilers and `cargo play` set up, and a starter map.
 //!
 //! and is, at its smallest, a type that implements [`Game`] and a `main`
 //! that hands it to [`launch`]:
@@ -24,38 +27,66 @@
 //! }
 //!
 //! fn main() -> anyhow::Result<()> {
-//!     launch(MyGame, LaunchOptions { name: "My Game", ..Default::default() })
+//!     launch(MyGame, LaunchOptions::new("My Game", env!("CARGO_PKG_VERSION")))
 //! }
 //! ```
 //!
-//! Every engine crate is here as a module -- [`engine`], [`entity`],
-//! [`math`], [`console`], [`vfs`], [`map`], [`bsp`] and the rest -- and so
-//! are the third-party crates a game names in its own signatures, so its
-//! `egui::Context` and `glam::Vec3` are the engine's and never a second
-//! version of the same thing. With the `tools` feature, [`tools`] is the
-//! whole toolset as a library, for a game that ships an editor that knows
-//! its classes.
+//! # What is stable
+//!
+//! Kerosene's version is this crate's, and it follows [Semantic
+//! Versioning](https://semver.org) on this crate's API. A release that
+//! breaks a game which compiled against the one before is a new major
+//! version. What that promise covers:
+//!
+//! * the items at the root -- [`launch`], [`LaunchOptions`], [`Game`],
+//!   [`Engine`], [`EngineConfig`], [`VERSION`] -- and the [`prelude`];
+//! * the modules [`engine`], [`entity`], [`math`], [`console`],
+//!   [`physics`], [`script`], [`ui`], [`platform`], [`vfs`], [`game`] and,
+//!   with the `tools` feature, `tools`;
+//! * the third-party crates re-exported here -- [`egui`], [`glam`], [`rhai`],
+//!   [`winit`], [`serde_json`], [`anyhow`], [`log`] -- whose own breaking
+//!   releases arrive in Kerosene's major releases and nowhere else.
+//!
+//! [`internals`] is everything else: the formats, the renderer, the mixer,
+//! the compilers' shared crates. It is public because tools and ambitious
+//! games need it, and it may change in any minor release. The whole policy
+//! is in the book, under *Versioning*.
+//!
+//! Every crate here is one version: the engine crates move together, so a
+//! game's `glam::Vec3` and `egui::Context` are always the engine's own.
 
-pub use kerosene_asset as asset;
-pub use kerosene_audio as audio;
-pub use kerosene_bsp as bsp;
-pub use kerosene_config as config;
+#![warn(missing_docs)]
+
+/// Kerosene's version: this crate's, as `Cargo.toml` says it. A game's own
+/// version is its own, and goes in [`LaunchOptions::new`].
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
 pub use kerosene_console as console;
 pub use kerosene_engine as engine;
 pub use kerosene_entity as entity;
-pub use kerosene_kv as kv;
-pub use kerosene_map as map;
 pub use kerosene_math as math;
 pub use kerosene_physics as physics;
 pub use kerosene_platform as platform;
-pub use kerosene_render as render;
-pub use kerosene_rigid as rigid;
 pub use kerosene_script as script;
 pub use kerosene_ui as ui;
 pub use kerosene_vfs as vfs;
-pub use kerosene_walk as walk;
-/// What [`Game::save`](engine::Game::save) returns and
-/// [`Game::load`](engine::Game::load) takes.
+
+/// The engine's inner crates, outside the SemVer promise: they may change in
+/// any minor release. See [the crate docs](crate#what-is-stable).
+pub mod internals {
+    pub use kerosene_asset as asset;
+    pub use kerosene_audio as audio;
+    pub use kerosene_bsp as bsp;
+    pub use kerosene_config as config;
+    pub use kerosene_kv as kv;
+    pub use kerosene_map as map;
+    pub use kerosene_render as render;
+    pub use kerosene_rigid as rigid;
+    pub use kerosene_walk as walk;
+}
+
+/// What [`Game::save`] returns and
+/// [`Game::load`] takes.
 pub use serde_json;
 
 pub use {anyhow, egui, glam, log, rhai, winit};
@@ -87,6 +118,7 @@ pub mod game {
     /// replaces this type rather than extending it.
     #[derive(Default)]
     pub struct Stock {
+        /// The weapons and the dash: what is carried, loaded and cooling.
         pub arsenal: Arsenal,
     }
 
@@ -207,7 +239,7 @@ pub mod game {
         }
 
         fn pre_tick(&mut self, engine: &mut Engine, input: &InputState, dt: f32) {
-            if engine.level.is_none() {
+            if !engine.has_level() {
                 return;
             }
             // Attack also throws a carried prop and presses world panels;

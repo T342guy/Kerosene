@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! The Kerosene toolset, as a library.
 //!
 //! The whole toolset is one GUI application ([`toolset::Toolset`]): a project
@@ -12,7 +12,9 @@
 
 pub mod entry;
 pub mod init;
+pub mod new;
 pub mod panels;
+pub mod play;
 pub mod project;
 pub mod toolset;
 pub mod workshop;
@@ -22,6 +24,10 @@ pub use toolset::{Launch, Tab, Toolset, run_gui};
 
 /// The headless subcommands, in the order help prints them.
 pub const SUBCOMMANDS: &[(&str, &str)] = &[
+    (
+        "new",
+        "start a game: a Cargo package, its project and a map",
+    ),
     (
         "init",
         "start a project: a .keroproj and the tree beside it",
@@ -37,6 +43,7 @@ pub const SUBCOMMANDS: &[(&str, &str)] = &[
     ("forge", "compile source meshes into .keromdl models"),
     ("timbre", "compile sounds into .keroaud"),
     ("kiln", "build a whole project's content"),
+    ("play", "build what changed, then run the game"),
     ("vault", "pack and inspect content archives"),
     (
         "workshop",
@@ -47,6 +54,7 @@ pub const SUBCOMMANDS: &[(&str, &str)] = &[
 /// Run one headless stage: `kerosene-tools <subcommand> <args...>`.
 pub fn run_subcommand(name: &str, args: Vec<String>) -> anyhow::Result<()> {
     match name {
+        "new" => new::run(args),
         "init" => init::run(args),
         "cleave" => cleave::run(args),
         "umbra" => umbra::run(args),
@@ -56,6 +64,7 @@ pub fn run_subcommand(name: &str, args: Vec<String>) -> anyhow::Result<()> {
         "forge" => forge::run(args),
         "timbre" => timbre::run(args),
         "kiln" => kiln::run(args),
+        "play" => play::run(args, None),
         "vault" => vault::run(args),
         "workshop" => workshop::run(args),
         other => {

@@ -1,0 +1,37 @@
+[package]
+name = "@PACKAGE@"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+kerosene = @KEROSENE@
+
+[features]
+default = ["audio"]
+# Sound output. Needs the ALSA headers on Linux (libasound2-dev or
+# alsa-lib-devel); `--no-default-features` builds without a sound device.
+audio = ["kerosene/audio"]
+# The editor and every compiler, as the `@PACKAGE@-tools` binary: `cargo play`,
+# `cargo tools`, `cargo ship`. Only that binary turns it on.
+tools = ["kerosene/tools"]
+# Steamworks: achievements, stats, the Workshop. Read the Steam page of the
+# Kerosene book before turning it on; it links Valve's SDK.
+steam = ["kerosene/steam"]
+
+[[bin]]
+name = "@PACKAGE@"
+path = "src/main.rs"
+
+[[bin]]
+name = "@PACKAGE@-tools"
+path = "src/tools.rs"
+required-features = ["tools"]
+
+# The engine optimised even in a debug build: a game at opt-level 0 is a
+# slideshow. Your own code still builds quickly and debugs normally.
+[profile.dev.package."*"]
+opt-level = 2
+
+[profile.release]
+lto = "thin"

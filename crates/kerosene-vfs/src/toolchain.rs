@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! Finding the other pieces of the toolchain.
 //!
 //! The tools used to be separate programs; now they are one executable, the
@@ -217,6 +217,15 @@ pub fn built_binary(from: &Path, bin: &str, profile: Profile) -> Option<PathBuf>
     } else {
         bin.to_string()
     };
+    // Cargo builds wherever this says, when it says anything; relative to
+    // the directory it was run from.
+    if let Some(dir) = std::env::var_os("CARGO_TARGET_DIR").filter(|d| !d.is_empty()) {
+        let dir = from.join(PathBuf::from(dir));
+        let candidate = dir.join(profile.dir()).join(&file);
+        if candidate.is_file() {
+            return Some(candidate);
+        }
+    }
     let mut at = Some(from);
     while let Some(dir) = at {
         let candidate = dir.join("target").join(profile.dir()).join(&file);
@@ -238,6 +247,19 @@ pub struct BuildOptions {
     pub target_dir: Option<PathBuf>,
     /// `RUSTFLAGS` for the build: an rpath, a static C runtime.
     pub rustflags: Option<String>,
+    /// A target triple to build for, when it is not this machine's. Best
+    /// effort: cross-compiling needs that target's linker and libraries,
+    /// which building on the target itself never does.
+    pub target: Option<String>,
+}
+
+/// Whether a target triple, or this machine when there is none, is
+/// Windows: what decides a binary's `.exe`.
+pub fn is_windows_target(target: Option<&str>) -> bool {
+    match target {
+        Some(triple) => triple.contains("windows"),
+        None => cfg!(windows),
+    }
 }
 
 /// Build a package and say where its binary is.
@@ -285,6 +307,10 @@ pub fn build_package_with(
         args.push("--target-dir".into());
         args.push(dir.display().to_string());
     }
+    if let Some(target) = &options.target {
+        args.push("--target".into());
+        args.push(target.clone());
+    }
     let mut command = Command::new("cargo");
     command
         .args(&args)
@@ -324,13 +350,18 @@ pub fn build_package_with(
         anyhow::bail!("cargo build -p {package} failed ({status})");
     }
     let bin = bin.unwrap_or(package);
+    // Cargo puts a cross build one directory deeper, under the triple.
+    let profile_dir = match &options.target {
+        Some(target) => PathBuf::from(target).join(profile.dir()),
+        None => PathBuf::from(profile.dir()),
+    };
+    let file = if is_windows_target(options.target.as_deref()) {
+        format!("{bin}.exe")
+    } else {
+        bin.to_string()
+    };
     if let Some(dir) = &options.target_dir {
-        let file = if cfg!(windows) {
-            format!("{bin}.exe")
-        } else {
-            bin.to_string()
-        };
-        let built = dir.join(profile.dir()).join(file);
+        let built = dir.join(&profile_dir).join(file);
         return if built.is_file() {
             Ok(built)
         } else {
@@ -339,6 +370,19 @@ pub fn build_package_with(
                 built.parent().unwrap_or(dir).display()
             ))
         };
+    }
+    if options.target.is_some() {
+        return project_dir
+            .ancestors()
+            .map(|d| d.join("target").join(&profile_dir).join(&file))
+            .find(|p| p.is_file())
+            .with_context(|| {
+                format!(
+                    "cargo built {package}, but no binary `{bin}` is under any target/{} above {}",
+                    profile_dir.display(),
+                    project_dir.display()
+                )
+            });
     }
     built_binary(project_dir, bin, profile).with_context(|| {
         format!(

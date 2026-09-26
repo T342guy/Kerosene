@@ -1,0 +1,16 @@
+/target
+/dist
+
+# Compiled content: `cargo play` builds it again from the sources beside it.
+*.kerotex
+*.keroaud
+*.kerobsp
+*.keroprt
+*.kerowalk
+*.keroleak
+*.kerobuild
+*.vault
+
+# Written by the game as it runs.
+content/cfg/config.cfg
+content/save/

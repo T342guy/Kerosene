@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! The engine core: everything except the window.
 //!
 //! Deliberately separated from [`crate::host`] so the whole simulation can run
@@ -32,7 +32,20 @@ use std::sync::Arc;
 pub const DEFAULT_TICKRATE: f32 = 64.0;
 
 /// How the engine was asked to start.
+///
+/// [`launch`](crate::launch::launch) fills this in from the command line and
+/// the project; a test or a custom host starts from the default and changes
+/// what it needs:
+///
+/// ```
+/// # use kerosene_engine::EngineConfig;
+/// let config = EngineConfig::default().with_content("content").with_map("kero_start");
+/// assert_eq!(config.map.as_deref(), Some("kero_start"));
+/// ```
+///
+/// Non-exhaustive, so a new setting is never a breaking change.
 #[derive(Clone, Debug)]
+#[non_exhaustive]
 pub struct EngineConfig {
     /// Directories to mount, searched in order.
     pub content_paths: Vec<PathBuf>,
@@ -65,6 +78,19 @@ pub struct EngineConfig {
     /// The store: whether to try Steam, and what the game declares. The
     /// default is no store, which is what tests and servers want.
     pub platform: kerosene_platform::PlatformConfig,
+    /// The window's title: the game's name.
+    pub title: String,
+    /// What the desktop knows the game as: the Wayland app id and the X11
+    /// `WM_CLASS`, which is how a `.desktop` file's icon finds the window.
+    /// Lowercase, no spaces.
+    pub app_id: String,
+    /// The game's own version, for `version` and the log. Empty for a
+    /// test or a tool.
+    pub version: String,
+    /// Whether to mount the engine's base content beneath everything else.
+    /// On by default; a test that wants only what it put there turns it
+    /// off. See [`crate::base`].
+    pub base_content: bool,
 }
 
 impl Default for EngineConfig {
@@ -81,7 +107,55 @@ impl Default for EngineConfig {
             map: None,
             startup_commands: Vec::new(),
             platform: kerosene_platform::PlatformConfig::default(),
+            title: "Kerosene".to_string(),
+            app_id: "kerosene".to_string(),
+            version: String::new(),
+            base_content: true,
         }
+    }
+}
+
+impl EngineConfig {
+    /// Mount `dir` as the only content tree.
+    pub fn with_content(mut self, dir: impl Into<PathBuf>) -> Self {
+        self.content_paths = vec![dir.into()];
+        self
+    }
+
+    /// Load `map` on start.
+    pub fn with_map(mut self, map: impl Into<String>) -> Self {
+        self.map = Some(map.into());
+        self
+    }
+
+    /// Run a console command once everything is up.
+    pub fn with_command(mut self, line: impl Into<String>) -> Self {
+        self.startup_commands.push(line.into());
+        self
+    }
+
+    /// Open an audio device, or not.
+    pub fn with_audio(mut self, audio: bool) -> Self {
+        self.audio = audio;
+        self
+    }
+
+    /// Relay the process's log into the console.
+    pub fn with_log(mut self, relay: std::sync::Arc<kerosene_console::LogRelay>) -> Self {
+        self.log = Some(relay);
+        self
+    }
+
+    /// Mount the engine's base content beneath the game's, or not.
+    pub fn with_base_content(mut self, base: bool) -> Self {
+        self.base_content = base;
+        self
+    }
+
+    /// The store and what the game declares to it.
+    pub fn with_platform(mut self, platform: kerosene_platform::PlatformConfig) -> Self {
+        self.platform = platform;
+        self
     }
 }
 
@@ -107,7 +181,7 @@ pub fn explain_missing_map(vfs: &Vfs, name: &str, why: &VfsError) -> String {
         said.push_str(&format!(
             "  maps/{name}.keromap is there, but has not been compiled.\n"
         ));
-        said.push_str("  build it with:  scripts/build-content.sh\n");
+        said.push_str("  build it with:  kerosene-tools play  (cargo play, in a game crate)\n");
         said.push_str(&format!(
             "  or on its own:  kerosene-tools cleave maps/{name}.keromap\n"
         ));
@@ -123,7 +197,9 @@ pub fn explain_missing_map(vfs: &Vfs, name: &str, why: &VfsError) -> String {
         maps.sort();
         maps.dedup();
         if maps.is_empty() {
-            said.push_str("  no compiled maps in any search path. Run scripts/build-content.sh\n");
+            said.push_str(
+                "  no compiled maps in any search path. Build them with kerosene-tools play\n",
+            );
         } else {
             said.push_str(&format!("  compiled maps here: {}\n", maps.join(", ")));
         }
@@ -188,13 +264,13 @@ pub fn is_trigger_class(classname: &str) -> bool {
 pub struct Engine {
     pub console: Console,
     /// The global log relay, drained into the console once a frame.
-    pub log: Option<std::sync::Arc<kerosene_console::LogRelay>>,
+    pub(crate) log: Option<std::sync::Arc<kerosene_console::LogRelay>>,
     /// The script VM. Empty until a map with a script loads.
-    pub script: kerosene_script::ScriptHost,
+    pub(crate) script: kerosene_script::ScriptHost,
     /// Sound. The mixer runs whether or not a device opened.
     pub audio: crate::audio::AudioSystem,
-    pub vfs: Arc<Vfs>,
-    pub level: Option<Level>,
+    pub(crate) vfs: Arc<Vfs>,
+    pub(crate) level: Option<Level>,
     pub entities: EntityWorld,
     /// The classes every entity world is built with: the game's, asked for
     /// once, so a map load never needs the game object itself.
@@ -203,9 +279,9 @@ pub struct Engine {
     /// [`crate::game`] for why.
     pub(crate) game: Option<Box<dyn Game>>,
     /// Rigid-body props and the static world they rest on.
-    pub physics: PhysicsProps,
+    pub(crate) physics: PhysicsProps,
     /// Animated models' clips and skeletons, loaded as `prop_dynamic`s ask.
-    pub animations: crate::animation::Animations,
+    pub(crate) animations: crate::animation::Animations,
     pub player: PlayerState,
     /// The prop the pick-up tool is carrying, and how to keep it facing the
     /// player as they turn.
@@ -224,15 +300,25 @@ pub struct Engine {
     /// run never wanted.
     wants_audio: bool,
     /// Total simulated time.
-    pub time: f32,
-    pub tick_count: u64,
+    pub(crate) time: f32,
+    pub(crate) tick_count: u64,
     /// Set when the console asks for a different map.
     pending_map: Option<String>,
     /// A saved game to load, or a level change to make, at the start of the
     /// next frame. See [`crate::save`].
     pub(crate) pending_change: Option<crate::save::PendingChange>,
     /// Set by the `quit` command.
-    pub should_quit: bool,
+    pub(crate) should_quit: bool,
+    /// Set by the `pause` command: stopped until it is typed again,
+    /// whatever else is open.
+    paused_by_command: bool,
+    /// Set by the host while something that is not the world has the
+    /// player's attention -- the console, the store's overlay, another
+    /// window. See [`Engine::set_host_paused`].
+    host_paused: bool,
+    /// Set by the host while its window is in the background, for
+    /// `snd_mute_losefocus`.
+    background: bool,
     /// The game UI: its store, layers, world panels and decals.
     pub ui: crate::ui::GameUi,
     /// The store the game ships on -- Steam, or nothing. See
@@ -335,6 +421,11 @@ impl Engine {
                 Err(e) => log::warn!("workshop item {id}: {e}"),
             }
         }
+        // Last of all, the engine's own: the textures, sounds and UI a game
+        // has before it has any, found only where nothing above has them.
+        if config.base_content {
+            crate::base::mount(&mut vfs);
+        }
         // Loose files win over packed ones, so a developer can drop a file
         // beside a shipped archive and see it immediately.
         let vfs = Arc::new(vfs);
@@ -345,6 +436,18 @@ impl Engine {
         crate::ui::register(&mut console);
         crate::platform::register(&mut console);
         crate::save::register(&mut console);
+        // Who is running, for `version`: read-only in all but name, since
+        // nothing sets it after this.
+        let running = match config.version.is_empty() {
+            true => String::new(),
+            false => format!("{} {}", config.title, config.version),
+        };
+        console.register_cvar(
+            "_game",
+            &running,
+            ConVarFlags::HIDDEN,
+            "The game's name and version, as it launched.",
+        );
 
         // Wire `exec` to the filesystem.
         let exec_vfs = vfs.clone();
@@ -412,6 +515,9 @@ impl Engine {
             pending_map: config.map.clone(),
             pending_change: None,
             should_quit: false,
+            paused_by_command: false,
+            host_paused: false,
+            background: false,
             ui: crate::ui::GameUi::default(),
             platform,
         };
@@ -781,6 +887,15 @@ impl Engine {
         self.console.run_buffered();
         self.load_pending_map();
 
+        self.update_volume();
+
+        // Paused, the clock does not run at all: nothing accumulates, so
+        // unpausing does not arrive as a burst of catch-up ticks.
+        if self.is_paused() {
+            self.accumulator = 0.0;
+            return 0;
+        }
+
         let interval = self.tick_interval();
         self.accumulator = (self.accumulator + real_dt).min(interval * 8.0);
 
@@ -791,6 +906,131 @@ impl Engine {
             ticks += 1;
         }
         ticks
+    }
+
+    /// Simulated time since the engine started, in seconds.
+    pub fn time(&self) -> f32 {
+        self.time
+    }
+
+    /// Fixed ticks simulated since the engine started.
+    pub fn tick_count(&self) -> u64 {
+        self.tick_count
+    }
+
+    /// Ask the host to exit at the end of this frame: what `quit` does.
+    pub fn quit(&mut self) {
+        self.should_quit = true;
+    }
+
+    /// Whether something asked to exit.
+    pub fn quit_requested(&self) -> bool {
+        self.should_quit
+    }
+
+    /// Whether a map is loaded.
+    pub fn has_level(&self) -> bool {
+        self.level.is_some()
+    }
+
+    /// The loaded map's name.
+    pub fn map_name(&self) -> Option<&str> {
+        self.level.as_ref().map(|l| l.name.as_str())
+    }
+
+    /// The content the engine reads from: loose directories, archives and
+    /// the base content, as one tree.
+    pub fn vfs(&self) -> &Arc<Vfs> {
+        &self.vfs
+    }
+
+    /// The loaded map, BSP and all. Outside the SemVer promise: see
+    /// `kerosene::internals`.
+    #[doc(hidden)]
+    pub fn level(&self) -> Option<&Level> {
+        self.level.as_ref()
+    }
+
+    /// The rigid-body props. Outside the SemVer promise.
+    #[doc(hidden)]
+    pub fn physics(&self) -> &PhysicsProps {
+        &self.physics
+    }
+
+    /// The rigid-body props, to change. Outside the SemVer promise.
+    #[doc(hidden)]
+    pub fn physics_mut(&mut self) -> &mut PhysicsProps {
+        &mut self.physics
+    }
+
+    /// Animated models' clips and skeletons. Outside the SemVer promise.
+    #[doc(hidden)]
+    pub fn animations(&self) -> &crate::animation::Animations {
+        &self.animations
+    }
+
+    /// Animated models, to load and pose. Outside the SemVer promise.
+    #[doc(hidden)]
+    pub fn animations_mut(&mut self) -> &mut crate::animation::Animations {
+        &mut self.animations
+    }
+
+    /// The map script's VM. Outside the SemVer promise; a game talks to
+    /// scripts through [`Engine::run_script`] and entity I/O.
+    #[doc(hidden)]
+    pub fn script(&self) -> &kerosene_script::ScriptHost {
+        &self.script
+    }
+
+    /// The process log relay the console drains, if one was installed.
+    #[doc(hidden)]
+    pub fn log_relay(&self) -> Option<&std::sync::Arc<kerosene_console::LogRelay>> {
+        self.log.as_ref()
+    }
+
+    /// Whether the world is stopped: by the `pause` command, or -- with
+    /// `sv_pause_on_menu`, the default -- by the pause menu being open or the
+    /// host saying something else has the player's attention.
+    ///
+    /// A paused engine still runs its console, loads maps and draws; only
+    /// the ticks stop. Nothing is paused without a level, since there is
+    /// nothing to stop.
+    pub fn is_paused(&self) -> bool {
+        if self.level.is_none() {
+            return false;
+        }
+        if self.paused_by_command {
+            return true;
+        }
+        self.console.bool("sv_pause_on_menu")
+            && (self.host_paused || self.ui.system.is_visible(crate::ui::MENU_LAYER))
+    }
+
+    /// Tell the engine whether something outside the world has the player:
+    /// the console open, the store's overlay up, the window in the
+    /// background. Honoured by [`Engine::is_paused`] under
+    /// `sv_pause_on_menu`.
+    pub fn set_host_paused(&mut self, paused: bool) {
+        self.host_paused = paused;
+    }
+
+    /// Tell the engine whether its window is in the background, where
+    /// `snd_mute_losefocus` silences it.
+    pub fn set_background(&mut self, background: bool) {
+        self.background = background;
+    }
+
+    /// Set the master volume from `volume`, or silence while in the
+    /// background under `snd_mute_losefocus`. Every frame and every tick, so
+    /// a paused game's volume still follows the options slider.
+    fn update_volume(&mut self) {
+        let muted = self.background && self.console.bool("snd_mute_losefocus");
+        let volume = if muted {
+            0.0
+        } else {
+            self.console.float("volume")
+        };
+        self.audio.set_volume(volume);
     }
 
     /// One fixed simulation step.
@@ -857,7 +1097,7 @@ impl Engine {
             self.player.movement.eye_position(),
             self.player.view_angles.vectors(),
         );
-        self.audio.set_volume(self.console.float("volume"));
+        self.update_volume();
         self.update_acoustics();
 
         // An interactive world panel under the crosshair takes the press
@@ -1822,6 +2062,18 @@ fn register_cvars(console: &mut Console) {
         "Speed a thrown prop leaves the pick-up tool at, in kerosene units per second.",
     );
 
+    console.register_cvar(
+        "sv_pause_on_menu",
+        "1",
+        ConVarFlags::ARCHIVE,
+        "Stop the world while the pause menu, the console or the store's overlay is open, or the window is in the background.",
+    );
+    console.register_cvar(
+        "snd_mute_losefocus",
+        "1",
+        ConVarFlags::ARCHIVE,
+        "Silence the game while its window is in the background.",
+    );
     console.register_cvar_ranged(
         "volume",
         "0.7",
@@ -1868,6 +2120,10 @@ fn register_cvars(console: &mut Console) {
 /// to act on, rather than reaching into the engine: a `ConCommand` handler
 /// only gets the console, and threading the whole engine through it would make
 /// every command able to do anything.
+/// The `pause` command's request: the engine's own, since pausing is the
+/// simulation's business and a dedicated server has it too.
+const PAUSE: &str = "pause";
+
 fn register_commands(console: &mut Console) {
     console.register_command(
         "toggleconsole",
@@ -2007,6 +2263,12 @@ fn register_commands(console: &mut Console) {
         |con, _| con.request(requests::SOUND_RESTART, ""),
     );
 
+    console.register_command(
+        "pause",
+        ConVarFlags::NONE,
+        "Stop the world, or start it again.",
+        |con, _| con.request(PAUSE, ""),
+    );
     console.register_command("quit", ConVarFlags::NONE, "Exit.", |con, _| {
         con.request(requests::QUIT, "");
     });
@@ -2039,9 +2301,13 @@ fn register_commands(console: &mut Console) {
     console.register_command(
         "version",
         ConVarFlags::NONE,
-        "Show the engine version.",
+        "Show the game's version and Kerosene's.",
         |con, _| {
-            con.print(format!("Kerosene {}", env!("CARGO_PKG_VERSION")));
+            let game = con.string("_game").to_string();
+            match game.is_empty() {
+                true => con.print(format!("Kerosene {}", crate::VERSION)),
+                false => con.print(format!("{game} (Kerosene {})", crate::VERSION)),
+            }
         },
     );
 
@@ -2072,6 +2338,15 @@ pub fn take_console_requests(engine: &mut Engine) -> Vec<(String, String)> {
         match kind.as_str() {
             requests::MAP => engine.request_map(&payload),
             requests::QUIT => engine.should_quit = true,
+            PAUSE => {
+                engine.paused_by_command = !engine.paused_by_command;
+                let word = if engine.paused_by_command {
+                    "paused"
+                } else {
+                    "unpaused"
+                };
+                engine.console.print(word);
+            }
             requests::SCRIPT => match engine.run_script(&payload) {
                 Ok(Some(value)) => engine.console.echo(value),
                 Ok(None) => {}
@@ -2211,7 +2486,7 @@ mod tests {
             said.contains("kerosene-tools cleave maps/arena.keromap"),
             "{said}"
         );
-        assert!(said.contains("build-content.sh"), "{said}");
+        assert!(said.contains("kerosene-tools play"), "{said}");
         let _ = std::fs::remove_dir_all(&dir);
     }
 

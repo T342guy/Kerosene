@@ -1,10 +1,20 @@
 [package]
-name = "resonance"
+name = "kerosene-resonance"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 authors.workspace = true
+description = "Resonance: the Kerosene acoustics baker."
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+# Published as kerosene-resonance; the library keeps its short name.
+[lib]
+name = "resonance"
+path = "src/lib.rs"
 
 [dependencies]
 kerosene-math.workspace = true
@@ -12,12 +22,12 @@ kerosene-bsp.workspace = true
 kerosene-asset.workspace = true
 kerosene-vfs.workspace = true
 kerosene-kv.workspace = true
-umbra = { path = "../umbra" }
+umbra.workspace = true
 anyhow.workspace = true
 clap.workspace = true
 log.workspace = true
 rayon.workspace = true
 
 [dev-dependencies]
-cleave = { path = "../cleave" }
+cleave.workspace = true
 kerosene-map.workspace = true

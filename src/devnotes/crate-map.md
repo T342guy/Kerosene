@@ -1,7 +1,8 @@
 # Crate map
 
-The workspace is 18 engine crates, 10 tool crates, a facade crate and one
-application. `Cargo.toml` at the root lists them; the interesting part is the
+The workspace is 20 engine crates, 11 tool crates, the toolset that joins
+them, the `kerosene` game crate and one application: 34 packages, all one
+version. `Cargo.toml` at the root lists them; the interesting part is the
 direction of the arrows.
 
 ## The dependency graph
@@ -194,17 +195,35 @@ agreement, and both sides meet in a crate that knows only the format.
 
 ## The facade
 
-`crates/kerosene/src/lib.rs` is deliberately thin. It re-exports every engine
-crate as a module (`kerosene::bsp`, `kerosene::physics`, …) and the third-party
-crates a game names in its own signatures (`glam`, `egui`, `rhai`, `winit`) so
-a game cannot end up linking two versions of `glam`. It also provides:
+`crates/kerosene/src/lib.rs` is the game crate, and the API boundary: its
+public surface is what Kerosene's version follows (see
+[Versioning](../docs/versioning.md)). It is deliberately thin, and draws one
+line:
 
+- the stable modules, re-exported whole: `engine`, `entity`, `math`,
+  `console`, `physics`, `script`, `ui`, `platform`, `vfs`;
+- `kerosene::internals`, everything else — `asset`, `audio`, `bsp`,
+  `config`, `kv`, `map`, `render`, `rigid`, `walk` — public but outside the
+  promise;
+- the third-party crates a game names in its own signatures (`glam`, `egui`,
+  `rhai`, `winit`, `serde_json`) so a game cannot end up linking two versions
+  of `glam`;
 - `pub mod game` with `Stock`, the stock classes plus the `Game` impl;
 - `pub mod tools` behind the `tools` feature, for a game that ships an editor;
-- `pub mod prelude`, the handful of names most game code names.
+- `pub mod prelude`, the handful of names most game code names, and
+  `VERSION`.
 
-The runtime binary `apps/kerosene/src/main.rs` is a call to
-`kerosene::launch(kerosene::game::Stock, LaunchOptions { .. })`. Nothing else.
+It is `#![warn(missing_docs)]`, and CI builds its docs with warnings denied.
+
+The runtime binary `apps/kerosene/src/main.rs` is
+`kerosene::launch(kerosene::game::Stock::default(), LaunchOptions::new(..))`.
+Nothing else.
+
+The tool packages are published as `kerosene-<tool>` (the short names were
+taken on crates.io) with `[lib] name` keeping the short name, so code still
+says `chisel::` and `kiln::`. Every internal dependency is a workspace
+dependency pinned at `=<version>`, moved together by
+`scripts/bump-version.sh`.
 
 ## Crate summaries
 

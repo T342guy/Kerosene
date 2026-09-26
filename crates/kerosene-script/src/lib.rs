@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! Scripting: the layer above entity I/O.
 //!
 //! Entity outputs wired to inputs compose further than they have any right
@@ -62,6 +62,7 @@ pub mod hooks {
 }
 
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum ScriptError {
     #[error("{0}")]
     Compile(String),

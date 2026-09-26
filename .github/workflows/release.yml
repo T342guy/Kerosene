@@ -1,0 +1,102 @@
+# Build the toolset and the stock runtime for each platform when a version
+# is tagged, and attach them to a GitHub release.
+#
+# Tags are the bare version, `1.0.0-a2`, as scripts/bump-version.sh leaves
+# them. Pre-release versions make pre-release GitHub releases.
+#
+# This does not publish to crates.io. That is `cargo publish --workspace`,
+# run by a person; see src/docs/releasing.md.
+name: Release
+
+on:
+  push:
+    tags: ["[0-9]*"]
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: build (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            name: linux-x86_64
+            exe: ""
+          - os: windows-latest
+            name: windows-x86_64
+            exe: ".exe"
+          - os: macos-latest
+            name: macos-arm64
+            exe: ""
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install toolchain
+        run: rustup show
+      - name: Install ALSA headers
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev
+      - uses: Swatinem/rust-cache@v2
+
+      # The Windows build links the C runtime statically, so the binaries
+      # need no Visual C++ redistributable: the same choice `kiln --ship`
+      # makes for games.
+      - name: Build
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            export RUSTFLAGS="-C target-feature=+crt-static"
+          fi
+          cargo build --release --locked -p kerosene-tools -p kerosene-runtime
+
+      - name: Package
+        shell: bash
+        run: |
+          out="kerosene-${GITHUB_REF_NAME}-${{ matrix.name }}"
+          mkdir "$out"
+          cp "target/release/kerosene-tools${{ matrix.exe }}" "target/release/kerosene${{ matrix.exe }}" "$out/"
+          cp README.md CHANGELOG.md LICENSE LICENSE-EXCEPTION NOTICE "$out/"
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            7z a "$out.zip" "$out" > /dev/null
+            echo "ASSET=$out.zip" >> "$GITHUB_ENV"
+          else
+            tar czf "$out.tar.gz" "$out"
+            echo "ASSET=$out.tar.gz" >> "$GITHUB_ENV"
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: ${{ env.ASSET }}
+
+  release:
+    name: release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      # The section of the changelog for this version is the release's text.
+      - name: Notes
+        run: |
+          awk -v v="$GITHUB_REF_NAME" '
+            $0 ~ "^## \\[" v "\\]" { on = 1; next }
+            on && /^## \[/ { exit }
+            on { print }
+          ' CHANGELOG.md > notes.md
+          test -s notes.md || echo "See CHANGELOG.md." > notes.md
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          body_path: notes.md
+          prerelease: ${{ contains(github.ref_name, '-') }}

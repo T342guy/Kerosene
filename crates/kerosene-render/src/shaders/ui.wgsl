@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 // The game UI: every panel, glyph and image is one of these quads.
 //
 // `crates/kerosene-ui/src/draw.rs` defines what a quad is and

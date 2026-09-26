@@ -1,10 +1,20 @@
 [package]
-name = "timbre"
+name = "kerosene-timbre"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 authors.workspace = true
+description = "Timbre: the Kerosene sound compiler and editor."
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+# Published as kerosene-timbre; the library keeps its short name.
+[lib]
+name = "timbre"
+path = "src/lib.rs"
 
 [dependencies]
 # The compile is a library call as well as a program, so Kiln drives the same

@@ -1,8 +1,8 @@
-// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! Render a map through Chisel's 3D pane and write it out as a PNG.
 //!
 //! ```text
-//! cargo run -p chisel --example preview_shot -- <map.keromap> <out.png> [x y z yaw pitch]
+//! cargo run -p kerosene-chisel --example preview_shot -- <map.keromap> <out.png> [x y z yaw pitch]
 //! ```
 //!
 //! The 3D pane is software-rasterised, which means it can be run without a

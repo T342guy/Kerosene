@@ -10,15 +10,21 @@ storefront has any integration yet.
 | Platform | Status | Notes |
 |---|---|---|
 | Linux | Developed and tested here | Audio needs ALSA headers to *build* (`libasound2-dev` / `alsa-lib-devel`); without them build with `--no-default-features` and everything but sound works. Players need nothing extra |
-| Windows | Builds in CI; never run by hand | wgpu, winit and cpal all support it. `kiln --ship` already names the binary `.exe` on Windows. Nobody has launched the result |
-| macOS | Builds in CI; never run by hand | Same dependencies, same caveat. wgpu uses Metal |
+| Windows | Tested in CI; never played by hand | wgpu, winit and cpal all support it. CI runs the tests and makes and plays a new game headless. `kiln --ship` links the C runtime statically, so players need no Visual C++ redistributable |
+| macOS | Tested in CI; never played by hand | Same dependencies, same caveat. wgpu uses Metal |
 | Consoles | No | No SDKs, no plans in the tree |
 | Mobile | No | Touch input does not exist |
 | Web | No | wgpu can target WebGPU; the file system, audio and process model here assume a desktop |
 
-CI (`.github/workflows/ci.yml`) runs `fmt`, `clippy` and the tests on Linux
-and builds the tree on Windows and macOS, so "compiles" is known and "runs"
-is not. If you ship on either you are the first to find out.
+CI (`.github/workflows/ci.yml`) runs the tests on all three, and on each
+makes a game with `kerosene-tools new` and plays it headless, so "compiles"
+and "runs without a window" are known. A window, a GPU and a player are not:
+if you ship on either you are the first to find out.
+
+Build each platform's copy on that platform: clone the game there and run
+`cargo ship`. `kiln --ship dist --target <triple>` cross-compiles for a
+developer who has that target's linker and libraries set up; that setup is
+Rust's to document, and building natively is the supported way.
 `scripts/build-content.sh` is a Linux
 shell script, but it is only a wrapper: `kerosene-tools kiln` is what it
 calls and that is a program, on every platform.

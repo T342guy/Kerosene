@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 use super::*;
 use crate::Stage;
 use kerosene_vfs::project::Project;
@@ -525,4 +525,73 @@ fn the_shipped_project_keeps_what_the_store_needs() {
     );
     assert_eq!(shipped.dlc, vec![(111, "Soundtrack".to_string())]);
     assert_eq!(shipped.start_map.as_deref(), Some("tg_intro"));
+}
+
+#[test]
+fn a_target_triple_decides_the_library_the_flags_and_the_exe() {
+    use crate::steam::{TargetOs, build_options_for, redist_name_for};
+    assert_eq!(
+        TargetOs::of(Some("x86_64-pc-windows-msvc")),
+        TargetOs::Windows
+    );
+    assert_eq!(TargetOs::of(Some("aarch64-apple-darwin")), TargetOs::MacOs);
+    assert_eq!(
+        TargetOs::of(Some("x86_64-unknown-linux-gnu")),
+        TargetOs::Linux
+    );
+    assert_eq!(TargetOs::of(None), TargetOs::host());
+    assert_eq!(TargetOs::Windows.exe("game"), "game.exe");
+    assert_eq!(TargetOs::MacOs.exe("game"), "game");
+    assert_eq!(redist_name_for(TargetOs::Windows), "steam_api64.dll");
+
+    // For Windows from anywhere: the static C runtime, no rpath, the triple
+    // passed on, and a directory of its own.
+    let win = build_options_for(true, Path::new("/t/ship"), Some("x86_64-pc-windows-msvc"));
+    let flags = win.rustflags.clone().unwrap_or_default();
+    assert!(
+        flags.contains("crt-static") && !flags.contains("rpath"),
+        "{flags}"
+    );
+    assert_eq!(win.target.as_deref(), Some("x86_64-pc-windows-msvc"));
+    assert_eq!(win.target_dir.as_deref(), Some(Path::new("/t/ship")));
+
+    // For Linux from anywhere: the rpath, and no static C runtime.
+    let linux = build_options_for(true, Path::new("/t/ship"), Some("x86_64-unknown-linux-gnu"));
+    let flags = linux.rustflags.unwrap_or_default();
+    assert!(
+        flags.contains("rpath,$ORIGIN") && !flags.contains("crt-static"),
+        "{flags}"
+    );
+}
+
+#[test]
+fn a_cross_builds_library_is_found_under_its_triple() {
+    let root = scratch("steam-cross");
+    let triple = "x86_64-pc-windows-msvc";
+    let out = root.join(triple).join("release/build/steamworks-sys-1/out");
+    std::fs::create_dir_all(&out).unwrap();
+    std::fs::write(out.join("steam_api64.dll"), "dll").unwrap();
+    let found =
+        crate::steam::find_redist_for(&root, toolchain::Profile::Release, Some(triple)).unwrap();
+    assert!(found.ends_with("steam_api64.dll"));
+    assert!(
+        crate::steam::find_redist_for(&root, toolchain::Profile::Release, None).is_none(),
+        "not where a native build would be"
+    );
+}
+
+#[test]
+fn a_steam_build_is_labelled_with_the_games_version_not_the_toolsets() {
+    use super::{build_description, version_of_pkgid};
+    assert_eq!(
+        version_of_pkgid("path+file:///g/orbital#orbital-drift@0.3.1").as_deref(),
+        Some("0.3.1")
+    );
+    assert_eq!(
+        version_of_pkgid("path+file:///g/game#2.0.0-rc.1").as_deref(),
+        Some("2.0.0-rc.1")
+    );
+    assert_eq!(version_of_pkgid(""), None);
+    assert_eq!(build_description("Orbital", Some("0.3.1")), "Orbital 0.3.1");
+    assert_eq!(build_description("Orbital", None), "Orbital");
 }

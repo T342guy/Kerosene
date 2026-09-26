@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! The whole acoustic chain, end to end: a map built in memory, compiled
 //! through Cleave, Umbra and Resonance, loaded by the engine, and listened
 //! to. Each stage has its own tests; this is the seam between them -- that
@@ -262,10 +262,7 @@ fn engine_with(bsp: &Bsp) -> (Engine, std::path::PathBuf) {
     ));
     std::fs::create_dir_all(dir.join("maps")).unwrap();
     std::fs::write(dir.join("maps/acoustics.kerobsp"), bsp.to_bytes()).unwrap();
-    let mut engine = common::stock(&EngineConfig {
-        content_paths: vec![dir.clone()],
-        ..Default::default()
-    });
+    let mut engine = common::stock(&EngineConfig::default().with_content(dir.clone()));
     engine
         .load_map("acoustics")
         .expect("the engine should load it");

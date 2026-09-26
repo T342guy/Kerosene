@@ -28,6 +28,18 @@ cargo run --quiet $CARGO_FLAGS -p kerosene-map --example sample_map
 
 "$BIN/kerosene-tools" kiln "$@"
 
+echo "==> packing the engine's base content"
+# The content every game gets before it has any of its own, compiled into
+# the engine. Built from the same compiled files as the vault above; the list
+# says which. `cargo test -p kerosene-engine base` fails when it is stale.
+BASE_ARGS=()
+for ext in kerotex keromat keromdl kerobsp kerowalk keroscript kerosnd keroaud keroui kerocss ttf otf; do
+    BASE_ARGS+=(--ext "$ext")
+done
+"$BIN/kerosene-tools" vault pack content \
+    -o crates/kerosene-engine/base/base.vault \
+    --list crates/kerosene-engine/base/MANIFEST "${BASE_ARGS[@]}"
+
 echo
 echo "Run the engine with:"
 echo "    cargo run $CARGO_FLAGS -p kerosene-runtime"

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! End-to-end tests: build a map, compile it, load it, and play it.
 //!
 //! These go through the whole stack -- `.keromap` source, Cleave's compile, the
@@ -320,10 +320,7 @@ fn the_engine_loads_and_ticks_a_compiled_map() {
     let bsp = build(&corridor_map(true, true));
     std::fs::write(dir.join("maps/testmap.kerobsp"), bsp.to_bytes()).unwrap();
 
-    let mut engine = common::stock(&EngineConfig {
-        content_paths: vec![dir.clone()],
-        ..Default::default()
-    });
+    let mut engine = common::stock(&EngineConfig::default().with_content(dir.clone()));
     engine
         .load_map("testmap")
         .expect("the engine should load it");
@@ -345,7 +342,7 @@ fn the_engine_loads_and_ticks_a_compiled_map() {
         engine.tick(TICK, &input);
     }
 
-    assert!(engine.tick_count > 0);
+    assert!(engine.tick_count() > 0);
     assert!(
         engine.player.movement.origin.x > 200.0,
         "the player should have walked forward, reaching {:?}",
@@ -371,17 +368,14 @@ fn a_physics_prop_falls_and_comes_to_rest_on_the_floor() {
     )
     .unwrap();
 
-    let mut engine = common::stock(&EngineConfig {
-        content_paths: vec![dir.clone()],
-        ..Default::default()
-    });
+    let mut engine = common::stock(&EngineConfig::default().with_content(dir.clone()));
     engine
         .load_map("phystest")
         .expect("the engine should load it");
 
     let id = engine.spawn_prop("props/cube", Vec3::new(100.0, 64.0, 100.0));
     assert_eq!(
-        engine.physics.prop_count(),
+        engine.physics().prop_count(),
         0,
         "the body appears on the next sync"
     );
@@ -391,7 +385,7 @@ fn a_physics_prop_falls_and_comes_to_rest_on_the_floor() {
         engine.tick(TICK, &input);
     }
 
-    assert_eq!(engine.physics.prop_count(), 1, "the prop got a body");
+    assert_eq!(engine.physics().prop_count(), 1, "the prop got a body");
     let origin = engine.entities.get(id).expect("still alive").origin;
     // The cube is 32 units tall, so its centre rests 16 above the floor (z=0).
     assert!(
@@ -432,10 +426,7 @@ fn a_prop_rests_on_a_func_detail_pillar() {
     )
     .unwrap();
 
-    let mut engine = common::stock(&EngineConfig {
-        content_paths: vec![dir.clone()],
-        ..Default::default()
-    });
+    let mut engine = common::stock(&EngineConfig::default().with_content(dir.clone()));
     engine
         .load_map("phystest")
         .expect("the engine should load it");
@@ -482,10 +473,7 @@ fn a_prop_rests_on_a_closed_moving_brush() {
     )
     .unwrap();
 
-    let mut engine = common::stock(&EngineConfig {
-        content_paths: vec![dir.clone()],
-        ..Default::default()
-    });
+    let mut engine = common::stock(&EngineConfig::default().with_content(dir.clone()));
     engine
         .load_map("phystest")
         .expect("the engine should load it");
@@ -523,10 +511,7 @@ fn the_player_is_blocked_by_a_physics_prop() {
     )
     .unwrap();
 
-    let mut engine = common::stock(&EngineConfig {
-        content_paths: vec![dir.clone()],
-        ..Default::default()
-    });
+    let mut engine = common::stock(&EngineConfig::default().with_content(dir.clone()));
     engine
         .load_map("phystest")
         .expect("the engine should load it");
@@ -589,10 +574,7 @@ fn the_player_can_pick_up_and_drop_a_prop() {
     )
     .unwrap();
 
-    let mut engine = common::stock(&EngineConfig {
-        content_paths: vec![dir.clone()],
-        ..Default::default()
-    });
+    let mut engine = common::stock(&EngineConfig::default().with_content(dir.clone()));
     engine
         .load_map("phystest")
         .expect("the engine should load it");
@@ -673,10 +655,7 @@ fn an_unpickable_prop_cannot_be_scooped_up() {
     )
     .unwrap();
 
-    let mut engine = common::stock(&EngineConfig {
-        content_paths: vec![dir.clone()],
-        ..Default::default()
-    });
+    let mut engine = common::stock(&EngineConfig::default().with_content(dir.clone()));
     engine
         .load_map("phystest")
         .expect("the engine should load it");
@@ -732,10 +711,7 @@ fn a_carried_prop_turns_to_face_the_player() {
     )
     .unwrap();
 
-    let mut engine = common::stock(&EngineConfig {
-        content_paths: vec![dir.clone()],
-        ..Default::default()
-    });
+    let mut engine = common::stock(&EngineConfig::default().with_content(dir.clone()));
     engine
         .load_map("phystest")
         .expect("the engine should load it");
@@ -807,10 +783,7 @@ fn a_carried_prop_cannot_be_pushed_through_a_wall() {
     )
     .unwrap();
 
-    let mut engine = common::stock(&EngineConfig {
-        content_paths: vec![dir.clone()],
-        ..Default::default()
-    });
+    let mut engine = common::stock(&EngineConfig::default().with_content(dir.clone()));
     engine
         .load_map("phystest")
         .expect("the engine should load it");
@@ -905,10 +878,7 @@ fn physics_engine(
         cube_model().to_bytes(),
     )
     .unwrap();
-    let mut engine = common::stock(&EngineConfig {
-        content_paths: vec![dir.clone()],
-        ..Default::default()
-    });
+    let mut engine = common::stock(&EngineConfig::default().with_content(dir.clone()));
     engine
         .load_map("phystest")
         .expect("the engine should load it");
@@ -1138,10 +1108,7 @@ fn a_carried_prop_shoves_another_one_instead_of_passing_into_it() {
     )
     .unwrap();
 
-    let mut engine = common::stock(&EngineConfig {
-        content_paths: vec![dir.clone()],
-        ..Default::default()
-    });
+    let mut engine = common::stock(&EngineConfig::default().with_content(dir.clone()));
     engine
         .load_map("phystest")
         .expect("the engine should load it");
@@ -1247,10 +1214,7 @@ fn a_carried_prop_gives_way_when_it_meets_something_it_cannot_move() {
     )
     .unwrap();
 
-    let mut engine = common::stock(&EngineConfig {
-        content_paths: vec![dir.clone()],
-        ..Default::default()
-    });
+    let mut engine = common::stock(&EngineConfig::default().with_content(dir.clone()));
     engine
         .load_map("phystest")
         .expect("the engine should load it");
@@ -1414,10 +1378,7 @@ fn engine_with_a_carried_prop(
     )
     .unwrap();
 
-    let mut engine = common::stock(&EngineConfig {
-        content_paths: vec![dir.clone()],
-        ..Default::default()
-    });
+    let mut engine = common::stock(&EngineConfig::default().with_content(dir.clone()));
     engine
         .load_map("phystest")
         .expect("the engine should load it");
@@ -1625,7 +1586,7 @@ fn a_moving_prop_is_stopped_by_the_player_rather_than_passing_through() {
 
     // Shove it back down the corridor, towards the player standing at spawn.
     engine
-        .physics
+        .physics_mut()
         .apply_impulse(prop, Vec3::new(-4000.0, 0.0, 0.0));
     for _ in 0..(1.0 / TICK) as usize {
         engine.tick(TICK, &idle);
@@ -1863,10 +1824,10 @@ fn what_the_engine_logs_reaches_the_console() {
     use log::Log;
 
     let relay = std::sync::Arc::new(LogRelay::detached(log::LevelFilter::Debug));
-    let mut engine = common::stock(&EngineConfig {
-        log: Some(std::sync::Arc::clone(&relay)),
-        content_paths: vec![],
-        ..Default::default()
+    let mut engine = common::stock(&{
+        let mut config = EngineConfig::default().with_log(std::sync::Arc::clone(&relay));
+        config.content_paths.clear();
+        config
     });
 
     let before = engine.console.log_len();
@@ -1899,10 +1860,10 @@ fn the_console_does_not_repeat_its_own_output() {
     use kerosene_engine::engine::EngineConfig;
 
     let relay = std::sync::Arc::new(LogRelay::detached(log::LevelFilter::Debug));
-    let mut engine = common::stock(&EngineConfig {
-        log: Some(std::sync::Arc::clone(&relay)),
-        content_paths: vec![],
-        ..Default::default()
+    let mut engine = common::stock(&{
+        let mut config = EngineConfig::default().with_log(std::sync::Arc::clone(&relay));
+        config.content_paths.clear();
+        config
     });
 
     engine.console.print("hello from the console");
@@ -1935,10 +1896,7 @@ fn engine_with_script(script: &str) -> (kerosene_engine::engine::Engine, std::pa
     std::fs::write(dir.join("maps/testmap.kerobsp"), bsp.to_bytes()).unwrap();
     std::fs::write(dir.join("scripts/testmap.keroscript"), script).unwrap();
 
-    let engine = common::stock(&EngineConfig {
-        content_paths: vec![dir.clone()],
-        ..Default::default()
-    });
+    let engine = common::stock(&EngineConfig::default().with_content(dir.clone()));
     (engine, dir)
 }
 
@@ -1962,10 +1920,7 @@ fn a_map_with_no_script_is_silent_rather_than_an_error() {
     let bsp = build(&corridor_map(true, true));
     std::fs::write(dir.join("maps/testmap.kerobsp"), bsp.to_bytes()).unwrap();
 
-    let mut engine = common::stock(&EngineConfig {
-        content_paths: vec![dir.clone()],
-        ..Default::default()
-    });
+    let mut engine = common::stock(&EngineConfig::default().with_content(dir.clone()));
     engine.load_map("testmap").unwrap();
     assert!(
         !engine.console.log().any(|l| l.text.contains("script")),
@@ -2139,7 +2094,7 @@ fn a_broken_script_reports_and_leaves_the_game_running() {
     for _ in 0..4 {
         engine.tick(TICK, &InputState::default());
     }
-    assert!(engine.tick_count > 0);
+    assert!(engine.tick_count() > 0);
     let _ = std::fs::remove_dir_all(&dir);
 }
 
@@ -2293,10 +2248,7 @@ fn engine_with_sound() -> (kerosene_engine::engine::Engine, std::path::PathBuf) 
     )
     .unwrap();
 
-    let engine = common::stock(&EngineConfig {
-        content_paths: vec![dir.clone()],
-        ..Default::default()
-    });
+    let engine = common::stock(&EngineConfig::default().with_content(dir.clone()));
     (engine, dir)
 }
 
@@ -2338,7 +2290,7 @@ fn a_sound_is_decoded_the_first_time_it_is_asked_for() {
     let (mut engine, dir) = engine_with_sound();
     assert!(!engine.audio.bank.is_loaded("test/beep"));
 
-    let vfs = engine.vfs.clone();
+    let vfs = engine.vfs().clone();
     assert!(engine.audio.sound(&vfs, "test/beep").is_some());
     assert!(engine.audio.bank.is_loaded("test/beep"));
     let _ = std::fs::remove_dir_all(&dir);
@@ -2349,7 +2301,7 @@ fn a_sound_that_is_not_there_is_reported_once_and_then_not_again() {
     // A trigger firing every tick would otherwise fill the console until
     // nothing else in it is readable.
     let (mut engine, dir) = engine_with_sound();
-    let vfs = engine.vfs.clone();
+    let vfs = engine.vfs().clone();
     assert!(engine.audio.sound(&vfs, "nope/missing").is_none());
     assert!(engine.audio.bank.already_missing("nope/missing"));
     assert!(engine.audio.sound(&vfs, "nope/missing").is_none());
@@ -2559,10 +2511,7 @@ fn engine_with(map: &Map, name: &str) -> (kerosene_engine::engine::Engine, std::
     std::fs::create_dir_all(dir.join("maps")).unwrap();
     std::fs::write(dir.join("maps/testmap.kerobsp"), build(map).to_bytes()).unwrap();
 
-    let mut engine = common::stock(&EngineConfig {
-        content_paths: vec![dir.clone()],
-        ..Default::default()
-    });
+    let mut engine = common::stock(&EngineConfig::default().with_content(dir.clone()));
     engine
         .load_map("testmap")
         .expect("the test map should load");
@@ -2812,7 +2761,7 @@ fn a_turned_model_is_drawn_where_it_blocks() {
     use kerosene_engine::collision::LevelCollision;
 
     let (engine, dir) = engine_with(&corridor_with_bar(90.0), "bar-agree");
-    let bsp = &engine.level.as_ref().unwrap().bsp;
+    let bsp = &engine.level().unwrap().bsp;
     let drawn: Vec<_> = engine.brush_model_poses();
     let world = LevelCollision::new(bsp, &engine.entities);
 
@@ -3034,7 +2983,7 @@ fn the_sky_takes_its_tint_from_the_maps_sun() {
     map.entities.push(sun);
 
     let (engine, dir) = engine_with(&map, "sky");
-    let sky = engine.level.as_ref().unwrap().sky_color;
+    let sky = engine.level().unwrap().sky_color;
 
     assert!((sky.x - 1.0).abs() < 0.01, "{sky:?}");
     assert!((sky.y - 128.0 / 255.0).abs() < 0.01, "{sky:?}");
@@ -3047,7 +2996,7 @@ fn a_map_with_no_sun_gets_an_untinted_sky() {
     // White, not black: a tint of nothing has to mean no tint, or a map
     // without a light_environment would render its sky as a silhouette.
     let (engine, dir) = engine_with(&corridor_map(false, false), "no-sky");
-    assert_eq!(engine.level.as_ref().unwrap().sky_color, Vec3::ONE);
+    assert_eq!(engine.level().unwrap().sky_color, Vec3::ONE);
     let _ = std::fs::remove_dir_all(&dir);
 }
 
@@ -3063,7 +3012,7 @@ fn the_suns_brightness_does_not_leak_into_the_sky_tint() {
     map.entities.push(sun);
 
     let (engine, dir) = engine_with(&map, "sky-bright");
-    let sky = engine.level.as_ref().unwrap().sky_color;
+    let sky = engine.level().unwrap().sky_color;
     assert!(
         (sky.x - 0.5).abs() < 0.01,
         "brightness leaked into the tint: {sky:?}"
@@ -3280,7 +3229,7 @@ fn a_compiled_sound_loads_and_plays() {
 
     let handle = engine
         .audio
-        .play(&engine.vfs.clone(), "test/beep", None, 1.0);
+        .play(&engine.vfs().clone(), "test/beep", None, 1.0);
     assert!(
         handle.is_some(),
         "a .keroaud should load where a .wav would"
@@ -3304,7 +3253,7 @@ fn the_compiled_form_is_preferred_over_the_source() {
 
     let sound = engine
         .audio
-        .sound(&engine.vfs.clone(), "test/beep")
+        .sound(&engine.vfs().clone(), "test/beep")
         .expect("it should load");
     assert_eq!(
         sound.frames(),
@@ -3322,7 +3271,7 @@ fn a_source_wav_still_plays_when_nothing_has_been_compiled_yet() {
     let (mut engine, dir) = engine_with_sound();
     engine.load_map("testmap").unwrap();
 
-    let sound = engine.audio.sound(&engine.vfs.clone(), "test/beep");
+    let sound = engine.audio.sound(&engine.vfs().clone(), "test/beep");
     assert!(sound.is_some(), "the source should still play");
 
     let _ = std::fs::remove_dir_all(&dir);
@@ -3337,7 +3286,7 @@ fn a_broken_compiled_sound_is_reported_rather_than_silently_skipped() {
     assert!(
         engine
             .audio
-            .sound(&engine.vfs.clone(), "test/beep")
+            .sound(&engine.vfs().clone(), "test/beep")
             .is_none()
     );
     let _ = std::fs::remove_dir_all(&dir);
@@ -3356,14 +3305,14 @@ fn a_sound_that_is_there_but_uncompiled_says_so_rather_than_missing() {
     assert!(
         engine
             .audio
-            .sound(&engine.vfs.clone(), "test/beep")
+            .sound(&engine.vfs().clone(), "test/beep")
             .is_none()
     );
 
     // Asserted on the message itself: it reaches the console through the log
     // relay, which a test does not install.
     let candidates = engine.audio.bank.candidates("test/beep");
-    let said = kerosene_engine::audio::explain_missing(&engine.vfs, &candidates);
+    let said = kerosene_engine::audio::explain_missing(engine.vfs(), &candidates);
     assert!(
         said.contains("beep.flac"),
         "the file that is there should be named: {said}"
@@ -3392,7 +3341,7 @@ fn a_sound_named_with_capitals_is_found_on_a_case_sensitive_filesystem() {
     assert!(
         engine
             .audio
-            .sound(&engine.vfs.clone(), "test/BeepLOUD")
+            .sound(&engine.vfs().clone(), "test/BeepLOUD")
             .is_some(),
         "a name with capitals must resolve to the file that has them"
     );
@@ -3415,7 +3364,7 @@ fn a_name_in_the_wrong_case_still_finds_the_file() {
     assert!(
         engine
             .audio
-            .sound(&engine.vfs.clone(), "test/beeploud")
+            .sound(&engine.vfs().clone(), "test/beeploud")
             .is_some()
     );
     let _ = std::fs::remove_dir_all(&dir);
@@ -3431,10 +3380,7 @@ fn archived_settings_and_bindings_come_back_through_config_cfg() {
     ));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
-    let config = EngineConfig {
-        content_paths: vec![dir.clone()],
-        ..Default::default()
-    };
+    let config = EngineConfig::default().with_content(dir.clone());
 
     // A session sets a couple of things and writes its config on the way out.
     let mut engine = common::stock(&config);
@@ -3443,7 +3389,10 @@ fn archived_settings_and_bindings_come_back_through_config_cfg() {
     let text = engine.config_text("bind \"f\" \"+use\"");
     assert!(text.contains("sensitivity \"7.5\""), "{text}");
     assert!(text.contains("unbindall"), "{text}");
-    engine.vfs.write("cfg/config.cfg", text.as_bytes()).unwrap();
+    engine
+        .vfs()
+        .write("cfg/config.cfg", text.as_bytes())
+        .unwrap();
 
     // The next session reads it back before anything else runs.
     let mut again = common::stock(&config);
@@ -3550,10 +3499,7 @@ fn a_prop_rests_on_a_mesh_platform() {
     )
     .unwrap();
 
-    let mut engine = common::stock(&EngineConfig {
-        content_paths: vec![dir.clone()],
-        ..Default::default()
-    });
+    let mut engine = common::stock(&EngineConfig::default().with_content(dir.clone()));
     engine
         .load_map("meshtest")
         .expect("the engine should load it");
@@ -3596,10 +3542,7 @@ fn a_static_prop_blocks_the_player_and_never_moves() {
     )
     .unwrap();
 
-    let mut engine = common::stock(&EngineConfig {
-        content_paths: vec![dir.clone()],
-        ..Default::default()
-    });
+    let mut engine = common::stock(&EngineConfig::default().with_content(dir.clone()));
     engine
         .load_map("statictest")
         .expect("the engine should load it");
@@ -3611,7 +3554,7 @@ fn a_static_prop_blocks_the_player_and_never_moves() {
     for _ in 0..(2.0 / TICK) as usize {
         engine.tick(TICK, &forward);
     }
-    assert_eq!(engine.physics.static_prop_count(), 1);
+    assert_eq!(engine.physics().static_prop_count(), 1);
     let player = engine.player.movement.origin;
     assert!(
         player.x < 60.0,
@@ -3709,10 +3652,7 @@ fn a_prop_dynamic_plays_a_one_shot_reports_it_and_goes_back_to_its_default() {
     )
     .unwrap();
 
-    let mut engine = common::stock(&EngineConfig {
-        content_paths: vec![dir.clone()],
-        ..Default::default()
-    });
+    let mut engine = common::stock(&EngineConfig::default().with_content(dir.clone()));
     engine
         .load_map("animtest")
         .expect("the engine should load it");
@@ -3748,9 +3688,10 @@ fn a_prop_dynamic_plays_a_one_shot_reports_it_and_goes_back_to_its_default() {
     // The pose moves while it plays: the arm's matrix is not the rest one.
     let now = engine.entities.time;
     let entity = engine.entities.get(turret).unwrap().clone();
+    let vfs = engine.vfs().clone();
     let palette = engine
-        .animations
-        .palette(&engine.vfs, &entity, now)
+        .animations_mut()
+        .palette(&vfs, &entity, now)
         .expect("the model loads");
     assert_eq!(palette.len(), 2);
 

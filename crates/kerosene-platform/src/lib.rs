@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! The store a game ships on: achievements, stats, leaderboards, rich
 //! presence, cloud files, DLC, the overlay and the Workshop.
 //!
@@ -50,6 +50,7 @@ pub const STEAM_BUILT_IN: bool = cfg!(feature = "steam");
 /// integer stat with a float fails there; declaring it makes that a mistake
 /// caught at the source rather than on the store.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+#[non_exhaustive]
 pub enum StatKind {
     #[default]
     Int,
@@ -91,6 +92,7 @@ pub struct PlatformConfig {
 /// and `Display`) so an entity's request and a console command are the same
 /// string.
 #[derive(Clone, PartialEq, Debug)]
+#[non_exhaustive]
 pub enum PlatformAction {
     /// Award an achievement.
     Unlock(String),

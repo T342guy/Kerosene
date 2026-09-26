@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! A 5x7 bitmap font, for labelling generated textures.
 //!
 //! Small on purpose. A tool texture is only useful if you can tell which one

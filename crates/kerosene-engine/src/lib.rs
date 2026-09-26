@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! The engine: the host that ties every other crate together.
 //!
 //! ```text
@@ -20,9 +20,15 @@
 //! an engine meant to host multiplayer games, so the boundary is enforced by
 //! `Engine` simply not knowing what a surface is.
 
+/// Kerosene's version: the `kerosene` crate's, which every engine crate
+/// shares. A game's own version is its own; see
+/// [`launch::LaunchOptions::new`].
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
 pub mod acoustics;
 pub mod animation;
 pub mod audio;
+pub mod base;
 pub mod collision;
 pub mod console_ui;
 pub mod engine;

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! The virtual filesystem: search paths and mounted archives.
 //!
 //! Source's filesystem lets a mod, the base game and a set of VPKs stack into
@@ -69,6 +69,7 @@ use std::path::{Path, PathBuf};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum VfsError {
     #[error("{0:?} is not a usable virtual path")]
     BadPath(String),
@@ -137,6 +138,22 @@ impl Vfs {
     /// Mount a `.vault` archive at the end of the search order.
     pub fn mount_archive(&mut self, file: &Path, id: &str) -> Result<&mut Self> {
         let archive = Archive::open(file)?;
+        self.paths.push(SearchPath {
+            layer: Layer::Archive(Box::new(archive)),
+            id: id.to_string(),
+        });
+        Ok(self)
+    }
+
+    /// Mount an archive compiled into the program at the end of the search
+    /// order, beneath everything on disk. See [`Archive::from_static`].
+    pub fn mount_static(
+        &mut self,
+        bytes: &'static [u8],
+        name: &str,
+        id: &str,
+    ) -> Result<&mut Self> {
+        let archive = Archive::from_static(bytes, name)?;
         self.paths.push(SearchPath {
             layer: Layer::Archive(Box::new(archive)),
             id: id.to_string(),

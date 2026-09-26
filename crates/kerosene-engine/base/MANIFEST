@@ -1,0 +1,21 @@
+# The engine's base content: what a game has before it has anything of its
+# own. Packed into base.vault by scripts/build-content.sh and compiled into
+# every game (see src/base.rs). One virtual path per line; a directory ends
+# in `/` and takes everything under it. A game's own files override these.
+
+# The developer and tool textures every map may use, decals and the stock
+# props' materials.
+materials/
+models/props/
+
+# Sounds, and the table that names them.
+sound/
+scripts/kerosene.kerosnd
+
+# The default HUD, pause menu, panels and overlays.
+ui/
+
+# The demo map and its script: what a project with no start map opens on.
+maps/kero_start.kerobsp
+maps/kero_start.kerowalk
+scripts/kero_start.keroscript

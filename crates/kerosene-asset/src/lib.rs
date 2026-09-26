@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! Asset formats: textures, materials and models.
 //!
 //! These are the *compiled* forms the engine loads. Source art -- PNGs, mesh

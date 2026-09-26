@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! No store: what a game runs on off Steam, in tests, and on a server.
 //!
 //! It behaves like a store rather than refusing everything, so a map that

@@ -287,12 +287,17 @@ for completeness.
 - **Runtime asset hot-reload.** Chisel reloads textures, but the running
   engine does not hot-reload materials, `.kerosnd`, scripts or the map.
   Chisel-to-engine iteration is F9, which is a full restart.
-- **Project templates.** A new user has the sample map to start from and
-  nothing else. `kerosene-tools new my_game` is a directory and a `.keroproj`.
+- ~~**Project templates.**~~ Fixed: `kerosene-tools new` makes a game crate
+  (a `Game` with a class of its own, its toolset binary, `cargo play`,
+  `cargo tools` and `cargo ship`, a project file and a starter map), or with
+  `--content-only` a mod. The engine's base content means either runs before
+  it has any art of its own.
 - **Per-target build settings.** `.keroproj` names a content tree and a
-  start map. A window title, an icon, default convars and a start map per
-  configuration belong there too, along with named ship targets (Godot's
-  export presets) for Kiln.
+  start map, and the window title comes from the game's `LaunchOptions`. An
+  icon, default convars and a start map per configuration belong there too,
+  along with named ship targets (Godot's export presets) for Kiln.
+  `kiln --ship --target <triple>` builds for another platform, but there are
+  no presets.
 
 ## 12. Networking and multiplayer
 
@@ -306,16 +311,17 @@ for completeness.
 
 ## 13. Platform and distribution
 
-- **Windows/macOS support.** wgpu, winit and cpal are cross-platform, so this
-  is most likely untested rather than broken -- but nothing has tested it.
-  CI is how it gets tested.
+- ~~**Windows/macOS support.**~~ Tested: CI runs the whole test suite on
+  Windows and macOS, and makes and plays a new game on all three platforms.
+  Nobody has yet played one there by hand.
 - **Mobile / console.** None.
 - **Crash reporting.** A panic hook writes `crash.log` (section 1); there
   are no minidumps for native crashes and nothing that phones home. `sentry`
   covers both; Breakpad minidumps beside the log are the no-service option.
 - **Installer / auto-updater.** None.
-- **`build-content.sh` is a shell script.** Which is to say, Linux-only. A
-  `cargo xtask` or a `just` file does the same on every platform.
+- ~~**`build-content.sh` is a shell script.**~~ For a game, `cargo play`
+  and `cargo ship` are the build, and they run anywhere Cargo does. The
+  script only builds this repository's sample content and the base vault.
 
 ## 14. Integrations
 
@@ -387,9 +393,10 @@ Chisel:
 
 The compilers and Kiln:
 
-- **Incremental builds key on mtimes.** Those break on CI and after a git
-  checkout; content hashes do not. A `--watch` mode and a build cache follow
-  from having them.
+- **Incremental builds key on mtimes.** Kiln now skips every stage's
+  current outputs (maps also record whether they were built fast or full),
+  but by file time, which breaks on CI and after a git checkout; content
+  hashes do not. A `--watch` mode and a build cache follow from having them.
 - **Independent stages run in sequence.** Textures, models and sounds do not
   depend on each other.
 - **No lint.** `kerosene-tools lint`: materials naming textures that do not
@@ -410,7 +417,77 @@ The engine as a tool:
 - **Hosted docs.** `dev_scripts/docs.sh` builds rustdoc; nothing publishes
   it. The module docs are unusually good and deserve a site.
 
-## 16. What the mainstream engines have, and whether it matters
+## 16. Found in the September 2026 audit
+
+A sweep of the runtime and the tools for what the sections above did not
+already list. Nothing in the tree is marked `TODO`, `FIXME` or `todo!()`;
+these are gaps found by reading.
+
+Fixed in the same pass:
+
+- ~~**Pausing did not pause.**~~ The pause menu, the console and the Steam
+  overlay only showed a layer; the world ran underneath. `sv_pause_on_menu`
+  (on by default) now stops the ticks, and a `pause` command does it
+  whatever is open.
+- ~~**No focus handling.**~~ Out of focus, the game pauses and
+  `snd_mute_losefocus` silences it; minimised, it stops drawing.
+- ~~**The window was always called "Kerosene".**~~ The title and desktop
+  app id are the game's own, from `LaunchOptions`.
+- ~~**A failed start said nothing.**~~ A native error box when the renderer
+  cannot start, and when a windowed game crashes.
+
+The runtime:
+
+- **Console.** History is lost on exit; Tab completes command names but not
+  their arguments (maps, sounds, saves, cvar values); no `maps`, no
+  `revert <cvar>`, no `host_writeconfig`, and `config.cfg` is only written
+  on a clean quit.
+- **Debug commands.** No `god`, `buddha`, `notarget`, `give`, console
+  `kill` or `ent_fire`, `ent_create`, `ent_remove`, `ent_text`, `setpos`,
+  `getpos`, `restart`, `r_wireframe`, `host_timescale` or `host_framerate`.
+- **Video.** No fullscreen or borderless mode and no `-w`/`-h`/`-fullscreen`
+  flags; `cl_fov` is unclamped and there is no zoom; no render scale,
+  texture-quality or anisotropy settings; no `screenshot`; no UI text scale.
+- **Feel.** Ducking snaps the view; no head bob, view roll, landing punch
+  or step smoothing; crouch-jumping does not tuck the feet; no underwater
+  tint, fog or muffling; no drowning, though `WaterLevel::Eyes` is there to
+  drive it.
+- **Rendering.** The worldspawn docs describe fog, and nothing implements
+  it. The sky is one equirectangular texture: no cubemap or 3D skybox.
+- **Audio.** No music system (playlists, crossfades), no `env_soundscape`,
+  no subtitles or closed captions, no per-sound priority, and doors,
+  buttons and animated props make no sound.
+- **Movers and entities.** A door does not push, stop on or crush a
+  blocking player and has no `OnBlocked`; a player on a moving platform is
+  not carried; no `parentname`; no `func_door_rotating`,
+  `point_template`/`env_entity_maker`, `point_teleport`,
+  `trigger_look`/`trigger_proximity`, `game_text` or `sky_camera`.
+- **Scripting.** No random numbers, traces, spawning, or entity angles and
+  velocity in the Rhai bindings, though the scripting docs give "pick one of
+  these three at random" as the reason scripting exists.
+- **A map that fails to load** leaves a blank world; the reason is only in
+  the console.
+
+The tools:
+
+- **Chisel.** No clipboard copy and paste; no texture-lock toggle, though
+  `Solid::translate_world_locked` exists; no find and replace; no go-to by
+  brush or entity id, so Cleave's `brush N` warnings cannot be followed; no
+  camera bookmarks; no File > Open. Settings, layout and grid reset every
+  launch; there is no Preferences dialog, keymap file, or light theme. Undo
+  keeps a whole copy of the map per step.
+- **Validation.** Nothing checks that a connection's input exists on its
+  target's class. There is no sound key type, so sound keys have no picker.
+- **The output panel** cannot be searched, filtered or copied, and its lines
+  do not lead to what they name.
+- **Other tools.** Timbre, Alchemy and Loupe have no undo. Alchemy reads PNG,
+  JPEG and TGA only: no EXR or HDR for skies. Radiance has no named quality
+  presets. No `kerosene-tools doctor` to check the toolchain, the ALSA
+  headers and the GPU in one place.
+- **The texture stage** writes the developer textures into every new project's
+  `art/`, although the engine's base content already has them.
+
+## 17. What the mainstream engines have, and whether it matters
 
 `positioning.md` argues against chasing Unity, and this document agrees.
 But some of what they have is small and worth having, and it is worth being

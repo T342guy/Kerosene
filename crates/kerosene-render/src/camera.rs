@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! View and projection, and the frustum that falls out of them.
 //!
 //! The awkward part is that Kerosene's world is Z-up with +X forward, while

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! Texture sets -- a surface's maps, gathered in one folder.
 //!
 //! A single PNG is not a surface. A surface is a colour, the bumps in it, how

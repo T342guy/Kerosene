@@ -48,22 +48,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "alchemy"
-version = "1.0.0-a1"
-dependencies = [
- "anyhow",
- "clap",
- "cleave",
- "env_logger",
- "glam",
- "image",
- "kerosene-asset",
- "kerosene-kv",
- "kerosene-math",
- "log",
-]
-
-[[package]]
 name = "alsa"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -375,29 +359,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f079e83a288787bcd14a6aea84cee5c87a67c5a3e660c30f557a3d24761b3527"
 
 [[package]]
-name = "chisel"
-version = "1.0.0-a1"
-dependencies = [
- "alchemy",
- "anyhow",
- "cleave",
- "egui",
- "glam",
- "image",
- "kerosene-asset",
- "kerosene-bsp",
- "kerosene-entity",
- "kerosene-game",
- "kerosene-kv",
- "kerosene-map",
- "kerosene-math",
- "kerosene-render",
- "kerosene-toolui",
- "kerosene-vfs",
- "log",
-]
-
-[[package]]
 name = "clap"
 version = "4.6.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -436,26 +397,6 @@ name = "clap_lex"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c8d4a3bb8b1e0c1050499d1815f5ab16d04f0959b233085fb31653fbfc9d98f9"
-
-[[package]]
-name = "cleave"
-version = "1.0.0-a1"
-dependencies = [
- "anyhow",
- "clap",
- "env_logger",
- "glam",
- "kerosene-asset",
- "kerosene-bsp",
- "kerosene-kv",
- "kerosene-map",
- "kerosene-math",
- "kerosene-vfs",
- "kerosene-walk",
- "log",
- "rayon",
- "thiserror 2.0.20",
-]
 
 [[package]]
 name = "codespan-reporting"
@@ -944,23 +885,6 @@ name = "foreign-types-shared"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "aa9a19cbb55df58761df49b23516a86d432839add4af60fc256da840f66ed35b"
-
-[[package]]
-name = "forge"
-version = "1.0.0-a1"
-dependencies = [
- "anyhow",
- "bytemuck",
- "clap",
- "env_logger",
- "glam",
- "gltf",
- "kerosene-asset",
- "kerosene-kv",
- "kerosene-math",
- "log",
- "thiserror 2.0.20",
-]
 
 [[package]]
 name = "form_urlencoded"
@@ -1488,12 +1412,12 @@ name = "kerosene"
 version = "1.0.0-a1"
 dependencies = [
  "anyhow",
- "chisel",
  "egui",
  "glam",
  "kerosene-asset",
  "kerosene-audio",
  "kerosene-bsp",
+ "kerosene-chisel",
  "kerosene-config",
  "kerosene-console",
  "kerosene-engine",
@@ -1515,6 +1439,22 @@ dependencies = [
  "rhai",
  "serde_json",
  "winit",
+]
+
+[[package]]
+name = "kerosene-alchemy"
+version = "1.0.0-a1"
+dependencies = [
+ "anyhow",
+ "clap",
+ "env_logger",
+ "glam",
+ "image",
+ "kerosene-asset",
+ "kerosene-cleave",
+ "kerosene-kv",
+ "kerosene-math",
+ "log",
 ]
 
 [[package]]
@@ -1564,6 +1504,49 @@ dependencies = [
 ]
 
 [[package]]
+name = "kerosene-chisel"
+version = "1.0.0-a1"
+dependencies = [
+ "anyhow",
+ "egui",
+ "glam",
+ "image",
+ "kerosene-alchemy",
+ "kerosene-asset",
+ "kerosene-bsp",
+ "kerosene-cleave",
+ "kerosene-entity",
+ "kerosene-game",
+ "kerosene-kv",
+ "kerosene-map",
+ "kerosene-math",
+ "kerosene-render",
+ "kerosene-toolui",
+ "kerosene-vfs",
+ "log",
+]
+
+[[package]]
+name = "kerosene-cleave"
+version = "1.0.0-a1"
+dependencies = [
+ "anyhow",
+ "clap",
+ "env_logger",
+ "glam",
+ "kerosene-asset",
+ "kerosene-bsp",
+ "kerosene-kv",
+ "kerosene-map",
+ "kerosene-math",
+ "kerosene-vfs",
+ "kerosene-walk",
+ "log",
+ "rayon",
+ "thiserror 2.0.20",
+]
+
+[[package]]
 name = "kerosene-config"
 version = "1.0.0-a1"
 dependencies = [
@@ -1579,6 +1562,7 @@ version = "1.0.0-a1"
 dependencies = [
  "log",
  "thiserror 2.0.20",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -1587,7 +1571,6 @@ version = "1.0.0-a1"
 dependencies = [
  "anyhow",
  "bytemuck",
- "cleave",
  "egui",
  "egui-wgpu",
  "egui-winit",
@@ -1597,6 +1580,7 @@ dependencies = [
  "kerosene-asset",
  "kerosene-audio",
  "kerosene-bsp",
+ "kerosene-cleave",
  "kerosene-config",
  "kerosene-console",
  "kerosene-entity",
@@ -1607,17 +1591,17 @@ dependencies = [
  "kerosene-physics",
  "kerosene-platform",
  "kerosene-render",
+ "kerosene-resonance",
  "kerosene-rigid",
  "kerosene-script",
  "kerosene-ui",
+ "kerosene-umbra",
  "kerosene-vfs",
  "log",
  "pollster",
- "resonance",
  "rhai",
  "serde",
  "serde_json",
- "umbra",
  "wgpu",
  "winit",
 ]
@@ -1641,6 +1625,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "kerosene-forge"
+version = "1.0.0-a1"
+dependencies = [
+ "anyhow",
+ "bytemuck",
+ "clap",
+ "env_logger",
+ "glam",
+ "gltf",
+ "kerosene-asset",
+ "kerosene-kv",
+ "kerosene-math",
+ "log",
+ "thiserror 2.0.20",
+]
+
+[[package]]
 name = "kerosene-game"
 version = "1.0.0-a1"
 dependencies = [
@@ -1657,11 +1658,36 @@ dependencies = [
 ]
 
 [[package]]
+name = "kerosene-kiln"
+version = "1.0.0-a1"
+dependencies = [
+ "anyhow",
+ "clap",
+ "env_logger",
+ "kerosene-alchemy",
+ "kerosene-kv",
+ "kerosene-timbre",
+ "kerosene-vfs",
+ "log",
+]
+
+[[package]]
 name = "kerosene-kv"
 version = "1.0.0-a1"
 dependencies = [
  "kerosene-math",
  "thiserror 2.0.20",
+]
+
+[[package]]
+name = "kerosene-loupe"
+version = "1.0.0-a1"
+dependencies = [
+ "egui",
+ "kerosene-asset",
+ "kerosene-chisel",
+ "kerosene-toolui",
+ "kerosene-vfs",
 ]
 
 [[package]]
@@ -1704,6 +1730,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "kerosene-radiance"
+version = "1.0.0-a1"
+dependencies = [
+ "anyhow",
+ "clap",
+ "env_logger",
+ "glam",
+ "kerosene-bsp",
+ "kerosene-kv",
+ "kerosene-math",
+ "log",
+ "rayon",
+]
+
+[[package]]
 name = "kerosene-render"
 version = "1.0.0-a1"
 dependencies = [
@@ -1722,6 +1763,24 @@ dependencies = [
  "png",
  "pollster",
  "wgpu",
+]
+
+[[package]]
+name = "kerosene-resonance"
+version = "1.0.0-a1"
+dependencies = [
+ "anyhow",
+ "clap",
+ "kerosene-asset",
+ "kerosene-bsp",
+ "kerosene-cleave",
+ "kerosene-kv",
+ "kerosene-map",
+ "kerosene-math",
+ "kerosene-umbra",
+ "kerosene-vfs",
+ "log",
+ "rayon",
 ]
 
 [[package]]
@@ -1754,29 +1813,48 @@ dependencies = [
 ]
 
 [[package]]
+name = "kerosene-timbre"
+version = "1.0.0-a1"
+dependencies = [
+ "anyhow",
+ "clap",
+ "egui",
+ "env_logger",
+ "kerosene-audio",
+ "kerosene-kv",
+ "kerosene-toolui",
+ "kerosene-vfs",
+ "log",
+ "symphonia",
+]
+
+[[package]]
 name = "kerosene-tools"
 version = "1.0.0-a1"
 dependencies = [
- "alchemy",
  "anyhow",
- "chisel",
  "clap",
- "cleave",
  "egui",
  "env_logger",
- "forge",
+ "kerosene-alchemy",
+ "kerosene-chisel",
+ "kerosene-cleave",
  "kerosene-console",
+ "kerosene-forge",
+ "kerosene-kiln",
+ "kerosene-kv",
+ "kerosene-loupe",
+ "kerosene-map",
+ "kerosene-math",
+ "kerosene-radiance",
+ "kerosene-resonance",
+ "kerosene-timbre",
  "kerosene-toolui",
+ "kerosene-umbra",
+ "kerosene-vault",
  "kerosene-vfs",
- "kiln",
  "log",
- "loupe",
- "radiance",
- "resonance",
  "steamworks",
- "timbre",
- "umbra",
- "vault",
 ]
 
 [[package]]
@@ -1808,6 +1886,32 @@ dependencies = [
  "rhai",
  "roxmltree",
  "taffy",
+]
+
+[[package]]
+name = "kerosene-umbra"
+version = "1.0.0-a1"
+dependencies = [
+ "anyhow",
+ "clap",
+ "env_logger",
+ "glam",
+ "kerosene-bsp",
+ "kerosene-math",
+ "log",
+ "rayon",
+ "thiserror 2.0.20",
+]
+
+[[package]]
+name = "kerosene-vault"
+version = "1.0.0-a1"
+dependencies = [
+ "anyhow",
+ "clap",
+ "env_logger",
+ "kerosene-vfs",
+ "log",
 ]
 
 [[package]]
@@ -1845,20 +1949,6 @@ name = "khronos_api"
 version = "3.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e2db585e1d738fc771bf08a151420d3ed193d9d895a36df7f6f8a9456b911ddc"
-
-[[package]]
-name = "kiln"
-version = "1.0.0-a1"
-dependencies = [
- "alchemy",
- "anyhow",
- "clap",
- "env_logger",
- "kerosene-kv",
- "kerosene-vfs",
- "log",
- "timbre",
-]
 
 [[package]]
 name = "lazy_static"
@@ -1938,17 +2028,6 @@ name = "log"
 version = "0.4.34"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f9f8bd3e56ce4dfc153cf470fffbfa98c7620958b312ca5c3a4b8d5181fd13c6"
-
-[[package]]
-name = "loupe"
-version = "1.0.0-a1"
-dependencies = [
- "chisel",
- "egui",
- "kerosene-asset",
- "kerosene-toolui",
- "kerosene-vfs",
-]
 
 [[package]]
 name = "mach2"
@@ -2684,21 +2763,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8dcc9c7d52a811697d2151c701e0d08956f92b0e24136cf4cf27b57a6a0d9bf"
 
 [[package]]
-name = "radiance"
-version = "1.0.0-a1"
-dependencies = [
- "anyhow",
- "clap",
- "env_logger",
- "glam",
- "kerosene-bsp",
- "kerosene-kv",
- "kerosene-math",
- "log",
- "rayon",
-]
-
-[[package]]
 name = "range-alloc"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2797,24 +2861,6 @@ name = "renderdoc-sys"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "19b30a45b0cd0bcca8037f3d0dc3421eaf95327a17cad11964fb8179b4fc4832"
-
-[[package]]
-name = "resonance"
-version = "1.0.0-a1"
-dependencies = [
- "anyhow",
- "clap",
- "cleave",
- "kerosene-asset",
- "kerosene-bsp",
- "kerosene-kv",
- "kerosene-map",
- "kerosene-math",
- "kerosene-vfs",
- "log",
- "rayon",
- "umbra",
-]
 
 [[package]]
 name = "rhai"
@@ -3331,22 +3377,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "timbre"
-version = "1.0.0-a1"
-dependencies = [
- "anyhow",
- "clap",
- "egui",
- "env_logger",
- "kerosene-audio",
- "kerosene-kv",
- "kerosene-toolui",
- "kerosene-vfs",
- "log",
- "symphonia",
-]
-
-[[package]]
 name = "tiny-keccak"
 version = "2.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3452,21 +3482,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "umbra"
-version = "1.0.0-a1"
-dependencies = [
- "anyhow",
- "clap",
- "env_logger",
- "glam",
- "kerosene-bsp",
- "kerosene-math",
- "log",
- "rayon",
- "thiserror 2.0.20",
-]
-
-[[package]]
 name = "unicode-ident"
 version = "1.0.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3513,17 +3528,6 @@ name = "utf8parse"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "06abde3611657adf66d383f00b093d7faecc7fa57071cce2578660c9f1010821"
-
-[[package]]
-name = "vault"
-version = "1.0.0-a1"
-dependencies = [
- "anyhow",
- "clap",
- "env_logger",
- "kerosene-vfs",
- "log",
-]
 
 [[package]]
 name = "version_check"

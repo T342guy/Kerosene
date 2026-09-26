@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! The toolset's `main`, as a function a game can call.
 //!
 //! `kerosene-tools` is this with the defaults. A game that wants an editor
@@ -8,13 +8,11 @@
 //! ```no_run
 //! const SCHEMA: &str = "class { \"name\" \"item_pickup\" }"; // usually include_str!
 //! fn main() -> anyhow::Result<()> {
-//!     kerosene_tools::main_with(kerosene_tools::Options {
-//!         name: "mygame-tools",
-//!         version: env!("CARGO_PKG_VERSION"),
-//!         schema: &[SCHEMA],
-//!         game: Some("mygame"),
-//!         ..Default::default()
-//!     })
+//!     kerosene_tools::main_with(
+//!         kerosene_tools::Options::new("mygame-tools", env!("CARGO_PKG_VERSION"))
+//!             .schema(&[SCHEMA])
+//!             .game("mygame"),
+//!     )
 //! }
 //! ```
 
@@ -23,8 +21,11 @@ use anyhow::Result;
 use kerosene_vfs::toolchain::Runtime;
 use std::path::PathBuf;
 
-/// What a toolset binary is for.
+/// What a toolset binary is for. Built with [`Options::new`] and the
+/// setters below; non-exhaustive, so a new option never breaks a game's
+/// tools binary.
 #[derive(Clone, Debug)]
+#[non_exhaustive]
 pub struct Options {
     /// The binary's name, as help prints it.
     pub name: &'static str,
@@ -56,6 +57,43 @@ impl Default for Options {
 }
 
 impl Options {
+    /// A toolset binary called `name`, at `version`.
+    pub fn new(name: &'static str, version: &'static str) -> Self {
+        Options {
+            name,
+            version,
+            ..Default::default()
+        }
+    }
+
+    /// The `.kerodef` text of the game's own classes.
+    pub fn schema(mut self, schema: &'static [&'static str]) -> Self {
+        self.schema = schema;
+        self
+    }
+
+    /// The Cargo package that is the game: F9 and `play` build and launch it.
+    pub fn game(mut self, package: &'static str) -> Self {
+        self.game = Some(package);
+        self
+    }
+
+    /// The game package's binary, when it is not named after the package.
+    pub fn bin(mut self, bin: &'static str) -> Self {
+        self.bin = Some(bin);
+        self
+    }
+
+    /// Parse these arguments rather than the process's own.
+    pub fn args<I, S>(mut self, args: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.args = Some(args.into_iter().map(Into::into).collect());
+        self
+    }
+
     /// The runtime this toolset launches, when it names one itself.
     ///
     /// The package is built from the working directory, which for a game
@@ -118,6 +156,9 @@ pub fn main_with(options: Options) -> Result<()> {
         "timbre" if opens_sound_window(&args[1..]) => {
             run_gui(options.launch(Tab::Sound, first_content_flag(&args[1..]), None))
         }
+        // The game this toolset is for, when it names one, not the
+        // project file's guess.
+        "play" => crate::play::run(args[1..].to_vec(), options.runtime()),
         other => run_subcommand(other, args[1..].to_vec()),
     }
 }
@@ -224,13 +265,10 @@ mod tests {
 
     #[test]
     fn a_games_options_name_its_package_and_schema() {
-        let options = Options {
-            name: "mygame-tools",
-            schema: &["class { \"name\" \"item_pickup\" }"],
-            game: Some("my-game"),
-            bin: Some("mygame"),
-            ..Default::default()
-        };
+        let options = Options::new("mygame-tools", "1.0")
+            .schema(&["class { \"name\" \"item_pickup\" }"])
+            .game("my-game")
+            .bin("mygame");
         let launch = options.launch(Tab::Editor, None, None);
         assert_eq!(launch.schema.len(), 1);
         match launch.runtime {
@@ -248,15 +286,7 @@ mod tests {
 
     #[test]
     fn version_and_help_return_without_a_window() {
-        main_with(Options {
-            args: Some(args(&["--version"])),
-            ..Default::default()
-        })
-        .unwrap();
-        main_with(Options {
-            args: Some(args(&["--help"])),
-            ..Default::default()
-        })
-        .unwrap();
+        main_with(Options::default().args(["--version"])).unwrap();
+        main_with(Options::default().args(["--help"])).unwrap();
     }
 }

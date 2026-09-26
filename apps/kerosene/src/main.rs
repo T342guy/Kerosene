@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! `kerosene` -- the Kerosene runtime: the engine running the stock game.
 //!
 //! ```text
@@ -15,10 +15,6 @@ use kerosene::{LaunchOptions, launch};
 fn main() -> anyhow::Result<()> {
     launch(
         kerosene::game::Stock::default(),
-        LaunchOptions {
-            name: "Kerosene",
-            version: env!("CARGO_PKG_VERSION"),
-            ..Default::default()
-        },
+        LaunchOptions::new("Kerosene", env!("CARGO_PKG_VERSION")),
     )
 }

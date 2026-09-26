@@ -126,6 +126,6 @@ meanings the GPL gives them.
 
   Every source file of the Program records these terms as
 
-      SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
+      SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 
   and this file is the text that identifier refers to.

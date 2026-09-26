@@ -239,15 +239,21 @@ the game sees no keys and held movement is released; the same happens on
 
 1. `real_dt` from `Instant`, capped at 0.25 s.
 2. `input.update_view(&console)` and `input.state()`.
-3. `engine.frame(real_dt, &input_state)` — zero or more ticks.
-4. Drain console requests the engine did not claim (host verbs), report the rest.
-5. `should_quit` → exit.
-6. Rebuild GPU resources if `load_generation()` changed (by generation, not
+3. `set_host_paused(console open || background)` and `set_background(..)`:
+   the engine decides from those, the pause menu and `sv_pause_on_menu`
+   whether it is paused (`Engine::is_paused`). Paused, `frame` runs the
+   console and pending loads but no ticks, and empties the accumulator so
+   unpausing is not a burst of catch-up ticks.
+4. `engine.frame(real_dt, &input_state)` — zero or more ticks.
+5. Drain console requests the engine did not claim (host verbs), report the rest.
+6. `quit_requested()` → exit.
+7. Rebuild GPU resources if `load_generation()` changed (by generation, not
    name, so reloading a recompiled map shows new geometry).
-7. `stream_sections()` — build wanted sections on worker threads, upload on
+8. `stream_sections()` — build wanted sections on worker threads, upload on
    this thread.
-8. `draw(real_dt)`.
-9. Sleep to honour `fps_max`, measured from the frame's start.
+9. `draw(real_dt)`, unless the window is occluded (minimised or covered),
+   when it sleeps 20 ms instead.
+10. Sleep to honour `fps_max`, measured from the frame's start.
 
 `rebuild_map` builds section 0 (the world) synchronously and records
 `LoadedMap { generation, sections, building, tx, rx }`. `stream_sections`

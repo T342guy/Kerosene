@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! Reading source audio, whatever it arrived as.
 //!
 //! WAV is decoded by [`kerosene_audio::wav`] -- the engine's own decoder, written

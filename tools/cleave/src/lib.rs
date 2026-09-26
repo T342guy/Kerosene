@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! Cleave -- the Kerosene BSP compiler, as a library.
 //!
 //! The command-line tool is a thin wrapper over [`pipeline::compile`]. Exposing

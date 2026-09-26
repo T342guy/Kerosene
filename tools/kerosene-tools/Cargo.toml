@@ -5,6 +5,11 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 authors.workspace = true
+description = "The Kerosene toolset: editor and every compiler in one application, with headless subcommands."
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 # The whole toolset: one GUI application with a project page, the editor, the
 # sound editor, a build form and an archive form behind one window, plus the
@@ -23,19 +28,22 @@ name = "kerosene_tools"
 path = "src/lib.rs"
 
 [dependencies]
-chisel = { path = "../chisel" }
-cleave = { path = "../cleave" }
-umbra = { path = "../umbra" }
-resonance = { path = "../resonance" }
-radiance = { path = "../radiance" }
-alchemy = { path = "../alchemy" }
-forge = { path = "../forge" }
-kiln = { path = "../kiln" }
-vault = { path = "../vault" }
-timbre = { path = "../timbre" }
-loupe = { path = "../loupe" }
+chisel.workspace = true
+cleave.workspace = true
+umbra.workspace = true
+resonance.workspace = true
+radiance.workspace = true
+alchemy.workspace = true
+forge.workspace = true
+kiln.workspace = true
+vault.workspace = true
+timbre.workspace = true
+loupe.workspace = true
 kerosene-toolui.workspace = true
 kerosene-vfs.workspace = true
+kerosene-map.workspace = true
+kerosene-math.workspace = true
+kerosene-kv.workspace = true
 kerosene-console.workspace = true
 egui.workspace = true
 clap.workspace = true

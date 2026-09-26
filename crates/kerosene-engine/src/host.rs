@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! The window, the GPU, and the frame loop.
 //!
 //! Everything display-dependent lives here, so that [`crate::engine::Engine`]
@@ -132,6 +132,12 @@ struct App {
     /// Whether a UI layer had the mouse and keyboard last frame, so the
     /// frame it lets go can hand the mouse back to the game.
     menu_open: bool,
+    /// Whether the window has the keyboard. Out of focus, the game pauses
+    /// and falls silent (`sv_pause_on_menu`, `snd_mute_losefocus`).
+    focused: bool,
+    /// Whether the window cannot be seen at all: minimised, or covered.
+    /// Nothing is drawn then, since nobody is looking.
+    occluded: bool,
     shift_held: bool,
 }
 
@@ -161,6 +167,8 @@ pub fn run_with(config: EngineConfig, game: Box<dyn Game>) -> anyhow::Result<()>
         static_probes: HashMap::new(),
         decal_cache: DecalCache::default(),
         menu_open: false,
+        focused: true,
+        occluded: false,
         shift_held: false,
     };
 
@@ -186,6 +194,17 @@ impl ApplicationHandler for App {
             }
             Err(e) => {
                 log::error!("could not start the renderer: {e}");
+                // The window never opened, so without this the player saw
+                // the game do nothing at all.
+                kerosene_console::dialog::show_error(
+                    &self.config.title,
+                    &format!(
+                        "{} could not start its renderer:\n\n{e}\n\n\
+                         Check that the graphics driver is installed and up to date, \
+                         or try another renderer in engine.kconfig.",
+                        self.config.title
+                    ),
+                );
                 event_loop.exit();
             }
         }
@@ -260,7 +279,10 @@ impl ApplicationHandler for App {
                 }
             }
 
+            WindowEvent::Occluded(occluded) => self.occluded = occluded,
+
             WindowEvent::Focused(focused) => {
+                self.focused = focused;
                 // Releasing held keys on focus loss stops the player running
                 // forever after an alt-tab.
                 if !focused {
@@ -481,6 +503,14 @@ impl App {
         self.input.update_view(&self.engine.console);
         let input_state = self.input.state();
 
+        // The world stops while something else has the player: the console,
+        // or another window. The pause menu and the store's overlay are the
+        // engine's to see, and it does.
+        let background = !self.focused || self.occluded;
+        self.engine
+            .set_host_paused(self.console_ui.open || background);
+        self.engine.set_background(background);
+
         self.engine.frame(real_dt, &input_state);
         // Whatever the engine did not claim is the host's: opening the
         // console is the obvious one, and `toggleconsole` being a command
@@ -556,7 +586,13 @@ impl App {
         }
         self.stream_sections();
 
-        self.draw(real_dt);
+        if self.occluded {
+            // Nothing to draw into that anyone can see. A short sleep, so
+            // a minimised game is not a spinning core.
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        } else {
+            self.draw(real_dt);
+        }
 
         // `fps_max`: the loop polls, so without this a display without
         // vsync spins a core drawing frames nobody can see. Slept after
@@ -1431,7 +1467,7 @@ fn draw_ui(
 
 async fn create_gfx(event_loop: &ActiveEventLoop, config: &EngineConfig) -> anyhow::Result<Gfx> {
     let attributes = Window::default_attributes()
-        .with_title("Kerosene")
+        .with_title(config.title.as_str())
         .with_window_icon(kerosene_config::icon::window_icon().and_then(|icon| {
             winit::window::Icon::from_rgba(icon.rgba, icon.width, icon.height).ok()
         }))
@@ -1441,18 +1477,17 @@ async fn create_gfx(event_loop: &ActiveEventLoop, config: &EngineConfig) -> anyh
         ));
     // Wayland ignores an icon set on the window: the compositor shows the
     // icon of the .desktop file whose name matches the app id. Naming the
-    // window "kerosene" is what makes a `kerosene.desktop` apply, and on X11
-    // the same string is the WM_CLASS.
+    // window after the game's app id is what makes a `<app_id>.desktop`
+    // apply, and on X11 the same string is the WM_CLASS.
     #[cfg(target_os = "linux")]
     let attributes = {
+        let id = config.app_id.as_str();
         // Both traits have a `with_name`; each applies to its own backend
         // and is a no-op on the other, so both are set.
         winit::platform::wayland::WindowAttributesExtWayland::with_name(
-            winit::platform::x11::WindowAttributesExtX11::with_name(
-                attributes, "kerosene", "kerosene",
-            ),
-            "kerosene",
-            "kerosene",
+            winit::platform::x11::WindowAttributesExtX11::with_name(attributes, id, id),
+            id,
+            id,
         )
     };
     let window = Arc::new(event_loop.create_window(attributes)?);

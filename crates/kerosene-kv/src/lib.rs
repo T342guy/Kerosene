@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! KeyValues -- the text format Kerosene uses for anything human-editable.
 //!
 //! This is Source's KeyValues, and it shows up in the same places: `.keromap`

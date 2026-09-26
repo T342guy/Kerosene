@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! The `.vault` archive format -- Kerosene's answer to Source's VPK.
 //!
 //! One file holding a whole content tree, so a mod ships as a handful of
@@ -31,6 +31,7 @@ const VERSION: u32 = 1;
 const HEADER_SIZE: u64 = 40;
 
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum ArchiveError {
     #[error("io error on {path}: {source}")]
     Io {
@@ -68,9 +69,137 @@ pub struct Entry {
 /// demand, so mounting a multi-gigabyte archive costs only its directory.
 pub struct Archive {
     source: String,
-    file: std::sync::Mutex<File>,
+    data: Data,
     data_offset: u64,
     entries: Vec<Entry>,
+}
+
+/// Where an archive's bytes are: a file read on demand, or bytes compiled
+/// into the program.
+enum Data {
+    File(std::sync::Mutex<File>),
+    Static(&'static [u8]),
+}
+
+/// Read and check an archive's header and directory from `reader`, whose
+/// whole length is `file_len`. Returns where the data starts and the sorted
+/// entries.
+fn read_directory<R: Read>(reader: &mut R, file_len: u64, name: &str) -> Result<(u64, Vec<Entry>)> {
+    let mut header = [0u8; HEADER_SIZE as usize];
+    reader
+        .read_exact(&mut header)
+        .map_err(|_| ArchiveError::Malformed {
+            path: name.to_string(),
+            detail: "file is shorter than a header".into(),
+        })?;
+
+    if header[0..4] != MAGIC {
+        return Err(ArchiveError::BadMagic {
+            path: name.to_string(),
+        });
+    }
+    let version = u32::from_le_bytes(header[4..8].try_into().unwrap());
+    if version != VERSION {
+        return Err(ArchiveError::BadVersion {
+            path: name.to_string(),
+            found: version,
+            expected: VERSION,
+        });
+    }
+    let entry_count = u32::from_le_bytes(header[12..16].try_into().unwrap()) as usize;
+    let tree_size = u32::from_le_bytes(header[16..20].try_into().unwrap()) as usize;
+    let data_offset = u64::from_le_bytes(header[20..28].try_into().unwrap());
+    let data_size = u64::from_le_bytes(header[28..36].try_into().unwrap());
+
+    // Checked before the tree is allocated: the size is the file's own
+    // claim, and a 40-byte file may claim four gigabytes.
+    if HEADER_SIZE.saturating_add(tree_size as u64) > file_len {
+        return Err(ArchiveError::Malformed {
+            path: name.to_string(),
+            detail: format!(
+                "directory claims {tree_size} bytes of tree but the file holds {file_len}"
+            ),
+        });
+    }
+    if data_offset.saturating_add(data_size) > file_len {
+        return Err(ArchiveError::Malformed {
+            path: name.to_string(),
+            detail: format!(
+                "directory claims {} bytes of data but the file holds {file_len}",
+                data_offset + data_size
+            ),
+        });
+    }
+
+    let mut tree = vec![0u8; tree_size];
+    reader
+        .read_exact(&mut tree)
+        .map_err(|_| ArchiveError::Malformed {
+            path: name.to_string(),
+            detail: "directory is truncated".into(),
+        })?;
+
+    let mut entries = Vec::with_capacity(entry_count);
+    let mut cur = 0usize;
+    let need = |cur: usize, n: usize, len: usize| -> Result<()> {
+        if cur + n > len {
+            Err(ArchiveError::Malformed {
+                path: String::new(),
+                detail: "directory record runs past the end of the tree".into(),
+            })
+        } else {
+            Ok(())
+        }
+    };
+    for _ in 0..entry_count {
+        need(cur, 2, tree.len()).map_err(|_| ArchiveError::Malformed {
+            path: name.to_string(),
+            detail: "directory record runs past the end of the tree".into(),
+        })?;
+        let plen = u16::from_le_bytes(tree[cur..cur + 2].try_into().unwrap()) as usize;
+        cur += 2;
+        if cur + plen + 20 > tree.len() {
+            return Err(ArchiveError::Malformed {
+                path: name.to_string(),
+                detail: "directory record runs past the end of the tree".into(),
+            });
+        }
+        let epath = String::from_utf8_lossy(&tree[cur..cur + plen]).into_owned();
+        cur += plen;
+        let crc = u32::from_le_bytes(tree[cur..cur + 4].try_into().unwrap());
+        let offset = u64::from_le_bytes(tree[cur + 4..cur + 12].try_into().unwrap());
+        let size = u64::from_le_bytes(tree[cur + 12..cur + 20].try_into().unwrap());
+        cur += 20;
+
+        if offset.saturating_add(size) > data_size {
+            return Err(ArchiveError::Malformed {
+                path: name.to_string(),
+                detail: format!("entry {epath:?} points outside the data blob"),
+            });
+        }
+        // The writer folds and normalises every name, so an entry that is
+        // not already in that form was not written by it. Refusing it here
+        // is what lets `unpack` join an entry onto a directory: a name that
+        // climbs, or is absolute, never gets that far.
+        if key(&epath).as_deref() != Some(epath.as_str()) {
+            return Err(ArchiveError::Malformed {
+                path: name.to_string(),
+                detail: format!("entry {epath:?} is not a normalised virtual path"),
+            });
+        }
+        entries.push(Entry {
+            path: epath,
+            crc,
+            offset,
+            size,
+        });
+    }
+
+    // The writer sorts, but a hand-made archive might not; a binary search
+    // over an unsorted directory would miss files at random.
+    entries.sort_by(|a, b| a.path.cmp(&b.path));
+
+    Ok((data_offset, entries))
 }
 
 impl Archive {
@@ -82,121 +211,25 @@ impl Archive {
             source,
         };
         let mut file = File::open(path).map_err(io)?;
-
-        let mut header = [0u8; HEADER_SIZE as usize];
-        file.read_exact(&mut header)
-            .map_err(|_| ArchiveError::Malformed {
-                path: name.clone(),
-                detail: "file is shorter than a header".into(),
-            })?;
-
-        if header[0..4] != MAGIC {
-            return Err(ArchiveError::BadMagic { path: name });
-        }
-        let version = u32::from_le_bytes(header[4..8].try_into().unwrap());
-        if version != VERSION {
-            return Err(ArchiveError::BadVersion {
-                path: name,
-                found: version,
-                expected: VERSION,
-            });
-        }
-        let entry_count = u32::from_le_bytes(header[12..16].try_into().unwrap()) as usize;
-        let tree_size = u32::from_le_bytes(header[16..20].try_into().unwrap()) as usize;
-        let data_offset = u64::from_le_bytes(header[20..28].try_into().unwrap());
-        let data_size = u64::from_le_bytes(header[28..36].try_into().unwrap());
-
         let file_len = file.metadata().map_err(io)?.len();
-        // Checked before the tree is allocated: the size is the file's own
-        // claim, and a 40-byte file may claim four gigabytes.
-        if HEADER_SIZE.saturating_add(tree_size as u64) > file_len {
-            return Err(ArchiveError::Malformed {
-                path: name,
-                detail: format!(
-                    "directory claims {tree_size} bytes of tree but the file holds {file_len}"
-                ),
-            });
-        }
-        if data_offset.saturating_add(data_size) > file_len {
-            return Err(ArchiveError::Malformed {
-                path: name,
-                detail: format!(
-                    "directory claims {} bytes of data but the file holds {file_len}",
-                    data_offset + data_size
-                ),
-            });
-        }
-
-        let mut tree = vec![0u8; tree_size];
-        file.read_exact(&mut tree)
-            .map_err(|_| ArchiveError::Malformed {
-                path: name.clone(),
-                detail: "directory is truncated".into(),
-            })?;
-
-        let mut entries = Vec::with_capacity(entry_count);
-        let mut cur = 0usize;
-        let need = |cur: usize, n: usize, len: usize| -> Result<()> {
-            if cur + n > len {
-                Err(ArchiveError::Malformed {
-                    path: String::new(),
-                    detail: "directory record runs past the end of the tree".into(),
-                })
-            } else {
-                Ok(())
-            }
-        };
-        for _ in 0..entry_count {
-            need(cur, 2, tree.len()).map_err(|_| ArchiveError::Malformed {
-                path: name.clone(),
-                detail: "directory record runs past the end of the tree".into(),
-            })?;
-            let plen = u16::from_le_bytes(tree[cur..cur + 2].try_into().unwrap()) as usize;
-            cur += 2;
-            if cur + plen + 20 > tree.len() {
-                return Err(ArchiveError::Malformed {
-                    path: name,
-                    detail: "directory record runs past the end of the tree".into(),
-                });
-            }
-            let epath = String::from_utf8_lossy(&tree[cur..cur + plen]).into_owned();
-            cur += plen;
-            let crc = u32::from_le_bytes(tree[cur..cur + 4].try_into().unwrap());
-            let offset = u64::from_le_bytes(tree[cur + 4..cur + 12].try_into().unwrap());
-            let size = u64::from_le_bytes(tree[cur + 12..cur + 20].try_into().unwrap());
-            cur += 20;
-
-            if offset.saturating_add(size) > data_size {
-                return Err(ArchiveError::Malformed {
-                    path: name,
-                    detail: format!("entry {epath:?} points outside the data blob"),
-                });
-            }
-            // The writer folds and normalises every name, so an entry that is
-            // not already in that form was not written by it. Refusing it here
-            // is what lets `unpack` join an entry onto a directory: a name that
-            // climbs, or is absolute, never gets that far.
-            if key(&epath).as_deref() != Some(epath.as_str()) {
-                return Err(ArchiveError::Malformed {
-                    path: name,
-                    detail: format!("entry {epath:?} is not a normalised virtual path"),
-                });
-            }
-            entries.push(Entry {
-                path: epath,
-                crc,
-                offset,
-                size,
-            });
-        }
-
-        // The writer sorts, but a hand-made archive might not; a binary search
-        // over an unsorted directory would miss files at random.
-        entries.sort_by(|a, b| a.path.cmp(&b.path));
-
+        let (data_offset, entries) = read_directory(&mut file, file_len, &name)?;
         Ok(Archive {
             source: name,
-            file: std::sync::Mutex::new(file),
+            data: Data::File(std::sync::Mutex::new(file)),
+            data_offset,
+            entries,
+        })
+    }
+
+    /// An archive compiled into the program with `include_bytes!`, named
+    /// `name` for messages. How the engine carries its base content: a game
+    /// with no content tree of its own still has textures, sounds and UI.
+    pub fn from_static(bytes: &'static [u8], name: &str) -> Result<Archive> {
+        let mut cursor = std::io::Cursor::new(bytes);
+        let (data_offset, entries) = read_directory(&mut cursor, bytes.len() as u64, name)?;
+        Ok(Archive {
+            source: name.to_string(),
+            data: Data::Static(bytes),
             data_offset,
             entries,
         })
@@ -235,17 +268,28 @@ impl Archive {
         let Some(entry) = self.find(vpath) else {
             return Ok(None);
         };
-        // A panic on another thread mid-read leaves the handle usable; the
-        // next seek puts it right.
-        let mut file = self.file.lock().unwrap_or_else(|e| e.into_inner());
-        let io = |source| ArchiveError::Io {
-            path: self.source.clone(),
-            source,
+        let buf = match &self.data {
+            Data::File(file) => {
+                // A panic on another thread mid-read leaves the handle
+                // usable; the next seek puts it right.
+                let mut file = file.lock().unwrap_or_else(|e| e.into_inner());
+                let io = |source| ArchiveError::Io {
+                    path: self.source.clone(),
+                    source,
+                };
+                file.seek(SeekFrom::Start(self.data_offset + entry.offset))
+                    .map_err(io)?;
+                let mut buf = vec![0u8; entry.size as usize];
+                file.read_exact(&mut buf).map_err(io)?;
+                buf
+            }
+            Data::Static(bytes) => {
+                // The directory was checked against the length when it was
+                // read, so the range is inside the bytes.
+                let at = (self.data_offset + entry.offset) as usize;
+                bytes[at..at + entry.size as usize].to_vec()
+            }
         };
-        file.seek(SeekFrom::Start(self.data_offset + entry.offset))
-            .map_err(io)?;
-        let mut buf = vec![0u8; entry.size as usize];
-        file.read_exact(&mut buf).map_err(io)?;
         if crc32(&buf) != entry.crc {
             return Err(ArchiveError::ChecksumMismatch {
                 archive: self.source.clone(),
@@ -410,6 +454,29 @@ mod tests {
     fn crc32_matches_known_vector() {
         assert_eq!(crc32(b"123456789"), 0xCBF4_3926);
         assert_eq!(crc32(b""), 0);
+    }
+
+    #[test]
+    fn an_archive_in_memory_reads_the_same_as_one_on_disk() {
+        let out = tmp("static.vault");
+        let mut b = ArchiveBuilder::new();
+        b.add("materials/dev/grid.keromat", b"shader { }".to_vec())
+            .unwrap();
+        b.add("sound/a.keroaud", vec![3u8; 999]).unwrap();
+        b.write(&out).unwrap();
+        let bytes: &'static [u8] = Box::leak(std::fs::read(&out).unwrap().into_boxed_slice());
+
+        let a = Archive::from_static(bytes, "base").unwrap();
+        assert_eq!(a.source(), "base");
+        assert_eq!(a.len(), 2);
+        assert_eq!(
+            a.read("Materials/Dev/Grid.keromat").unwrap().unwrap(),
+            b"shader { }"
+        );
+        assert_eq!(a.read("sound/a.keroaud").unwrap().unwrap(), vec![3u8; 999]);
+        assert!(a.read("nope").unwrap().is_none());
+        assert!(Archive::from_static(&bytes[..20], "cut").is_err());
+        let _ = std::fs::remove_file(out);
     }
 
     #[test]

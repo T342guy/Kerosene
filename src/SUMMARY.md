@@ -2,6 +2,17 @@
 
 - [Welcome!](./Welcome.md)
 
+# Making games
+
+- [Getting started](./gamedev/getting-started.md)
+- [Making a game](./gamedev/making-a-game.md)
+- [Saving and level changes](./gamedev/saving.md)
+- [Publishing](./gamedev/publishing.md)
+- [Platforms & distribution](./gamedev/platforms.md)
+- [Steam](./gamedev/steam.md)
+- [Shipping checklist](./gamedev/shipping-checklist.md)
+- [FAQ](./gamedev/faq.md)
+
 # Documentation
 
 - [Architecture](./docs/architecture.md)
@@ -14,16 +25,8 @@
 - [Scripting](./docs/scripting.md)
 - [Game UI](./docs/ui.md)
 - [Tools](./docs/tools.md)
-
-# Game developer docs
-
-- [Making a game](./gamedev/making-a-game.md)
-- [Publishing](./gamedev/publishing.md)
-- [Platforms & distribution](./gamedev/platforms.md)
-- [Saving and level changes](./gamedev/saving.md)
-- [Steam](./gamedev/steam.md)
-- [Shipping checklist](./gamedev/shipping-checklist.md)
-- [FAQ](./gamedev/faq.md)
+- [Versioning](./docs/versioning.md)
+- [Releasing](./docs/releasing.md)
 
 # Devnotes
 

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! The shipped class schema must describe the game that is actually here.
 //!
 //! `kerosene_game::schema::BUILTIN` is what Chisel shows in its property

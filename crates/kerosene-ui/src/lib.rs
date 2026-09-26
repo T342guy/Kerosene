@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later WITH LicenseRef-Kerosene-Exception-1.0
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! The game UI: HUDs, menus, overlays and world panels, written as content.
 //!
 //! Source 2 draws its interface with Panorama -- XML layouts, CSS styles and
