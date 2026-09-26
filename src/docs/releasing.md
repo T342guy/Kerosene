@@ -36,16 +36,35 @@ a pre-release.
 
 ## crates.io
 
-Publishing is done by hand, because it cannot be undone.
+Kerosene is published as one crate, `kerosene`, with the whole workspace
+folded into it. Publishing is done by hand, because it cannot be undone.
 
 ```sh
-cargo publish --workspace --dry-run
-cargo publish --workspace
+cargo xtask bundle                     # target/bundle/kerosene
+cd target/bundle/kerosene
+cargo publish --dry-run
+cargo publish
 ```
 
-`--workspace` publishes every crate in dependency order. CI's `package` job
-packages them all on every push and checks each is under crates.io's 10 MB
-limit, so the dry run should hold no surprises.
+`cargo xtask bundle` copies every workspace crate into
+`target/bundle/kerosene/src/__k/` as a module, rewrites the paths between
+them, flattens their features into the facade's (`audio`, `steam`,
+`tools`), gathers their dependencies into one manifest, and adds the
+`kerosene` and `kerosene-tools` binaries and the licence texts. Nothing in
+the workspace is published by itself; every package there says
+`publish = false`.
+
+CI's `bundle` job does all of that on every push, and runs `cargo package`,
+which builds the packaged crate again on its own, as crates.io will, and
+checks it is under the 10 MB limit. The `new-game` job makes a game against
+the bundle on all three platforms and plays it. So the dry run should hold
+no surprises.
+
+Players and game developers install the toolset from it:
+
+```sh
+cargo install kerosene --features tools     # kerosene-tools and kerosene
+```
 
 **The licence expression** is
 `GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0`, in every

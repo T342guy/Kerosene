@@ -76,7 +76,8 @@ load — but main menus, gamepads, combat, networking and crash reporting do
 not exist yet. ([Publishing](publishing.md#you-can-but))
 
 **How do I start?**
-`cargo install kerosene-tools`, `kerosene-tools new mygame`, `cargo play`.
+`cargo install kerosene --features tools`, `kerosene-tools new mygame`,
+`cargo play`.
 ([Getting started](getting-started.md))
 
 **Will an update break my game?**

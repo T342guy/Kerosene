@@ -5,7 +5,7 @@
 //!
 //! ```toml
 //! [dependencies]
-//! kerosene = "1.0.0-a1"
+//! kerosene = "1.0.0-a2"
 //! ```
 //!
 //! -- or, quicker, `kerosene-tools new mygame` makes a game crate with the

@@ -5,6 +5,8 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 authors.workspace = true
+# Published only as part of the one `kerosene` crate: `cargo xtask bundle`.
+publish = false
 repository.workspace = true
 homepage.workspace = true
 keywords.workspace = true
@@ -37,7 +39,7 @@ tools = ["dep:kerosene-tools", "dep:chisel"]
 [dependencies]
 # Named without its default so that a game's `default-features = false`
 # reaches the engine's audio switch rather than being silently ignored.
-kerosene-engine = { version = "=1.0.0-a1", path = "../kerosene-engine", default-features = false }
+kerosene-engine = { version = "=1.0.0-a2", path = "../kerosene-engine", default-features = false }
 kerosene-game.workspace = true
 kerosene-entity.workspace = true
 kerosene-math.workspace = true

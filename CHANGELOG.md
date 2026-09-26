@@ -11,6 +11,8 @@ with what to do about them.
 
 ## [Unreleased]
 
+## [1.0.0-a2] - 2026-09-26
+
 ### Added
 - `kerosene-tools new <dir>` makes a game: a Cargo package depending on
   `kerosene`, a `Game` with a class of its own, the game's own toolset
@@ -65,13 +67,20 @@ with what to do about them.
 - **Breaking:** `#[non_exhaustive]` on `PlatformAction`, `StatKind`,
   `ScriptError`, `SpawnError`, `SchemaError`, `VfsError` and `ArchiveError`,
   so later releases can add to them.
-- The tool crates are published as `kerosene-chisel`, `kerosene-cleave`,
-  `kerosene-kiln` and so on. Their libraries keep their short names.
+- Kerosene is published as one crate, `kerosene`: `cargo xtask bundle` folds
+  every workspace crate into it as a module, with the tools behind the
+  `tools` feature and the licence texts included. `cargo install kerosene
+  --features tools` installs the toolset. The workspace's packages are
+  `publish = false`; the tool packages are named `kerosene-chisel`,
+  `kerosene-kiln` and so on, their libraries keeping their short names.
 - Every Kerosene crate names its siblings at exactly the same version.
 - A launch with no content tree runs on the base content instead of warning,
   and a launch with no map opens the demo map.
 
 ### Fixed
+- The console's own log lines are recognised by an explicit log target
+  rather than by module path, so they are not echoed twice in the published
+  crate.
 - The licence identifier is now
   `GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0`, in `Cargo.toml`
   and every source file. `LicenseRef-` is not allowed after `WITH` in SPDX,

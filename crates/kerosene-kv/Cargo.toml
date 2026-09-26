@@ -5,6 +5,8 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 authors.workspace = true
+# Published only as part of the one `kerosene` crate: `cargo xtask bundle`.
+publish = false
 description = "KeyValues text: parsing, writing and typed reads, as Kerosene's formats use it."
 repository.workspace = true
 homepage.workspace = true

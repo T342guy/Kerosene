@@ -97,23 +97,42 @@ jobs:
       - name: Check
         run: cargo +"$MSRV" check --workspace --all-targets --locked
 
-  # Everything a crates.io release would upload, packaged, and each under
-  # the 10 MB limit. Publishing stays a person's decision.
-  package:
-    name: package
+  # The one crate crates.io gets: the workspace folded into `kerosene` by
+  # `cargo xtask bundle`. Built with and without the tools, and packaged the
+  # way `cargo publish` would -- which builds it again, alone, from the
+  # tarball -- and held under crates.io's 10 MB limit. Publishing stays a
+  # person's decision.
+  bundle:
+    name: bundle (the published crate)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Install toolchain
         run: rustup show
-      - name: Package
-        run: cargo package --workspace --no-verify --locked
-      - name: Sizes
+      - name: Install ALSA headers
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: bundle
+      - name: Bundle
+        run: cargo xtask bundle
+      - name: Build
+        working-directory: target/bundle/kerosene
+        env:
+          CARGO_TARGET_DIR: ${{ github.workspace }}/target/bundle/target
         run: |
-          ls -l target/package/*.crate
-          too_big=$(find target/package -name '*.crate' -size +10M)
-          if [ -n "$too_big" ]; then
-            echo "over crates.io's 10 MB limit: $too_big"
+          cargo build
+          cargo build --features tools
+          cargo check --features tools,steam
+      - name: Package
+        working-directory: target/bundle/kerosene
+        env:
+          CARGO_TARGET_DIR: ${{ github.workspace }}/target/bundle/target
+        run: |
+          cargo package --allow-dirty
+          ls -l "$CARGO_TARGET_DIR"/package/*.crate
+          if [ -n "$(find "$CARGO_TARGET_DIR/package" -name '*.crate' -size +10M)" ]; then
+            echo "over crates.io's 10 MB limit"
             exit 1
           fi
 
@@ -147,7 +166,7 @@ jobs:
           baseline-rev: ${{ env.BASELINE }}
 
   # What a new user does on day one, on every platform: make a game and play
-  # it. Against this checkout, since that is what is being tested.
+  # it -- against the bundled crate, since that is what they will get.
   new-game:
     name: new game (${{ matrix.os }})
     strategy:
@@ -155,6 +174,8 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
+    env:
+      CARGO_TARGET_DIR: ${{ github.workspace }}/target/bundle/target
     steps:
       - uses: actions/checkout@v4
       - name: Install toolchain
@@ -165,15 +186,15 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           key: new-game
+      - name: Bundle
+        run: cargo xtask bundle
       - name: Make a game
         shell: bash
         run: |
-          cargo run -p kerosene-tools --locked -- new "$RUNNER_TEMP/ci_game" \
-            --name "CI Game" --kerosene-path crates/kerosene
+          cargo run --manifest-path target/bundle/kerosene/Cargo.toml --features tools \
+            --bin kerosene-tools -- new "$RUNNER_TEMP/ci_game" \
+            --name "CI Game" --kerosene-path target/bundle/kerosene
       - name: Play it headless
         shell: bash
         working-directory: ${{ runner.temp }}/ci_game
-        env:
-          # The checkout's target, so the engine built above is reused.
-          CARGO_TARGET_DIR: ${{ github.workspace }}/target
         run: cargo play -- --headless 120 | tee play.log && grep -q "picked up a gem" play.log

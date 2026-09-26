@@ -219,10 +219,17 @@ The runtime binary `apps/kerosene/src/main.rs` is
 `kerosene::launch(kerosene::game::Stock::default(), LaunchOptions::new(..))`.
 Nothing else.
 
-The tool packages are published as `kerosene-<tool>` (the short names were
-taken on crates.io) with `[lib] name` keeping the short name, so code still
-says `chisel::` and `kiln::`. Every internal dependency is a workspace
-dependency pinned at `=<version>`, moved together by
+None of the workspace's packages is published by itself (each says
+`publish = false`). `cargo xtask bundle` (`xtask/src/bundle.rs`) makes the
+one crate that is: it copies each package into `src/__k/<module>/` of a
+`kerosene` crate under `target/bundle/`, turns its `lib.rs` into a
+`mod.rs`, rewrites `crate::` and every other crate's name into
+`crate::__k::<module>::`, gates the tool-only crates on the `tools`
+feature, flattens the features, and merges every dependency into one
+manifest. The facade's `lib.rs` becomes the bundle's root unchanged but for
+those paths, so its public face is the same in both. The tool packages are
+named `kerosene-<tool>`, with `[lib] name` keeping the short name; every
+internal dependency is pinned at `=<version>` and moved by
 `scripts/bump-version.sh`.
 
 ## Crate summaries

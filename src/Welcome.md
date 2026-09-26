@@ -24,7 +24,7 @@ It is PURELY open source: GPL 3.0 with an exception that lets your game stay
 yours, so long as it says it is built with Kerosene.
 
 ```sh
-cargo install kerosene-tools
+cargo install kerosene --features tools
 kerosene-tools new mygame
 cd mygame
 cargo play

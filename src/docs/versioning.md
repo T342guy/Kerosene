@@ -10,10 +10,11 @@ be honest about. It follows [Semantic Versioning](https://semver.org):
 | **Minor**, `1.3.0` | Something was added. A game that built before still builds, and plays the same. |
 | **Patch**, `1.2.1` | Something was fixed. Nothing was added. |
 
-Every other crate in the workspace — the engine, the tools, the formats —
-carries the same number, and each names the others at exactly it. They are
-released together and are never mixed: `kerosene-engine 1.2.0` with
-`kerosene-bsp 1.1.0` is not a thing that exists.
+Kerosene is developed as a workspace of crates — the engine's parts, the
+tools, the formats — and published as one. `cargo xtask bundle` folds every
+workspace crate into `kerosene` as a module, so crates.io holds exactly one
+crate, a game adds exactly one line, and there is nothing to mix: every part
+of a given version was built and tested together.
 
 ## What the promise covers
 
@@ -43,9 +44,8 @@ released together and are never mixed: `kerosene-engine 1.2.0` with
   `render`, `rigid` and `walk`. They are public because tools and ambitious
   games need them, and they change as the engine does.
 - Anything `#[doc(hidden)]`, such as `Engine::level` and `Engine::physics`.
-- The engine crates when named directly (`kerosene-engine`,
-  `kerosene-bsp`…) rather than through `kerosene`. A game depends on
-  `kerosene`, and the promise is made there.
+- `kerosene::__k`, where the bundle keeps the workspace's crates. It is
+  hidden, and everything a game needs from it is re-exported above.
 - Log messages, console output wording and the look of the editor.
 
 ## How Kerosene keeps it

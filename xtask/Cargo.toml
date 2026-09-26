@@ -1,0 +1,13 @@
+[package]
+name = "kerosene-xtask"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Repository chores for Kerosene: `cargo xtask bundle` makes the one crate that is published."
+publish = false
+
+[dependencies]
+anyhow.workspace = true
+serde_json.workspace = true

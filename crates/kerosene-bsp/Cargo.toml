@@ -5,6 +5,8 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 authors.workspace = true
+# Published only as part of the one `kerosene` crate: `cargo xtask bundle`.
+publish = false
 description = "The compiled-map format of the Kerosene game engine: BSP tree, visibility, lighting and acoustics."
 repository.workspace = true
 homepage.workspace = true

@@ -24,7 +24,7 @@ use std::io::Write;
 use std::sync::{Arc, Mutex};
 
 /// The target `log` records carry when the console forwarded them itself.
-const CONSOLE_TARGET: &str = "kerosene_console";
+pub(crate) const CONSOLE_TARGET: &str = "kerosene_console";
 
 /// How many records may pile up between frames before the oldest are dropped.
 ///

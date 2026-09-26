@@ -18,7 +18,7 @@ code compiled there.
 ## Five minutes to a running game
 
 ```sh
-cargo install kerosene-tools
+cargo install kerosene --features tools
 kerosene-tools new orbital-drift --name "Orbital Drift"
 cd orbital-drift
 cargo play

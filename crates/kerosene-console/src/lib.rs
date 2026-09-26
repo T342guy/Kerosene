@@ -520,11 +520,15 @@ impl Console {
     }
 
     fn log_line(&mut self, level: LogLevel, text: String) {
+        // Named rather than left to the module path, which is
+        // `kerosene_console` here and something else inside the published
+        // `kerosene` crate: the relay recognises its own echo by this.
+        const TARGET: &str = logging::CONSOLE_TARGET;
         match level {
-            LogLevel::Error => log::error!("{text}"),
-            LogLevel::Warning => log::warn!("{text}"),
-            LogLevel::Developer => log::debug!("{text}"),
-            _ => log::info!("{text}"),
+            LogLevel::Error => log::error!(target: TARGET, "{text}"),
+            LogLevel::Warning => log::warn!(target: TARGET, "{text}"),
+            LogLevel::Developer => log::debug!(target: TARGET, "{text}"),
+            _ => log::info!(target: TARGET, "{text}"),
         }
         self.log.push_back(LogLine { level, text });
         while self.log.len() > MAX_LOG_LINES {

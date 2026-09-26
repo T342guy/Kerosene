@@ -12,7 +12,7 @@ builds from source on your own machine — Linux, Windows or macOS — with
 nothing to install but Rust.
 
 ```sh
-cargo install kerosene-tools
+cargo install kerosene --features tools
 kerosene-tools new mygame
 cd mygame
 cargo play
@@ -288,7 +288,9 @@ removing it would change the game.
 ```
 crates/
   kerosene            the game crate: what a game depends on, and the API
-                      Kerosene's version follows (see Versioning)
+                      Kerosene's version follows (see Versioning). The one
+                      crate published: `cargo xtask bundle` folds every
+                      other crate into it as a module
   kerosene-engine     the host: the simulation, with and without a window;
                       the Game trait; base/, the content every game starts with
   kerosene-game       the stock entity classes — the game DLL analogue
@@ -310,11 +312,12 @@ crates/
   kerosene-map        .keromap — the editable map format
   kerosene-bsp        .kerobsp — the compiled map, plus tracing and PVS
   kerosene-walk       walkable-surface data for navigation
-tools/                published as kerosene-<tool>
+tools/                in the published crate behind the `tools` feature
   chisel cleave umbra resonance radiance alchemy forge timbre vault kiln loupe
   kerosene-tools      all of them as one application, and `new` and `play`
 apps/
   kerosene            the stock runtime (package kerosene-runtime)
+xtask/                repository chores: `cargo xtask bundle`
 kerosene.keroproj     the project file: what content tree this is, and where
 content/              sample art, models, materials, the sample level, and the
                       archive packed from them

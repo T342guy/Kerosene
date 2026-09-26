@@ -1,0 +1,4 @@
+# Repository chores: `cargo xtask bundle` makes the one `kerosene` crate that
+# is published. See xtask/src/main.rs.
+[alias]
+xtask = "run --quiet -p kerosene-xtask --"
