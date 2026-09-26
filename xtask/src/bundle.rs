@@ -53,10 +53,7 @@ const KNOWN_FEATURES: &[&str] = &["default", "audio", "device", "steam", "test-w
 const LEFT_OUT: &[&str] = &["Cargo.toml", "tests", "examples", "benches", "target"];
 
 pub fn run(args: &[String]) -> Result<()> {
-    let repo = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .context("xtask is inside the repository")?
-        .to_path_buf();
+    let repo = crate::repo_root()?;
     let mut out = repo.join("target/bundle/kerosene");
     let mut i = 0;
     while i < args.len() {

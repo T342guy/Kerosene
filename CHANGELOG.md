@@ -11,6 +11,12 @@ with what to do about them.
 
 ## [Unreleased]
 
+### Added
+- `cargo xtask publish`, from the repository root: refuses a version already
+  on crates.io, warns about uncommitted or unpushed work, a forgotten version
+  bump or a missing changelog section, then bundles, publishes and offers to
+  tag the release. `--dry-run` does everything but the upload.
+
 ## [1.0.0-a2] - 2026-09-26
 
 ### Added
@@ -111,5 +117,6 @@ The first version numbered by the `kerosene` crate's API.
   shading and shadow maps, HDR, MSAA, GGX/metalness shading and cubemap
   probes.
 
-[Unreleased]: https://github.com/t342guy/kerosene/compare/1.0.0-a1...HEAD
+[Unreleased]: https://github.com/t342guy/kerosene/compare/1.0.0-a2...HEAD
+[1.0.0-a2]: https://github.com/t342guy/kerosene/compare/1.0.0-a1...1.0.0-a2
 [1.0.0-a1]: https://github.com/t342guy/kerosene/releases/tag/1.0.0-a1

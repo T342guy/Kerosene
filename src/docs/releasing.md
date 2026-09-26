@@ -21,11 +21,12 @@ number it gets; this is the order of things.
 ## The release
 
 ```sh
-scripts/bump-version.sh 1.0.0-a2
+scripts/bump-version.sh 1.0.0-a3
 git diff                          # Cargo.toml, CHANGELOG.md, Cargo.lock
-git commit -am "Kerosene 1.0.0-a2"
-git tag 1.0.0-a2
-git push && git push --tags
+git commit -am "Kerosene 1.0.0-a3"
+git push
+cargo xtask publish               # checks, publishes, and offers to tag
+git push origin 1.0.0-a3
 ```
 
 Pushing the tag runs `.github/workflows/release.yml`. It builds
@@ -37,13 +38,36 @@ a pre-release.
 ## crates.io
 
 Kerosene is published as one crate, `kerosene`, with the whole workspace
-folded into it. Publishing is done by hand, because it cannot be undone.
+folded into it. Publishing is done by hand, because it cannot be undone,
+and from the repository root:
+
+```sh
+cargo xtask publish --dry-run          # everything but the upload
+cargo xtask publish
+```
+
+Before it uploads anything, `publish` checks for the usual mistakes:
+
+| Finding | What happens |
+|---|---|
+| This version is already on crates.io, or older than one that is | Stops. Bump it with `scripts/bump-version.sh`. |
+| Uncommitted changes | Warns, lists them, and asks |
+| Commits not pushed, or no upstream branch | Warns and asks |
+| This version is already tagged, at an older commit | Warns — the bump was probably forgotten — and asks |
+| `CHANGELOG.md` has no section for this version | Warns and asks |
+
+A dry run shows every finding and carries on to the bundle and
+`cargo publish --dry-run` regardless. After a real publish, it offers to tag
+the commit with the version; pushing the tag (`git push origin <version>`)
+runs the release workflow. `--yes` answers yes to every question, for a
+script; with no terminal and no `--yes`, the answer is no.
+
+By hand, the same is:
 
 ```sh
 cargo xtask bundle                     # target/bundle/kerosene
 cd target/bundle/kerosene
-cargo publish --dry-run
-cargo publish
+cargo publish --allow-dirty            # the bundle is generated, so git ignores it
 ```
 
 `cargo xtask bundle` copies every workspace crate into
