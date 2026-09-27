@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
-//! `.kerowalk` -- the compiled NPC walkmap.
+//! `.kwalk` -- the compiled NPC walkmap.
 //!
 //! A walkmap is the answer to "where can NPCs go", built once at compile time
 //! from the flat walkable faces of the world and then read by NPC navigation.
@@ -30,7 +30,7 @@ const VERSION: u32 = 1;
 
 #[derive(Debug, thiserror::Error)]
 pub enum WalkError {
-    #[error("not a .kerowalk file (bad magic)")]
+    #[error("not a .kwalk file (bad magic)")]
     BadMagic,
     #[error("unsupported walkmap version {0}")]
     BadVersion(u32),

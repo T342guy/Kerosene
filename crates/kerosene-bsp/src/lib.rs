@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
-//! `.kerobsp` -- Kerosene's compiled map format.
+//! `.kbsp` -- Kerosene's compiled map format.
 //!
-//! A `.keromap` is what a designer edits; a `.kerobsp` is what the engine runs. The
+//! A `.kmap` is what a designer edits; a `.kbsp` is what the engine runs. The
 //! compile turns overlapping convex brushes into a binary space partition:
 //! a tree of planes whose leaves are convex, non-overlapping regions of space.
 //! That single structure answers most of the questions a level needs answered:

@@ -24,7 +24,7 @@ use crate::project::Project;
 use std::path::{Path, PathBuf};
 
 /// The file that marks a directory as a content root beyond doubt.
-const MARKER: &str = "kerosene.kerodef";
+const MARKER: &str = "kerosene.kdef";
 
 /// How far up a tree to look before giving up.
 const MAX_CLIMB: usize = 6;
@@ -73,7 +73,7 @@ impl Found {
 /// Three places are tried, nearest first: the tree the map being opened lives
 /// in, then the working directory, then the directory the executable is in.
 /// The map's own tree comes first on purpose -- opening
-/// `~/maps/mine/level.keromap` should find `~/maps/mine`'s content, not the
+/// `~/maps/mine/level.kmap` should find `~/maps/mine`'s content, not the
 /// content of wherever a shell happened to be.
 ///
 /// Within each place a project file wins over a guess, even a guess that
@@ -170,7 +170,7 @@ fn climb(from: &Path) -> Option<PathBuf> {
             return Some(at);
         }
         // A repository holds its content in `content/`, and a map is usually
-        // at `<root>/maps/name.keromap`, so both are worth a look at each
+        // at `<root>/maps/name.kmap`, so both are worth a look at each
         // level rather than only at the end.
         let candidate = at.join("content");
         if is_content_root(&candidate) {

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! Skeletal animation playback.
 //!
-//! A `.keromdl` carries bones, per-vertex weights and animation clips (see
+//! A `.kmdl` carries bones, per-vertex weights and animation clips (see
 //! [`kerosene_asset::model`]); this crate turns a clip and a time into the
 //! matrices the renderer skins with. It is deliberately small: sampling,
 //! a two-clip crossfade, and the bone palette. State machines, IK and

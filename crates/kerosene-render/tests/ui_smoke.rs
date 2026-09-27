@@ -126,7 +126,7 @@ fn a_layout_draws_boxes_text_and_a_radial_fill() {
     };
     let mut files = BTreeMap::new();
     files.insert(
-        "ui/t.keroui".to_string(),
+        "ui/t.kui".to_string(),
         r#"<root reference-height="128">
             <style>
                 #red { position: absolute; left: 0px; top: 0px; width: 64px; height: 64px; background-color: #ff0000; }
@@ -142,7 +142,7 @@ fn a_layout_draws_boxes_text_and_a_radial_fill() {
             .to_string(),
     );
     let mut ui = UiSystem::new();
-    ui.show("hud", "ui/t.keroui", &files).unwrap();
+    ui.show("hud", "ui/t.kui", &files).unwrap();
     let mut store = UiStore::new();
     ui.update(0.016, (256, 128), &mut store, &files);
     let vfs = kerosene_vfs::Vfs::new();
@@ -229,7 +229,7 @@ fn the_shipped_hud_draws() {
     }
     let size = (1280, 720);
     let mut ui = UiSystem::new();
-    ui.show("hud", "ui/hud.keroui", files).unwrap();
+    ui.show("hud", "ui/hud.kui", files).unwrap();
     for _ in 0..20 {
         ui.update(0.05, size, &mut store, files);
     }
@@ -246,7 +246,7 @@ fn the_shipped_hud_draws() {
         "the HUD drew almost nothing: {changed} pixels"
     );
 
-    ui.show("menu", "ui/menus/pause.keroui", files).unwrap();
+    ui.show("menu", "ui/menus/pause.kui", files).unwrap();
     for _ in 0..20 {
         ui.update(0.05, size, &mut store, files);
     }

@@ -12,7 +12,7 @@
 //!
 //! ```text
 //! kerosene-tools                          the toolset window
-//! kerosene-tools cleave map.keromap       the compilers, one at a time
+//! kerosene-tools cleave map.kmap       the compilers, one at a time
 //! kerosene-tools kiln [...]               a whole project build
 //! kerosene-tools vault <cmd>              content archives
 //! ```

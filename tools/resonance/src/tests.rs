@@ -70,7 +70,7 @@ fn cube_map(size: f32, material: &str) -> Map {
 fn compiled(map: &Map) -> (kerosene_bsp::Bsp, PortalGraph, Absorption) {
     let out = cleave::compile(map, &cleave::CompileOptions::default()).expect("should compile");
     assert!(out.leak.is_none(), "the test map leaks");
-    let bsp = kerosene_bsp::Bsp::from_bytes(&out.bsp.to_bytes(), "test.kerobsp").unwrap();
+    let bsp = kerosene_bsp::Bsp::from_bytes(&out.bsp.to_bytes(), "test.kbsp").unwrap();
     let graph = PortalGraph::parse(&out.prt).expect("portal graph");
     let absorption = Absorption::build(&bsp, |name| {
         let family = name.split('/').next().unwrap_or(name);

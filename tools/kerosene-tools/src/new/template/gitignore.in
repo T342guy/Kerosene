@@ -2,13 +2,13 @@
 /dist
 
 # Compiled content: `cargo play` builds it again from the sources beside it.
-*.kerotex
-*.keroaud
-*.kerobsp
-*.keroprt
-*.kerowalk
-*.keroleak
-*.kerobuild
+*.ktex
+*.kaud
+*.kbsp
+*.kprt
+*.kwalk
+*.kleak
+*.kbuild
 *.vault
 
 # The engine's developer and tool textures (dev/grid, tools/nodraw, ...),
@@ -21,7 +21,7 @@ content/materials/dev/
 content/materials/tools/
 
 # Written by the engine the first time it runs, with its defaults.
-content/engine.kconfig
+content/engine.kcfg
 
 # Written by the game as it runs.
 content/cfg/config.cfg

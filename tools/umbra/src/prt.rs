@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
-//! Reading the `.keroprt` portal graph Cleave writes.
+//! Reading the `.kprt` portal graph Cleave writes.
 //!
 //! ```text
 //! VPRT1

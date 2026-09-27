@@ -129,7 +129,7 @@ roxmltree   = "0.21"
 ab_glyph    = "0.2"
 epaint_default_fonts = "0.32"
 # Save games. MIT OR Apache-2.0, and already in the tree underneath other
-# crates; a `.kerosave` is JSON so a player, a modder or a bug report can
+# crates; a `.ksav` is JSON so a player, a modder or a bug report can
 # read one without a tool.
 serde       = { version = "1", features = ["derive"] }
 serde_json  = "1"
@@ -150,7 +150,7 @@ cpal        = "0.18"
 # a game, so no game carries it.
 symphonia   = { version = "0.6", default-features = false, features = ["flac", "mp3", "id3v2"] }
 # Reading glTF models, for Forge only: MIT OR Apache-2.0. Like symphonia it
-# is a build tool's dependency -- the engine reads the .keromdl Forge writes
+# is a build tool's dependency -- the engine reads the .kmdl Forge writes
 # and never links it.
 gltf        = { version = "1.4", default-features = false, features = ["import", "utils", "names"] }
 

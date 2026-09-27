@@ -55,6 +55,11 @@ log.workspace = true
 env_logger.workspace = true
 steamworks = { workspace = true, optional = true }
 
+[dev-dependencies]
+# The `shot` example draws the window off screen and writes a PNG.
+egui-wgpu.workspace = true
+image.workspace = true
+
 [[bin]]
 name = "kerosene-tools"
 path = "src/main.rs"

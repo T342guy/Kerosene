@@ -208,7 +208,7 @@ fn the_whole_set_writes_and_reads_back() {
     let materials = dir.join("materials");
     let written = write_materials(&materials).expect("the materials write");
     assert_eq!(written.changed, set().len());
-    let text = std::fs::read_to_string(materials.join("tools/nodraw.keromat")).unwrap();
+    let text = std::fs::read_to_string(materials.join("tools/nodraw.kmat")).unwrap();
     assert!(text.contains("unlit"), "{text}");
     assert!(text.contains("tools/nodraw"), "{text}");
 
@@ -252,7 +252,7 @@ fn a_material_somebody_edited_is_kept() {
     let materials = dir.join("materials");
     write_materials(&materials).expect("first run");
 
-    let edited = materials.join("tools/water.keromat");
+    let edited = materials.join("tools/water.kmat");
     let mine = "water\n{\n\t\"$basetexture\" \"tools/water\"\n\t\"$surfaceprop\" \"water\"\n}\n";
     std::fs::write(&edited, mine).unwrap();
 

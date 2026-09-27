@@ -6,7 +6,7 @@ fn a_model_path_is_named_the_same_however_it_was_written() {
     for written in [
         "props/crate",
         "models/props/crate",
-        "models/props/crate.keromdl",
+        "models/props/crate.kmdl",
         " props/crate ",
     ] {
         assert_eq!(model_name(written), "props/crate");
@@ -25,7 +25,7 @@ fn an_entity_shows_its_own_model_before_its_classes_default() {
         entity_model(&entity, spec).as_deref(),
         Some("props/default")
     );
-    entity.set("model", "models/props/own.keromdl");
+    entity.set("model", "models/props/own.kmdl");
     assert_eq!(entity_model(&entity, spec).as_deref(), Some("props/own"));
     // A class with no model key and an entity with none: nothing.
     let plain = kerosene_map::Entity::new(2, "info_target");

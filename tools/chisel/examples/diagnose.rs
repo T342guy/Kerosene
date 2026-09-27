@@ -2,7 +2,7 @@
 //! What Chisel sees when it starts, without opening a window.
 //!
 //! ```text
-//! cargo run -p kerosene-chisel --example diagnose -- [map.keromap] [--content <dir>] [--build]
+//! cargo run -p kerosene-chisel --example diagnose -- [map.kmap] [--content <dir>] [--build]
 //! ```
 //!
 //! For the one question a level editor cannot answer for itself: *why is there
@@ -77,14 +77,14 @@ fn main() {
     );
 
     // Which maps exist, and which of them the game could actually load. A
-    // `.keromap` is a source file; only a `.kerobsp` is a level.
+    // `.kmap` is a source file; only a `.kbsp` is a level.
     let maps = chisel::files::maps_in(&root);
     println!("maps         : {}", maps.len());
     for map in &maps {
         println!(
             "  {}{}",
             chisel::files::label(map, &root),
-            if map.with_extension("kerobsp").is_file() {
+            if map.with_extension("kbsp").is_file() {
                 " -- compiled"
             } else {
                 " -- never compiled; the game cannot load this one"

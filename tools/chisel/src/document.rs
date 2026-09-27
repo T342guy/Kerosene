@@ -7,7 +7,7 @@
 //!
 //! Undo is implemented by snapshotting the map. That is the unglamorous
 //! choice -- a command pattern with inverse operations is more elegant and
-//! uses far less memory -- but a `.keromap` for a large level is a few megabytes,
+//! uses far less memory -- but a `.kmap` for a large level is a few megabytes,
 //! and correctness here is worth more than the memory. An inverse operation
 //! that is subtly wrong corrupts the level silently.
 
@@ -1111,7 +1111,7 @@ impl Document {
 
     /// A one-line summary for the title bar.
     ///
-    /// A map with no path is "untitled", not "untitled.keromap": the second
+    /// A map with no path is "untitled", not "untitled.kmap": the second
     /// looks like a file, and a name that looks like a file is why saving
     /// appeared to have already happened.
     pub fn title(&self) -> String {

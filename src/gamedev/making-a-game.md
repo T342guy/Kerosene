@@ -17,7 +17,7 @@ your own in five minutes; this page is what is going on underneath.
 
 ## Two shapes of project
 
-A Kerosene project is a directory with a `.keroproj` file at the top and a
+A Kerosene project is a directory with a `.kproj` file at the top and a
 content tree beside it. There are two kinds, and the difference is one key.
 
 **A game crate.** Your own Rust binary, depending on `kerosene`, with your
@@ -70,23 +70,23 @@ which answer it took. The full account is in
 
 ```text
 content/
-  engine.kconfig      renderer, window size, vsync — written on first run
+  engine.kcfg      renderer, window size, vsync — written on first run
   art/                source textures (.png) and meshes (.obj)
   textures/           texture *sets*: colour, normal, roughness… per folder
-  materials/          .keromat — hand-written KeyValues
-  models/             .keromdl, compiled by Forge from art/
-  maps/               .keromap (yours) and .kerobsp (compiled)
-  sound/              .wav / .flac / .mp3 sources and compiled .keroaud
-  scripts/            .keroscript (Rhai) and the .kerosnd sound table
+  materials/          .kmat — hand-written KeyValues
+  models/             .kmdl, compiled by Forge from art/
+  maps/               .kmap (yours) and .kbsp (compiled)
+  sound/              .wav / .flac / .mp3 sources and compiled .kaud
+  scripts/            .kscr (Rhai) and the .ksnd sound table
   <name>.vault        the archive Kiln packs everything into
 ```
 
 Sources and build outputs sit side by side on purpose: every `.obj` under
-`art/` becomes a `.keromdl` at the matching path under `models/`, and every
-`.keromap` under `maps/` becomes a `.kerobsp`. There is no list to keep up to
+`art/` becomes a `.kmdl` at the matching path under `models/`, and every
+`.kmap` under `maps/` becomes a `.kbsp`. There is no list to keep up to
 date. Commit the sources; the compiled files are outputs and reproducible.
 
-`engine.kconfig` always exists once anything has run — the first program to
+`engine.kcfg` always exists once anything has run — the first program to
 look for it and not find it writes the defaults. See
 [Configuration](../docs/configuration.md).
 
@@ -104,7 +104,7 @@ Day to day, in a game crate:
 
 ```sh
 cargo play                            # build what changed, then play
-cargo tools chisel content/maps/mg_intro.keromap
+cargo tools chisel content/maps/mg_intro.kmap
 cargo ship                            # build it all properly, into dist/
 ```
 
@@ -188,7 +188,7 @@ adds an `item_pickup` class, an inventory, a `give` command and a HUD line:
 // src/game.rs
 use kerosene::prelude::*;
 
-pub const SCHEMA: &str = include_str!("mygame.kerodef");
+pub const SCHEMA: &str = include_str!("mygame.kdef");
 
 #[derive(Default)]
 pub struct MyGame {
@@ -336,11 +336,11 @@ and `keys_for("+jump")`.
 
 ### The schema
 
-Chisel shows what a `.kerodef` says. Yours describes your classes and can
+Chisel shows what a `.kdef` says. Yours describes your classes and can
 inherit the engine's bases:
 
 ```text
-// src/mygame.kerodef
+// src/mygame.kdef
 class {
     "name" "item_pickup" "base" "Entity" "base" "Point"
     "help" "Something the player can pick up."
@@ -394,7 +394,7 @@ fn main() -> kerosene::anyhow::Result<()> {
 ```
 
 ```sh
-cargo run --features tools --bin mygame-tools -- chisel content/maps/mg_intro.keromap
+cargo run --features tools --bin mygame-tools -- chisel content/maps/mg_intro.kmap
 ```
 
 which `.cargo/config.toml` shortens to `cargo tools chisel …`; `cargo play`
@@ -404,7 +404,7 @@ F9 runs `cargo build -p mygame` (a debug build, for the edit-compile-play
 loop) and launches `target/debug/mygame` on the compiled map, with cargo's
 output in the editor's output panel. `kiln --ship` builds it in release.
 The stock `kerosene-tools` does the same for any project whose file names a
-`game` package, without your schema in the editor — drop the `.kerodef`
+`game` package, without your schema in the editor — drop the `.kdef`
 into the content tree for that. A package whose binary is not named after
 it says so with `"bin"` in the project file.
 
@@ -412,6 +412,6 @@ it says so with `"bin"` in the project file.
 
 * [Formats](../docs/formats.md) — every file above, byte by byte.
 * [Scripting](../docs/scripting.md) — the whole Rhai surface on one page.
-* [Audio](../docs/audio.md) — the `.kerosnd` table and how sounds are placed.
+* [Audio](../docs/audio.md) — the `.ksnd` table and how sounds are placed.
 * [Positioning](../docs/positioning.md) — what the engine is shaped to be
   good at, which is the honest way to decide whether to use it.

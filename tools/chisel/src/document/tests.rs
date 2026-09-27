@@ -450,7 +450,7 @@ fn a_document_round_trips_through_a_file() {
     block(&mut d, 0.0, 64.0);
     d.create_entity("info_player_start", Vec3::new(32.0, 32.0, 16.0));
 
-    let path = std::env::temp_dir().join(format!("chisel-test-{}.keromap", std::process::id()));
+    let path = std::env::temp_dir().join(format!("chisel-test-{}.kmap", std::process::id()));
     d.save(Some(path.clone())).unwrap();
     assert!(!d.is_modified(), "saving should clear the modified flag");
 
@@ -491,7 +491,7 @@ fn undoing_back_to_the_saved_state_is_clean_again() {
 #[test]
 fn the_title_shows_unsaved_changes() {
     let mut d = doc();
-    // Not "untitled.keromap": a map that has never been saved has no file,
+    // Not "untitled.kmap": a map that has never been saved has no file,
     // and showing one is how saving came to look as though it had happened.
     assert_eq!(d.title(), "untitled");
     block(&mut d, 0.0, 64.0);

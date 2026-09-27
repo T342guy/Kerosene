@@ -15,7 +15,7 @@
 //!     basecolor.png
 //!     normal.png
 //!     roughness.png
-//!     texture.kconfig      (optional)
+//!     texture.kcfg      (optional)
 //! ```
 //!
 //! and it names itself from where it sits -- `Walltextures/variant1` becomes
@@ -35,7 +35,7 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 /// The file that overrides a set's inferred definition.
-pub const CONFIG_FILENAME: &str = "texture.kconfig";
+pub const CONFIG_FILENAME: &str = "texture.kcfg";
 
 /// Image extensions a set will pick up, matching what Alchemy can compile.
 pub const IMAGE_EXTENSIONS: &[&str] = &["png", "jpg", "jpeg", "tga"];
@@ -92,7 +92,7 @@ impl MapKind {
         }
     }
 
-    /// The `texture.kconfig` key that names this map explicitly.
+    /// The `texture.kcfg` key that names this map explicitly.
     pub fn key(self) -> &'static str {
         match self {
             MapKind::Base => "basecolor",
@@ -374,7 +374,7 @@ impl TextureSet {
         material
     }
 
-    /// A starting `texture.kconfig` for this set, as a person would write it.
+    /// A starting `texture.kcfg` for this set, as a person would write it.
     ///
     /// Written by `alchemy new-texture` so a fresh set comes with the file
     /// that documents what it can say, rather than with nothing and a

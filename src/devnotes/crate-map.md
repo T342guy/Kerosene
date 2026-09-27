@@ -16,12 +16,12 @@ flowchart TB
     math["kerosene-math<br/>units, planes, windings, poses"]
     kv["kerosene-kv<br/>KeyValues"]
     console["kerosene-console<br/>convars, commands, logging"]
-    config["kerosene-config<br/>engine.kconfig"]
+    config["kerosene-config<br/>engine.kcfg"]
     vfs["kerosene-vfs<br/>search paths, archives, content root, toolchain"]
-    asset["kerosene-asset<br/>kerotex, keromat, keromdl"]
-    map["kerosene-map<br/>.keromap source"]
-    bsp["kerosene-bsp<br/>.kerobsp + traces + vis + acoustics"]
-    walk["kerosene-walk<br/>.kerowalk + nav"]
+    asset["kerosene-asset<br/>ktex, kmat, kmdl"]
+    map["kerosene-map<br/>.kmap source"]
+    bsp["kerosene-bsp<br/>.kbsp + traces + vis + acoustics"]
+    walk["kerosene-walk<br/>.kwalk + nav"]
     physics["kerosene-physics<br/>gamemovement"]
     rigid["kerosene-rigid<br/>box3d-rust wrapper"]
     entity["kerosene-entity<br/>entity world + I/O"]
@@ -163,9 +163,9 @@ config:
 ---
 flowchart TB
     caller(["any tool or the runtime"]) --> root["kerosene_vfs::root<br/>find the content tree"]
-    root --> marker{"kerosene.kerodef<br/>or maps/ + materials/?"}
+    root --> marker{"kerosene.kdef<br/>or maps/ + materials/?"}
     marker -- yes --> found["Found { root, why, project }"]
-    marker -- "climb 6 levels" --> project["Project::read<br/>(.keroproj names content)"]
+    marker -- "climb 6 levels" --> project["Project::read<br/>(.kproj names content)"]
     project --> found
     found --> vfs["Vfs<br/>mounted dirs + .vault archives"]
 
@@ -239,12 +239,12 @@ internal dependency is pinned at `=<version>` and moved by
 | `kerosene-math` | Units, `Plane`/`Winding`/`Aabb`, angles, `Pose`, epsilon constants | `src/units.rs`, `src/plane.rs`, `src/winding.rs` |
 | `kerosene-kv` | KeyValues parse/serialise, typed reads, `format_float` | `src/parse.rs`, `src/value.rs` |
 | `kerosene-console` | ConVars, ConCommands, command buffer, log relay, crash handler | `src/lib.rs`, `src/logging.rs` |
-| `kerosene-config` | `engine.kconfig` with defaults for every key | `src/lib.rs`, `src/renderer.rs` |
+| `kerosene-config` | `engine.kcfg` with defaults for every key | `src/lib.rs`, `src/renderer.rs` |
 | `kerosene-vfs` | Search-path stack, `.vault` archives, content discovery, toolchain | `src/lib.rs`, `src/root.rs`, `src/archive.rs` |
-| `kerosene-asset` | `.kerotex`, `.keromat`, `.keromdl` readers/writers | `src/texture.rs`, `src/material.rs`, `src/model.rs` |
-| `kerosene-map` | `.keromap` source, brush ops (clip/carve/hollow), editor metadata | `src/solid.rs`, `src/ops.rs`, `src/editor.rs` |
-| `kerosene-bsp` | `.kerobsp` lumps, tree queries, traces, PVS, acoustics, sections | `src/lib.rs`, `src/trace.rs`, `src/vis.rs` |
-| `kerosene-walk` | `.kerowalk` walkmap and navigation graph | `src/lib.rs`, `src/nav.rs` |
+| `kerosene-asset` | `.ktex`, `.kmat`, `.kmdl` readers/writers | `src/texture.rs`, `src/material.rs`, `src/model.rs` |
+| `kerosene-map` | `.kmap` source, brush ops (clip/carve/hollow), editor metadata | `src/solid.rs`, `src/ops.rs`, `src/editor.rs` |
+| `kerosene-bsp` | `.kbsp` lumps, tree queries, traces, PVS, acoustics, sections | `src/lib.rs`, `src/trace.rs`, `src/vis.rs` |
+| `kerosene-walk` | `.kwalk` walkmap and navigation graph | `src/lib.rs`, `src/nav.rs` |
 | `kerosene-physics` | Source `gamemovement`, `CollisionWorld` trait | `src/movement.rs`, `src/world.rs` |
 | `kerosene-rigid` | box3d-rust wrapper, inches native | `src/lib.rs` |
 | `kerosene-entity` | Entity slots, fields, I/O queue, class registry, schema, save snapshots | `src/world.rs`, `src/io.rs`, `src/schema.rs`, `src/snapshot.rs` |

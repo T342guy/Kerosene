@@ -43,7 +43,7 @@ turns the binary into a function, `main_with(Options)`, so a game can ship its
 own tools that know its classes:
 
 ```rust
-const SCHEMA: &str = include_str!("../content/mygame.kerodef");
+const SCHEMA: &str = include_str!("../content/mygame.kdef");
 fn main() -> anyhow::Result<()> {
     kerosene_tools::main_with(
         kerosene_tools::Options::new("mygame-tools", env!("CARGO_PKG_VERSION"))
@@ -69,7 +69,7 @@ Two subcommands exist for game crates rather than for content:
   `toolchain::resolve` to build and run the game.
 
 Kiln decides what is current by file times: an output no older than its
-source is skipped, a map also needs a `.kerobuild` stamp saying it was built
+source is skipped, a map also needs a `.kbuild` stamp saying it was built
 at least as thoroughly as asked (`fast` or `full`), and the archive is
 skipped when nothing it would pack is newer than it. `--force` rebuilds
 everything.
@@ -93,7 +93,7 @@ flowchart TB
     project -- yes --> useP["use project.content"]
     project -- no --> cwd{"cwd is a content root?"}
     cwd -- yes --> useC["use cwd, why = ..."]
-    cwd -- no --> climb["climb up to MAX_CLIMB=6 levels<br/>looking for kerosene.kerodef<br/>or maps/ + materials/"]
+    cwd -- no --> climb["climb up to MAX_CLIMB=6 levels<br/>looking for kerosene.kdef<br/>or maps/ + materials/"]
     climb --> found
     verify --> found["Found { root, why, project }"]
     useP --> found
@@ -106,7 +106,7 @@ flowchart TB
     class found,scaffold,useP,useC proc
 ```
 
-`is_content_root` accepts a `kerosene.kerodef` file as the strong signal, or a
+`is_content_root` accepts a `kerosene.kdef` file as the strong signal, or a
 directory with both `maps` and `materials` — a project that has not written its
 class definitions yet is still a project. `Found.why` records which rule fired,
 so a wrong guess explains itself; a wrong guess that explains itself costs a
@@ -120,7 +120,7 @@ refused.
 
 ## The project file
 
-`crates/kerosene-vfs/src/project.rs`. `.keroproj` is a project's own account of
+`crates/kerosene-vfs/src/project.rs`. `.kproj` is a project's own account of
 where its content is. Everything before it *infers* the root by climbing the
 tree, which works for a fresh clone but is a guess that can be wrong in ways
 nobody can correct. A project file sits at the top, names the content directory
@@ -143,7 +143,7 @@ Everything but the block itself is optional. A content-only project has no
 `crates/kerosene-vfs/src/lib.rs` is a stack of search paths forming one virtual
 content tree. Each `SearchPath` is a directory or a mounted `.vault` plus an
 `id` (`GAME`, `MOD`, `PLATFORM`). Lookups are case- and separator-insensitive
-(`Materials\Dev\Grid.keromat` finds `materials/dev/grid.keromat`), which a loose
+(`Materials\Dev\Grid.kmat` finds `materials/dev/grid.kmat`), which a loose
 tree has to agree on or a game works from a checkout and breaks the moment it
 is packed. Traversal cannot escape the root (`path::normalize`).
 
@@ -202,10 +202,10 @@ flowchart LR
   is in `tools/kiln/src/lib.rs` and `tools/alchemy/src/lib.rs`: Chisel and
   Timbre's own GUI make the same calls, and two callers of one step must not be
   able to disagree.
-- **Models**: `art/props/crate.obj` becomes `models/props/crate.keromdl` — the
+- **Models**: `art/props/crate.obj` becomes `models/props/crate.kmdl` — the
   path under `art` is the path under `models`, so a model's name is decided by
   where its source is.
-- **Maps**: each `.keromap` goes through all four compilers. A leak is
+- **Maps**: each `.kmap` goes through all four compilers. A leak is
   *reported* rather than fatal to the whole build (finding out at the end of a
   forty-map build beats finding out on the first), and the remaining stages are
   skipped unless `--ignore-leaks`.
@@ -227,7 +227,7 @@ require, arranged so double-clicking works:
 ```text
 dist/
   my_game            the game, or the engine runtime when a project has none
-  my_game.keroproj   content = "content", so the game finds its own archive
+  my_game.kproj   content = "content", so the game finds its own archive
   content/
     my_game.vault
   LICENSE            GPLv3 full text
@@ -246,16 +246,28 @@ appears in the result.
 
 ## The toolset window
 
-`tools/kerosene-tools/src/toolset.rs` holds `Toolset` with six tabs
-(`Project, Editor, Sound, Build, Archive, Models`) switched by an activity bar
-and `ctrl-1`..`ctrl-6`. Each tab is the tool it used to be: `ChiselApp`,
-`timbre::gui::Timbre`, `loupe`, and the project/build/archive panels in
-`tools/kerosene-tools/src/panels.rs` and `project.rs`. One output panel
+`tools/kerosene-tools/src/toolset/` holds `Toolset` with seven tabs
+(`Home, Assets, Editor, Models, Sound, Build, Archive`) switched by the
+sidebar (`sidebar.rs`) and `ctrl-1`..`ctrl-7`, under a top bar (`topbar.rs`)
+with the palette's search box, Play, and the running jobs. Editor, Models and
+Sound are the tools they used to be: `ChiselApp`, `loupe`,
+`timbre::gui::Timbre`. The others are pages in `src/pages/`: `home.rs`,
+`assets.rs`, `build.rs`, `archive.rs`, and `start.rs` for choosing a project.
+
+Every page returns what was asked for as a `toolset::Action`, carried out
+after the frame, so a button, the sidebar and the command palette
+(`kerosene_toolui::palette`, fed by `toolset/commands.rs`) all mean one thing
+by "build". Jobs are `src/job.rs`: the toolset re-run with a subcommand, its
+output piped back, cancellable as a whole process group. One output panel
 (`kerosene_toolui::output::OutputPanel`) receives every job's log.
 
-`tools/kerosene-tools/src/project.rs` is where the window opens. It counts
-maps, compiled maps, materials, models, sounds and scripts so a person arriving
-does not have to guess which project this is or what state it is in.
+`pages/assets.rs` walks the content tree into an `Index` once, when the tree
+may have changed (a job finishing, Home or Assets coming up, Rescan), and
+Home, Assets, Archive and the palette all read that one index. Recent
+projects are `src/recent.rs`, plain lines in the user data directory.
+
+`cargo run -p kerosene-tools --example shot -- <tab> out.png` draws the
+window off screen, the way Chisel's `ui_shot` draws the editor.
 
 `tools/chisel` is the editor proper. Its *logic* — document and undo, grid,
 viewport projection/picking, tools, compile pipeline — lives in the library and

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! KeyValues -- the text format Kerosene uses for anything human-editable.
 //!
-//! This is Source's KeyValues, and it shows up in the same places: `.keromap`
-//! source maps, `.keromat` materials, the entity lump inside a compiled `.kerobsp`,
+//! This is Source's KeyValues, and it shows up in the same places: `.kmap`
+//! source maps, `.kmat` materials, the entity lump inside a compiled `.kbsp`,
 //! game configuration, and the FGD-adjacent entity metadata Chisel reads.
 //!
 //! ```text

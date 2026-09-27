@@ -95,7 +95,7 @@ and that comes from geometry, not a keyvalue.
 
 The registry declares outputs (`ClassDef.outputs`) even though firing one is
 just a string passed to `EntityWorld::fire_output`. Declaring keeps the
-editor's schema honest: a test checks the game's outputs against the `.kerodef`
+editor's schema honest: a test checks the game's outputs against the `.kdef`
 schema, so adding an output and forgetting to offer it in Chisel is a build
 failure rather than a wiring session that silently does nothing.
 
@@ -171,7 +171,7 @@ structure and why the engine never links the game except in tests.
 
 `crates/kerosene-entity/src/snapshot.rs` writes an `EntityWorld` down as a
 `WorldSnapshot` and reads it back. It is what `crates/kerosene-engine/src/save.rs`
-puts in a `.kerosave`. A snapshot holds:
+puts in a `.ksav`. A snapshot holds:
 
 - every live slot's entity: fields, connections, pose, `next_think` and
   brush model
@@ -271,7 +271,7 @@ Hooks are looked up by name: `on_map_start` and `on_tick` are declared in
 `kerosene_script::hooks`. `function_arity` lets the engine hand a hook the
 caller only when the script declared a parameter, so `fn on_use()` and
 `fn on_use(who)` both work. `Engine::load_map_script` loads
-`scripts/<map>.keroscript` when it exists; a map without one is silent.
+`scripts/<map>.kscr` when it exists; a map without one is silent.
 
 `Engine::apply_script_actions` applies queued actions whether or not the script
 finished, because a script that fires a door and then throws has already fired

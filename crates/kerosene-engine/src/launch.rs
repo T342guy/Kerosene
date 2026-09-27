@@ -491,7 +491,7 @@ pub fn vaults_in(dir: &Path) -> Vec<PathBuf> {
         .flatten()
         .flatten()
         .map(|e| e.path())
-        .filter(|p| p.extension().is_some_and(|e| e == "vault"))
+        .filter(|p| kerosene_vfs::ext::is(p, kerosene_vfs::ext::ARCHIVE))
         .collect();
     found.sort();
     found

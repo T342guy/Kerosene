@@ -13,13 +13,13 @@ flowchart LR
     n1["Source content"] --> n2(["Build-time tools"])
     n2 --> n3["Runtime"]
     n4(["art/.png"]) --> n7@{ label: "<span style=\"color:\">alchemy</span>" }
-    n7 --> n8(["materials/*.kerotex &amp; *.keromat"])
+    n7 --> n8(["materials/*.ktex &amp; *.kmat"])
     n8 --> n9["Kerosene"]
     n5(["art/.obj"]) --> n10["forge"]
-    n10 --> n11(["models/*.keromdl"])
+    n10 --> n11(["models/*.kmdl"])
     n11 --> n9
-    n6(["maps/.keromap"]) --> n12["cleave"]
-    n12 --> n13(["maps/*.kerobsp"]) & n15(["`*.keroprt`"])
+    n6(["maps/.kmap"]) --> n12["cleave"]
+    n12 --> n13(["maps/*.kbsp"]) & n15(["`*.kprt`"])
     n13 --> n14["umbra"]
     n15 --> n14
     n14 --> n16["+vis"] & n17["radiance"] & n20["resonance"]
@@ -149,7 +149,7 @@ a hook runs, which is what lets a hook take `&mut Engine`; the cost is that a
 hook cannot cause another hook, so a game changes maps with `request_map`.
 
 `kerosene-config` is not on the diagram because it sits to the side of all of
-it: a small crate on top of `kerosene-kv` that reads `engine.kconfig`,
+it: a small crate on top of `kerosene-kv` that reads `engine.kcfg`,
 the settings every program shares (which renderer, how big the window). The
 game, Chisel, and the tool windows all ask it the same question, so the
 renderer is chosen once in a file rather than once per program.
@@ -168,7 +168,7 @@ becomes a convex hull, moving brush entities become static bodies that follow
 their entity's pose, and each `prop_physics` entity becomes a dynamic box
 (shaped from its model's bounds, loaded through `kerosene-asset`). Once a tick
 the simulation is stepped and its poses written back to the entities. The
-renderer draws those props as `.keromdl` models at their simulated pose, and
+renderer draws those props as `.kmdl` models at their simulated pose, and
 `phys_debug` turns the collision boxes into a wireframe overlay. The player's
 movement traces against the prop boxes too (through `PlayerCollision`), and the
 use key doubles as a pick-up tool: grab a prop, carry it, press use again to
@@ -193,9 +193,9 @@ program leaks into the compilers being separate stages.
 
 ## The map pipeline in detail
 
-### Cleave: `.keromap` → `.kerobsp`
+### Cleave: `.kmap` → `.kbsp`
 
-1. **Brushes.** Each `.keromap` solid becomes a set of interned half-space planes.
+1. **Brushes.** Each `.kmap` solid becomes a set of interned half-space planes.
    Plane interning matters more than it sounds: two faces meant to be coplanar
    must end up sharing *one* plane index, or the tree splits along a hair's
    width between them and the compile explodes.
@@ -357,10 +357,10 @@ loaded — the tree is small, the traces have to work everywhere, and a
 `logic_relay` in an unloaded room still fires. Brush entities are never
 streamed: a door is drawn and collided with wherever it has moved to. This
 is sections of one map, not an open world: everything is still one
-`.kerobsp`, compiled and lit as one.
+`.kbsp`, compiled and lit as one.
 
 `r_stream_debug 1` draws each section's bounds in the colour of its state.
-`content/maps/two_rooms.keromap` in
+`content/maps/two_rooms.kmap` in
 [Kerosene Demo](https://github.com/t342guy/kerosene-demo) is a small map
 with two streamed rooms.
 
@@ -386,7 +386,7 @@ Where a subsystem can be tested without a GPU or a window, it is:
   map bug.
 - **Shaders** are validated through `naga`, the same compiler wgpu uses, so a
   typo fails in CI rather than at pipeline creation on a machine with a display.
-- **The whole pipeline** is exercised by tests that build a `.keromap` in memory,
+- **The whole pipeline** is exercised by tests that build a `.kmap` in memory,
   compile it through Cleave, load the result and play it. Every crate can pass
   its own tests and still not add up to a level you can walk around; that suite
   is where the seams show.

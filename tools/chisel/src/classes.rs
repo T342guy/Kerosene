@@ -4,7 +4,7 @@
 //! The shipped definitions are compiled into the game crate
 //! (`kerosene_game::schema::BUILTIN`) and parsed here first, so Chisel knows
 //! that a `func_door` has a `speed` and answers to `Open` even when the
-//! content tree has no `.kerodef` file in it. On-disk `.kerodef` files are
+//! content tree has no `.kdef` file in it. On-disk `.kdef` files are
 //! still read and merged *over* the built-in set, exactly as Hammer reads an
 //! FGD, so a mod can override a class by dropping its own file beside the
 //! game's -- and a tree with no such file loses nothing.
@@ -18,7 +18,7 @@ use kerosene_entity::Schema;
 use std::path::{Path, PathBuf};
 
 /// The extension a class definition file uses.
-pub const EXTENSION: &str = "kerodef";
+pub const EXTENSION: &str = kerosene_vfs::ext::CLASSES;
 
 /// What a scan of the content tree turned up.
 pub struct Loaded {
@@ -58,7 +58,7 @@ fn display(path: &Path) -> String {
         .unwrap_or_default()
 }
 
-/// Load the built-in schema, then every `.kerodef` under a content root.
+/// Load the built-in schema, then every `.kdef` under a content root.
 ///
 /// The built-in set comes first so the editor is never without entity
 /// definitions. Files found on disk are merged in sorted path order and a
@@ -72,7 +72,7 @@ pub fn load(content_root: &Path) -> Loaded {
 
 /// [`load`], with a game's own definitions after the built-in ones.
 ///
-/// `builtin` is the `.kerodef` text of each game the editor is compiled
+/// `builtin` is the `.kdef` text of each game the editor is compiled
 /// for -- what a game hands over when it re-hosts the toolset -- parsed
 /// after the stock schema and before anything on disk, so a file in the
 /// tree can still override a class of the game's the same way it can one
@@ -161,7 +161,7 @@ mod tests {
     fn a_games_own_schema_sits_between_the_stock_one_and_the_disk() {
         let dir = scratch("game-schema");
         std::fs::write(
-            dir.join("mod.kerodef"),
+            dir.join("mod.kdef"),
             r#"class { "name" "item_pickup" "help" "the mod's version" }"#,
         )
         .unwrap();
@@ -197,7 +197,7 @@ class { "name" "npc_guard" "base" "Point" }
     #[test]
     fn the_shipped_definitions_load() {
         // The shipped definitions are compiled into the game crate, so they
-        // load whether or not a `.kerodef` mirror file is present on disk.
+        // load whether or not a `.kdef` mirror file is present on disk.
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content");
         let loaded = load(&root);
         assert!(loaded.errors.is_empty(), "{:?}", loaded.errors);
@@ -239,7 +239,7 @@ class { "name" "npc_guard" "base" "Point" }
     #[test]
     fn the_built_in_definitions_cover_an_empty_tree() {
         // The bug this module exists to prevent: an editor pointed at a tree
-        // with no `.kerodef` file must still know what a `func_door` is.
+        // with no `.kdef` file must still know what a `func_door` is.
         let dir = scratch("empty");
         let loaded = load(&dir);
         assert!(loaded.errors.is_empty(), "{:?}", loaded.errors);
@@ -266,18 +266,18 @@ class { "name" "npc_guard" "base" "Point" }
     fn a_broken_file_names_itself() {
         let dir = scratch("broken");
         std::fs::write(
-            dir.join("bad.kerodef"),
+            dir.join("bad.kdef"),
             r#"class { "name" "c" "base" "Nope" }"#,
         )
         .unwrap();
         let loaded = load(&dir);
         assert_eq!(loaded.errors.len(), 1);
         assert!(
-            loaded.errors[0].starts_with("bad.kerodef:"),
+            loaded.errors[0].starts_with("bad.kdef:"),
             "{:?}",
             loaded.errors
         );
-        assert!(loaded.summary().contains("bad.kerodef"));
+        assert!(loaded.summary().contains("bad.kdef"));
         std::fs::remove_dir_all(&dir).ok();
     }
 
@@ -285,12 +285,12 @@ class { "name" "npc_guard" "base" "Point" }
     fn a_later_file_overrides_an_earlier_one() {
         let dir = scratch("override");
         std::fs::write(
-            dir.join("a-game.kerodef"),
+            dir.join("a-game.kdef"),
             r#"class { "name" "func_x" "help" "first" }"#,
         )
         .unwrap();
         std::fs::write(
-            dir.join("b-mod.kerodef"),
+            dir.join("b-mod.kdef"),
             r#"class { "name" "func_x" "help" "second" }"#,
         )
         .unwrap();
@@ -304,7 +304,7 @@ class { "name" "npc_guard" "base" "Point" }
     fn definitions_in_a_subdirectory_are_found() {
         let dir = scratch("nested");
         std::fs::create_dir_all(dir.join("cfg")).unwrap();
-        std::fs::write(dir.join("cfg/game.kerodef"), r#"class { "name" "func_y" }"#).unwrap();
+        std::fs::write(dir.join("cfg/game.kdef"), r#"class { "name" "func_y" }"#).unwrap();
         let loaded = load(&dir);
         assert!(loaded.schema.get("func_y").is_some(), "{:?}", loaded.errors);
         std::fs::remove_dir_all(&dir).ok();

@@ -61,14 +61,14 @@ bit is preserved through the copy; on other platforms the archive format has
 to preserve it for you.
 
 The game finds its content by climbing from the executable, and the shipped
-`.keroproj` says `content = "content"`, so the folder works from wherever it
+`.kproj` says `content = "content"`, so the folder works from wherever it
 is unpacked and does not care about the working directory.
 
 ## What the player needs
 
 * A GPU and driver wgpu can talk to: Vulkan on Linux, and presumably DX12 or
   Metal elsewhere.
-* Write access to the content folder on first run, for `engine.kconfig`
+* Write access to the content folder on first run, for `engine.kcfg`
   (see [Publishing](publishing.md#you-can-but)).
 * Nothing else. There is no runtime, no redistributable, no shared library:
   the game is one static binary and one archive.

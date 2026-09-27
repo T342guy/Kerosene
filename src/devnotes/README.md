@@ -1,7 +1,7 @@
 # Architecture notes
 
 This is the developer-facing companion to [`architecture.md`](../docs/architecture.md).
-That page is the tour: how a map gets from a `.keromap` to the screen. These
+That page is the tour: how a map gets from a `.kmap` to the screen. These
 notes are the machinery underneath it — the data structures, the call order,
 the invariants, and the places where the code makes a choice that the tour
 only gestures at.

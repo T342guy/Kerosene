@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! Reading a list of connections as the sequence a designer meant.
 //!
-//! A `.keromap` stores wiring as a flat list of connections, each one an
+//! A `.kmap` stores wiring as a flat list of connections, each one an
 //! output, a target, an input and a delay. That is the right thing to store
 //! and the wrong thing to show: what a designer is building is *when this
 //! happens, do these things, in this order*, and a flat list makes that

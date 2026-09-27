@@ -24,7 +24,7 @@ flowchart TB
     main(["game main"]) --> launch["launch(game, LaunchOptions)"]
     launch --> logger["kerosene_console::install_logger<br/>+ install_crash_handler"]
     launch --> args["parse_args<br/>--content, --vault, --headless,<br/>+map &amp; +command"]
-    args --> resolve["find content root,<br/>Project, engine.kconfig"]
+    args --> resolve["find content root,<br/>Project, engine.kcfg"]
     resolve --> choice{"--headless?"}
     choice -- yes --> headless["run_headless<br/>Engine::new + frame loop"]
     choice -- no --> host["host::run_with"]
@@ -155,7 +155,7 @@ do-nothing default, and `()` implements it (what `Engine::new` uses).
 | Hook | When | Typical use |
 |---|---|---|
 | `classes(&mut ClassRegistry)` | once, at engine construction | register entity classes |
-| `schema() -> &'static str` | tools only | `.kerodef` text for the inspector |
+| `schema() -> &'static str` | tools only | `.kdef` text for the inspector |
 | `setup(&mut Engine)` | console up, no map loaded | register convars/commands |
 | `map_loaded(&mut Engine)` | after entities spawn, player placed, map script ran | per-map state |
 | `pre_tick(&mut Engine, &InputState, dt)` | before movement | change movement |

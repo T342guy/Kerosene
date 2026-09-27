@@ -3,7 +3,7 @@ use super::*;
 
 fn scratch(name: &str) -> PathBuf {
     let dir = std::env::temp_dir().join(format!(
-        "keroproj-{name}-{}-{:?}",
+        "kproj-{name}-{}-{:?}",
         std::process::id(),
         std::thread::current().id()
     ));
@@ -15,7 +15,7 @@ fn scratch(name: &str) -> PathBuf {
 #[test]
 fn a_project_names_its_content_relative_to_itself() {
     let dir = scratch("relative");
-    let file = dir.join("mine.keroproj");
+    let file = dir.join("mine.kproj");
     std::fs::write(
         &file,
         "project { \"name\" \"Mine\" \"content\" \"assets\" }",
@@ -36,7 +36,7 @@ fn a_content_path_that_climbs_is_resolved_rather_than_left_as_written() {
     // content tree. The path has to come out as somewhere, not as a string
     // with a `..` in the middle that every later `join` compounds.
     let dir = scratch("climbing");
-    let file = dir.join("mod.keroproj");
+    let file = dir.join("mod.kproj");
     std::fs::write(&file, "project { \"content\" \"../shared\" }").unwrap();
 
     let project = Project::read(&file).unwrap();
@@ -49,7 +49,7 @@ fn a_content_path_that_climbs_is_resolved_rather_than_left_as_written() {
 fn a_project_with_no_content_key_takes_the_conventional_directory() {
     let dir = scratch("default-content");
     std::fs::create_dir_all(dir.join("content")).unwrap();
-    let file = dir.join("game.keroproj");
+    let file = dir.join("game.kproj");
     std::fs::write(&file, "project { }").unwrap();
 
     assert_eq!(Project::read(&file).unwrap().content, dir.join("content"));
@@ -59,7 +59,7 @@ fn a_project_with_no_content_key_takes_the_conventional_directory() {
 #[test]
 fn a_project_that_is_its_own_content_tree_needs_no_content_key() {
     let dir = scratch("self-content");
-    let file = dir.join("game.keroproj");
+    let file = dir.join("game.kproj");
     std::fs::write(&file, "project { }").unwrap();
 
     // No `content/` beside it, so the project directory is the tree. This is
@@ -72,7 +72,7 @@ fn a_project_that_is_its_own_content_tree_needs_no_content_key() {
 #[test]
 fn a_project_with_no_name_is_called_after_its_file() {
     let dir = scratch("unnamed");
-    let file = dir.join("skyfall.keroproj");
+    let file = dir.join("skyfall.kproj");
     std::fs::write(&file, "project { \"content\" \".\" }").unwrap();
 
     assert_eq!(Project::read(&file).unwrap().name, "skyfall");
@@ -82,7 +82,7 @@ fn a_project_with_no_name_is_called_after_its_file() {
 #[test]
 fn the_start_map_is_read_when_there_is_one() {
     let dir = scratch("startmap");
-    let file = dir.join("g.keroproj");
+    let file = dir.join("g.kproj");
     std::fs::write(
         &file,
         "project { \"content\" \".\" \"startmap\" \"mm_intro\" }",
@@ -100,7 +100,7 @@ fn the_start_map_is_read_when_there_is_one() {
 fn an_empty_value_counts_as_absent_rather_than_as_an_answer() {
     let dir = scratch("blank");
     std::fs::create_dir_all(dir.join("content")).unwrap();
-    let file = dir.join("g.keroproj");
+    let file = dir.join("g.kproj");
     std::fs::write(
         &file,
         "project { \"content\" \"  \" \"startmap\" \"\" \"name\" \"\" }",
@@ -122,7 +122,7 @@ fn an_empty_value_counts_as_absent_rather_than_as_an_answer() {
 fn the_block_is_accepted_at_the_top_level_too() {
     // Both shapes get written by hand, and neither is wrong.
     let dir = scratch("bare");
-    let file = dir.join("g.keroproj");
+    let file = dir.join("g.kproj");
     std::fs::write(&file, "\"content\" \"assets\"").unwrap();
 
     assert_eq!(Project::read(&file).unwrap().content, dir.join("assets"));
@@ -132,11 +132,11 @@ fn the_block_is_accepted_at_the_top_level_too() {
 #[test]
 fn the_first_project_file_in_a_directory_is_found_by_name() {
     let dir = scratch("in-dir");
-    std::fs::write(dir.join("zulu.keroproj"), "project { }").unwrap();
-    std::fs::write(dir.join("alpha.keroproj"), "project { }").unwrap();
+    std::fs::write(dir.join("zulu.kproj"), "project { }").unwrap();
+    std::fs::write(dir.join("alpha.kproj"), "project { }").unwrap();
     std::fs::write(dir.join("notes.txt"), "").unwrap();
 
-    assert_eq!(in_directory(&dir), Some(dir.join("alpha.keroproj")));
+    assert_eq!(in_directory(&dir), Some(dir.join("alpha.kproj")));
     let _ = std::fs::remove_dir_all(&dir);
 }
 
@@ -151,7 +151,7 @@ fn a_directory_with_no_project_file_has_none() {
 #[test]
 fn a_written_project_reads_back_as_what_was_asked_for() {
     let dir = scratch("write");
-    let file = dir.join("new.keroproj");
+    let file = dir.join("new.kproj");
     Project::write_new(&file, "Fresh Start", "content").unwrap();
 
     let project = Project::read(&file).unwrap();
@@ -164,11 +164,11 @@ fn a_written_project_reads_back_as_what_was_asked_for() {
 #[test]
 fn a_project_file_that_will_not_parse_is_an_error_naming_the_file() {
     let dir = scratch("broken");
-    let file = dir.join("bad.keroproj");
+    let file = dir.join("bad.kproj");
     std::fs::write(&file, "project { \"content\" ").unwrap();
 
     let error = Project::read(&file).unwrap_err().to_string();
-    assert!(error.contains("bad.keroproj"), "{error}");
+    assert!(error.contains("bad.kproj"), "{error}");
     let _ = std::fs::remove_dir_all(&dir);
 }
 
@@ -177,7 +177,7 @@ fn a_project_file_that_will_not_parse_is_an_error_naming_the_file() {
 #[test]
 fn a_project_can_name_the_cargo_package_that_is_the_game() {
     let dir = scratch("game-key");
-    let path = dir.join("p.keroproj");
+    let path = dir.join("p.kproj");
     std::fs::write(&path, r#"project { "name" "Thing" "game" "thing-game" }"#).unwrap();
 
     assert_eq!(
@@ -191,7 +191,7 @@ fn a_project_with_no_game_key_names_no_game() {
     // The common case, and it has to stay quiet: a content-only project is a
     // perfectly ordinary thing, and it ships the engine's own runtime.
     let dir = scratch("no-game-key");
-    let path = dir.join("p.keroproj");
+    let path = dir.join("p.kproj");
     std::fs::write(&path, r#"project { "name" "Thing" }"#).unwrap();
 
     assert_eq!(Project::read(&path).unwrap().game, None);
@@ -200,7 +200,7 @@ fn a_project_with_no_game_key_names_no_game() {
 #[test]
 fn a_blank_game_key_counts_as_absent() {
     let dir = scratch("blank-game-key");
-    let path = dir.join("p.keroproj");
+    let path = dir.join("p.kproj");
     std::fs::write(&path, "project { \"game\" \"   \" }").unwrap();
 
     assert_eq!(Project::read(&path).unwrap().game, None);
@@ -209,7 +209,7 @@ fn a_blank_game_key_counts_as_absent() {
 #[test]
 fn a_project_with_no_dir_keys_wants_the_standard_tree() {
     let dir = scratch("no-dir-keys");
-    let path = dir.join("p.keroproj");
+    let path = dir.join("p.kproj");
     std::fs::write(&path, "project { \"name\" \"x\" }").unwrap();
 
     assert_eq!(Project::read(&path).unwrap().dirs, None);
@@ -218,7 +218,7 @@ fn a_project_with_no_dir_keys_wants_the_standard_tree() {
 #[test]
 fn repeated_dir_keys_become_the_tree_to_create() {
     let dir = scratch("dir-keys");
-    let path = dir.join("p.keroproj");
+    let path = dir.join("p.kproj");
     std::fs::write(
         &path,
         "project { \"dir\" \"maps\" \"dir\" \"materials\" \"dir\" \"levels\" }",
@@ -238,7 +238,7 @@ fn repeated_dir_keys_become_the_tree_to_create() {
 #[test]
 fn a_blank_dir_key_is_dropped_rather_than_creating_the_root_again() {
     let dir = scratch("blank-dir-key");
-    let path = dir.join("p.keroproj");
+    let path = dir.join("p.kproj");
     std::fs::write(&path, "project { \"dir\" \"  \" \"dir\" \"maps\" }").unwrap();
 
     assert_eq!(
@@ -250,7 +250,7 @@ fn a_blank_dir_key_is_dropped_rather_than_creating_the_root_again() {
 #[test]
 fn steam_keys_and_declarations_are_read() {
     let dir = scratch("steam-keys");
-    let path = dir.join("p.keroproj");
+    let path = dir.join("p.kproj");
     std::fs::write(
         &path,
         r#"project
@@ -280,7 +280,7 @@ fn steam_keys_and_declarations_are_read() {
 #[test]
 fn a_mistyped_app_id_is_an_error_not_steam_switched_off() {
     let dir = scratch("bad-appid");
-    let path = dir.join("p.keroproj");
+    let path = dir.join("p.kproj");
     std::fs::write(&path, "project { \"steam_appid\" \"48O\" }").unwrap();
     let e = Project::read(&path).unwrap_err().to_string();
     assert!(e.contains("steam_appid"), "{e}");

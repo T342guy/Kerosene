@@ -166,7 +166,7 @@ fn project() -> Finding {
         Some(found) => match &found.project {
             Some(project) => Finding::Ok(format!("{} at {}", project.name, found.root.display())),
             None => Finding::Note(format!(
-                "content at {}, with no .keroproj; `kerosene-tools init` makes one",
+                "content at {}, with no .kproj; `kerosene-tools init` makes one",
                 found.root.display()
             )),
         },

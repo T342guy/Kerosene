@@ -196,7 +196,7 @@ fn interning_does_not_match_a_prefix() {
 fn round_trips_through_bytes() {
     let bsp = tiny_bsp();
     let bytes = bsp.to_bytes();
-    let back = Bsp::from_bytes(&bytes, "test.kerobsp").expect("should reload");
+    let back = Bsp::from_bytes(&bytes, "test.kbsp").expect("should reload");
 
     assert_eq!(back.planes.len(), bsp.planes.len());
     assert_eq!(back.faces.len(), bsp.faces.len());
@@ -417,7 +417,7 @@ fn acoustics_round_trip_through_the_spare_lumps() {
     assert_eq!(dir[lumps::ACOUSTICS].version, acoustics::VERSION);
     assert_eq!(dir[lumps::ACOUSTIC_LEAFS].length as usize, leaves * 2);
 
-    let back = Bsp::from_bytes(&bytes, "test.kerobsp").expect("should reload");
+    let back = Bsp::from_bytes(&bytes, "test.kbsp").expect("should reload");
     assert_eq!(back.acoustics, bsp.acoustics);
     assert_eq!(
         back.stats()
@@ -433,7 +433,7 @@ fn acoustics_round_trip_through_the_spare_lumps() {
     bsp.acoustics.as_mut().unwrap().leaf_room.push(0);
     let bytes = bsp.to_bytes();
     assert!(matches!(
-        Bsp::from_bytes(&bytes, "bad.kerobsp"),
+        Bsp::from_bytes(&bytes, "bad.kbsp"),
         Err(BspError::Invalid { .. })
     ));
 }
@@ -452,7 +452,7 @@ fn sections_round_trip_and_mask_the_clusters_their_faces_sit_in() {
     bsp.face_sections = vec![1; bsp.faces.len()];
     bsp.brush_sections = vec![0; bsp.brushes.len()];
     let bytes = bsp.to_bytes();
-    let again = Bsp::from_bytes(&bytes, "test.kerobsp").expect("reloads");
+    let again = Bsp::from_bytes(&bytes, "test.kbsp").expect("reloads");
     assert_eq!(again.sections, bsp.sections);
     assert_eq!(again.face_sections, bsp.face_sections);
     assert_eq!(again.brush_sections, bsp.brush_sections);
@@ -471,5 +471,5 @@ fn sections_round_trip_and_mask_the_clusters_their_faces_sit_in() {
     // A face in a section that does not exist is caught.
     let mut bad = bsp.clone();
     bad.face_sections[0] = 7;
-    assert!(Bsp::from_bytes(&bad.to_bytes(), "bad.kerobsp").is_err());
+    assert!(Bsp::from_bytes(&bad.to_bytes(), "bad.kbsp").is_err());
 }

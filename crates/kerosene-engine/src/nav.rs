@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! Where an NPC may walk, and how to get there.
 //!
-//! Cleave writes `maps/<name>.kerowalk` beside the compiled map: the floor
+//! Cleave writes `maps/<name>.kwalk` beside the compiled map: the floor
 //! faces a character can stand on, each marked allow or avoid. The engine
 //! loads it with the map and builds the graph over it once, so a game asks
 //! for a path with one call and nothing is worked out per request that
@@ -58,9 +58,9 @@ impl Engine {
         self.nav()?.find_path(start, goal)
     }
 
-    /// Read `maps/<name>.kerowalk`, if the map has one.
+    /// Read `maps/<name>.kwalk`, if the map has one.
     pub(crate) fn load_nav(&mut self, name: &str) -> Option<Nav> {
-        let path = format!("maps/{name}.kerowalk");
+        let path = format!("maps/{name}.kwalk");
         let bytes = self.vfs.read(&path).ok()?;
         match Walkmap::parse(&bytes) {
             Ok(walkmap) => {

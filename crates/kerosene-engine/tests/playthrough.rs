@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! End-to-end tests: build a map, compile it, load it, and play it.
 //!
-//! These go through the whole stack -- `.keromap` source, Cleave's compile, the
-//! `.kerobsp` loader, entity spawning, movement and collision -- because that is
+//! These go through the whole stack -- `.kmap` source, Cleave's compile, the
+//! `.kbsp` loader, entity spawning, movement and collision -- because that is
 //! the only place the seams between them show. Every crate can pass its own
 //! tests and still not add up to a level you can walk around.
 
@@ -105,7 +105,7 @@ fn build(map: &Map) -> Bsp {
     assert!(out.leak.is_none(), "the test map leaks");
     // Round-tripping through bytes is what the engine actually does.
     let bytes = out.bsp.to_bytes();
-    Bsp::from_bytes(&bytes, "test.kerobsp").expect("the compiled map should reload")
+    Bsp::from_bytes(&bytes, "test.kbsp").expect("the compiled map should reload")
 }
 
 fn spawned_world(bsp: &Bsp) -> EntityWorld {
@@ -318,7 +318,7 @@ fn the_engine_loads_and_ticks_a_compiled_map() {
     let dir = std::env::temp_dir().join(format!("kerosene-test-{}", std::process::id()));
     std::fs::create_dir_all(dir.join("maps")).unwrap();
     let bsp = build(&corridor_map(true, true));
-    std::fs::write(dir.join("maps/testmap.kerobsp"), bsp.to_bytes()).unwrap();
+    std::fs::write(dir.join("maps/testmap.kbsp"), bsp.to_bytes()).unwrap();
 
     let mut engine = common::stock(&EngineConfig::default().with_content(dir.clone()));
     engine
@@ -361,12 +361,8 @@ fn a_physics_prop_falls_and_comes_to_rest_on_the_floor() {
     std::fs::create_dir_all(dir.join("maps")).unwrap();
     std::fs::create_dir_all(dir.join("models/props")).unwrap();
     let bsp = build(&corridor_map(false, false));
-    std::fs::write(dir.join("maps/phystest.kerobsp"), bsp.to_bytes()).unwrap();
-    std::fs::write(
-        dir.join("models/props/cube.keromdl"),
-        cube_model().to_bytes(),
-    )
-    .unwrap();
+    std::fs::write(dir.join("maps/phystest.kbsp"), bsp.to_bytes()).unwrap();
+    std::fs::write(dir.join("models/props/cube.kmdl"), cube_model().to_bytes()).unwrap();
 
     let mut engine = common::stock(&EngineConfig::default().with_content(dir.clone()));
     engine
@@ -419,12 +415,8 @@ fn a_prop_rests_on_a_func_detail_pillar() {
         "dev/grid",
     );
     let bsp = build(&map);
-    std::fs::write(dir.join("maps/phystest.kerobsp"), bsp.to_bytes()).unwrap();
-    std::fs::write(
-        dir.join("models/props/cube.keromdl"),
-        cube_model().to_bytes(),
-    )
-    .unwrap();
+    std::fs::write(dir.join("maps/phystest.kbsp"), bsp.to_bytes()).unwrap();
+    std::fs::write(dir.join("models/props/cube.kmdl"), cube_model().to_bytes()).unwrap();
 
     let mut engine = common::stock(&EngineConfig::default().with_content(dir.clone()));
     engine
@@ -466,12 +458,8 @@ fn a_prop_rests_on_a_closed_moving_brush() {
         "dev/grid",
     );
     let bsp = build(&map);
-    std::fs::write(dir.join("maps/phystest.kerobsp"), bsp.to_bytes()).unwrap();
-    std::fs::write(
-        dir.join("models/props/cube.keromdl"),
-        cube_model().to_bytes(),
-    )
-    .unwrap();
+    std::fs::write(dir.join("maps/phystest.kbsp"), bsp.to_bytes()).unwrap();
+    std::fs::write(dir.join("models/props/cube.kmdl"), cube_model().to_bytes()).unwrap();
 
     let mut engine = common::stock(&EngineConfig::default().with_content(dir.clone()));
     engine
@@ -504,12 +492,8 @@ fn the_player_is_blocked_by_a_physics_prop() {
     std::fs::create_dir_all(dir.join("maps")).unwrap();
     std::fs::create_dir_all(dir.join("models/props")).unwrap();
     let bsp = build(&corridor_map(false, false));
-    std::fs::write(dir.join("maps/phystest.kerobsp"), bsp.to_bytes()).unwrap();
-    std::fs::write(
-        dir.join("models/props/cube.keromdl"),
-        cube_model().to_bytes(),
-    )
-    .unwrap();
+    std::fs::write(dir.join("maps/phystest.kbsp"), bsp.to_bytes()).unwrap();
+    std::fs::write(dir.join("models/props/cube.kmdl"), cube_model().to_bytes()).unwrap();
 
     let mut engine = common::stock(&EngineConfig::default().with_content(dir.clone()));
     engine
@@ -567,12 +551,8 @@ fn the_player_can_pick_up_and_drop_a_prop() {
         "dev/grid",
     );
     let bsp = build(&map);
-    std::fs::write(dir.join("maps/phystest.kerobsp"), bsp.to_bytes()).unwrap();
-    std::fs::write(
-        dir.join("models/props/cube.keromdl"),
-        cube_model().to_bytes(),
-    )
-    .unwrap();
+    std::fs::write(dir.join("maps/phystest.kbsp"), bsp.to_bytes()).unwrap();
+    std::fs::write(dir.join("models/props/cube.kmdl"), cube_model().to_bytes()).unwrap();
 
     let mut engine = common::stock(&EngineConfig::default().with_content(dir.clone()));
     engine
@@ -648,12 +628,8 @@ fn an_unpickable_prop_cannot_be_scooped_up() {
         "dev/grid",
     );
     let bsp = build(&map);
-    std::fs::write(dir.join("maps/phystest.kerobsp"), bsp.to_bytes()).unwrap();
-    std::fs::write(
-        dir.join("models/props/cube.keromdl"),
-        cube_model().to_bytes(),
-    )
-    .unwrap();
+    std::fs::write(dir.join("maps/phystest.kbsp"), bsp.to_bytes()).unwrap();
+    std::fs::write(dir.join("models/props/cube.kmdl"), cube_model().to_bytes()).unwrap();
 
     let mut engine = common::stock(&EngineConfig::default().with_content(dir.clone()));
     engine
@@ -704,12 +680,8 @@ fn a_carried_prop_turns_to_face_the_player() {
         "dev/grid",
     );
     let bsp = build(&map);
-    std::fs::write(dir.join("maps/phystest.kerobsp"), bsp.to_bytes()).unwrap();
-    std::fs::write(
-        dir.join("models/props/cube.keromdl"),
-        cube_model().to_bytes(),
-    )
-    .unwrap();
+    std::fs::write(dir.join("maps/phystest.kbsp"), bsp.to_bytes()).unwrap();
+    std::fs::write(dir.join("models/props/cube.kmdl"), cube_model().to_bytes()).unwrap();
 
     let mut engine = common::stock(&EngineConfig::default().with_content(dir.clone()));
     engine
@@ -776,12 +748,8 @@ fn a_carried_prop_cannot_be_pushed_through_a_wall() {
         "dev/grid",
     );
     let bsp = build(&map);
-    std::fs::write(dir.join("maps/phystest.kerobsp"), bsp.to_bytes()).unwrap();
-    std::fs::write(
-        dir.join("models/props/cube.keromdl"),
-        cube_model().to_bytes(),
-    )
-    .unwrap();
+    std::fs::write(dir.join("maps/phystest.kbsp"), bsp.to_bytes()).unwrap();
+    std::fs::write(dir.join("models/props/cube.kmdl"), cube_model().to_bytes()).unwrap();
 
     let mut engine = common::stock(&EngineConfig::default().with_content(dir.clone()));
     engine
@@ -825,7 +793,7 @@ fn a_carried_prop_cannot_be_pushed_through_a_wall() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
-/// A minimal 32-unit cube `.keromdl`, so the test does not depend on content.
+/// A minimal 32-unit cube `.kmdl`, so the test does not depend on content.
 /// A light prop (8 kg) of the kind a player is expected to shove around,
 /// resting on the floor in the corridor at `x`.
 fn light_prop(engine: &mut kerosene_engine::engine::Engine, x: f32) -> kerosene_entity::EntityId {
@@ -872,12 +840,8 @@ fn physics_engine(
         );
     }
     let bsp = build(&map);
-    std::fs::write(dir.join("maps/phystest.kerobsp"), bsp.to_bytes()).unwrap();
-    std::fs::write(
-        dir.join("models/props/cube.keromdl"),
-        cube_model().to_bytes(),
-    )
-    .unwrap();
+    std::fs::write(dir.join("maps/phystest.kbsp"), bsp.to_bytes()).unwrap();
+    std::fs::write(dir.join("models/props/cube.kmdl"), cube_model().to_bytes()).unwrap();
     let mut engine = common::stock(&EngineConfig::default().with_content(dir.clone()));
     engine
         .load_map("phystest")
@@ -1101,12 +1065,8 @@ fn a_carried_prop_shoves_another_one_instead_of_passing_into_it() {
         "dev/grid",
     );
     let bsp = build(&map);
-    std::fs::write(dir.join("maps/phystest.kerobsp"), bsp.to_bytes()).unwrap();
-    std::fs::write(
-        dir.join("models/props/cube.keromdl"),
-        cube_model().to_bytes(),
-    )
-    .unwrap();
+    std::fs::write(dir.join("maps/phystest.kbsp"), bsp.to_bytes()).unwrap();
+    std::fs::write(dir.join("models/props/cube.kmdl"), cube_model().to_bytes()).unwrap();
 
     let mut engine = common::stock(&EngineConfig::default().with_content(dir.clone()));
     engine
@@ -1207,12 +1167,8 @@ fn a_carried_prop_gives_way_when_it_meets_something_it_cannot_move() {
         "dev/grid",
     );
     let bsp = build(&map);
-    std::fs::write(dir.join("maps/phystest.kerobsp"), bsp.to_bytes()).unwrap();
-    std::fs::write(
-        dir.join("models/props/cube.keromdl"),
-        cube_model().to_bytes(),
-    )
-    .unwrap();
+    std::fs::write(dir.join("maps/phystest.kbsp"), bsp.to_bytes()).unwrap();
+    std::fs::write(dir.join("models/props/cube.kmdl"), cube_model().to_bytes()).unwrap();
 
     let mut engine = common::stock(&EngineConfig::default().with_content(dir.clone()));
     engine
@@ -1371,12 +1327,8 @@ fn engine_with_a_carried_prop(
         "dev/grid",
     );
     let bsp = build(&map);
-    std::fs::write(dir.join("maps/phystest.kerobsp"), bsp.to_bytes()).unwrap();
-    std::fs::write(
-        dir.join("models/props/cube.keromdl"),
-        cube_model().to_bytes(),
-    )
-    .unwrap();
+    std::fs::write(dir.join("maps/phystest.kbsp"), bsp.to_bytes()).unwrap();
+    std::fs::write(dir.join("models/props/cube.kmdl"), cube_model().to_bytes()).unwrap();
 
     let mut engine = common::stock(&EngineConfig::default().with_content(dir.clone()));
     engine
@@ -1893,8 +1845,8 @@ fn engine_with_script(script: &str) -> (kerosene_engine::engine::Engine, std::pa
     std::fs::create_dir_all(dir.join("maps")).unwrap();
     std::fs::create_dir_all(dir.join("scripts")).unwrap();
     let bsp = build(&corridor_map(true, true));
-    std::fs::write(dir.join("maps/testmap.kerobsp"), bsp.to_bytes()).unwrap();
-    std::fs::write(dir.join("scripts/testmap.keroscript"), script).unwrap();
+    std::fs::write(dir.join("maps/testmap.kbsp"), bsp.to_bytes()).unwrap();
+    std::fs::write(dir.join("scripts/testmap.kscr"), script).unwrap();
 
     let engine = common::stock(&EngineConfig::default().with_content(dir.clone()));
     (engine, dir)
@@ -1918,7 +1870,7 @@ fn a_map_with_no_script_is_silent_rather_than_an_error() {
     let dir = std::env::temp_dir().join(format!("kerosene-noscript-{}", std::process::id()));
     std::fs::create_dir_all(dir.join("maps")).unwrap();
     let bsp = build(&corridor_map(true, true));
-    std::fs::write(dir.join("maps/testmap.kerobsp"), bsp.to_bytes()).unwrap();
+    std::fs::write(dir.join("maps/testmap.kbsp"), bsp.to_bytes()).unwrap();
 
     let mut engine = common::stock(&EngineConfig::default().with_content(dir.clone()));
     engine.load_map("testmap").unwrap();
@@ -2240,10 +2192,10 @@ fn engine_with_sound() -> (kerosene_engine::engine::Engine, std::path::PathBuf) 
     std::fs::create_dir_all(dir.join("scripts")).unwrap();
 
     let bsp = build(&corridor_map(true, true));
-    std::fs::write(dir.join("maps/testmap.kerobsp"), bsp.to_bytes()).unwrap();
+    std::fs::write(dir.join("maps/testmap.kbsp"), bsp.to_bytes()).unwrap();
     std::fs::write(dir.join("sound/test/beep.wav"), wav_bytes(4800)).unwrap();
     std::fs::write(
-        dir.join("scripts/test.kerosnd"),
+        dir.join("scripts/test.ksnd"),
         r#" sound { "name" "test/beep" "file" "sound/test/beep.wav" "volume" "0.5" } "#,
     )
     .unwrap();
@@ -2509,7 +2461,7 @@ fn engine_with(map: &Map, name: &str) -> (kerosene_engine::engine::Engine, std::
     ));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(dir.join("maps")).unwrap();
-    std::fs::write(dir.join("maps/testmap.kerobsp"), build(map).to_bytes()).unwrap();
+    std::fs::write(dir.join("maps/testmap.kbsp"), build(map).to_bytes()).unwrap();
 
     let mut engine = common::stock(&EngineConfig::default().with_content(dir.clone()));
     engine
@@ -3202,7 +3154,7 @@ fn a_disabled_trigger_hurt_does_no_damage() {
 
 // ---- compiled sounds ------------------------------------------------------
 
-/// A `.keroaud` holding a short tone, written by the same code Timbre uses.
+/// A `.kaud` holding a short tone, written by the same code Timbre uses.
 fn compiled_bytes(frames: usize) -> Vec<u8> {
     let samples = (0..frames)
         .map(|i| 0.5 * (std::f32::consts::TAU * 440.0 * i as f32 / 44100.0).sin())
@@ -3224,16 +3176,13 @@ fn a_compiled_sound_loads_and_plays() {
     let (mut engine, dir) = engine_with_sound();
     // Replace the source with its compiled form, as a shipped game has.
     std::fs::remove_file(dir.join("sound/test/beep.wav")).unwrap();
-    std::fs::write(dir.join("sound/test/beep.keroaud"), compiled_bytes(4800)).unwrap();
+    std::fs::write(dir.join("sound/test/beep.kaud"), compiled_bytes(4800)).unwrap();
     engine.load_map("testmap").unwrap();
 
     let handle = engine
         .audio
         .play(&engine.vfs().clone(), "test/beep", None, 1.0);
-    assert!(
-        handle.is_some(),
-        "a .keroaud should load where a .wav would"
-    );
+    assert!(handle.is_some(), "a .kaud should load where a .wav would");
     assert!(
         engine.console.log().all(|l| !l.text.contains("beep")),
         "and quietly"
@@ -3248,7 +3197,7 @@ fn the_compiled_form_is_preferred_over_the_source() {
     // undo the build -- different samples, and none of the loop points.
     let (mut engine, dir) = engine_with_sound();
     // A compiled file of a different length, so which one loaded is visible.
-    std::fs::write(dir.join("sound/test/beep.keroaud"), compiled_bytes(1000)).unwrap();
+    std::fs::write(dir.join("sound/test/beep.kaud"), compiled_bytes(1000)).unwrap();
     engine.load_map("testmap").unwrap();
 
     let sound = engine
@@ -3258,7 +3207,7 @@ fn the_compiled_form_is_preferred_over_the_source() {
     assert_eq!(
         sound.frames(),
         1000,
-        "the .keroaud should have won over the .wav"
+        "the .kaud should have won over the .wav"
     );
 
     let _ = std::fs::remove_dir_all(&dir);
@@ -3280,7 +3229,7 @@ fn a_source_wav_still_plays_when_nothing_has_been_compiled_yet() {
 #[test]
 fn a_broken_compiled_sound_is_reported_rather_than_silently_skipped() {
     let (mut engine, dir) = engine_with_sound();
-    std::fs::write(dir.join("sound/test/beep.keroaud"), b"not a keroaud at all").unwrap();
+    std::fs::write(dir.join("sound/test/beep.kaud"), b"not a kaud at all").unwrap();
     engine.load_map("testmap").unwrap();
 
     assert!(
@@ -3495,12 +3444,8 @@ fn a_prop_rests_on_a_mesh_platform() {
     std::fs::create_dir_all(dir.join("maps")).unwrap();
     std::fs::create_dir_all(dir.join("models/props")).unwrap();
     let bsp = build(&ramp_map());
-    std::fs::write(dir.join("maps/meshtest.kerobsp"), bsp.to_bytes()).unwrap();
-    std::fs::write(
-        dir.join("models/props/cube.keromdl"),
-        cube_model().to_bytes(),
-    )
-    .unwrap();
+    std::fs::write(dir.join("maps/meshtest.kbsp"), bsp.to_bytes()).unwrap();
+    std::fs::write(dir.join("models/props/cube.kmdl"), cube_model().to_bytes()).unwrap();
 
     let mut engine = common::stock(&EngineConfig::default().with_content(dir.clone()));
     engine
@@ -3538,12 +3483,8 @@ fn a_static_prop_blocks_the_player_and_never_moves() {
     prop.set_origin(Vec3::new(80.0, 64.0, 16.0));
     map.entities.push(prop);
     let bsp = build(&map);
-    std::fs::write(dir.join("maps/statictest.kerobsp"), bsp.to_bytes()).unwrap();
-    std::fs::write(
-        dir.join("models/props/cube.keromdl"),
-        cube_model().to_bytes(),
-    )
-    .unwrap();
+    std::fs::write(dir.join("maps/statictest.kbsp"), bsp.to_bytes()).unwrap();
+    std::fs::write(dir.join("models/props/cube.kmdl"), cube_model().to_bytes()).unwrap();
 
     let mut engine = common::stock(&EngineConfig::default().with_content(dir.clone()));
     engine
@@ -3648,9 +3589,9 @@ fn a_prop_dynamic_plays_a_one_shot_reports_it_and_goes_back_to_its_default() {
     counter.set_origin(Vec3::new(64.0, 64.0, 64.0));
     map.entities.push(counter);
     let bsp = build(&map);
-    std::fs::write(dir.join("maps/animtest.kerobsp"), bsp.to_bytes()).unwrap();
+    std::fs::write(dir.join("maps/animtest.kbsp"), bsp.to_bytes()).unwrap();
     std::fs::write(
-        dir.join("models/props/arm.keromdl"),
+        dir.join("models/props/arm.kmdl"),
         animated_model().to_bytes(),
     )
     .unwrap();

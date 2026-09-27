@@ -12,11 +12,31 @@ with what to do about them.
 ## [Unreleased]
 
 ### Added
+- The toolset window is rebuilt around a sidebar of seven tabs -- Home,
+  Assets, Editor, Models, Sound, Build, Archive (`ctrl-1`..`ctrl-7`) -- a top
+  bar with a search box, Play and the running jobs, and a refreshed theme
+  that Chisel, Timbre and Loupe share.
+- A command palette (`ctrl-P` or `ctrl-K`): fuzzy search over every tab,
+  job, map, model, sound and recent project.
+- An Assets tab: every file in the content tree by category, searchable and
+  sortable, with whether each source's compiled form is there and up to
+  date; double-click opens a map, model or sound in its tool.
+- A start page: recent projects, and forms to open a project, start a new
+  game (`new`) or make a project of a folder (`init`) without a terminal.
+  Projects can be switched without restarting; an unsaved map is asked
+  about first.
+- Build jobs can be cancelled, and show their elapsed time. The Build tab
+  offers *rebuild everything*, *ignore leaks* and *dry run*, and a Clean
+  button. The Archive tab lists the archive's contents as a table and says
+  when it is older than what it packs.
+- The output panel counts each log's errors and warnings, filters by text or
+  to problems only, copies a whole log, and draws only the rows on screen.
+- `kerosene-tools --example shot` renders any tab off screen to a PNG.
 - Chisel's 3D view renders on the GPU, through a paint callback in the
   toolset's own window: it keeps up with a whole level while flying, props
   are drawn as their models, and a selection is outlined faintly through
   walls. The software rasteriser remains for tests and thumbnails.
-- Entity helpers, declared in a `.kerodef` with `helper { "type" ... }`:
+- Entity helpers, declared in a `.kdef` with `helper { "type" ... }`:
   `model`, `lightradius`, `lightcone`, `sphere`, `frustum`, `direction`,
   `line` and `rect`, drawn in the 3D and flat views for the selection, every
   entity, or none. The stock classes declare theirs -- light cones and
@@ -47,6 +67,29 @@ with what to do about them.
   editor window, rendered off screen to a PNG.
 
 ### Changed
+- **Breaking:** `kerosene::tools::Tab::Project` is `Tab::Home`, and the tabs'
+  `ctrl` digits follow their new order. `ProjectAction` is replaced by
+  `kerosene::tools::Action`.
+- **Breaking:** every file extension is shorter -- a `k` and what the file
+  is -- and the old names are no longer read. Rename existing files:
+
+  | old | new | old | new |
+  |---|---|---|---|
+  | `.keromap` | `.kmap` | `.kerodef` | `.kdef` |
+  | `.kerobsp` | `.kbsp` | `.keroaud` | `.kaud` |
+  | `.keromdl` | `.kmdl` | `.kerosnd` | `.ksnd` |
+  | `.keromat` | `.kmat` | `.kerosave` | `.ksav` |
+  | `.kerotex` | `.ktex` | `.kerowalk` | `.kwalk` |
+  | `.keroproj` | `.kproj` | `.keroprt` | `.kprt` |
+  | `.keroui` | `.kui` | `.keroleak` | `.kleak` |
+  | `.kerocss` | `.kcss` | `.kerobuild` | `.kbuild` |
+  | `.keroscript` | `.kscr` | `.kconfig` | `.kcfg` |
+
+  Compiled files (`.kbsp`, `.ktex`, `.kaud`, ...) are simply rebuilt by
+  `kerosene-tools kiln`; hand-written ones and saves need renaming, and a
+  `.kui` that includes a stylesheet or script by name needs the name inside
+  it changed too. `.vault` is unchanged. Every extension is now in one table,
+  `kerosene::vfs::ext`.
 - **Breaking:** `kerosene::entity::schema::ClassSpec` has a `helpers` field,
   so a `ClassSpec` built with a struct literal needs `..Default::default()`.
 - Chisel's inspector tabs are gone: tool settings moved to the options bar,
@@ -58,6 +101,9 @@ with what to do about them.
   zoomed in far enough to read, or when selected.
 
 ### Fixed
+- Timbre's settings are `sound/timbre.kcfg`. They were `timbre.kerobuild`,
+  which `kiln --clean` deleted as a build stamp and `.gitignore` kept out of
+  version control.
 - Chisel matched output targets to entity names case-sensitively when
   offering inputs; the engine does not, and neither does the editor now.
 

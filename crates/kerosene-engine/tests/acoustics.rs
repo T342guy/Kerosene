@@ -125,7 +125,7 @@ fn hall_and_closet() -> Map {
 fn compiled() -> Bsp {
     let out = compile(&hall_and_closet(), &CompileOptions::default()).expect("should compile");
     assert!(out.leak.is_none(), "the test map leaks");
-    let mut bsp = Bsp::from_bytes(&out.bsp.to_bytes(), "test.kerobsp").unwrap();
+    let mut bsp = Bsp::from_bytes(&out.bsp.to_bytes(), "test.kbsp").unwrap();
 
     let graph = umbra::prt::PortalGraph::parse(&out.prt).unwrap();
     let vis = umbra::flow::compute(&graph, false);
@@ -147,7 +147,7 @@ fn compiled() -> Bsp {
     let (acoustics, _) =
         resonance::compute(&bsp, Some(&graph), &absorption, &resonance::Options::FAST);
     bsp.acoustics = Some(acoustics);
-    Bsp::from_bytes(&bsp.to_bytes(), "test.kerobsp").expect("acoustics should round-trip")
+    Bsp::from_bytes(&bsp.to_bytes(), "test.kbsp").expect("acoustics should round-trip")
 }
 
 #[test]
@@ -261,7 +261,7 @@ fn engine_with(bsp: &Bsp) -> (Engine, std::path::PathBuf) {
             .as_nanos()
     ));
     std::fs::create_dir_all(dir.join("maps")).unwrap();
-    std::fs::write(dir.join("maps/acoustics.kerobsp"), bsp.to_bytes()).unwrap();
+    std::fs::write(dir.join("maps/acoustics.kbsp"), bsp.to_bytes()).unwrap();
     let mut engine = common::stock(&EngineConfig::default().with_content(dir.clone()));
     engine
         .load_map("acoustics")

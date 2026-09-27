@@ -23,9 +23,9 @@ second later.
 
 | Extension | What |
 |---|---|
-| `.keroui` | Layout: XML |
-| `.kerocss` | Stylesheet: a subset of CSS |
-| `.keroscript` | Behaviour: Rhai, the same language as [level scripts](scripting.md) |
+| `.kui` | Layout: XML |
+| `.kcss` | Stylesheet: a subset of CSS |
+| `.kscr` | Behaviour: Rhai, the same language as [level scripts](scripting.md) |
 | `.ttf` `.otf` | Fonts, named by `@font-face` |
 | images | Ordinary textures: `art/ui/logo.png` is compiled by Alchemy and named `ui/logo` |
 
@@ -33,10 +33,10 @@ The stock game ships these under `content/ui/`:
 
 | File | Shown |
 |---|---|
-| `ui/hud.keroui` | While a map is running (the `ui_hud` convar) |
-| `ui/overlays/damage.keroui` | By the HUD's script, on the `overlay` layer |
-| `ui/menus/pause.keroui` | By Escape (the `ui_pausemenu` convar) |
-| `ui/panels/status.keroui` | On a `point_worldpanel`; the default layout for one |
+| `ui/hud.kui` | While a map is running (the `ui_hud` convar) |
+| `ui/overlays/damage.kui` | By the HUD's script, on the `overlay` layer |
+| `ui/menus/pause.kui` | By Escape (the `ui_pausemenu` convar) |
+| `ui/panels/status.kui` | On a `point_worldpanel`; the default layout for one |
 
 A keypad panel -- buttons, a display, a script that checks the code and
 fires `OnUnlock` -- is in [Kerosene
@@ -50,10 +50,10 @@ They are written to be read. Copying one is the fastest way to start.
 ```xml
 <root interactive="true" z="100">
     <styles>
-        <include src="ui/menus/menu.kerocss"/>
+        <include src="ui/menus/menu.kcss"/>
     </styles>
     <scripts>
-        <include src="ui/menus/pause.keroscript"/>
+        <include src="ui/menus/pause.kscr"/>
     </scripts>
 
     <Panel id="menu">
@@ -94,7 +94,7 @@ Controls make parts of their own for the stylesheet to style:
 `.slider-track`, `.slider-fill`, `.slider-thumb`, `.toggle-box`,
 `.toggle-knob`, `.progress-fill`, and a `Label` inside a `Button` or
 `Toggle`. Their look before any sheet of yours comes from
-`crates/kerosene-ui/src/default.kerocss`, which is compiled into the engine.
+`crates/kerosene-ui/src/default.kcss`, which is compiled into the engine.
 
 A `<Repeat>` has no box of its own. What it makes is laid out in its parent as
 if written there, so a row of slots made by a Repeat inside
@@ -257,7 +257,7 @@ control's value.
 
 In Rhai a function can't see the script's top-level variables. Keep state
 in the store with `set_store`, which also lets the layout bind to it. This is
-how the demo's `ui/panels/keypad.keroscript` works.
+how the demo's `ui/panels/keypad.kscr` works.
 
 ## Layers
 
@@ -283,7 +283,7 @@ that texture is drawn in the world, depth-tested and glowing.
 
 | Key | |
 |---|---|
-| `layout` | The `.keroui` to show |
+| `layout` | The `.kui` to show |
 | `width` `height` | Size in world units |
 | `resolution` | Texture height in pixels. The width follows the shape |
 | `brightness` | How brightly it glows; 1 is a surface lit to full |
@@ -323,8 +323,8 @@ included.
   `engine.place_decal(...)` in Rust.
 - Every stock weapon's shots.
 
-A decal material is an ordinary `.keromat` whose texture has alpha, such as
-`content/materials/decals/bullet.keromat`. The newest `r_decals` decals are
+A decal material is an ordinary `.kmat` whose texture has alpha, such as
+`content/materials/decals/bullet.kmat`. The newest `r_decals` decals are
 kept (default 256) and the oldest are dropped. `r_cleardecals` removes them
 all, and a new map starts clean.
 

@@ -3,7 +3,7 @@
 //!
 //! A game has settings that are nobody's map and nobody's project: which
 //! renderer to use, how big the window is, whether it syncs to the display.
-//! They live in one file, `engine.kconfig`, at the top of the content
+//! They live in one file, `engine.kcfg`, at the top of the content
 //! tree, and they always exist: the first program to look for the file and
 //! not find it writes one with the defaults in it.
 //!
@@ -34,13 +34,13 @@ mod tests;
 pub use renderer::Renderer;
 
 /// The file's name, wherever the content root is.
-pub const FILENAME: &str = "engine.kconfig";
+pub const FILENAME: &str = "engine.kcfg";
 
 /// The window size a config defaults to, in pixels.
 pub const DEFAULT_WIDTH: u32 = 1280;
 pub const DEFAULT_HEIGHT: u32 = 720;
 
-/// What `engine.kconfig` says, with every field defaulted.
+/// What `engine.kcfg` says, with every field defaulted.
 #[derive(Clone, Debug, PartialEq)]
 pub struct EngineConf {
     pub renderer: Renderer,

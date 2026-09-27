@@ -28,7 +28,7 @@ impl ChiselApp {
                     // Where the map lives, always visible. "Did that save?" is
                     // not a question an editor should make anyone guess at, and
                     // an unnamed map is worth saying outright rather than showing
-                    // as `untitled.keromap` as though it were a file.
+                    // as `untitled.kmap` as though it were a file.
                     let (file, colour) = match self.document.path.as_deref() {
                         Some(path) => {
                             let name = files::label(path, &self.content_root);

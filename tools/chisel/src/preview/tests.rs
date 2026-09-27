@@ -22,7 +22,7 @@ fn cube() -> Model {
             .vertices
             .push(Vertex::rigid(c, c.normalize(), [0.0, 0.0]));
     }
-    // Wound the way `.keromdl` stores triangles: counter-clockwise seen from
+    // Wound the way `.kmdl` stores triangles: counter-clockwise seen from
     // the front, so the raw cross product of two edges points *out* of the
     // model. A fixture wound the other way is a fixture that cannot tell a
     // correct renderer from one showing the inside of everything.
@@ -152,7 +152,7 @@ fn the_shipped_model_renders() {
     // The real thing, not a fixture: a format change that broke previews
     // should fail here rather than in a screenshot nobody takes.
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../content/models/props/crate.keromdl");
+        .join("../../content/models/props/crate.kmdl");
     let Ok(bytes) = std::fs::read(&path) else {
         return;
     };
@@ -219,13 +219,13 @@ fn a_triangle_facing_away_is_not() {
 
 #[test]
 fn the_fixture_is_wound_the_way_the_real_format_is() {
-    // `.keromdl` stores triangles counter-clockwise as seen from the front,
+    // `.kmdl` stores triangles counter-clockwise as seen from the front,
     // which is also the winding the GPU renderer culls by. A fixture wound
     // the opposite way would pass whether the renderer is right or inside
     // out, which is how the crate came to be rendered from within for as
     // long as it was.
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../content/models/props/crate.keromdl");
+        .join("../../content/models/props/crate.kmdl");
     let Ok(bytes) = std::fs::read(&path) else {
         return;
     };

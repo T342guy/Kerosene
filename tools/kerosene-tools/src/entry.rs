@@ -30,7 +30,7 @@ pub struct Options {
     /// The binary's name, as help prints it.
     pub name: &'static str,
     pub version: &'static str,
-    /// The `.kerodef` text of the game's own classes, shown in the editor
+    /// The `.kdef` text of the game's own classes, shown in the editor
     /// after the stock ones. Usually one `include_str!`.
     pub schema: &'static [&'static str],
     /// The Cargo package that is the game, when this toolset is the game's
@@ -66,7 +66,7 @@ impl Options {
         }
     }
 
-    /// The `.kerodef` text of the game's own classes.
+    /// The `.kdef` text of the game's own classes.
     pub fn schema(mut self, schema: &'static [&'static str]) -> Self {
         self.schema = schema;
         self
@@ -134,7 +134,7 @@ pub fn main_with(options: Options) -> Result<()> {
         .clone()
         .unwrap_or_else(|| std::env::args().skip(1).collect());
     let Some(first) = args.first().cloned() else {
-        return run_gui(options.launch(Tab::Project, None, None));
+        return run_gui(options.launch(Tab::Home, None, None));
     };
 
     match first.as_str() {
@@ -227,7 +227,7 @@ pub fn usage(options: &Options) -> String {
 
 usage:
   {name:<26} open the toolset window, on the project page
-  {name} chisel [map.keromap]     open the editor
+  {name} chisel [map.kmap]     open the editor
   {name} timbre                   open the sound editor
 
 headless stages, for scripts and build servers:
@@ -262,16 +262,16 @@ mod tests {
     #[test]
     fn editor_arguments_are_a_map_and_a_content_flag() {
         let (content, map) =
-            parse_editor_args(&args(&["a.keromap", "--content", "c", "--no-build"])).unwrap();
+            parse_editor_args(&args(&["a.kmap", "--content", "c", "--no-build"])).unwrap();
         assert_eq!(content, Some(PathBuf::from("c")));
-        assert_eq!(map, Some(PathBuf::from("a.keromap")));
+        assert_eq!(map, Some(PathBuf::from("a.kmap")));
     }
 
     #[test]
     fn a_mistyped_editor_argument_is_an_error_not_a_guess() {
         assert!(parse_editor_args(&args(&["--contnet", "c"])).is_err());
         assert!(parse_editor_args(&args(&["--content"])).is_err());
-        assert!(parse_editor_args(&args(&["a.keromap", "b.keromap"])).is_err());
+        assert!(parse_editor_args(&args(&["a.kmap", "b.kmap"])).is_err());
     }
 
     #[test]

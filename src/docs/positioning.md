@@ -194,7 +194,7 @@ fight against every strength listed above.
 Three items on the sheet stand between "an impressive engine" and "somebody
 shipped a game with this":
 
-1. **Skeletal animation.** `.keromdl` stores bones and weights and nothing
+1. **Skeletal animation.** `.kmdl` stores bones and weights and nothing
    plays them. No characters means no NPCs and no enemies -- a sandbox rather
    than a game. This is the single biggest blocker on the whole sheet.
 2. **Networking.** The headless simulation is the hard architectural half, and

@@ -211,7 +211,7 @@ fn vs_model_instanced(input: VertexIn, instance: InstanceIn) -> VertexOut {
 
 // The shading normal for a prop.
 //
-// `.keromdl` carries no tangents -- brush faces get theirs from the texture
+// `.kmdl` carries no tangents -- brush faces get theirs from the texture
 // projection, and a mesh has no equivalent to read -- so the basis is
 // reconstructed from how world position and UV change across the triangle.
 // That is exactly the definition of a tangent, just measured per-fragment

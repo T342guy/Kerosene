@@ -333,29 +333,29 @@ mod tests {
 
     #[test]
     fn a_list_takes_files_and_directories_and_ignores_comments() {
-        let list = parse_list("# base\nui/\n  maps/Start.kerobsp  # the demo\n\n");
-        assert_eq!(list, ["ui/", "maps/start.kerobsp"]);
-        assert!(listed("ui/", "ui/menus/pause.keroui"));
-        assert!(!listed("ui/", "uix/hud.keroui"));
-        assert!(listed("maps/start.kerobsp", "maps/start.kerobsp"));
-        assert!(!listed("maps/start.kerobsp", "maps/start.kerobsp.bak"));
+        let list = parse_list("# base\nui/\n  maps/Start.kbsp  # the demo\n\n");
+        assert_eq!(list, ["ui/", "maps/start.kbsp"]);
+        assert!(listed("ui/", "ui/menus/pause.kui"));
+        assert!(!listed("ui/", "uix/hud.kui"));
+        assert!(listed("maps/start.kbsp", "maps/start.kbsp"));
+        assert!(!listed("maps/start.kbsp", "maps/start.kbsp.bak"));
     }
 
     #[test]
     fn a_list_entry_that_matches_nothing_is_an_error() {
         let dir = std::env::temp_dir().join(format!("vault-list-{}", std::process::id()));
         std::fs::create_dir_all(dir.join("ui")).unwrap();
-        std::fs::write(dir.join("ui/hud.keroui"), "x").unwrap();
-        std::fs::write(dir.join("other.keroui"), "y").unwrap();
+        std::fs::write(dir.join("ui/hud.kui"), "x").unwrap();
+        std::fs::write(dir.join("other.kui"), "y").unwrap();
         let out = dir.join("out.vault");
         let list = parse_list("ui/\n");
         pack(&dir, &out, &[], &[], Some(&list)).unwrap();
         let archive = kerosene_vfs::Archive::open(&out).unwrap();
         assert_eq!(archive.len(), 1, "only what the list names");
 
-        let list = parse_list("ui/\nmaps/gone.kerobsp\n");
+        let list = parse_list("ui/\nmaps/gone.kbsp\n");
         let err = pack(&dir, &out, &[], &[], Some(&list)).unwrap_err();
-        assert!(err.to_string().contains("maps/gone.kerobsp"), "{err}");
+        assert!(err.to_string().contains("maps/gone.kbsp"), "{err}");
         let _ = std::fs::remove_dir_all(dir);
     }
 }

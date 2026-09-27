@@ -17,8 +17,9 @@
 //!
 //! It is also where the toolset's look lives: [`theme`] is the palette, the
 //! spacing and the icon font every tool draws with, [`widgets`] the handful
-//! of controls they share, and [`output`] the panel their jobs log into. A
-//! tool that draws with these looks like the others without trying to.
+//! of controls they share, [`output`] the panel their jobs log into, and
+//! [`palette`] the searchable list of everything a host can do. A tool that
+//! draws with these looks like the others without trying to.
 //!
 //! Implement [`App`], call [`run`]:
 //!
@@ -33,6 +34,7 @@
 //! ```
 
 pub mod output;
+pub mod palette;
 pub mod theme;
 pub mod widgets;
 
@@ -247,12 +249,7 @@ impl Host {
                     view: &view,
                     resolve_target: None,
                     ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 0.06,
-                            g: 0.07,
-                            b: 0.08,
-                            a: 1.0,
-                        }),
+                        load: wgpu::LoadOp::Clear(clear_colour()),
                         store: wgpu::StoreOp::Store,
                     },
                 })],
@@ -281,6 +278,18 @@ impl Host {
             gfx.window.request_redraw();
         }
         Ok(())
+    }
+}
+
+/// What shows before egui has drawn anything: the canvas colour, so a
+/// resize never flashes a colour the theme does not have.
+fn clear_colour() -> wgpu::Color {
+    let [r, g, b, _] = egui::Rgba::from(theme::colors::BG_APP).to_array();
+    wgpu::Color {
+        r: f64::from(r),
+        g: f64::from(g),
+        b: f64::from(b),
+        a: 1.0,
     }
 }
 

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
-//! Reading and writing `.kerobsp` files.
+//! Reading and writing `.kbsp` files.
 //!
 //! The file is a header, a lump directory, and then the lumps. Every lump is a
 //! flat array of one record type, so loading is a bounds check and a cast --
@@ -28,7 +28,7 @@ pub enum BspError {
         #[source]
         source: std::io::Error,
     },
-    #[error("{path} is not a .kerobsp file (bad magic)")]
+    #[error("{path} is not a .kbsp file (bad magic)")]
     BadMagic { path: String },
     #[error(
         "{path} is format version {found}; this build reads version {expected}. Recompile the map: kerosene-tools build, or F9 in Chisel."
@@ -322,7 +322,7 @@ fn read_lump<T: Pod>(bytes: &[u8], path: &str, name: &'static str) -> Result<Vec
     Ok(out)
 }
 
-/// Write a `.kerobsp` and report its size, creating parent directories.
+/// Write a `.kbsp` and report its size, creating parent directories.
 pub fn write_bsp(bsp: &Bsp, path: &Path) -> Result<u64> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).map_err(|source| BspError::Io {

@@ -106,8 +106,8 @@ made or implied.
 Kerosene defines its own file formats. They are deliberately named and
 byte-tagged so they cannot be confused with anyone else's:
 
-    .keromap  .kerobsp  .keroprt  .keroleak
-    .kerotex  .keromat  .keromdl  .vault
+    .kmap  .kbsp  .kprt  .kleak
+    .ktex  .kmat  .kmdl  .vault
 
 None of them is compatible with, readable by, or produced from any Valve
 or id format. Kerosene cannot open Source or Quake content and does not

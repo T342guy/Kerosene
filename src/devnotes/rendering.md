@@ -332,6 +332,6 @@ section's bounds in the colour of its state
 (`section_debug_lines` in `host.rs`).
 
 This is sections of *one map*, not an open world: everything is still one
-`.kerobsp`, compiled and lit as one.
+`.kbsp`, compiled and lit as one.
 
 > Next: [Physics](physics.md).

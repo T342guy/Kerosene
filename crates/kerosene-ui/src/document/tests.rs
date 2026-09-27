@@ -9,13 +9,13 @@ fn files(list: &[(&str, &str)]) -> Files {
         .collect()
 }
 
-/// A system showing `ui/t.keroui` on the `hud` layer at 1080p.
+/// A system showing `ui/t.kui` on the `hud` layer at 1080p.
 fn setup(layout: &str, extra: &[(&str, &str)]) -> (UiSystem, UiStore, Files) {
-    let mut all = vec![("ui/t.keroui", layout)];
+    let mut all = vec![("ui/t.kui", layout)];
     all.extend_from_slice(extra);
     let f = files(&all);
     let mut ui = UiSystem::new();
-    ui.show("hud", "ui/t.keroui", &f).unwrap();
+    ui.show("hud", "ui/t.kui", &f).unwrap();
     (ui, UiStore::new(), f)
 }
 
@@ -50,9 +50,9 @@ fn the_crosshair_follows_the_active_weapon() {
 #[test]
 fn class_swaps_restyle_through_the_stylesheet() {
     let (mut ui, mut store, f) = setup(
-        r#"<root><styles><include src="ui/t.kerocss"/></styles><Panel id="xh" class="xh-{weapon.active}"/></root>"#,
+        r#"<root><styles><include src="ui/t.kcss"/></styles><Panel id="xh" class="xh-{weapon.active}"/></root>"#,
         &[(
-            "ui/t.kerocss",
+            "ui/t.kcss",
             ".xh-pistol { width: 8px } .xh-shotgun { width: 40px }",
         )],
     );
@@ -141,11 +141,11 @@ fn visible_hides_and_removes_from_layout() {
 fn events_reach_on_handlers_and_scripts() {
     let (mut ui, mut store, f) = setup(
         r#"<root>
-            <scripts><include src="ui/t.keroscript"/></scripts>
+            <scripts><include src="ui/t.kscr"/></scripts>
             <Panel id="flash" on:player_damaged="target.trigger_class('hit')"/>
         </root>"#,
         &[(
-            "ui/t.keroscript",
+            "ui/t.kscr",
             r#"fn on_event(name, data) { if name == "player_damaged" { command("echo ouch " + data); } }"#,
         )],
     );
@@ -238,9 +238,9 @@ fn repeat_makes_one_child_per_count() {
 }
 
 fn menu(layout: &str) -> (UiSystem, UiStore, Files) {
-    let f = files(&[("ui/m.keroui", layout)]);
+    let f = files(&[("ui/m.kui", layout)]);
     let mut ui = UiSystem::new();
-    ui.show("menu", "ui/m.keroui", &f).unwrap();
+    ui.show("menu", "ui/m.kui", &f).unwrap();
     let mut store = UiStore::new();
     ui.update(0.016, (1920, 1080), &mut store, &f);
     (ui, store, f)
@@ -370,9 +370,9 @@ fn radial_fill_reaches_the_display_list() {
 #[test]
 fn includes_pull_in_other_layouts() {
     let (mut ui, mut store, f) = setup(
-        r#"<root><Include src="ui/part.keroui"/></root>"#,
+        r#"<root><Include src="ui/part.kui"/></root>"#,
         &[(
-            "ui/part.keroui",
+            "ui/part.kui",
             r#"<root><Label id="inner" text="hi"/></root>"#,
         )],
     );

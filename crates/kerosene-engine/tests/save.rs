@@ -145,9 +145,9 @@ fn setup(name: &str) -> (Engine, PathBuf) {
     ] {
         let out = compile(&map, &CompileOptions::default()).expect("the test map compiles");
         assert!(out.leak.is_none());
-        std::fs::write(dir.join(format!("maps/{file}.kerobsp")), out.bsp.to_bytes()).unwrap();
+        std::fs::write(dir.join(format!("maps/{file}.kbsp")), out.bsp.to_bytes()).unwrap();
     }
-    std::fs::write(dir.join("scripts/keep.keroscript"), SCRIPT).unwrap();
+    std::fs::write(dir.join("scripts/keep.kscr"), SCRIPT).unwrap();
     let mut engine = Engine::with_game(
         &EngineConfig::default().with_content(dir.clone()),
         Box::new(Keeper { coins: 0 }),
@@ -209,7 +209,7 @@ fn a_saved_game_comes_back_as_it_was_and_plays_on_identically() {
 
     engine.console.execute_user("save slot1");
     console(&mut engine);
-    assert!(dir.join("save/slot1.kerosave").is_file());
+    assert!(dir.join("save/slot1.ksav").is_file());
     let saved_origin = engine.player.movement.origin;
 
     // Play on from the save, and remember where that goes.
@@ -274,7 +274,7 @@ fn a_level_change_carries_the_player_across_the_landmark() {
         "the game's state came along"
     );
     assert!(
-        dir.join("save/auto.kerosave").is_file(),
+        dir.join("save/auto.ksav").is_file(),
         "sv_autosave saved on arrival"
     );
 
@@ -290,7 +290,7 @@ fn a_checkpoint_saves_and_quicksave_and_quickload_pair_up() {
     let (mut engine, dir) = setup("checkpoint");
     fire(&mut engine, "checkpoint", "Save");
     run(&mut engine, 2);
-    assert!(dir.join("save/cp.kerosave").is_file());
+    assert!(dir.join("save/cp.ksav").is_file());
 
     engine.console.execute_user("quicksave");
     console(&mut engine);
@@ -313,7 +313,7 @@ fn bad_saves_are_refused_and_the_running_level_kept() {
     assert!(engine.load_game("missing").is_err());
 
     std::fs::create_dir_all(dir.join("save")).unwrap();
-    std::fs::write(dir.join("save/broken.kerosave"), b"{ not json").unwrap();
+    std::fs::write(dir.join("save/broken.ksav"), b"{ not json").unwrap();
     let e = engine.load_game("broken").unwrap_err().to_string();
     assert!(e.contains("damaged"), "{e}");
 
@@ -322,7 +322,7 @@ fn bad_saves_are_refused_and_the_running_level_kept() {
     let mut save = engine.read_save("good").unwrap();
     save.world.entities[0].id[1] += 3;
     std::fs::write(
-        dir.join("save/twisted.kerosave"),
+        dir.join("save/twisted.ksav"),
         serde_json::to_vec(&save).unwrap(),
     )
     .unwrap();
@@ -335,7 +335,7 @@ fn bad_saves_are_refused_and_the_running_level_kept() {
     // A save from a newer engine is not guessed at.
     save.format = 99;
     std::fs::write(
-        dir.join("save/future.kerosave"),
+        dir.join("save/future.ksav"),
         serde_json::to_vec(&save).unwrap(),
     )
     .unwrap();
@@ -357,22 +357,18 @@ fn saves_mirror_to_the_cloud_and_the_newer_copy_wins() {
         ..Default::default()
     });
     engine.save_game("slot").unwrap();
-    assert!(cloud.join("slot.kerosave").is_file());
+    assert!(cloud.join("slot.ksav").is_file());
 
     // Another machine saved later: the local file is older than the cloud's.
     let mut other = engine.read_save("slot").unwrap();
     other.saved_at += 1000;
     other.player.health = 12.0;
-    std::fs::write(
-        cloud.join("slot.kerosave"),
-        serde_json::to_vec(&other).unwrap(),
-    )
-    .unwrap();
+    std::fs::write(cloud.join("slot.ksav"), serde_json::to_vec(&other).unwrap()).unwrap();
     engine.load_game("slot").unwrap();
     assert_eq!(engine.player.health, 12.0);
 
     // And with no local copy at all, the cloud's still loads.
-    std::fs::remove_file(content.join("save/slot.kerosave")).unwrap();
+    std::fs::remove_file(content.join("save/slot.ksav")).unwrap();
     engine.player.health = 99.0;
     engine.load_game("slot").unwrap();
     assert_eq!(engine.player.health, 12.0);
@@ -387,9 +383,9 @@ fn a_falling_prop_is_still_falling_after_a_load() {
     std::fs::copy(
         concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../content/models/props/cube.keromdl"
+            "/../../content/models/props/cube.kmdl"
         ),
-        dir.join("models/props/cube.keromdl"),
+        dir.join("models/props/cube.kmdl"),
     )
     .unwrap();
     let prop = engine.spawn_prop("props/cube", Vec3::new(200.0, 128.0, 100.0));
@@ -484,7 +480,7 @@ fn saves_go_to_the_player_directory_and_old_ones_are_still_found() {
     let (mut portable, dir) = setup("userdir");
     run(&mut portable, 2);
     portable.save_game("old").unwrap();
-    assert!(dir.join("save/old.kerosave").is_file());
+    assert!(dir.join("save/old.ksav").is_file());
 
     let user = std::env::temp_dir().join(format!("kerosene-save-user-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&user);
@@ -499,11 +495,11 @@ fn saves_go_to_the_player_directory_and_old_ones_are_still_found() {
     engine.save_game("new").unwrap();
 
     assert!(
-        user.join("save/new.kerosave").is_file(),
+        user.join("save/new.ksav").is_file(),
         "the new save is the player's"
     );
     assert!(
-        !dir.join("save/new.kerosave").exists(),
+        !dir.join("save/new.ksav").exists(),
         "and not in the content tree"
     );
     let names: Vec<String> = engine.list_saves().into_iter().map(|s| s.name).collect();

@@ -71,7 +71,7 @@ fn a_new_game_is_a_package_a_project_and_a_map_that_all_agree() {
     let aliases = std::fs::read_to_string(dir.join(".cargo/config.toml")).unwrap();
     assert!(aliases.contains("--bin orbital-drift-tools -- play"));
 
-    let project = kerosene_vfs::Project::read(&dir.join("orbital-drift.keroproj")).unwrap();
+    let project = kerosene_vfs::Project::read(&dir.join("orbital-drift.kproj")).unwrap();
     assert_eq!(project.name, "Orbital Drift");
     assert_eq!(project.game.as_deref(), Some("orbital-drift"));
     assert_eq!(project.start_map.as_deref(), Some("orbital_drift_start"));
@@ -79,7 +79,7 @@ fn a_new_game_is_a_package_a_project_and_a_map_that_all_agree() {
 
     // The map parses, and wires the trigger to the game's own class.
     let text =
-        std::fs::read_to_string(project.content.join("maps/orbital_drift_start.keromap")).unwrap();
+        std::fs::read_to_string(project.content.join("maps/orbital_drift_start.kmap")).unwrap();
     let map = Map::parse(&text).unwrap();
     assert!(map.entities.iter().any(|e| e.classname() == "item_pickup"));
     assert!(map.validate().is_empty());
@@ -130,9 +130,9 @@ fn a_content_only_project_has_no_rust_and_no_game_class_in_its_map() {
     ])
     .unwrap();
     assert!(!dir.join("Cargo.toml").exists());
-    let project = kerosene_vfs::Project::read(&dir.join("mod.keroproj")).unwrap();
+    let project = kerosene_vfs::Project::read(&dir.join("mod.kproj")).unwrap();
     assert_eq!(project.game, None);
-    let text = std::fs::read_to_string(project.content.join("maps/mod_start.keromap")).unwrap();
+    let text = std::fs::read_to_string(project.content.join("maps/mod_start.kmap")).unwrap();
     let map = Map::parse(&text).unwrap();
     assert!(map.entities.iter().all(|e| e.classname() != "item_pickup"));
     let _ = std::fs::remove_dir_all(dir);

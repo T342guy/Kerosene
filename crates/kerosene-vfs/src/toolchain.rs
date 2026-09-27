@@ -462,7 +462,7 @@ mod tests {
     #[test]
     fn a_project_with_a_game_key_runs_that_package_from_its_own_directory() {
         let project = Project {
-            path: PathBuf::from("/games/mine/mine.keroproj"),
+            path: PathBuf::from("/games/mine/mine.kproj"),
             name: "Mine".into(),
             content: PathBuf::from("/games/mine/content"),
             start_map: None,

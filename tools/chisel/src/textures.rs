@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! Textures, for the 3D pane and the material browser.
 //!
-//! Chisel reads the *compiled* `.kerotex`, not the source PNG, and does it
+//! Chisel reads the *compiled* `.ktex`, not the source PNG, and does it
 //! through the same VFS the engine uses. Two reasons. A preview that decoded
 //! the artist's file could show something the engine will never draw -- a
 //! different size after mip generation, a different colour space -- and an

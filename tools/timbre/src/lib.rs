@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! Timbre -- the Kerosene sound compiler.
 //!
-//! Turns `.wav` into `.keroaud`, the studiomdl of audio. It exists for the
+//! Turns `.wav` into `.kaud`, the studiomdl of audio. It exists for the
 //! same reason Alchemy does: the engine should load sounds, not decode and
 //! decide about them.
 //!
@@ -157,7 +157,7 @@ pub fn peak_of(sound: &Sound) -> f32 {
     sound.samples.iter().fold(0.0f32, |a, s| a.max(s.abs()))
 }
 
-/// Compile one `.wav` into a `.keroaud`.
+/// Compile one `.wav` into a `.kaud`.
 pub fn compile(source: &Path, output: &Path, options: &Options) -> Result<Compiled> {
     let bytes = std::fs::read(source).with_context(|| format!("reading {}", source.display()))?;
     let read = decode::any(source, &bytes)?;
@@ -271,7 +271,7 @@ fn find_chunk<'a>(bytes: &'a [u8], id: &[u8; 4]) -> Option<&'a [u8]> {
 
 /// Where a source sound's compiled form goes.
 ///
-/// `sound/door/move.wav` becomes `sound/door/move.keroaud`: beside it, so the
+/// `sound/door/move.wav` becomes `sound/door/move.kaud`: beside it, so the
 /// path a script names is the path either form is found at.
 pub fn output_for(source: &Path) -> PathBuf {
     source.with_extension(compiled::EXTENSION)

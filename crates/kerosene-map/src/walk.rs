@@ -25,7 +25,7 @@ pub enum WalkmapRule {
 }
 
 impl WalkmapRule {
-    /// Parse the spelling used in a `.keromap`. Unknown words fall back to
+    /// Parse the spelling used in a `.kmap`. Unknown words fall back to
     /// [`WalkmapRule::Allow`], because a face that says nothing is a floor.
     pub fn parse(s: &str) -> WalkmapRule {
         match s.trim().to_ascii_lowercase().as_str() {

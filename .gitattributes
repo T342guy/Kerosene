@@ -8,11 +8,10 @@
 *.wav binary
 *.ogg binary
 *.vault binary
-*.kerobsp binary
-*.keromdl binary
-*.kerotex binary
-*.keroaud binary
-*.kerowalk binary
-*.keroprt binary
+*.kbsp binary
+*.kmdl binary
+*.ktex binary
+*.kaud binary
+*.kwalk binary
 *.ico binary
 *.glb binary

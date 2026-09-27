@@ -47,7 +47,7 @@ pub struct SoundParams {
     pub pitch: f32,
     pub looping: bool,
     /// The frames to repeat when looping, `start..end`, or `None` for the
-    /// whole sound. A compiled `.keroaud` carries this so an ambience can
+    /// whole sound. A compiled `.kaud` carries this so an ambience can
     /// have an attack that plays once and a body that loops.
     pub loop_region: Option<(usize, usize)>,
     /// Where it is, or `None` to be heard flat.

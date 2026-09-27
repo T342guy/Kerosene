@@ -28,7 +28,7 @@
 //! ```text
 //! dist/
 //!   my_game            the game, or the engine runtime when a project has none
-//!   my_game.keroproj   content = "content", so the game finds its own archive
+//!   my_game.kproj   content = "content", so the game finds its own archive
 //!   content/
 //!     my_game.vault
 //!   LICENSE            the GNU General Public License, version 3, full text
@@ -167,7 +167,7 @@ pub(crate) fn ship_built(
     copy(source, &shipped.binary)?;
     copy(&archive, &shipped.archive)?;
 
-    write_project(settings, &out.join(format!("{name}.keroproj")), &name)?;
+    write_project(settings, &out.join(format!("{name}.kproj")), &name)?;
     std::fs::write(out.join("LICENSE"), GPL)?;
     std::fs::write(out.join("LICENSE-EXCEPTION"), EXCEPTION)?;
     std::fs::write(out.join("README.txt"), readme(settings, &name))?;
@@ -326,7 +326,7 @@ fn game_binary(settings: &Settings) -> Result<Built> {
                 })
                 .context(
                     "no `game` key in the project and no `kerosene` beside kiln, so there is \
-             nothing to ship. Add `\"game\" \"<cargo package>\"` to the .keroproj, \
+             nothing to ship. Add `\"game\" \"<cargo package>\"` to the .kproj, \
              or run kiln from beside the engine.",
                 );
         }

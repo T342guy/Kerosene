@@ -640,17 +640,16 @@ impl Platform {
         Err(if ids.is_empty() {
             format!(
                 "achievement `{id}`: this project declares no achievements. \
-                 List them in an \"achievements\" block in the .keroproj."
+                 List them in an \"achievements\" block in the .kproj."
             )
         } else {
-            format!("achievement `{id}` is not declared in the .keroproj")
+            format!("achievement `{id}` is not declared in the .kproj")
         })
     }
 
     fn known_stat(&self, name: &str) -> Result<StatKind, String> {
-        self.stat_kind(name).ok_or_else(|| {
-            format!("stat `{name}` is not declared in the .keroproj \"stats\" block")
-        })
+        self.stat_kind(name)
+            .ok_or_else(|| format!("stat `{name}` is not declared in the .kproj \"stats\" block"))
     }
 
     /// Do what was asked. Errors are the caller's to report; each says what

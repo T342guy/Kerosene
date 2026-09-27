@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
-//! `.kerotex` -- Kerosene's texture format, the VTF analogue.
+//! `.ktex` -- Kerosene's texture format, the VTF analogue.
 //!
 //! A texture is not just an image: it is an image plus everything the renderer
 //! needs to decide *how* to sample it. That is why source art (`.png`) is
@@ -35,7 +35,7 @@ pub const MAX_MIP_COUNT: usize = MAX_DIMENSION.ilog2() as usize + 1;
 
 #[derive(Debug, Error)]
 pub enum TextureError {
-    #[error("not a .kerotex file (bad magic)")]
+    #[error("not a .ktex file (bad magic)")]
     BadMagic,
     #[error("version {found}; this build reads version {expected}")]
     BadVersion { found: u32, expected: u32 },

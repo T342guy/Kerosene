@@ -8,7 +8,7 @@
 //!
 //! `u = (point . uaxis) / uscale + uoffset`
 //!
-//! The `.keromap` spelling matches Source's: `"[x y z offset] scale"`.
+//! The `.kmap` spelling matches Source's: `"[x y z offset] scale"`.
 
 use kerosene_math::{Plane, Vec3};
 

@@ -327,7 +327,7 @@ impl AudioSystem {
         self.control.set_voice_envs(&mut self.envs);
     }
 
-    /// Load every `.kerosnd` in the content tree.
+    /// Load every `.ksnd` in the content tree.
     pub fn load_scripts(&mut self, vfs: &Vfs) {
         for path in vfs.list("scripts", Some(kerosene_audio::SCRIPT_EXTENSION)) {
             match vfs.read_string(&path) {

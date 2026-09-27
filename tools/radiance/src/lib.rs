@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! Radiance -- the Kerosene lighting compiler.
 //!
-//! Reads a compiled `.kerobsp`, bakes static lighting into every face, and writes
+//! Reads a compiled `.kbsp`, bakes static lighting into every face, and writes
 //! the result back. This is the third and last compile stage, mirroring
 //! Source's `vrad`:
 //!
 //! ```text
-//! cleave   map.keromap   ->  map.kerobsp + map.keroprt
-//! umbra    map.kerobsp   ->  map.kerobsp with visibility
-//! radiance map.kerobsp   ->  map.kerobsp with lighting        <- you are here
+//! cleave   map.kmap   ->  map.kbsp + map.kprt
+//! umbra    map.kbsp   ->  map.kbsp with visibility
+//! radiance map.kbsp   ->  map.kbsp with lighting        <- you are here
 //! ```
 //!
 //! Lighting is authored as entities in the map -- `light`, `light_spot`,
@@ -35,10 +35,10 @@ use std::time::Instant;
 #[command(
     name = "radiance",
     version,
-    about = "Bake static lighting into a compiled .kerobsp"
+    about = "Bake static lighting into a compiled .kbsp"
 )]
 struct Args {
-    /// The .kerobsp to light, modified in place.
+    /// The .kbsp to light, modified in place.
     map: PathBuf,
 
     /// Samples per luxel per axis. Higher softens shadow edges at a

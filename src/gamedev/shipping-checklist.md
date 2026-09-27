@@ -4,8 +4,8 @@ In the order you will do them. Each item links to the page that explains it.
 
 ## Before the build
 
-- [ ] `startmap` in `.keroproj` names the map the game should open on.
-- [ ] `game` in `.keroproj` names your Cargo package — or is deliberately
+- [ ] `startmap` in `.kproj` names the map the game should open on.
+- [ ] `game` in `.kproj` names your Cargo package — or is deliberately
       absent, because you are shipping a content-only project on the stock
       runtime. ([Making a game](making-a-game.md#the-project-file))
 - [ ] `kerosene-tools kiln --dry-run` lists every stage you expect and no
@@ -22,7 +22,7 @@ In the order you will do them. Each item links to the page that explains it.
 - [ ] `kerosene-tools kiln --ship dist` succeeds. If it refuses, it says why:
       a stale archive means run `kiln` again first.
       ([Publishing](publishing.md#how-kiln---ship-helps))
-- [ ] `dist/` holds the game binary, `<name>.keroproj`, `content/<name>.vault`,
+- [ ] `dist/` holds the game binary, `<name>.kproj`, `content/<name>.vault`,
       `LICENSE`, `LICENSE-EXCEPTION` and `README.txt` — and **no**
       `kerosene-tools` binary.
 - [ ] `README.txt`, "Engine source": replaced the instruction with the URL or
@@ -47,9 +47,9 @@ In the order you will do them. Each item links to the page that explains it.
 
 ## If it ships on Steam
 
-- [ ] `steam_appid` in `.keroproj` is your app id, not 480.
+- [ ] `steam_appid` in `.kproj` is your app id, not 480.
 - [ ] Every achievement and stat the game awards is declared in the
-      `.keroproj` *and* set up under the same API name in Steamworks.
+      `.kproj` *and* set up under the same API name in Steamworks.
       `achievement_list` in the console shows what the game declares.
       ([Steam](steam.md#the-project-file))
 - [ ] `kerosene-tools kiln --ship dist --steam` succeeds, and `dist/` holds
@@ -67,7 +67,7 @@ In the order you will do them. Each item links to the page that explains it.
 - [ ] Run it on a machine that is not yours, ideally one that has never had
       a Rust toolchain or a Kerosene checkout on it.
 - [ ] Run it once from a read-only location and confirm it still starts —
-      `engine.kconfig` cannot be written there and the defaults must do.
+      `engine.kcfg` cannot be written there and the defaults must do.
 - [ ] If the target is Windows or macOS: CI builds it; you are still the
       first to *run* it. Test there before announcing it.
       ([Platforms](platforms.md))

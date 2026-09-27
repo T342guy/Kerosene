@@ -3,15 +3,15 @@
     game publishes -- run `ui_dump` in the console to see them all -- so the
     only script it needs is for the one-off toasts at the bottom.
 
-    Edit this, hud.kerocss or hud.keroscript while the game is running and
+    Edit this, hud.kcss or hud.kscr while the game is running and
     the HUD reloads a second later.
 -->
 <root>
     <styles>
-        <include src="ui/hud.kerocss"/>
+        <include src="ui/hud.kcss"/>
     </styles>
     <scripts>
-        <include src="ui/hud.keroscript"/>
+        <include src="ui/hud.kscr"/>
     </scripts>
 
     <!-- One crosshair per weapon, chosen by class: `xh-pistol`,

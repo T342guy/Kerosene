@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! The game's entity schema, embedded in the crate.
 //!
-//! Chisel used to read this out of a `.kerodef` file in the content tree --
+//! Chisel used to read this out of a `.kdef` file in the content tree --
 //! the same relationship Hammer has with an FGD. That split had a failure
 //! mode: an editor pointed at a tree with no definitions file showed a blank
 //! property inspector for every freshly placed entity, and there was nothing
@@ -9,18 +9,18 @@
 //!
 //! So the schema for this game now lives here, compiled into the crate that
 //! defines the classes it describes. Chisel parses [`BUILTIN`] first and only
-//! then merges any `.kerodef` files it finds on disk, so a mod can still
+//! then merges any `.kdef` files it finds on disk, so a mod can still
 //! override a class by dropping its own file beside the game's -- and a tree
 //! with no such file loses nothing, because the built-in schema is always
 //! there.
 //!
-//! The text is the `.kerodef` format described in `docs/formats.md`, kept as
+//! The text is the `.kdef` format described in `docs/formats.md`, kept as
 //! data rather than constructed in code so it stays readable and reviewable.
 
-/// The shipped entity schema, in `.kerodef` text form.
+/// The shipped entity schema, in `.kdef` text form.
 ///
 /// Parsed with `kerosene_entity::Schema::parse`. This is the canonical copy:
-/// `content/kerosene.kerodef` mirrors it and doubles as the content-root
+/// `content/kerosene.kdef` mirrors it and doubles as the content-root
 /// marker, but Chisel no longer needs that file to describe a class.
 pub const BUILTIN: &str = r#"
 // Kerosene entity class definitions.
@@ -512,7 +512,7 @@ class
     "base" "Entity" "base" "Switchable" "base" "Trigger"
     "help" "Moves the player to another map when they walk in, keeping their health and whatever the game carries -- an inventory, say. With a landmark, they arrive where they stood relative to it, so a corridor that crosses the seam is walked straight through."
     key { "name" "map" "label" "Map" "type" "string"
-          "help" "The map to go to, by name: kero_start, not maps/kero_start.kerobsp." }
+          "help" "The map to go to, by name: kero_start, not maps/kero_start.kbsp." }
     key { "name" "landmark" "label" "Landmark" "type" "target_destination"
           "help" "The targetname of an info_landmark placed at the same spot in both maps. Empty starts the player at the next map's spawn point." }
     input { "name" "ChangeLevel" "help" "Go now, whether or not the player is inside." }
@@ -610,7 +610,7 @@ class
     "base" "Entity" "base" "Point"
     "help" "A sound placed in the world. A hum in a generator room, a drip in a cave. Positioned by default, so it gets quieter and pans as you move around it."
     key { "name" "sound" "label" "Sound" "type" "string"
-          "help" "The name of a sound, as a .kerosnd script defines it -- or a path under sound/ if nothing does. Source spells this `message`, which is still read." }
+          "help" "The name of a sound, as a .ksnd script defines it -- or a path under sound/ if nothing does. Source spells this `message`, which is still read." }
     key { "name" "volume" "label" "Volume" "type" "float" "default" "1"
           "help" "0 to 1. Source spells this `health`, which is still read." }
     key { "name" "pitch" "label" "Pitch" "type" "float" "default" "1"
@@ -637,7 +637,7 @@ class
     "base" "Entity" "base" "Point"
     "help" "Plays a sound once, when something fires it. The counterpart to ambient_generic: that one is the bed a room sits in, this one is the noise an event makes. It keeps no state and never loops, so there is nothing to configure wrong."
     key { "name" "sound" "label" "Sound" "type" "string"
-          "help" "The name of a sound, as a .kerosnd script defines it -- or a path under sound/ if nothing does." }
+          "help" "The name of a sound, as a .ksnd script defines it -- or a path under sound/ if nothing does." }
     key { "name" "volume" "label" "Volume" "type" "float" "default" "1" "help" "0 to 1." }
     key { "name" "pitch" "label" "Pitch" "type" "float" "default" "1"
           "help" "Playback rate. 2 is an octave up and half the length." }
@@ -660,7 +660,7 @@ class
     "base" "Entity" "base" "Point"
     "help" "Runs a script. The seam between entity wiring, which is a graph, and the things that are not graphs -- arithmetic, conditions, anything that has to remember more than a counter."
     key { "name" "scriptfile" "label" "Script file" "type" "string"
-          "help" "Loaded from scripts/<name>.keroscript when the map starts. A function in it can then be called by name." }
+          "help" "Loaded from scripts/<name>.kscr when the map starts. A function in it can then be called by name." }
     key { "name" "function" "label" "Default function" "type" "string"
           "help" "What CallScriptFunction runs when the input carries no parameter of its own." }
     key { "name" "code" "label" "Inline code" "type" "string"
@@ -692,7 +692,7 @@ class
              "help" "An event every UI document hears: on:<event> handlers and on_event() run." }
     input  { "name" "SetValue" "parameter" "<key> <value>"
              "help" "Publish a value, e.g. objective.text Find the key. Layouts bound to it update." }
-    input  { "name" "ShowLayer" "parameter" "<layer> <file>" "help" "e.g. overlay ui/overlays/intro.keroui" }
+    input  { "name" "ShowLayer" "parameter" "<layer> <file>" "help" "e.g. overlay ui/overlays/intro.kui" }
     input  { "name" "HideLayer" "parameter" "<layer>" }
 }
 
@@ -702,8 +702,8 @@ class
     "base" "Entity" "base" "Point"
     "help" "A UI layout shown on a surface in the level: a screen, a keypad, a sign. It faces along its angles; place it just in front of a wall."
     key { "name" "angles" "label" "Facing (pitch yaw roll)" "type" "angles" "default" "0 0 0" }
-    key { "name" "layout" "label" "Layout" "type" "string" "default" "ui/panels/status.keroui"
-          "help" "The .keroui file to show." }
+    key { "name" "layout" "label" "Layout" "type" "string" "default" "ui/panels/status.kui"
+          "help" "The .kui file to show." }
     key { "name" "width" "label" "Width (units)" "type" "float" "default" "32" }
     key { "name" "height" "label" "Height (units)" "type" "float" "default" "32" }
     key { "name" "resolution" "label" "Pixels tall" "type" "integer" "default" "512"
@@ -736,7 +736,7 @@ class
     "base" "Entity" "base" "Point"
     "help" "Awards one achievement: on Steam in a Steam build, kept for the session otherwise. The id must be listed in the project's \"achievements\" block."
     key { "name" "achievement" "label" "Achievement id" "type" "string" "default" ""
-          "help" "The API name, as set up in Steamworks and the .keroproj, e.g. ACH_FIRST_DOOR." }
+          "help" "The API name, as set up in Steamworks and the .kproj, e.g. ACH_FIRST_DOOR." }
     key { "name" "progressmax" "label" "Progress out of" "type" "integer" "default" "0"
           "help" "What SetProgress counts toward. Reaching it unlocks." }
     input  { "name" "Unlock" "help" "Award the achievement. Does nothing if it already is." }

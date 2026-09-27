@@ -121,7 +121,7 @@ struct App {
     /// Seconds since the last `r_speeds` report.
     since_report: f32,
     console_ui: ConsoleUi,
-    /// Uploaded `.keromdl` models, keyed by the name an entity refers to them by.
+    /// Uploaded `.kmdl` models, keyed by the name an entity refers to them by.
     model_cache: HashMap<String, Option<GpuModel>>,
     /// The probe each static prop reflects. Chosen once -- a static prop
     /// does not move -- rather than traced for every frame.
@@ -198,7 +198,7 @@ impl ApplicationHandler for App {
                     &format!(
                         "{} could not start its renderer:\n\n{e}\n\n\
                          Check that the graphics driver is installed and up to date, \
-                         or try another renderer in engine.kconfig.",
+                         or try another renderer in engine.kcfg.",
                         self.config.title
                     ),
                 );
@@ -613,7 +613,7 @@ impl App {
             return;
         };
 
-        // Models are per map: a `.keromdl` that failed to load, and was then
+        // Models are per map: a `.kmdl` that failed to load, and was then
         // compiled, gets its retry on the next load rather than on restart.
         self.model_cache.clear();
         self.static_probes.clear();

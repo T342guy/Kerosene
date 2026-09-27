@@ -131,7 +131,7 @@ pub fn model_zoomed(
             // a preview wants the shape read clearly, and per-vertex
             // smoothing on a small image mostly reads as mud.
             //
-            // `.keromdl` stores triangles counter-clockwise as seen from the
+            // `.kmdl` stores triangles counter-clockwise as seen from the
             // front -- the same convention the GPU renderer culls by -- so
             // the raw cross product already points out of the model.
             let normal = (corners[1] - corners[0])

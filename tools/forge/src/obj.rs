@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! Reading Wavefront OBJ, Forge's source mesh format.
 //!
-//! OBJ is chosen for the same reason `.keromap` is text: it is what every
+//! OBJ is chosen for the same reason `.kmap` is text: it is what every
 //! modelling package can export, it is readable, and it diffs. It carries
 //! positions, normals, texture coordinates and material groups, which is
 //! everything a static model needs.

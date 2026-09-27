@@ -14,7 +14,7 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-# The file format. `engineconf.keroconfig` is KeyValues, like everything else
+# The file format. `engine.kcfg` is KeyValues, like everything else
 # a person is expected to edit by hand.
 kerosene-kv.workspace = true
 # "vulkan" has to mean a real backend, so the mapping lives next to the enum.

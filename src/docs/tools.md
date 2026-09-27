@@ -1,21 +1,52 @@
 # Tool reference
 
 One application, `kerosene-tools`. Open it with no arguments and you get one
-window holding every tool: a project page, the world editor, the sound editor,
-a build form and an archive form, switched with an activity bar of icons down
-the left edge (`ctrl-1` to `ctrl-5`), and one **output panel** along the
-bottom (`` ctrl-` ``) that every job -- a compile, a build, a pack -- logs
-into. It comes up on its own when a job starts. None of it is the engine, and
-none of it depends on it.
+window holding every tool, switched from a sidebar down the left edge:
 
-The **project page** is where the window opens: which project this is, where
-its content is and how that was decided, how many maps, materials, models,
-sounds and scripts it holds, and the maps themselves with whether each has
-been compiled. Click a map to edit it; *new map*, *build everything* and
-*pack archive* are the three buttons.
+| Tab | Keys | What it is |
+|---|---|---|
+| Home | `ctrl-1` | the project, its content, what needs building, recent activity |
+| Assets | `ctrl-2` | every file in the content tree, searchable, with its build status |
+| Editor | `ctrl-3` | Chisel, the world editor |
+| Models | `ctrl-4` | Loupe, the model viewer |
+| Sound | `ctrl-5` | Timbre, the sound editor |
+| Build | `ctrl-6` | Kiln: stages, options, one button, and Cancel |
+| Archive | `ctrl-7` | Vault: pack, verify, and the archive's contents as a table |
+
+Across the top, a bar says where you are, holds a **search box** and a
+**Play** button, and shows any running build or pack with its elapsed time
+and a way to stop it. Along the bottom, one **output panel** (`` ctrl-` ``)
+that every job -- a compile, a build, a pack, a play session -- logs into.
+It comes up on its own when a job starts, counts each log's errors and
+warnings, and can be filtered by text, narrowed to problems, or copied.
+None of it is the engine, and none of it depends on it.
+
+**`ctrl-P`** (or `ctrl-K`) opens the **command palette**: type a few letters
+of any map, model, sound, tab, job or recent project and press Enter. The
+match is forgiving -- `bf` finds *Build (fast)*, `arena` finds
+`maps/dm/arena.kmap` -- and the matched letters are highlighted.
+
+**Home** is where the window opens: which project this is and where its
+content is, the four things people come to do (*new map*, *build*, *pack*,
+*play*), counts of maps, materials, textures, models, sounds and scripts --
+click one to browse them -- and the maps themselves, each marked compiled,
+stale or not compiled.
+
+**Assets** lists everything under the content folder by category. Sources
+that compile to something -- maps, meshes under `models/`, sounds under
+`sound/`, images under `art/` -- say whether their compiled form is there
+and newer than they are. Double-click a map, model or sound to open it in
+its tool; right-click for *show in folder* and *copy path*.
+
+The **start page** comes up when no project is found, and from *Switch
+project* on Home or the project menu at the bottom of the sidebar. It lists
+recent projects and has three forms: **Open** a project folder, project file
+or content folder; start a **New game** (what `kerosene-tools new` does);
+or **Make a project** of an existing folder (what `kerosene-tools init`
+does). Switching away from an unsaved map asks first.
 
 The same stages also run headless, as subcommands, so a script or build server
-can drive them without a screen: `kerosene-tools cleave map.keromap`, and so
+can drive them without a screen: `kerosene-tools cleave map.kmap`, and so
 on. Each subcommand is the program it used to be, unchanged in argument and
 output. A mistyped one is answered with the one it nearly was
 (`unknown command "kilm". Did you mean \`kiln\`?`).
@@ -42,7 +73,7 @@ kerosene-tools clean [--content <dir>] [--dry-run]
 
 The same as `kiln --clean`: deletes every compiled texture, sound and map
 file under the content tree, and the project's archive, and nothing else.
-Models are left, since a `.keromdl` may have no source to rebuild it from.
+Models are left, since a `.kmdl` may have no source to rebuild it from.
 `--dry-run` says how much it would delete.
 
 ---
@@ -53,7 +84,7 @@ Models are left, since a `.keromdl` may have no source to rebuild it from.
 kerosene-tools init [dir] [--name "My Mod"] [--content content]
 ```
 
-Writes a `.keroproj` and creates the content tree beside it: `maps`,
+Writes a `.kproj` and creates the content tree beside it: `maps`,
 `materials`, `art`, `textures`, `models`, `sound`, `scripts`. Without a
 `--name` the directory's own name is used, and the project file is named after
 it.
@@ -79,17 +110,17 @@ should have done.
 A tab in the toolset window, and openable straight to a map:
 
 ```sh
-kerosene-tools                 # the toolset window, on the project page
-kerosene-tools chisel [map.keromap] [--content <dir>]   # straight to the editor
+kerosene-tools                 # the toolset window, on Home
+kerosene-tools chisel [map.kmap] [--content <dir>]   # straight to the editor
 ```
 
 **Finding the content.** Chisel needs the content root -- the tree holding
-`maps/`, `materials/` and the `.kerodef` class definitions -- to show entity
+`maps/`, `materials/` and the `.kdef` class definitions -- to show entity
 classes and materials at all. The search lives in `kerosene-vfs` and every tool
 and the engine share it, so they cannot disagree about which tree is in use.
 
-The reliable way to settle it is a **project file**: a `.keroproj` at the top
-of a project naming its content directory. See [formats](formats.md#keroproj).
+The reliable way to settle it is a **project file**: a `.kproj` at the top
+of a project naming its content directory. See [formats](formats.md#kproj).
 Without one, the tree is inferred, which works and is why a fresh clone needs
 no setup -- but inference is a guess, and a project file is how you overrule
 it. Three places are searched, nearest first: the tree the map lives in, the
@@ -101,7 +132,7 @@ by a project on the far side of the disk.
 Failing a project file, each place is searched like this: `--content` if given,
 then beside the map being opened, then the working directory, then beside its
 own executable, climbing up to six levels from each looking for a directory
-holding `kerosene.kerodef` (or, failing that, both `maps/` and `materials/`).
+holding `kerosene.kdef` (or, failing that, both `maps/` and `materials/`).
 Opening a map from anywhere in a project therefore just works, and the map's
 own tree wins over the working directory on purpose -- editing another
 project's map should not show this project's entities.
@@ -125,15 +156,15 @@ tell. `--no-build` turns it off; `F9` does it again before compiling the map,
 so a texture added during a session is compiled before the map that uses it.
 
 **Files.** `ctrl-S` saves. A map that has never been saved is asked for a name
-first rather than being written to `untitled.keromap` somewhere -- the name is
+first rather than being written to `untitled.kmap` somewhere -- the name is
 what `kerosene +map <name>` loads, so an editor that picks one for you is an editor
 whose output you have to go looking for. `ctrl-shift-S` and `file → save as…`
 ask for a name outright. A bare name means a map in this project: typing
-`arena` writes `<content>/maps/arena.keromap`. An absolute path is taken as
+`arena` writes `<content>/maps/arena.kmap`. An absolute path is taken as
 given.
 
 `file → rename…` moves the map *and* the artefacts compiled from it -- the
-`.kerobsp`, `.keroprt` and `.keroleak`. Leaving a `.kerobsp` behind under the
+`.kbsp`, `.kprt` and `.kleak`. Leaving a `.kbsp` behind under the
 old name is worse than clutter: the game still loads it, so a renamed map
 appears to work under a name that no longer exists and to be missing under the
 one that does. Renaming onto a map that already exists is refused.
@@ -236,7 +267,7 @@ and how many of them are broken. On a brush it gives the size and the
 material of the face under the pointer.
 
 **Helpers** are what an entity looks like beyond its marker, as the game's
-`.kerodef` declares them: a spot light's cone, pointing where it shines; a
+`.kdef` declares them: a spot light's cone, pointing where it shines; a
 light's two spheres, where it lights a surface fully and where it has all but
 faded; a sound's audible radius; a panel's rectangle; an arrow along the
 player start's facing; a line to whatever a `target` key names. They are
@@ -409,7 +440,7 @@ colour. A mesh is detail -- drawn, lit and collided with, but it no longer
 seals the map or blocks visibility, so converting a wall that seals the map
 makes it leak and the compile says so. Meshes select, move, resize,
 duplicate, delete, hide and take a material like brushes; editing their
-vertices is not in Chisel yet. See `.keromap` in `formats.md`.
+vertices is not in Chisel yet. See `.kmap` in `formats.md`.
 
 **Transform.** `Ctrl+M` rotates, scales or moves the selection by numbers,
 about its centre or the world origin; `R` is a quarter turn about the axis
@@ -494,7 +525,7 @@ options bar, grouped by family and searchable. Give brushes a type in the
 Properties panel to make them a door or a trigger. Wire outputs to inputs on
 the entity's Outputs tab.
 
-**Wiring, in firing order.** A `.keromap` stores wiring as a flat list of
+**Wiring, in firing order.** A `.kmap` stores wiring as a flat list of
 connections. The Outputs tab lists them grouped by output and sorted by delay
 -- the order they will actually fire in -- and `+ Add` after a picked line
 starts the next step of a sequence a tenth of a second later, because two
@@ -518,7 +549,7 @@ Clicking a brush that belongs to an entity selects the entity, not the brush:
 that is what a designer means by "the door".
 
 **Entity properties.** The inspector is driven by the game's class definitions
--- the `.kerodef` files Chisel finds under the content root. For a selected
+-- the `.kdef` files Chisel finds under the content root. For a selected
 entity it lists *every* key its class reads, whether or not the entity has been
 given a value for one, with the type, the game's default and a line of help.
 Keys are edited with a widget suited to what they hold: a colour picker for a
@@ -526,7 +557,7 @@ light's colour, checkboxes for a spawnflag field, a menu of the map's entity
 names when wiring an output. A key the definitions do not describe is still
 shown -- that is how a typo becomes visible rather than silent.
 
-Without a `.kerodef` the inspector can only show the keys an entity already
+Without a `.kdef` the inspector can only show the keys an entity already
 carries, which for a freshly placed entity is none. Chisel says so in the
 status bar rather than looking like a game with no settings.
 
@@ -547,7 +578,7 @@ the exception -- those *are* walls, just ones nobody sees, so they stay opaque.
 A volume does not write depth either, so two overlapping ones both show and
 neither erases what is behind it.
 
-It reads the **compiled** `.kerotex`, through the same VFS the engine uses, so
+It reads the **compiled** `.ktex`, through the same VFS the engine uses, so
 what it shows is what the engine will draw -- including from inside a `.vault`
 archive. The consequence is worth stating plainly: **the content has to be
 built**. A material Alchemy has not compiled yet shows as a flat colour derived
@@ -588,7 +619,7 @@ editor's own texture cache is reloaded when the compile finishes -- a new
 texture shows up in the pane without a restart. Uncheck *build materials* to
 skip that stage when the art has not moved.
 
-When a map is not sealed, Cleave writes a `.keroleak` trace beside it and
+When a map is not sealed, Cleave writes a `.kleak` trace beside it and
 Chisel loads it and draws the route out in red, through every pane. Follow the
 line to the wall it goes through. `map → clear the leak trace` puts it away.
 
@@ -615,12 +646,12 @@ comparison on hover.
 ## Cleave — the BSP compiler
 
 ```sh
-kerosene-tools cleave map.keromap [-o out.kerobsp] [--ignore-leaks] [--no-fill] [--dry-run] [-v]
+kerosene-tools cleave map.kmap [-o out.kbsp] [--ignore-leaks] [--no-fill] [--dry-run] [-v]
                      [--content <dir>] [--cordon "minx miny minz maxx maxy maxz"] [--no-cordon]
 ```
 
-`.keromap` → `.kerobsp` plus a `.keroprt` portal graph for Umbra, and a
-`.kerowalk` NPC walkmap built from the world's flat walkable faces. The
+`.kmap` → `.kbsp` plus a `.kprt` portal graph for Umbra, and a
+`.kwalk` NPC walkmap built from the world's flat walkable faces. The
 walkmap is written every compile -- the compiler already has the final face
 polygons, so the designer does not run a separate step to get one.
 
@@ -629,11 +660,11 @@ first, because a designer would rather fix five brushes in one cycle than five.
 
 **Leaks.** If the flood fill escapes to the void, the map is not sealed and
 Cleave refuses to build it — visibility would be nearly useless and the compile
-would take far longer. `--ignore-leaks` builds it anyway and writes a `.keroleak`
+would take far longer. `--ignore-leaks` builds it anyway and writes a `.kleak`
 trace naming the route out, which is the only practical way to find a one-unit
 gap in a large map.
 
-A compile that seals the map **deletes** any `.keroleak` left beside it by an
+A compile that seals the map **deletes** any `.kleak` left beside it by an
 earlier one. A stale trace is worse than none: Chisel loads whatever is on
 disk, so a map that leaked once would go on reporting a leak through every
 successful compile after it.
@@ -669,7 +700,7 @@ designer has over compile time.
 ## Umbra — the visibility compiler
 
 ```sh
-kerosene-tools umbra map.kerobsp [--portals map.keroprt] [--fast] [--dry-run]
+kerosene-tools umbra map.kbsp [--portals map.kprt] [--fast] [--dry-run]
 ```
 
 Computes which clusters can see which, and writes the PVS back into the map.
@@ -688,7 +719,7 @@ which is what lets the engine silence a sound that has no way of reaching you.
 ## Resonance — the acoustics compiler
 
 ```sh
-kerosene-tools resonance map.kerobsp [--content DIR] [--portals map.keroprt]
+kerosene-tools resonance map.kbsp [--content DIR] [--portals map.kprt]
                   [--fast | --extra] [--rooms] [--dry-run]
 ```
 
@@ -734,7 +765,7 @@ after a rebuild does so because the map changed.
 ## Radiance — the lighting compiler
 
 ```sh
-kerosene-tools radiance map.kerobsp [--samples 1-8] [--bounces 0-8] [--scale N]
+kerosene-tools radiance map.kbsp [--samples 1-8] [--bounces 0-8] [--scale N]
                   [--ambient-scale N] [--cubemap-size 4-256] [--fast] [--dry-run]
 ```
 
@@ -778,20 +809,20 @@ is part of the compile: there is no step to forget.
 ## Alchemy — textures and materials
 
 ```sh
-kerosene-tools alchemy compile art/grid.png -o materials/dev/grid.kerotex [--normal] [--clamp] [--ui]
+kerosene-tools alchemy compile art/grid.png -o materials/dev/grid.ktex [--normal] [--clamp] [--ui]
 kerosene-tools alchemy material dev/grid --basetexture dev/grid --shader lit
 kerosene-tools alchemy batch art -o materials --make-materials
 kerosene-tools alchemy new-texture Walls/brick --basecolor b.png --normal b_n.png
 kerosene-tools alchemy texture-set content/textures/Walls/brick
 kerosene-tools alchemy build content
-kerosene-tools alchemy info materials/dev/grid.kerotex
+kerosene-tools alchemy info materials/dev/grid.ktex
 ```
 
-Compiles PNG/JPEG/TGA into `.kerotex` and authors `.keromat` materials.
+Compiles PNG/JPEG/TGA into `.ktex` and authors `.kmat` materials.
 
 `new-texture` is the deliberate way to add one. It makes a folder under
 `content/textures/`, copies the images in under canonical names, and writes the
-`texture.kconfig` that documents what the set can say — as against the older
+`texture.kcfg` that documents what the set can say — as against the older
 route of dropping a PNG under `art/` and relying on a filename suffix to be
 guessed correctly. The folder is a *texture set*: colour, normals, roughness,
 emissive and occlusion compiled together, plus the material binding them. See
@@ -815,7 +846,7 @@ build script insisted everything was fine. Alchemy is a library as well as a
 command so the editor can call it rather than shell out to a sibling binary
 that may not be on the path.
 
-`batch` and `build` skip an image whose `.kerotex` is already newer than it, so
+`batch` and `build` skip an image whose `.ktex` is already newer than it, so
 a build with nothing to do costs a directory walk.
 
 Alpha is dropped when an image does not use it, which saves a quarter of the
@@ -828,15 +859,15 @@ unattended.
 ## Forge — the model compiler
 
 ```sh
-kerosene-tools forge compile art/crate.obj -o models/props/crate.keromdl
+kerosene-tools forge compile art/crate.obj -o models/props/crate.kmdl
                             [--scale-metres] [--z-up] [--scale N]
                             [--material old=new] [--recompute-normals]
-kerosene-tools forge compile art/turret.glb -o models/props/turret.keromdl
+kerosene-tools forge compile art/turret.glb -o models/props/turret.kmdl
                             [--scale N] [--material old=new] [--once clip]
-kerosene-tools forge info models/props/crate.keromdl
+kerosene-tools forge info models/props/crate.kmdl
 ```
 
-OBJ or glTF (`.gltf`, `.glb`) → `.keromdl`, splitting by material and welding
+OBJ or glTF (`.gltf`, `.glb`) → `.kmdl`, splitting by material and welding
 vertices.
 
 **glTF** carries what OBJ cannot: a skeleton and its animations. Forge reads
@@ -854,7 +885,7 @@ forward; Kerosene is Z-up with +X forward. And modelling packages usually
 work in metres — `--scale-metres` converts.
 
 Winding is taken from the OBJ as-is (the axis remap preserves handedness), so
-export your faces counter-clockwise from the front: `.keromdl` stores them
+export your faces counter-clockwise from the front: `.kmdl` stores them
 that way, and a face wound the other way renders inside out. `--recompute-normals`
 rebuilds normals from the winding and ignores any in the source, but it does
 not repair a source that was wound backwards to begin with.
@@ -867,8 +898,9 @@ merging them rounds off every corner of the model.
 
 ## Kiln — building a project
 
-The Build tab in the toolset window -- stages as toggles, one button, and the
-log in the output panel -- and also a headless stage:
+The Build tab in the toolset window -- stages as cards with a switch each,
+*fast*, *rebuild everything*, *ignore leaks* and *dry run* as options, Build
+and Cancel, and the log in the output panel -- and also a headless stage:
 
 ```sh
 kerosene-tools kiln                              # build everything, from here
@@ -900,8 +932,8 @@ the texture build is a library call, because Chisel makes the same one and the
 two must not be able to disagree.
 
 Sources decide what gets built: every `.obj` under `art/` becomes a
-`.keromdl` at the matching path under `models/`, and every `.keromap` under
-`maps/` becomes a `.kerobsp`. Nothing has a list to keep up to date.
+`.kmdl` at the matching path under `models/`, and every `.kmap` under
+`maps/` becomes a `.kbsp`. Nothing has a list to keep up to date.
 
 A map that leaks still compiles, and is reported at the end rather than
 stopping the build — finding out on the first of forty maps that the run is
@@ -914,9 +946,9 @@ it, then calls Kiln and packs the engine's base content. None of that
 belongs in a shipped tool.
 
 `--ship <dir>` is the stage after the content: it builds the project's
-`game` package if the `.keroproj` names one (or takes the `kerosene` runtime
+`game` package if the `.kproj` names one (or takes the `kerosene` runtime
 beside the toolset if not), then assembles a distribution — the binary, the
-`.vault` under `content/`, a `.keroproj` pointing at it, both licence texts
+`.vault` under `content/`, a `.kproj` pointing at it, both licence texts
 and a `README.txt` carrying the notices the licences require. It copies a
 named list of files rather than a directory, so no tool ever ends up in a
 player's hands, and it refuses an archive that is missing or older than the
@@ -928,11 +960,12 @@ not do for a release is the subject of
 
 ## Vault — content archives
 
-The Archive tab in the toolset window -- pack, verify and list, with the log
-in the output panel -- and also a headless stage:
+The Archive tab in the toolset window -- pack and verify, with the log in the
+output panel, whether the archive is older than what it packs, and its
+contents as a searchable table -- and also a headless stage:
 
 ```sh
-kerosene-tools vault pack content -o content/kerosene_content.vault [--ext kerotex] [--exclude tmp]
+kerosene-tools vault pack content -o content/kerosene_content.vault [--ext ktex] [--exclude tmp]
 kerosene-tools vault list content/kerosene_content.vault [--long]
 kerosene-tools vault verify content/kerosene_content.vault
 kerosene-tools vault unpack content/kerosene_content.vault -o extracted
@@ -976,8 +1009,8 @@ without being told about its own archives. Loose files still win over packed
 ones, which is what makes dropping a file beside a shipped archive work.
 
 A map that will not load says why rather than saying "not found in any search
-path". The usual reason is that it has never been compiled — the `.keromap` is
-right there and nothing turned it into a `.kerobsp` — so that is what it says,
+path". The usual reason is that it has never been compiled — the `.kmap` is
+right there and nothing turned it into a `.kbsp` — so that is what it says,
 along with the command to run and the list of paths it searched.
 
 ### The console
@@ -1041,7 +1074,7 @@ game.
 
 # Timbre — the sound compiler
 
-Turns `.wav`, `.flac` and `.mp3` into `.keroaud`. It is the one tool with no
+Turns `.wav`, `.flac` and `.mp3` into `.kaud`. It is the one tool with no
 Source counterpart, because Source shipped `.wav` and paid for it in download
 size; this pays a compile step instead. It is the sound tab in the toolset
 window, and also a headless stage:
@@ -1050,7 +1083,7 @@ window, and also a headless stage:
 kerosene-tools timbre                          # the sound tab
 kerosene-tools timbre build                    # compile a project's sounds
 kerosene-tools timbre compile a.wav --gain 0.8 --mono
-kerosene-tools timbre info a.keroaud
+kerosene-tools timbre info a.kaud
 ```
 
 ## What it reads
@@ -1109,7 +1142,7 @@ under it and the clipped samples marked in red means something at a glance.
 - Play through the same mixer the engine uses.
 - Gain in decibels, encoding, mono, and the loop region shaded on the wave.
 
-Settings are written to `sound/timbre.kerobuild` and read back by `timbre
+Settings are written to `sound/timbre.kcfg` and read back by `timbre
 build`, so the window and the command line cannot disagree about what a build
 is — the same discipline that makes the texture build a library call rather
 than a second implementation.

@@ -2,7 +2,7 @@
 //! Render the whole editor window, off screen, and write it out as a PNG.
 //!
 //! ```text
-//! cargo run -p kerosene-chisel --example ui_shot -- [map.keromap] [out.png] [--select <id>]... [--size WxH]
+//! cargo run -p kerosene-chisel --example ui_shot -- [map.kmap] [out.png] [--select <id>]... [--size WxH]
 //!     [--tool select|block|shape|entity|texture|clip] [--assets] [--layout four|two|one] [--hover X,Y]
 //!     [--tab properties|outputs|inputs] [--mode object|vertex|edge|face]
 //! ```
@@ -48,7 +48,7 @@ fn main() -> Result<()> {
     let map = args
         .first()
         .map(String::as_str)
-        .unwrap_or("content/maps/kerosene_room.keromap");
+        .unwrap_or("content/maps/kerosene_room.kmap");
     let out = args.get(1).map(String::as_str).unwrap_or("ui_shot.png");
 
     let map_path = std::path::PathBuf::from(map);

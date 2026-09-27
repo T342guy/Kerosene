@@ -2,7 +2,7 @@
 //! Render a map through Chisel's 3D pane and write it out as a PNG.
 //!
 //! ```text
-//! cargo run -p kerosene-chisel --example preview_shot -- <map.keromap> <out.png> [x y z yaw pitch]
+//! cargo run -p kerosene-chisel --example preview_shot -- <map.kmap> <out.png> [x y z yaw pitch]
 //! ```
 //!
 //! The 3D pane is software-rasterised, which means it can be run without a
@@ -19,7 +19,7 @@ fn main() -> Result<()> {
     let map = args
         .first()
         .map(String::as_str)
-        .unwrap_or("content/maps/kerosene_room.keromap");
+        .unwrap_or("content/maps/kerosene_room.kmap");
     let out = args.get(1).map(String::as_str).unwrap_or("preview.png");
     let number = |i: usize, fallback: f32| -> f32 {
         args.get(i).and_then(|v| v.parse().ok()).unwrap_or(fallback)

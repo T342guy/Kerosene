@@ -35,7 +35,7 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 /// What the settings file is called, inside the sound directory.
-pub const FILE_NAME: &str = "timbre.kerobuild";
+pub const FILE_NAME: &str = "timbre.kcfg";
 
 /// Settings for a sound tree.
 #[derive(Clone, Debug, Default)]

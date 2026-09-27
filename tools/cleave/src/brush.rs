@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! The compiler's working representation of a brush.
 //!
-//! A `.keromap` solid is a list of planes. Cleave needs more: interned plane
+//! A `.kmap` solid is a list of planes. Cleave needs more: interned plane
 //! indices, computed face polygons, resolved contents and surface flags, and
 //! the ability to be cut in half by an arbitrary plane while staying convex.
 

@@ -17,11 +17,11 @@ Three ways in, all equivalent underneath:
 
 ```
 script find_by_name("gate").fire("Open")     # at the console (cheat-protected)
-script_execute mymap                          # load scripts/mymap.keroscript
+script_execute mymap                          # load scripts/mymap.kscr
 script_reload                                 # forget everything and load it again
 ```
 
-A map called `atrium` automatically loads `scripts/atrium.keroscript` when it
+A map called `atrium` automatically loads `scripts/atrium.kscr` when it
 starts. That is where a level's script belongs.
 
 From inside a level, a `logic_script` entity is the seam: an output fires
@@ -135,7 +135,7 @@ work on both.
 | `.presence(key, value)` `.clear_presence()` | Rich presence |
 | `.open_overlay(dialog)` `.open_url(url)` `.open_store()` `.open_store(appid)` `.check_dlc(appid)` | |
 
-Achievement ids and stat names must be declared in the `.keroproj`. The
+Achievement ids and stat names must be declared in the `.kproj`. The
 object works inside functions, unlike top-level variables, and so `platform`
 and `steam` cannot be used as variable names. See
 [Steam](../gamedev/steam.md).
@@ -186,7 +186,7 @@ shipping its script.
 
 ## An example
 
-The demo level's, `content/scripts/kero_start.keroscript` in
+The demo level's, `content/scripts/kero_start.kscr` in
 [Kerosene Demo](https://github.com/t342guy/kerosene-demo), is written to be
 read: it plays a room tone, puts the objective on the HUD and says when the
 map has been running two seconds.

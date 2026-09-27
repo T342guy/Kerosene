@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! Layout files: XML in, an owned element tree out.
 //!
-//! A `.keroui` file is Panorama-shaped:
+//! A `.kui` file is Panorama-shaped:
 //!
 //! ```xml
 //! <root>
 //!     <styles>
-//!         <include src="ui/hud.kerocss"/>
+//!         <include src="ui/hud.kcss"/>
 //!     </styles>
 //!     <scripts>
-//!         <include src="ui/hud.keroscript"/>
+//!         <include src="ui/hud.kscr"/>
 //!     </scripts>
 //!     <Panel id="hud">
 //!         <Label class="health" text="{player.health}"/>

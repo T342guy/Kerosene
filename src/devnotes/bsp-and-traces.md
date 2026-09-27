@@ -1,7 +1,7 @@
 # BSP internals and traces
 
 `kerosene-bsp` is the format the engine runs. It has no GPU dependency and no
-compiler dependency: it reads and writes `.kerobsp`, answers tree queries, and
+compiler dependency: it reads and writes `.kbsp`, answers tree queries, and
 traces. This page is the file layout, the queries built on it, and the trace
 algorithm that everything collision-shaped funnels through.
 

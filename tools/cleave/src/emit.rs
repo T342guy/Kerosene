@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
-//! Turning the compiled tree into `.kerobsp` lumps.
+//! Turning the compiled tree into `.kbsp` lumps.
 //!
 //! Three jobs happen here, in order:
 //!
@@ -252,7 +252,7 @@ pub struct BrushModel {
     pub origin: Vec3,
 }
 
-/// Assemble the final `.kerobsp`.
+/// Assemble the final `.kbsp`.
 #[allow(clippy::too_many_arguments)]
 pub fn emit(
     tree: &Tree,
