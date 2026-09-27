@@ -10,12 +10,12 @@
 //!
 //! | Format  | Extension | Analogue in Source | Built by |
 //! |---------|-----------|--------------------|----------|
-//! | Texture | `.kerotex`   | VTF                | Alchemy  |
-//! | Material| `.keromat`   | VMT                | Alchemy  |
-//! | Model   | `.keromdl`   | MDL                | Forge    |
+//! | Texture | `.ktex`   | VTF                | Alchemy  |
+//! | Material| `.kmat`   | VMT                | Alchemy  |
+//! | Model   | `.kmdl`   | MDL                | Forge    |
 //!
 //! Textures have two source forms. A loose image under `art/` compiles to one
-//! `.kerotex`, which is all a tool texture or a skybox needs. A *folder* under
+//! `.ktex`, which is all a tool texture or a skybox needs. A *folder* under
 //! `textures/` compiles to a whole set -- colour, normals, roughness, emissive
 //! and occlusion -- plus the material that binds them together; see
 //! [`textureset`].
@@ -36,19 +36,21 @@ pub use model::{Animation, Bone, BoneKey, Mesh, Model, ModelError, Vertex};
 pub use texture::{Mip, PixelFormat, Texture, TextureError, TextureFlags};
 pub use textureset::{MapKind, TextureSet};
 
-/// Canonical extensions, so tools and the VFS agree on them in one place.
+/// The extensions this crate reads and writes. `kerosene_vfs::ext` is the
+/// whole table; this crate sits below it, so it keeps its own copy, and a
+/// test in the engine checks the two agree.
 pub mod ext {
-    pub const TEXTURE: &str = "kerotex";
-    pub const MATERIAL: &str = "keromat";
-    pub const MODEL: &str = "keromdl";
-    pub const MAP_SOURCE: &str = "keromap";
-    pub const MAP_COMPILED: &str = "kerobsp";
+    pub const TEXTURE: &str = "ktex";
+    pub const MATERIAL: &str = "kmat";
+    pub const MODEL: &str = "kmdl";
+    pub const MAP_SOURCE: &str = "kmap";
+    pub const MAP_COMPILED: &str = "kbsp";
     pub const ARCHIVE: &str = "vault";
 }
 
 /// Where a material lives, given the name geometry refers to it by.
 ///
-/// Brush faces store `dev/grid`; the file is `materials/dev/grid.keromat`. The
+/// Brush faces store `dev/grid`; the file is `materials/dev/grid.kmat`. The
 /// prefix and extension are added here rather than being written into every
 /// map, so content can be reorganised without rewriting geometry.
 pub fn material_path(name: &str) -> String {
@@ -84,21 +86,21 @@ mod tests {
 
     #[test]
     fn asset_names_resolve_to_paths() {
-        assert_eq!(material_path("dev/grid"), "materials/dev/grid.keromat");
-        assert_eq!(texture_path("dev/grid"), "materials/dev/grid.kerotex");
-        assert_eq!(model_path("props/crate"), "models/props/crate.keromdl");
+        assert_eq!(material_path("dev/grid"), "materials/dev/grid.kmat");
+        assert_eq!(texture_path("dev/grid"), "materials/dev/grid.ktex");
+        assert_eq!(model_path("props/crate"), "models/props/crate.kmdl");
     }
 
     #[test]
     fn a_leading_slash_does_not_produce_a_doubled_path() {
-        assert_eq!(material_path("/dev/grid"), "materials/dev/grid.keromat");
+        assert_eq!(material_path("/dev/grid"), "materials/dev/grid.kmat");
     }
 
     #[test]
     fn an_explicit_model_path_is_left_alone() {
         assert_eq!(
-            model_path("models/props/crate.keromdl"),
-            "models/props/crate.keromdl"
+            model_path("models/props/crate.kmdl"),
+            "models/props/crate.kmdl"
         );
     }
 }

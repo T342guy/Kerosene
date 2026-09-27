@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
-//! Reading glTF 2.0 (`.gltf` and `.glb`) into a `.keromdl`.
+//! Reading glTF 2.0 (`.gltf` and `.glb`) into a `.kmdl`.
 //!
 //! glTF is what every current DCC tool exports with a skeleton and its
 //! animations intact, which OBJ cannot carry at all. Forge takes:
@@ -107,7 +107,7 @@ pub fn import(path: &Path, options: &ImportOptions) -> Result<Model> {
     if let Some(skin) = skins.first() {
         let joints: Vec<usize> = skin.joints().map(|j| j.index()).collect();
         if joints.len() > 255 {
-            bail!("the skin has {} joints; a .keromdl holds 255", joints.len());
+            bail!("the skin has {} joints; a .kmdl holds 255", joints.len());
         }
         let reader = skin.reader(|b| Some(&buffers[b.index()]));
         let inverse_bind: Vec<Mat4> = match reader.read_inverse_bind_matrices() {
@@ -310,7 +310,7 @@ pub fn import(path: &Path, options: &ImportOptions) -> Result<Model> {
                 }
                 Some(ReadOutputs::Scales(_)) if !scale_warned => {
                     println!(
-                        "  warning: bone scale is animated; a .keromdl keeps only translation and rotation"
+                        "  warning: bone scale is animated; a .kmdl keeps only translation and rotation"
                     );
                     scale_warned = true;
                 }

@@ -12,7 +12,7 @@
 //!   sealed world. Turning them solid deletes the entire outer surface of the
 //!   map from the compile.
 //! * **Visibility.** Umbra computes the PVS by asking which portals can see
-//!   through which others, so Cleave writes the portal graph out as a `.keroprt`.
+//!   through which others, so Cleave writes the portal graph out as a `.kprt`.
 //!
 //! The construction is Quake's: start with six portals on the world box, then
 //! walk down the tree. At each node, build a new portal on the node's plane
@@ -327,7 +327,7 @@ pub struct LeakPath {
 }
 
 impl LeakPath {
-    /// The `.keroleak` point-file format Chisel loads to draw the leak.
+    /// The `.kleak` point-file format Chisel loads to draw the leak.
     ///
     /// One `x y z` per line. Deliberately trivial: a leak file is read by a
     /// person as often as by a program, and being able to eyeball the

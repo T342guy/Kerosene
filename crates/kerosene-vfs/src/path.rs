@@ -110,12 +110,12 @@ mod tests {
         // Separators, leading slashes and `.` parts all go; capitals stay,
         // because a directory on Linux is case-sensitive and a folded path is
         // how `FINALSmusic.flac` becomes a file that does not exist.
-        let want = Some("materials/dev/grid.keromat".to_string());
+        let want = Some("materials/dev/grid.kmat".to_string());
         for src in [
-            r"materials\dev\grid.keromat",
-            "materials/dev/grid.keromat",
-            "./materials//dev/grid.keromat",
-            "/materials/dev/grid.keromat",
+            r"materials\dev\grid.kmat",
+            "materials/dev/grid.kmat",
+            "./materials//dev/grid.kmat",
+            "/materials/dev/grid.kmat",
         ] {
             assert_eq!(normalize(src), want, "{src}");
         }
@@ -135,8 +135,8 @@ mod tests {
             Some("sound/ambient/track.wav")
         );
         assert_eq!(
-            key(r"Materials\Dev\Grid.keromat").as_deref(),
-            Some("materials/dev/grid.keromat")
+            key(r"Materials\Dev\Grid.kmat").as_deref(),
+            Some("materials/dev/grid.kmat")
         );
     }
 
@@ -186,8 +186,8 @@ mod tests {
     #[test]
     fn interior_dotdot_resolves() {
         assert_eq!(
-            normalize("materials/dev/../props/x.keromat").as_deref(),
-            Some("materials/props/x.keromat")
+            normalize("materials/dev/../props/x.kmat").as_deref(),
+            Some("materials/props/x.kmat")
         );
     }
 
@@ -207,18 +207,15 @@ mod tests {
 
     #[test]
     fn extension_and_parent() {
-        assert_eq!(extension("a/b/c.KEROMAT").as_deref(), Some("keromat"));
+        assert_eq!(extension("a/b/c.KMAT").as_deref(), Some("kmat"));
         assert_eq!(extension("a/b/noext"), None);
-        assert_eq!(parent("a/b/c.keromat"), "a/b");
-        assert_eq!(parent("c.keromat"), "");
+        assert_eq!(parent("a/b/c.kmat"), "a/b");
+        assert_eq!(parent("c.kmat"), "");
         assert_eq!(
-            with_extension("maps/kero_start.keromap", "kerobsp"),
-            "maps/kero_start.kerobsp"
+            with_extension("maps/kero_start.kmap", "kbsp"),
+            "maps/kero_start.kbsp"
         );
-        assert_eq!(
-            with_extension("maps/noext", "kerobsp"),
-            "maps/noext.kerobsp"
-        );
+        assert_eq!(with_extension("maps/noext", "kbsp"), "maps/noext.kbsp");
     }
 
     #[test]

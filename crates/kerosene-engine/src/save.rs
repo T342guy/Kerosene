@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! Saved games, and what survives a level change.
 //!
-//! A save is one JSON file, `save/<name>.kerosave`, holding everything a
+//! A save is one JSON file, `save/<name>.ksav`, holding everything a
 //! level is between two ticks:
 //!
 //! | Part | What |
@@ -39,7 +39,7 @@ use std::collections::BTreeMap;
 /// Where saves go, under the first writable search path.
 pub const SAVE_DIR: &str = "save";
 /// A save file's extension.
-pub const EXTENSION: &str = "kerosave";
+pub const EXTENSION: &str = "ksav";
 /// The layout this engine writes. A save from a newer engine is refused
 /// rather than half-read.
 pub const FORMAT: u32 = 1;
@@ -234,7 +234,7 @@ fn from_json(value: &Json) -> Option<kerosene_ui::Value> {
 }
 
 impl Engine {
-    /// Write the running game to `save/<name>.kerosave`, and to the store's
+    /// Write the running game to `save/<name>.ksav`, and to the store's
     /// cloud if it has one. Returns where it went.
     pub fn save_game(&mut self, name: &str) -> anyhow::Result<std::path::PathBuf> {
         if !valid_name(name) {

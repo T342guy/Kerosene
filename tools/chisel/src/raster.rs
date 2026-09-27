@@ -685,7 +685,7 @@ fn draw_ghost(
             ghost.pose.to_world(local)
         });
 
-        // `.keromdl` triangles wind counter-clockwise as seen from the front,
+        // `.kmdl` triangles wind counter-clockwise as seen from the front,
         // same convention `preview.rs` culls by.
         let normal = (corners[1] - corners[0])
             .cross(corners[2] - corners[0])

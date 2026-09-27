@@ -259,7 +259,7 @@ mod tests {
         assert_eq!(Level::of("FAILED: no such file"), Level::Error);
         assert_eq!(Level::of("warning: 3 materials unbuilt"), Level::Warn);
         assert_eq!(Level::of("--- cleave ---"), Level::Stage);
-        assert_eq!(Level::of("done: maps/arena.kerobsp"), Level::Ok);
+        assert_eq!(Level::of("done: maps/arena.kbsp"), Level::Ok);
         assert_eq!(Level::of("compiling 12 brushes"), Level::Info);
     }
 

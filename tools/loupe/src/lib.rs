@@ -5,7 +5,7 @@
 //! `props/crate_wood` -- and until now the only way to find out what one
 //! actually looks like was to place it, compile the map, and go and look.
 //! This is Half-Life Model Viewer's answer to the same problem, for
-//! `.keromdl`: pick a model from the content tree, spin it, and read off its
+//! `.kmdl`: pick a model from the content tree, spin it, and read off its
 //! meshes, materials and bones without touching a map at all.
 //!
 //! It draws through [`chisel::preview`], the same small rasteriser the asset
@@ -32,7 +32,7 @@ const MAX_ZOOM: f32 = 6.0;
 pub struct LoupeApp {
     root: PathBuf,
     vfs: Vfs,
-    /// Every `.keromdl` under `models/`, relative and without the extension --
+    /// Every `.kmdl` under `models/`, relative and without the extension --
     /// the same names a schema's `model` key holds.
     names: Vec<String>,
     filter: String,
@@ -46,7 +46,7 @@ pub struct LoupeApp {
     zoom: f32,
     render: Option<Rendered>,
     /// Textures the selected model's materials resolve to, loaded through the
-    /// same VFS and compiled `.kerotex` path the 3D pane and asset browser
+    /// same VFS and compiled `.ktex` path the 3D pane and asset browser
     /// use -- so a model looks the same here as it would placed in a level.
     textures: TextureCache,
 }
@@ -97,7 +97,7 @@ impl LoupeApp {
         self.render = None;
         self.model = match self
             .vfs
-            .read(&format!("models/{name}.keromdl"))
+            .read(&format!("models/{name}.kmdl"))
             .map_err(|e| e.to_string())
             .and_then(|bytes| Model::from_bytes(&bytes).map_err(|e| e.to_string()))
         {
@@ -135,7 +135,7 @@ impl LoupeApp {
                 .collect();
             if names.is_empty() {
                 ui.label(theme::caption(if self.names.is_empty() {
-                    "no .keromdl files found under models/"
+                    "no .kmdl files found under models/"
                 } else {
                     "nothing matches"
                 }));
@@ -248,7 +248,7 @@ impl LoupeApp {
     }
 
     /// Mesh, material and bone lists, and the note that this format has
-    /// nothing to animate: `.keromdl` bones are a rest pose only.
+    /// nothing to animate: `.kmdl` bones are a rest pose only.
     fn info_panel(&self, ui: &mut egui::Ui) {
         let Some(model) = &self.model else { return };
 
@@ -279,11 +279,11 @@ impl LoupeApp {
         });
 
         widgets::section(ui, "animation", |ui| {
-            // Not a limitation of this viewer: `.keromdl` itself carries only
+            // Not a limitation of this viewer: `.kmdl` itself carries only
             // a rest pose, no keyframe tracks. Saying so plainly beats a
             // panel that just sits there empty and lets you wonder why.
             ui.label(theme::caption(
-                "`.keromdl` has no animation data to play -- only a rest pose. \
+                "`.kmdl` has no animation data to play -- only a rest pose. \
                  Playback would need a model-format change, not a viewer change.",
             ));
         });

@@ -8,9 +8,9 @@
 //!
 //! | | |
 //! |---|---|
-//! | Layout | `.keroui`, XML ([`markup`]) |
-//! | Style | `.kerocss`, a subset of CSS ([`css`], [`style`]) laid out with flexbox by [taffy] |
-//! | Behaviour | `.keroscript`, Rhai, sandboxed like a level's scripts ([`script`]) |
+//! | Layout | `.kui`, XML ([`markup`]) |
+//! | Style | `.kcss`, a subset of CSS ([`css`], [`style`]) laid out with flexbox by [taffy] |
+//! | Behaviour | `.kscr`, Rhai, sandboxed like a level's scripts ([`script`]) |
 //! | State | a [`UiStore`] of dotted keys the game publishes |
 //! | Wiring | `{expressions}` in attributes that re-run when their keys change ([`bind`]) |
 //!
@@ -34,13 +34,13 @@
 //! use std::collections::BTreeMap;
 //!
 //! let mut files = BTreeMap::new();
-//! files.insert("ui/hud.keroui".to_string(), r#"
+//! files.insert("ui/hud.kui".to_string(), r#"
 //!     <root>
 //!         <Label id="ammo" text="{weapon.ammo} / {weapon.reserve}"/>
 //!     </root>"#.to_string());
 //!
 //! let mut ui = UiSystem::new();
-//! ui.show("hud", "ui/hud.keroui", &files).unwrap();
+//! ui.show("hud", "ui/hud.kui", &files).unwrap();
 //!
 //! let mut store = UiStore::new();
 //! store.set("weapon.ammo", 12);
@@ -71,9 +71,9 @@ pub use text::{ATLAS_SIZE, Fonts, GlyphAtlas};
 use std::collections::{BTreeMap, HashMap};
 
 /// Extension of a layout file.
-pub const LAYOUT_EXTENSION: &str = "keroui";
+pub const LAYOUT_EXTENSION: &str = kerosene_vfs::ext::UI_LAYOUT;
 /// Extension of a stylesheet.
-pub const STYLE_EXTENSION: &str = "kerocss";
+pub const STYLE_EXTENSION: &str = kerosene_vfs::ext::UI_STYLE;
 
 /// Where documents read their files from.
 pub trait Loader {

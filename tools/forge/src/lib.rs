@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! Forge -- the Kerosene model compiler.
 //!
-//! Turns a source mesh into a `.keromdl` the engine can load, the studiomdl
+//! Turns a source mesh into a `.kmdl` the engine can load, the studiomdl
 //! analogue. It does the work that should happen once at build time rather
 //! than on every load: welding vertices, splitting by material, computing
 //! normals where the source has none, and converting axes and units.
@@ -10,9 +10,9 @@
 //! subcommand:
 //!
 //! ```text
-//! kerosene-tools forge compile art/crate.obj -o models/props/crate.keromdl --scale-metres
-//! kerosene-tools forge compile art/soldier.glb -o models/npc/soldier.keromdl --once die
-//! kerosene-tools forge info models/props/crate.keromdl
+//! kerosene-tools forge compile art/crate.obj -o models/props/crate.kmdl --scale-metres
+//! kerosene-tools forge compile art/soldier.glb -o models/npc/soldier.kmdl --once die
+//! kerosene-tools forge info models/props/crate.kmdl
 //! ```
 
 pub mod gltf_import;
@@ -30,7 +30,7 @@ use std::path::{Path, PathBuf};
 #[command(
     name = "forge",
     version,
-    about = "Compile source meshes into .keromdl models"
+    about = "Compile source meshes into .kmdl models"
 )]
 struct Args {
     #[command(subcommand)]
@@ -40,7 +40,7 @@ struct Args {
 #[derive(Subcommand, Debug)]
 enum Command {
     /// Compile an OBJ, or a glTF (.gltf/.glb) with its skeleton and
-    /// animations, into a .keromdl.
+    /// animations, into a .kmdl.
     Compile {
         source: PathBuf,
         #[arg(short, long)]
@@ -94,7 +94,7 @@ pub fn run(args: Vec<String>) -> Result<()> {
             recompute_normals,
             once,
         } => {
-            let out = output.unwrap_or_else(|| source.with_extension("keromdl"));
+            let out = output.unwrap_or_else(|| source.with_extension("kmdl"));
             let is_gltf = source
                 .extension()
                 .and_then(|e| e.to_str())

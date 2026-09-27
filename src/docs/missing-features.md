@@ -61,7 +61,7 @@ for completeness.
 - **Chisel 3D view.** ~~Software-rasterised.~~ It renders on the GPU now,
   with props drawn as their models and entity helpers (section 19). Still
   no lighting or shadow preview: the view is flat-shaded.
-- **Texture block compression.** `.kerotex` is uncompressed; no BCn. The
+- **Texture block compression.** `.ktex` is uncompressed; no BCn. The
   README's reason -- a bad encoder is worse than none -- no longer holds:
   `intel_tex_2` and `texpresso` are pure-Rust BC7 encoders that are good
   enough.
@@ -137,7 +137,7 @@ for completeness.
   rather than overshoot -- so it stays an ordinary body in the simulation: it
   turns to face the player as they turn, shoves what it can move, and hangs
   back short of the hold point when it meets what it cannot, rather than
-  being driven through it. `.keromdl` models render at their simulated pose,
+  being driven through it. `.kmdl` models render at their simulated pose,
   and `phys_debug` draws the collision boxes. What is not there:
   **convex-hull props** (see the callout below -- the solver does hulls, props
   do not use them), joints, per-surface-material friction, a launch-beams
@@ -183,7 +183,7 @@ for completeness.
   but nothing is an NPC.
 - **Pathfinding.** `NavGraph` links walkable faces that share a stretch of
   edge (T-junctions included, which a compiled floor is full of) and
-  A*-searches it for waypoints. The engine loads each map's `.kerowalk` with
+  A*-searches it for waypoints. The engine loads each map's `.kwalk` with
   it, and `Engine::find_path` and `Engine::nav` are how a game asks. There is
   still no smoothing into a funnel, no flow fields, and no NPC entity to
   steer along the result.
@@ -281,12 +281,12 @@ for completeness.
 ## 11. Content and asset pipeline
 
 - **Prefabs / instances.** Brushes are authored per map; there is no way to
-  include one `.keromap` in another. This is not a scene-graph feature --
+  include one `.kmap` in another. This is not a scene-graph feature --
   Hammer had instances too -- and past a handful of maps the brush workflow
   does not manage without it.
 - **Scene graph.** Deliberately a flat entity list (a design choice, listed
   here for comparison with Unity/Unreal).
-- **Material editor.** `.keromat` is hand-written KeyValues; no visual
+- **Material editor.** `.kmat` is hand-written KeyValues; no visual
   material graph.
 - **Shader graph / custom shaders.** The shader set is closed.
 - **Animation import in Forge.** glTF (skins and animations) is in. No FBX,
@@ -296,7 +296,7 @@ for completeness.
 - ~~**Level streaming / world partition.**~~ Sections: a visgroup marked as
   streamed is loaded and unloaded around the player by potential
   visibility (see [`architecture.md`](architecture.md#streamed-sections)).
-  Still one `.kerobsp` per map, compiled and lit as one; not an open world.
+  Still one `.kbsp` per map, compiled and lit as one; not an open world.
 - **Visibility control for the mapper.** `tools/hint` and `tools/skip` steer
   Cleave's splits, but there is no `func_areaportal` and no occluder, so a
   door cannot close off what is behind it.
@@ -310,7 +310,7 @@ for completeness.
   `cargo tools` and `cargo ship`, a project file and a starter map), or with
   `--content-only` a mod. The engine's base content means either runs before
   it has any art of its own.
-- **Per-target build settings.** `.keroproj` names a content tree and a
+- **Per-target build settings.** `.kproj` names a content tree and a
   start map, and the window title comes from the game's `LaunchOptions`. An
   icon, default convars and a start map per configuration belong there too,
   along with named ship targets (Godot's export presets) for Kiln.
@@ -397,7 +397,7 @@ Chisel:
   vertex, edge and face modes, with drag in the flat views, extrude and
   merge, refusing any edit that would make a brush concave. Meshes still do
   not: Chisel draws, picks, moves, resizes, duplicates and deletes them, but
-  a mesh is shaped by converting a brush, or by hand in the `.keromap`. No
+  a mesh is shaped by converting a brush, or by hand in the `.kmap`. No
   bevel yet, for either.
 - **Texture painting.** No brush-based texture painting or blending.
 - **Walkmap visualization.** The rule-tint view exists, but there is no
@@ -421,11 +421,11 @@ The compilers and Kiln:
 - **Independent stages run in sequence.** Textures, models and sounds do not
   depend on each other.
 - **No lint.** `kerosene-tools lint`: materials naming textures that do not
-  exist, sounds a map fires that `.kerosnd` does not define, outputs aimed at
+  exist, sounds a map fires that `.ksnd` does not define, outputs aimed at
   names no entity has. The editor's "check for problems" and this should be
   one function.
 - **No map diff.** The formats are text, which is the point; a semantic
-  `.keromap` diff -- this brush moved, that output was added -- is something
+  `.kmap` diff -- this brush moved, that output was added -- is something
   no mainstream engine can offer a team using git, and it is a small program.
 
 The engine as a tool:
@@ -590,7 +590,7 @@ Audio:
 
 - ~~**Pausing did not pause the sound.**~~ A paused game holds every sound
   in the world where it is; the interface's clicks play on.
-- **No random variants or pitch in `.kerosnd`.** One file per sound;
+- **No random variants or pitch in `.ksnd`.** One file per sound;
   footsteps get variety by naming (`footstep/<surface>/n`).
 - **A playing voice cannot be changed.** No volume, pitch or fade on a
   handle, so no crossfade and no door loop that fades out.
@@ -719,7 +719,7 @@ Deliberately not:
 ## Three gaps worth calling out
 
 1. **The walkmap has a consumer now.** The engine loads each map's
-   `.kerowalk`, `NavGraph` links its faces (across T-junctions, which it
+   `.kwalk`, `NavGraph` links its faces (across T-junctions, which it
    used to miss, leaving a real floor with no links at all) and
    `Engine::find_path` answers with waypoints; `Engine::debug_line` can draw
    them. What is missing is the NPC that walks them.
@@ -728,7 +728,7 @@ Deliberately not:
    `func_detail` go in as static hulls, so the hull path is real and running.
    But `prop_physics` bodies are built from the model's bounding box
    (`add_dynamic_box_material`), so a barrel collides as a crate. Nothing
-   calls `add_dynamic_hull`. Closing this is wiring a hull out of `.keromdl`
+   calls `add_dynamic_hull`. Closing this is wiring a hull out of `.kmdl`
    geometry, not new physics.
 3. **`$surfaceprop` is driven at runtime.** Traces now report the texinfo they
    hit, the engine resolves that to a material and its `$surfaceprop`, and

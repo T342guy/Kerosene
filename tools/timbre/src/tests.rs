@@ -183,11 +183,11 @@ fn a_file_that_is_not_a_wav_yields_no_loop_rather_than_reading_rubbish() {
 // ---- compiling ------------------------------------------------------------
 
 #[test]
-fn compiling_writes_a_readable_keroaud_beside_the_source() {
+fn compiling_writes_a_readable_kaud_beside_the_source() {
     let dir = scratch("compile");
     let source = write_wav(&dir, "door/move.wav", &tone(4410, 1, 0.7));
     let output = output_for(&source);
-    assert_eq!(output.extension().unwrap(), "keroaud");
+    assert_eq!(output.extension().unwrap(), "kaud");
 
     let done = compile(&source, &output, &Options::default()).unwrap();
     assert!(output.is_file());
@@ -312,8 +312,8 @@ fn a_build_compiles_every_sound_under_the_tree() {
     let batch = build_sounds(&dir, false).unwrap();
     assert_eq!(batch.compiled.len(), 3);
     assert!(batch.failed.is_empty());
-    assert!(sound.join("ui/click.keroaud").is_file());
-    assert!(sound.join("door/move.keroaud").is_file());
+    assert!(sound.join("ui/click.kaud").is_file());
+    assert!(sound.join("door/move.kaud").is_file());
 }
 
 #[test]
@@ -393,7 +393,7 @@ fn a_project_with_no_sound_directory_at_all_is_not_an_error() {
 
 #[test]
 fn two_sources_with_the_same_name_are_refused_rather_than_racing() {
-    // `click.wav` and `click.flac` compile to the same `click.keroaud`, so one
+    // `click.wav` and `click.flac` compile to the same `click.kaud`, so one
     // silently wins and which one depends on the sort order. Only the person
     // who put both there knows which they meant.
     let dir = scratch("collision");
@@ -414,7 +414,7 @@ fn two_sources_with_the_same_name_are_refused_rather_than_racing() {
     );
     // And *refused*: neither is compiled, so nothing was chosen for them.
     assert!(batch.compiled.is_empty(), "{:?}", batch.compiled);
-    assert!(!sound.join("click.keroaud").exists());
+    assert!(!sound.join("click.kaud").exists());
 }
 
 #[test]
@@ -430,7 +430,7 @@ fn a_flac_source_compiles_like_any_other() {
 
     let batch = build_sounds(&dir, false).unwrap();
     assert_eq!(batch.compiled.len(), 1);
-    assert!(sound.join("chime.keroaud").is_file());
+    assert!(sound.join("chime.kaud").is_file());
     assert!(
         batch.compiled[0].warnings.is_empty(),
         "{:?}",

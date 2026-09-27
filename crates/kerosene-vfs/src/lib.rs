@@ -2,7 +2,7 @@
 //! The virtual filesystem: search paths and mounted archives.
 //!
 //! Source's filesystem lets a mod, the base game and a set of VPKs stack into
-//! one namespace, so `materials/dev/grid.keromat` resolves against whichever
+//! one namespace, so `materials/dev/grid.kmat` resolves against whichever
 //! layer provides it first. That is what makes a mod a mod -- you drop in
 //! files that shadow the base game's without touching it. Kerosene works the
 //! same way, with [`Vault`](archive) archives standing in for VPKs.
@@ -16,7 +16,7 @@
 //! let mut vfs = Vfs::new();
 //! vfs.add_directory(Path::new("mods/mymod"), "MOD");   // searched first
 //! vfs.add_directory(Path::new("content"), "GAME");     // fallback
-//! let bytes = vfs.read("materials/dev/grid.keromat").unwrap();
+//! let bytes = vfs.read("materials/dev/grid.kmat").unwrap();
 //! ```
 
 // Everything public is documented: this crate is part of `kerosene`'s
@@ -24,6 +24,7 @@
 #![warn(missing_docs)]
 
 pub mod archive;
+pub mod ext;
 pub mod path;
 pub mod project;
 pub mod root;
@@ -89,19 +90,8 @@ pub fn up_to_date(output: &Path, sources: &[&Path]) -> bool {
 }
 
 /// The extensions of files the content build writes and can write again
-/// from sources beside them: textures, sounds, and everything a map compile
-/// leaves. What `kiln --clean` deletes, and what a project's `.gitignore`
-/// leaves out. Models are not here: a `.keromdl` may have come from
-/// somewhere with no source to rebuild it from.
-pub const COMPILED_EXTENSIONS: &[&str] = &[
-    "kerotex",
-    "keroaud",
-    "kerobsp",
-    "keroprt",
-    "kerowalk",
-    "keroleak",
-    "kerobuild",
-];
+/// from sources beside them. See [`ext::COMPILED`].
+pub const COMPILED_EXTENSIONS: &[&str] = ext::COMPILED;
 
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
@@ -229,7 +219,7 @@ impl Vfs {
             .map(|e| e.path())
             .filter(|p| {
                 p.extension()
-                    .is_some_and(|e| e.eq_ignore_ascii_case("vault"))
+                    .is_some_and(|e| e.eq_ignore_ascii_case(ext::ARCHIVE))
             })
             .collect();
         files.sort();
@@ -383,7 +373,7 @@ impl Vfs {
             }
         };
         // Paths on disk are folded before the extension is compared, so the
-        // wanted extension is folded too, or `Some("KEROMAT")` matches nothing.
+        // wanted extension is folded too, or `Some("KMAT")` matches nothing.
         let ext = ext.map(str::to_ascii_lowercase);
         let ext = ext.as_deref();
         let mut out: BTreeSet<String> = BTreeSet::new();
@@ -480,48 +470,47 @@ mod tests {
     fn first_matching_layer_wins() {
         let base = TempDir::new("base");
         let modd = TempDir::new("mod");
-        base.file("materials/grid.keromat", b"base version");
-        modd.file("materials/grid.keromat", b"mod version");
+        base.file("materials/grid.kmat", b"base version");
+        modd.file("materials/grid.kmat", b"mod version");
 
         let mut vfs = Vfs::new();
         vfs.add_directory(&modd.0, "MOD");
         vfs.add_directory(&base.0, "GAME");
-        assert_eq!(vfs.read("materials/grid.keromat").unwrap(), b"mod version");
+        assert_eq!(vfs.read("materials/grid.kmat").unwrap(), b"mod version");
 
         // Adding at the front overrides even the mod.
         let over = TempDir::new("over");
-        over.file("materials/grid.keromat", b"override");
+        over.file("materials/grid.kmat", b"override");
         vfs.add_directory_front(&over.0, "OVERRIDE");
-        assert_eq!(vfs.read("materials/grid.keromat").unwrap(), b"override");
+        assert_eq!(vfs.read("materials/grid.kmat").unwrap(), b"override");
     }
 
     #[test]
     fn falls_through_to_a_lower_layer_when_absent() {
         let base = TempDir::new("ft-base");
         let modd = TempDir::new("ft-mod");
-        base.file("maps/a.kerobsp", b"only in base");
+        base.file("maps/a.kbsp", b"only in base");
         let mut vfs = Vfs::new();
         vfs.add_directory(&modd.0, "MOD");
         vfs.add_directory(&base.0, "GAME");
-        assert_eq!(vfs.read("maps/a.kerobsp").unwrap(), b"only in base");
+        assert_eq!(vfs.read("maps/a.kbsp").unwrap(), b"only in base");
     }
 
     #[test]
     fn archives_and_directories_share_one_namespace() {
         let dir = TempDir::new("mix");
-        dir.file("materials/loose.keromat", b"loose");
+        dir.file("materials/loose.kmat", b"loose");
         let vault = dir.0.join("content.vault");
         let mut b = ArchiveBuilder::new();
-        b.add("materials/packed.keromat", b"packed".to_vec())
-            .unwrap();
+        b.add("materials/packed.kmat", b"packed".to_vec()).unwrap();
         b.write(&vault).unwrap();
 
         let mut vfs = Vfs::new();
         vfs.add_directory(&dir.0, "GAME");
         vfs.mount_archive(&vault, "GAME").unwrap();
-        assert_eq!(vfs.read("materials/loose.keromat").unwrap(), b"loose");
-        assert_eq!(vfs.read("materials/packed.keromat").unwrap(), b"packed");
-        assert_eq!(vfs.list("materials", Some("keromat")).len(), 2);
+        assert_eq!(vfs.read("materials/loose.kmat").unwrap(), b"loose");
+        assert_eq!(vfs.read("materials/packed.kmat").unwrap(), b"packed");
+        assert_eq!(vfs.list("materials", Some("kmat")).len(), 2);
     }
 
     #[test]
@@ -531,24 +520,24 @@ mod tests {
         let dir = TempDir::new("shadow");
         let vault = dir.0.join("c.vault");
         let mut b = ArchiveBuilder::new();
-        b.add("materials/x.keromat", b"packed".to_vec()).unwrap();
+        b.add("materials/x.kmat", b"packed".to_vec()).unwrap();
         b.write(&vault).unwrap();
-        dir.file("materials/x.keromat", b"loose wins");
+        dir.file("materials/x.kmat", b"loose wins");
 
         let mut vfs = Vfs::new();
         vfs.add_directory(&dir.0, "GAME");
         vfs.mount_archive(&vault, "GAME").unwrap();
-        assert_eq!(vfs.read("materials/x.keromat").unwrap(), b"loose wins");
+        assert_eq!(vfs.read("materials/x.kmat").unwrap(), b"loose wins");
     }
 
     #[test]
     fn case_and_separator_insensitive() {
         let dir = TempDir::new("case");
-        dir.file("materials/dev/grid.keromat", b"x");
+        dir.file("materials/dev/grid.kmat", b"x");
         let mut vfs = Vfs::new();
         vfs.add_directory(&dir.0, "GAME");
-        assert!(vfs.exists(r"Materials\Dev\Grid.keromat"));
-        assert!(vfs.read(r"MATERIALS/DEV/GRID.KEROMAT").is_ok());
+        assert!(vfs.exists(r"Materials\Dev\Grid.kmat"));
+        assert!(vfs.read(r"MATERIALS/DEV/GRID.KMAT").is_ok());
     }
 
     #[test]
@@ -578,8 +567,8 @@ mod tests {
         let dir = TempDir::new("write");
         let mut vfs = Vfs::new();
         vfs.add_directory(&dir.0, "GAME");
-        vfs.write("maps/generated.kerobsp", b"data").unwrap();
-        assert_eq!(vfs.read("maps/generated.kerobsp").unwrap(), b"data");
+        vfs.write("maps/generated.kbsp", b"data").unwrap();
+        assert_eq!(vfs.read("maps/generated.kbsp").unwrap(), b"data");
     }
 
     #[test]
@@ -612,16 +601,16 @@ mod tests {
     fn listing_recurses_and_deduplicates() {
         let a = TempDir::new("list-a");
         let b = TempDir::new("list-b");
-        a.file("materials/x.keromat", b"1");
-        a.file("materials/sub/y.keromat", b"2");
-        b.file("materials/x.keromat", b"dup");
-        b.file("materials/z.kerotex", b"3");
+        a.file("materials/x.kmat", b"1");
+        a.file("materials/sub/y.kmat", b"2");
+        b.file("materials/x.kmat", b"dup");
+        b.file("materials/z.ktex", b"3");
         let mut vfs = Vfs::new();
         vfs.add_directory(&a.0, "MOD");
         vfs.add_directory(&b.0, "GAME");
         assert_eq!(
-            vfs.list("materials", Some("keromat")),
-            vec!["materials/sub/y.keromat", "materials/x.keromat"]
+            vfs.list("materials", Some("kmat")),
+            vec!["materials/sub/y.kmat", "materials/x.kmat"]
         );
     }
 

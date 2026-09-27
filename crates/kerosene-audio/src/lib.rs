@@ -42,7 +42,7 @@ pub use script::{SoundDef, SoundScript};
 pub use wav::Sound;
 
 /// The extension a sound script uses.
-pub const SCRIPT_EXTENSION: &str = "kerosnd";
+pub const SCRIPT_EXTENSION: &str = "ksnd";
 
 /// Extensions the *engine* can decode, best first.
 ///
@@ -94,7 +94,7 @@ impl SoundBank {
         SoundBank::default()
     }
 
-    /// Add definitions from a `.kerosnd` script.
+    /// Add definitions from a `.ksnd` script.
     pub fn add_script(&mut self, script: SoundScript) {
         self.script.merge(script);
     }

@@ -483,7 +483,7 @@ pub fn write_all(art_root: &Path) -> Result<Written> {
     Ok(written)
 }
 
-/// Write a `.keromat` for every texture in the set.
+/// Write a `.kmat` for every texture in the set.
 ///
 /// The set knows which shader each wants -- a sky is not lit, a tool texture
 /// is not shaded -- and that is not something `batch --make-materials` can
@@ -497,7 +497,7 @@ pub fn write_all(art_root: &Path) -> Result<Written> {
 pub fn write_materials(materials_root: &Path) -> Result<Written> {
     let mut written = Written::default();
     for texture in set() {
-        let path = materials_root.join(format!("{}.keromat", texture.name));
+        let path = materials_root.join(format!("{}.kmat", texture.name));
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
         }

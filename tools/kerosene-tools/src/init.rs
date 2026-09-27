@@ -2,7 +2,7 @@
 //! `kerosene-tools init` -- start a project.
 //!
 //! Everything else in the toolset assumes a content tree already exists. This
-//! is the one command that makes one: a `.keroproj` saying where the content
+//! is the one command that makes one: a `.kproj` saying where the content
 //! is, and the directories under it that every other tool expects to find.
 //!
 //! It exists because "make a new project" was, until now, a thing you did by
@@ -89,7 +89,7 @@ pub fn run(args: Vec<String>) -> Result<()> {
 }
 
 /// A project name as a filename: lowercase, spaces to dashes, nothing exotic.
-/// The same spelling Kiln gives the archive, so `My Game.keroproj` and
+/// The same spelling Kiln gives the archive, so `My Game.kproj` and
 /// `my_game.vault` are recognisably one thing.
 fn slug(name: &str) -> String {
     match kiln::slug(name).as_str() {

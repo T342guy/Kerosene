@@ -55,25 +55,25 @@ impl Inventory {
                 Count {
                     label: "compiled maps",
                     glyph: icons::CUBE,
-                    count: count("maps", "kerobsp"),
+                    count: count("maps", "kbsp"),
                     note: "compiled",
                 },
                 Count {
                     label: "materials",
                     glyph: icons::PAINT_BUCKET,
-                    count: count("materials", "keromat"),
+                    count: count("materials", "kmat"),
                     note: "compiled",
                 },
                 Count {
                     label: "models",
                     glyph: icons::PACKAGE,
-                    count: count("models", "keromdl"),
+                    count: count("models", "kmdl"),
                     note: "compiled",
                 },
                 Count {
                     label: "sounds",
                     glyph: icons::SPEAKER_HIGH,
-                    count: count("sound", "keroaud"),
+                    count: count("sound", "kaud"),
                     note: "compiled",
                 },
                 Count {
@@ -108,7 +108,7 @@ fn count_by_extension(dir: &Path, extension: &str) -> usize {
 /// The tab.
 pub struct ProjectPanel {
     content_root: PathBuf,
-    /// The project file and its name, when a `.keroproj` named the tree.
+    /// The project file and its name, when a `.kproj` named the tree.
     project: Option<(PathBuf, String, Option<String>)>,
     /// How the content was found, in the search's own words.
     found_note: String,
@@ -203,7 +203,7 @@ impl ProjectPanel {
                 widgets::fact(ui, "content", self.content_root.display().to_string());
                 ui.label(theme::caption(&self.found_note));
                 ui.label(theme::caption(format!(
-                    "{}  No .keroproj names this tree, so it was inferred. \
+                    "{}  No .kproj names this tree, so it was inferred. \
                      `kerosene-tools init` writes one.",
                     icons::INFO
                 )));
@@ -285,7 +285,7 @@ impl ProjectPanel {
         for map in &self.inventory.maps {
             let name = chisel::files::label(map, &self.content_root);
             let name = name.strip_prefix("maps/").unwrap_or(&name).to_string();
-            let compiled = map.with_extension("kerobsp").exists();
+            let compiled = map.with_extension("kbsp").exists();
             let row = ui.horizontal(|ui| {
                 ui.label(theme::icon(icons::MAP_TRIFOLD).color(colors::TEXT_MUTED));
                 let clicked = ui

@@ -2,7 +2,7 @@
 //! Alchemy -- the Kerosene texture and material tool.
 //!
 //! Turns source art into the formats the engine loads: `.png` and friends into
-//! `.kerotex`, and material definitions into `.keromat`. This is the
+//! `.ktex`, and material definitions into `.kmat`. This is the
 //! VTFEdit/vtex analogue, and it exists for the same reason: the engine should
 //! load textures, not decode and mipmap them.
 //!
@@ -147,9 +147,9 @@ pub fn write_material(
 /// What a batch compile did, so a caller can say so without reading stdout.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Batch {
-    /// Images compiled into a `.kerotex`.
+    /// Images compiled into a `.ktex`.
     pub compiled: usize,
-    /// Images whose `.kerotex` was already newer than the source.
+    /// Images whose `.ktex` was already newer than the source.
     pub skipped: usize,
     /// Materials left alone because one was already authored.
     pub kept: usize,
@@ -191,7 +191,7 @@ pub fn batch(dir: &Path, out_root: &Path, make_materials: bool) -> Result<Batch>
         let is_normal = name.ends_with("_normal") || name.ends_with("_n");
         let flags = build_flags(is_normal, false, false, false);
 
-        let out = out_root.join(format!("{name}.kerotex"));
+        let out = out_root.join(format!("{name}.ktex"));
         if is_up_to_date(path, &out) {
             report.skipped += 1;
         } else {
@@ -203,7 +203,7 @@ pub fn batch(dir: &Path, out_root: &Path, make_materials: bool) -> Result<Batch>
         }
 
         if make_materials && !is_normal {
-            let mat_path = out_root.join(format!("{name}.keromat"));
+            let mat_path = out_root.join(format!("{name}.kmat"));
             // Never overwrite a material that already exists. Materials are
             // authored -- a designer sets the surface property, the shader,
             // the blend mode -- and this only generates a starting point.
@@ -242,9 +242,9 @@ pub fn batch(dir: &Path, out_root: &Path, make_materials: bool) -> Result<Batch>
 /// What compiling one set did.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct SetReport {
-    /// Maps compiled into a `.kerotex`.
+    /// Maps compiled into a `.ktex`.
     pub compiled: usize,
-    /// Maps whose `.kerotex` was already newer than the source.
+    /// Maps whose `.ktex` was already newer than the source.
     pub skipped: usize,
     /// Whether a material was written (as opposed to one already existing).
     pub material: bool,
@@ -279,7 +279,7 @@ pub fn compile_set(set: &TextureSet, out_root: &Path) -> Result<SetReport> {
     Ok(report)
 }
 
-/// Write a set's `.keromat`, unless one is already there.
+/// Write a set's `.kmat`, unless one is already there.
 ///
 /// Returns whether it wrote anything. The same rule the loose-image batch
 /// follows: a material is *authored* -- somebody chose the surface property
@@ -541,7 +541,7 @@ pub fn info(path: &Path) -> Result<()> {
     let bytes = std::fs::read(path).with_context(|| format!("reading {}", path.display()))?;
 
     match path.extension().and_then(|e| e.to_str()) {
-        Some("kerotex") => {
+        Some("ktex") => {
             let tex = Texture::from_bytes(&bytes)?;
             println!("{}", path.display());
             println!("  {}x{}, {:?}", tex.width(), tex.height(), tex.format);
@@ -575,7 +575,7 @@ pub fn info(path: &Path) -> Result<()> {
                 }
             );
         }
-        Some("keromat") => {
+        Some("kmat") => {
             let text = String::from_utf8(bytes).context("material is not UTF-8")?;
             let material = Material::parse(&text).map_err(|e: MaterialError| anyhow::anyhow!(e))?;
             println!("{}", path.display());
@@ -586,7 +586,7 @@ pub fn info(path: &Path) -> Result<()> {
                 println!("    {k} = {v}");
             }
         }
-        _ => bail!("{} is not a .kerotex or .keromat", path.display()),
+        _ => bail!("{} is not a .ktex or .kmat", path.display()),
     }
     Ok(())
 }

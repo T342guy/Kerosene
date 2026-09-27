@@ -16,8 +16,8 @@ fn tree_with_crate(name: &str) -> PathBuf {
     std::fs::create_dir_all(&models).unwrap();
 
     let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../content/models/props/crate.keromdl");
-    std::fs::copy(&fixture, models.join("crate.keromdl")).expect("the shipped model exists");
+        .join("../../content/models/props/crate.kmdl");
+    std::fs::copy(&fixture, models.join("crate.kmdl")).expect("the shipped model exists");
     root
 }
 
@@ -123,8 +123,8 @@ fn refresh_picks_up_a_model_added_after_opening() {
     let models = root.join("models/props");
     std::fs::create_dir_all(&models).unwrap();
     let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../content/models/props/crate.keromdl");
-    std::fs::copy(&fixture, models.join("crate.keromdl")).unwrap();
+        .join("../../content/models/props/crate.kmdl");
+    std::fs::copy(&fixture, models.join("crate.kmdl")).unwrap();
 
     app.refresh();
     assert!(app.names.iter().any(|n| n == "props/crate"));

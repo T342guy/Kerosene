@@ -3,7 +3,7 @@
 //! toolset calls for the `cleave` subcommand.
 //!
 //! ```text
-//! kerosene-tools cleave map.keromap [-o out.kerobsp] [--content DIR] [--ignore-leaks] [--no-fill] [--dry-run] [-v]
+//! kerosene-tools cleave map.kmap [-o out.kbsp] [--content DIR] [--ignore-leaks] [--no-fill] [--dry-run] [-v]
 //! ```
 
 use anyhow::{Context, Result};
@@ -15,12 +15,12 @@ use std::time::Instant;
 use crate::pipeline;
 
 #[derive(Parser, Debug)]
-#[command(name = "cleave", version, about = "Compile a .keromap into a .kerobsp")]
+#[command(name = "cleave", version, about = "Compile a .kmap into a .kbsp")]
 struct Args {
-    /// The .keromap file to compile.
+    /// The .kmap file to compile.
     map: PathBuf,
 
-    /// Where to write the .kerobsp. Defaults to the input path with the extension changed.
+    /// Where to write the .kbsp. Defaults to the input path with the extension changed.
     #[arg(short, long)]
     output: Option<PathBuf>,
 
@@ -79,7 +79,7 @@ fn parse_cordon(text: &str) -> Result<kerosene_math::Aabb> {
 /// content the way the engine will read it.
 ///
 /// Through the VFS rather than the source PNG, for the reason Chisel gives:
-/// the engine draws the `.kerotex`, and a size read from anything else is a
+/// the engine draws the `.ktex`, and a size read from anything else is a
 /// guess about what Alchemy did. A material with no compiled texture behind
 /// it is left out, and the pipeline warns about it by name.
 fn texture_sizes(
@@ -93,7 +93,7 @@ fn texture_sizes(
         .flatten()
         .flatten()
         .map(|e| e.path())
-        .filter(|p| p.extension().is_some_and(|e| e == "vault"))
+        .filter(|p| kerosene_vfs::ext::is(p, kerosene_vfs::ext::ARCHIVE))
     {
         let _ = vfs.mount_archive(&archive, "GAME");
     }
@@ -193,8 +193,8 @@ pub fn run(args: Vec<String>) -> Result<()> {
     let out_path = args
         .output
         .clone()
-        .unwrap_or_else(|| args.map.with_extension("kerobsp"));
-    let leak_path = out_path.with_extension("keroleak");
+        .unwrap_or_else(|| args.map.with_extension("kbsp"));
+    let leak_path = out_path.with_extension("kleak");
 
     let output = match pipeline::compile(&map, &options) {
         Ok(o) => o,
@@ -213,8 +213,8 @@ pub fn run(args: Vec<String>) -> Result<()> {
             // engine must not load a BSP that no longer matches the map.
             for stale in [
                 &out_path,
-                &out_path.with_extension("keroprt"),
-                &out_path.with_extension("kerowalk"),
+                &out_path.with_extension("kprt"),
+                &out_path.with_extension("kwalk"),
             ] {
                 if stale.exists() {
                     let _ = std::fs::remove_file(stale);
@@ -282,11 +282,11 @@ pub fn run(args: Vec<String>) -> Result<()> {
     let size = kerosene_bsp::write_bsp(&output.bsp, &out_path)
         .with_context(|| format!("writing {}", out_path.display()))?;
 
-    let prt_path = out_path.with_extension("keroprt");
+    let prt_path = out_path.with_extension("kprt");
     std::fs::write(&prt_path, &output.prt)
         .with_context(|| format!("writing {}", prt_path.display()))?;
 
-    let walk_path = out_path.with_extension("kerowalk");
+    let walk_path = out_path.with_extension("kwalk");
     output
         .walk
         .write(&walk_path)

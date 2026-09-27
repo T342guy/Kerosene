@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
-//! `.keromdl` -- compiled models, the MDL analogue.
+//! `.kmdl` -- compiled models, the MDL analogue.
 //!
 //! Brush geometry handles walls and floors; models handle everything a brush
 //! cannot describe -- crates, machinery, characters. Forge compiles source
@@ -37,7 +37,7 @@ pub const MAX_BONE_INFLUENCES: usize = 4;
 
 #[derive(Debug, Error)]
 pub enum ModelError {
-    #[error("not a .keromdl file (bad magic)")]
+    #[error("not a .kmdl file (bad magic)")]
     BadMagic,
     #[error("version {found}; this build reads version {expected}")]
     BadVersion { found: u32, expected: u32 },

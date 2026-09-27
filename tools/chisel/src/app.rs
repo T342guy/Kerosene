@@ -120,7 +120,7 @@ pub enum Browsing {
 /// A file operation waiting for a name.
 ///
 /// Naming a map is a decision, so it gets a field to type into rather than a
-/// menu item with the answer baked in. "save as maps/untitled.keromap" was
+/// menu item with the answer baked in. "save as maps/untitled.kmap" was
 /// the whole of the editor's file handling, and it is not a way to name
 /// anything: the second map you make overwrites the first.
 pub struct NamePrompt {
@@ -570,7 +570,7 @@ impl ChiselApp {
     }
 
     /// An editor that also knows a game's own classes: `schema` is their
-    /// `.kerodef` text, as [`classes::load_with`] takes it.
+    /// `.kdef` text, as [`classes::load_with`] takes it.
     pub fn with_schema(content_root: PathBuf, schema: &[&str]) -> ChiselApp {
         let materials = scan_materials(&content_root);
         let models = scan_models(&content_root);
@@ -584,7 +584,7 @@ impl ChiselApp {
             .flatten()
             .flatten()
             .map(|e| e.path())
-            .filter(|p| p.extension().is_some_and(|e| e == "vault"))
+            .filter(|p| kerosene_vfs::ext::is(p, kerosene_vfs::ext::ARCHIVE))
         {
             let _ = vfs.mount_archive(&archive, "GAME");
         }
@@ -1284,7 +1284,7 @@ impl ChiselApp {
 pub fn scan_models(root: &std::path::Path) -> Vec<String> {
     let mut out = Vec::new();
     let models = root.join("models");
-    collect_by_extension(&models, &models, "keromdl", &mut out);
+    collect_by_extension(&models, &models, "kmdl", &mut out);
     out.sort();
     out.dedup();
     out
@@ -1297,7 +1297,7 @@ pub fn scan_models(root: &std::path::Path) -> Vec<String> {
 fn scan_materials(root: &std::path::Path) -> Vec<String> {
     let mut out = Vec::new();
     let materials = root.join("materials");
-    collect_by_extension(&materials, &materials, "keromat", &mut out);
+    collect_by_extension(&materials, &materials, "kmat", &mut out);
     out.sort();
     out.dedup();
     if out.is_empty() {
@@ -1943,7 +1943,7 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("chisel-mats-{}", std::process::id()));
         let materials = dir.join("materials/dev");
         std::fs::create_dir_all(&materials).unwrap();
-        std::fs::write(materials.join("grid.keromat"), "lit { }").unwrap();
+        std::fs::write(materials.join("grid.kmat"), "lit { }").unwrap();
         std::fs::write(materials.join("notes.txt"), "ignored").unwrap();
 
         let found = scan_materials(&dir);
@@ -2147,7 +2147,7 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("chisel-models-{}", std::process::id()));
         let models = dir.join("models/props");
         std::fs::create_dir_all(&models).unwrap();
-        std::fs::write(models.join("crate.keromdl"), "").unwrap();
+        std::fs::write(models.join("crate.kmdl"), "").unwrap();
         std::fs::write(models.join("crate.obj"), "").unwrap();
         assert_eq!(scan_models(&dir), vec!["props/crate"]);
         let _ = std::fs::remove_dir_all(&dir);
@@ -2203,7 +2203,7 @@ mod tests {
         app.prompt.as_mut().unwrap().name = "arena".into();
         assert!(app.confirm_prompt());
 
-        let expected = root.join("maps/arena.keromap");
+        let expected = root.join("maps/arena.kmap");
         assert_eq!(app.document.path.as_deref(), Some(expected.as_path()));
         assert!(expected.is_file(), "the map is on disk");
         assert!(
@@ -2211,7 +2211,7 @@ mod tests {
             "and no longer counts as unsaved"
         );
         assert!(app.prompt.is_none());
-        assert!(app.status.contains("maps/arena.keromap"), "{}", app.status);
+        assert!(app.status.contains("maps/arena.kmap"), "{}", app.status);
 
         // And it is a map, not an empty file.
         let text = std::fs::read_to_string(&expected).unwrap();
@@ -2237,7 +2237,7 @@ mod tests {
     #[test]
     fn saving_again_writes_the_same_file_without_asking() {
         let (mut app, root) = app_in("save-again");
-        app.save(Some(root.join("maps/arena.keromap")));
+        app.save(Some(root.join("maps/arena.kmap")));
         app.document.create_block(Vec3::ZERO, Vec3::splat(64.0));
         assert!(app.document.is_modified());
 
@@ -2254,13 +2254,13 @@ mod tests {
     #[test]
     fn renaming_moves_the_map_and_what_was_compiled_from_it() {
         let (mut app, root) = app_in("rename");
-        app.save(Some(root.join("maps/old.keromap")));
-        std::fs::write(root.join("maps/old.kerobsp"), b"compiled").unwrap();
+        app.save(Some(root.join("maps/old.kmap")));
+        std::fs::write(root.join("maps/old.kbsp"), b"compiled").unwrap();
 
         app.begin_prompt(PromptKind::Rename);
         assert_eq!(
             app.prompt.as_ref().unwrap().name,
-            "old.keromap",
+            "old.kmap",
             "filled in with the current name"
         );
         app.prompt.as_mut().unwrap().name = "new".into();
@@ -2268,11 +2268,11 @@ mod tests {
 
         assert_eq!(
             app.document.path.as_deref(),
-            Some(root.join("maps/new.keromap").as_path())
+            Some(root.join("maps/new.kmap").as_path())
         );
-        assert!(!root.join("maps/old.keromap").exists());
+        assert!(!root.join("maps/old.kmap").exists());
         assert!(
-            root.join("maps/new.kerobsp").is_file(),
+            root.join("maps/new.kbsp").is_file(),
             "the compiled map came too"
         );
         assert!(app.status.contains("renamed"), "{}", app.status);
@@ -2283,8 +2283,8 @@ mod tests {
     #[test]
     fn renaming_over_an_existing_map_is_refused() {
         let (mut app, root) = app_in("rename-clash");
-        app.save(Some(root.join("maps/old.keromap")));
-        std::fs::write(root.join("maps/taken.keromap"), "someone else's work").unwrap();
+        app.save(Some(root.join("maps/old.kmap")));
+        std::fs::write(root.join("maps/taken.kmap"), "someone else's work").unwrap();
 
         app.begin_prompt(PromptKind::Rename);
         app.prompt.as_mut().unwrap().name = "taken".into();
@@ -2300,11 +2300,11 @@ mod tests {
                 .contains("already exists")
         );
         assert_eq!(
-            std::fs::read_to_string(root.join("maps/taken.keromap")).unwrap(),
+            std::fs::read_to_string(root.join("maps/taken.kmap")).unwrap(),
             "someone else's work",
             "and the map that was there is untouched"
         );
-        assert!(root.join("maps/old.keromap").is_file());
+        assert!(root.join("maps/old.kmap").is_file());
 
         let _ = std::fs::remove_dir_all(&root);
     }
@@ -2316,7 +2316,7 @@ mod tests {
         app.prompt.as_mut().unwrap().name = "first".into();
         assert!(app.confirm_prompt());
 
-        assert!(root.join("maps/first.keromap").is_file());
+        assert!(root.join("maps/first.kmap").is_file());
         assert!(!app.document.is_modified());
 
         let _ = std::fs::remove_dir_all(&root);
@@ -2325,15 +2325,15 @@ mod tests {
     #[test]
     fn renaming_carries_unsaved_changes_to_the_new_name() {
         let (mut app, root) = app_in("rename-dirty");
-        app.save(Some(root.join("maps/old.keromap")));
-        let before = std::fs::read_to_string(root.join("maps/old.keromap")).unwrap();
+        app.save(Some(root.join("maps/old.kmap")));
+        let before = std::fs::read_to_string(root.join("maps/old.kmap")).unwrap();
         app.document.create_block(Vec3::ZERO, Vec3::splat(64.0));
 
         app.begin_prompt(PromptKind::Rename);
         app.prompt.as_mut().unwrap().name = "new".into();
         assert!(app.confirm_prompt());
 
-        let after = std::fs::read_to_string(root.join("maps/new.keromap")).unwrap();
+        let after = std::fs::read_to_string(root.join("maps/new.kmap")).unwrap();
         assert_ne!(
             after, before,
             "the file under the new name is the map as it stands"
@@ -2346,16 +2346,16 @@ mod tests {
     #[test]
     fn opening_a_map_with_unsaved_changes_asks_first() {
         let (mut app, root) = app_in("discard");
-        app.save(Some(root.join("maps/arena.keromap")));
-        let other = root.join("maps/other.keromap");
-        std::fs::copy(root.join("maps/arena.keromap"), &other).unwrap();
+        app.save(Some(root.join("maps/arena.kmap")));
+        let other = root.join("maps/other.kmap");
+        std::fs::copy(root.join("maps/arena.kmap"), &other).unwrap();
         app.document.create_block(Vec3::ZERO, Vec3::splat(64.0));
 
         app.discard_or_ask(Discarding::Open(other.clone()));
         assert_eq!(app.discarding, Some(Discarding::Open(other.clone())));
         assert_eq!(
             app.document.path.as_deref(),
-            Some(root.join("maps/arena.keromap").as_path())
+            Some(root.join("maps/arena.kmap").as_path())
         );
 
         // Answering the question goes through with it.
@@ -2369,7 +2369,7 @@ mod tests {
     #[test]
     fn a_saved_map_is_replaced_without_a_question() {
         let (mut app, root) = app_in("no-question");
-        app.save(Some(root.join("maps/arena.keromap")));
+        app.save(Some(root.join("maps/arena.kmap")));
 
         app.discard_or_ask(Discarding::New);
         assert!(
@@ -2392,7 +2392,7 @@ mod tests {
             Some(PromptKind::SaveAs)
         );
         assert!(
-            !root.join("maps/untitled.keromap").exists(),
+            !root.join("maps/untitled.kmap").exists(),
             "and no `untitled` is left behind"
         );
 
@@ -2402,14 +2402,14 @@ mod tests {
     #[test]
     fn the_maps_offered_to_open_are_the_ones_in_the_project() {
         let (mut app, root) = app_in("map-list");
-        app.save(Some(root.join("maps/arena.keromap")));
-        app.save(Some(root.join("maps/lobby.keromap")));
+        app.save(Some(root.join("maps/arena.kmap")));
+        app.save(Some(root.join("maps/lobby.kmap")));
 
         let names: Vec<String> = files::maps_in(&root)
             .iter()
             .map(|p| files::label(p, &root))
             .collect();
-        assert_eq!(names, vec!["maps/arena.keromap", "maps/lobby.keromap"]);
+        assert_eq!(names, vec!["maps/arena.kmap", "maps/lobby.kmap"]);
 
         let _ = std::fs::remove_dir_all(&root);
     }
@@ -2527,11 +2527,11 @@ mod tests {
         let (mut app, root) = app_in("title");
         assert_eq!(app.window_title(), "untitled -- Chisel");
 
-        app.save(Some(root.join("maps/arena.keromap")));
-        assert_eq!(app.window_title(), "arena.keromap -- Chisel");
+        app.save(Some(root.join("maps/arena.kmap")));
+        assert_eq!(app.window_title(), "arena.kmap -- Chisel");
 
         app.document.create_block(Vec3::ZERO, Vec3::splat(64.0));
-        assert_eq!(app.window_title(), "arena.keromap * -- Chisel");
+        assert_eq!(app.window_title(), "arena.kmap * -- Chisel");
 
         let _ = std::fs::remove_dir_all(&root);
     }
@@ -2539,7 +2539,7 @@ mod tests {
     #[test]
     fn a_modal_takes_the_keyboard_from_the_shortcuts_behind_it() {
         let (mut app, root) = app_in("modal-keys");
-        app.save(Some(root.join("maps/arena.keromap")));
+        app.save(Some(root.join("maps/arena.kmap")));
         app.begin_prompt(PromptKind::SaveAs);
 
         // Ctrl-S with the dialog open must not save under the old name --
@@ -2859,7 +2859,7 @@ mod tests {
     #[test]
     fn starting_a_compile_closes_the_settings_and_feeds_the_output_panel() {
         let (mut app, root) = app_in("compile-output");
-        app.save(Some(root.join("maps/arena.keromap")));
+        app.save(Some(root.join("maps/arena.kmap")));
         app.show_compile = true;
         app.compile_now(Quality::Fast);
         assert!(

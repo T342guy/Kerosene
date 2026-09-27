@@ -16,7 +16,7 @@ with what to do about them.
   toolset's own window: it keeps up with a whole level while flying, props
   are drawn as their models, and a selection is outlined faintly through
   walls. The software rasteriser remains for tests and thumbnails.
-- Entity helpers, declared in a `.kerodef` with `helper { "type" ... }`:
+- Entity helpers, declared in a `.kdef` with `helper { "type" ... }`:
   `model`, `lightradius`, `lightcone`, `sphere`, `frustum`, `direction`,
   `line` and `rect`, drawn in the 3D and flat views for the selection, every
   entity, or none. The stock classes declare theirs -- light cones and
@@ -47,6 +47,26 @@ with what to do about them.
   editor window, rendered off screen to a PNG.
 
 ### Changed
+- **Breaking:** every file extension is shorter -- a `k` and what the file
+  is -- and the old names are no longer read. Rename existing files:
+
+  | old | new | old | new |
+  |---|---|---|---|
+  | `.keromap` | `.kmap` | `.kerodef` | `.kdef` |
+  | `.kerobsp` | `.kbsp` | `.keroaud` | `.kaud` |
+  | `.keromdl` | `.kmdl` | `.kerosnd` | `.ksnd` |
+  | `.keromat` | `.kmat` | `.kerosave` | `.ksav` |
+  | `.kerotex` | `.ktex` | `.kerowalk` | `.kwalk` |
+  | `.keroproj` | `.kproj` | `.keroprt` | `.kprt` |
+  | `.keroui` | `.kui` | `.keroleak` | `.kleak` |
+  | `.kerocss` | `.kcss` | `.kerobuild` | `.kbuild` |
+  | `.keroscript` | `.kscr` | `.kconfig` | `.kcfg` |
+
+  Compiled files (`.kbsp`, `.ktex`, `.kaud`, ...) are simply rebuilt by
+  `kerosene-tools kiln`; hand-written ones and saves need renaming, and a
+  `.kui` that includes a stylesheet or script by name needs the name inside
+  it changed too. `.vault` is unchanged. Every extension is now in one table,
+  `kerosene::vfs::ext`.
 - **Breaking:** `kerosene::entity::schema::ClassSpec` has a `helpers` field,
   so a `ClassSpec` built with a struct literal needs `..Default::default()`.
 - Chisel's inspector tabs are gone: tool settings moved to the options bar,
@@ -58,6 +78,9 @@ with what to do about them.
   zoomed in far enough to read, or when selected.
 
 ### Fixed
+- Timbre's settings are `sound/timbre.kcfg`. They were `timbre.kerobuild`,
+  which `kiln --clean` deleted as a build stamp and `.gitignore` kept out of
+  version control.
 - Chisel matched output targets to entity names case-sensitively when
   offering inputs; the engine does not, and neither does the editor now.
 

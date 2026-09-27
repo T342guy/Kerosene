@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
-//! On-disk lump structures for `.kerobsp`.
+//! On-disk lump structures for `.kbsp`.
 //!
 //! Every struct here is `#[repr(C)]` and padding-free so it can be
 //! reinterpreted straight from a mapped byte slice by `bytemuck` -- loading a

@@ -79,7 +79,7 @@ pub struct SoundScript {
 }
 
 impl SoundScript {
-    /// Parse a `.kerosnd`.
+    /// Parse a `.ksnd`.
     ///
     /// A block missing a name is skipped with a warning rather than failing
     /// the file: one bad entry should not silence a whole game.

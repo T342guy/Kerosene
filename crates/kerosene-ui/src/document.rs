@@ -30,7 +30,7 @@ use crate::{Images, Loader, LogLevel, UiAction, UiKey};
 use std::collections::{BTreeMap, BTreeSet};
 
 /// The stylesheet every document starts from, before its own.
-pub const DEFAULT_CSS: &str = include_str!("default.kerocss");
+pub const DEFAULT_CSS: &str = include_str!("default.kcss");
 
 /// Height of the reference screen UI pixels are measured against.
 pub const REFERENCE_HEIGHT: f32 = 1080.0;

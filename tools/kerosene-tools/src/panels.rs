@@ -201,8 +201,8 @@ const STAGE_NAMES: [&str; 5] = ["textures", "sounds", "models", "maps", "pack"];
 
 const STAGE_HELP: [&str; 5] = [
     "Alchemy: every image under art/ into materials/",
-    "Timbre: every sound under sound/ into .keroaud",
-    "Forge: every mesh under models/ into .keromdl",
+    "Timbre: every sound under sound/ into .kaud",
+    "Forge: every mesh under models/ into .kmdl",
     "Cleave, Umbra, Resonance, Radiance: every map",
     "Vault: everything compiled into one archive",
 ];

@@ -26,9 +26,9 @@ impl Fixture {
         let root = scratch(name);
         let content = root.join("content");
         std::fs::create_dir_all(content.join("maps")).unwrap();
-        std::fs::write(content.join("maps/a.kerobsp"), b"map").unwrap();
+        std::fs::write(content.join("maps/a.kbsp"), b"map").unwrap();
 
-        let path = root.join("game.keroproj");
+        let path = root.join("game.kproj");
         std::fs::write(
             &path,
             "project { \"name\" \"Test Game\" \"content\" \"content\" \"startmap\" \"tg_intro\" }",
@@ -95,8 +95,8 @@ fn a_project_file_is_written_pointing_at_the_shipped_content() {
     let f = Fixture::new("project");
     f.ship_with_binary().unwrap();
 
-    let written = std::fs::read_to_string(f.dist().join("test_game.keroproj")).unwrap();
-    let project = Project::parse(&written, &f.dist().join("test_game.keroproj")).unwrap();
+    let written = std::fs::read_to_string(f.dist().join("test_game.kproj")).unwrap();
+    let project = Project::parse(&written, &f.dist().join("test_game.kproj")).unwrap();
 
     assert_eq!(
         project.content,
@@ -243,12 +243,12 @@ fn shipping_a_stale_archive_is_refused_and_names_what_changed() {
     // reports a problem.
     let f = Fixture::new("stale");
     std::thread::sleep(std::time::Duration::from_millis(20));
-    std::fs::write(f.settings.content.join("maps/a.kerobsp"), b"edited").unwrap();
+    std::fs::write(f.settings.content.join("maps/a.kbsp"), b"edited").unwrap();
 
     let err = f.ship_with_binary().unwrap_err().to_string();
     assert!(err.contains("older than"), "{err}");
     assert!(
-        err.contains("a.kerobsp"),
+        err.contains("a.kbsp"),
         "the stale file must be named: {err}"
     );
 }
@@ -512,7 +512,7 @@ fn the_shipped_project_keeps_what_the_store_needs() {
     let redist = crate::steam::find_redist(&target, toolchain::Profile::Release).unwrap();
     ship_built(&f.settings, &f.dist(), &binary, Some(&redist)).unwrap();
 
-    let path = f.dist().join("test_game.keroproj");
+    let path = f.dist().join("test_game.kproj");
     let shipped = Project::read(&path).unwrap();
     assert_eq!(shipped.steam_appid, Some(480));
     assert_eq!(

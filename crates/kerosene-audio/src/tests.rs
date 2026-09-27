@@ -50,7 +50,7 @@ fn a_definition_falls_back_to_sensible_values() {
     // With no file named, the name is the path -- and the compiled form,
     // which is what a shipped game holds. The source is still found, but by
     // `candidates` rather than by guessing one extension.
-    assert_eq!(def.file, "sound/ambient/hum.keroaud");
+    assert_eq!(def.file, "sound/ambient/hum.kaud");
 }
 
 #[test]
@@ -108,7 +108,7 @@ fn a_name_nobody_defined_is_taken_as_a_path() {
     // A bare name gets the compiled extension; the rest are reached through
     // `candidates`, which is what stops one guess standing in for the answer.
     let bank = SoundBank::new();
-    assert_eq!(bank.resolve("test").0, "sound/test.keroaud");
+    assert_eq!(bank.resolve("test").0, "sound/test.kaud");
     assert_eq!(bank.resolve("weapons/fire.wav").0, "sound/weapons/fire.wav");
     assert_eq!(
         bank.resolve("sound/weapons/fire.wav").0,
@@ -157,7 +157,7 @@ fn a_bare_name_looks_for_the_compiled_form_first() {
     // What a shipped game holds, and what a build produces.
     let bank = SoundBank::new();
     let candidates = bank.candidates("ui/click");
-    assert_eq!(candidates[0], "sound/ui/click.keroaud");
+    assert_eq!(candidates[0], "sound/ui/click.kaud");
     assert!(candidates.contains(&"sound/ui/click.wav".to_string()));
 }
 
@@ -167,7 +167,7 @@ fn a_named_source_is_still_tried_after_its_compiled_sibling() {
     // without running a build to find out whether it is the right one.
     let bank = SoundBank::new();
     let candidates = bank.candidates("ui/click.wav");
-    assert_eq!(candidates[0], "sound/ui/click.keroaud");
+    assert_eq!(candidates[0], "sound/ui/click.kaud");
     assert!(candidates.contains(&"sound/ui/click.wav".to_string()));
 }
 
@@ -178,7 +178,7 @@ fn a_name_the_script_defines_resolves_through_the_file_it_names() {
         SoundScript::parse(r#"sound { "name" "door/move" "file" "sound/door/move.wav" }"#).unwrap(),
     );
     let candidates = bank.candidates("door/move");
-    assert_eq!(candidates[0], "sound/door/move.keroaud");
+    assert_eq!(candidates[0], "sound/door/move.kaud");
     assert!(candidates.contains(&"sound/door/move.wav".to_string()));
 }
 
@@ -202,7 +202,7 @@ fn a_flac_beside_the_name_is_found_for_the_message() {
     // a path nobody had written, about a file that was right there.
     let there = |p: &str| p == "sound/ambient/track.flac";
     assert_eq!(
-        uncompiled_source("sound/ambient/track.keroaud", there).as_deref(),
+        uncompiled_source("sound/ambient/track.kaud", there).as_deref(),
         Some("sound/ambient/track.flac")
     );
 }
@@ -210,7 +210,7 @@ fn a_flac_beside_the_name_is_found_for_the_message() {
 #[test]
 fn nothing_beside_the_name_means_nothing_to_say_about_it() {
     assert_eq!(
-        uncompiled_source("sound/ambient/track.keroaud", |_| false),
+        uncompiled_source("sound/ambient/track.kaud", |_| false),
         None
     );
 }

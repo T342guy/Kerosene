@@ -67,12 +67,12 @@ write your own. Kerosene keeps that shape: each stage is still a separate,
 scriptable subcommand, and one binary carries them all.
 
 ```
-   art/*.png ──alchemy──► materials/*.kerotex + *.keromat ─────────────┐
+   art/*.png ──alchemy──► materials/*.ktex + *.kmat ─────────────┐
    textures/<name>/ ─alchemy─► a whole set: colour, normals, roughness,┤
                                emissive, occlusion + the material      │
-   art/*.obj ──forge────► models/*.keromdl ────────────────────────────┤
-   sound/*.{wav,flac,mp3} ──timbre──► sound/*.keroaud ─────────────────┤
-   maps/*.keromap ─cleave─► *.kerobsp ─umbra─► +vis ─resonance─► +sound ─radiance─► +light ┤
+   art/*.obj ──forge────► models/*.kmdl ────────────────────────────┤
+   sound/*.{wav,flac,mp3} ──timbre──► sound/*.kaud ─────────────────┤
+   maps/*.kmap ─cleave─► *.kbsp ─umbra─► +vis ─resonance─► +sound ─radiance─► +light ┤
                                                                                             └─vault─► content.vault ─► kerosene
 
    chisel drives all of it: edits the map, runs the compilers, launches kerosene.
@@ -115,7 +115,7 @@ engine.
 | Tool | Does | Source analogue |
 |---|---|---|
 | **Chisel** (editor) | The world editor. Four viewports, brush editing, entity I/O wiring, compile-and-run. | Hammer |
-| **Cleave** | `.keromap` → `.kerobsp`. CSG, BSP tree, portals, leak detection. | `vbsp` |
+| **Cleave** | `.kmap` → `.kbsp`. CSG, BSP tree, portals, leak detection. | `vbsp` |
 | **Umbra** | Computes the PVS — which parts of a level can see which. | `vvis` |
 | **Resonance** | Works out what each room sounds like from its shape and materials, for the engine's reverb. | (Source has no equivalent) |
 | **Radiance** | Bakes static lighting into lightmaps. | `vrad` |
@@ -126,7 +126,7 @@ engine.
 | **Kiln** (build) | Runs the whole pipeline over a project. | the batch file everyone writes |
 
 The stages also run headless, as subcommands, for scripts and build servers:
-`kerosene-tools cleave map.keromap`, `kerosene-tools kiln`, and so on.
+`kerosene-tools cleave map.kmap`, `kerosene-tools kiln`, and so on.
 
 The engine is the `kerosene` crate, and a game is a binary that depends on
 it; `kerosene`, the stock runtime, is that with the stock game.
@@ -145,8 +145,8 @@ cargo run --release -p kerosene-runtime
 ```
 
 **The map compile is not optional.** Art and maps are committed as sources —
-`.png`, `.obj`, `.wav`, `.keromap` — and the engine loads only compiled
-`.kerotex`, `.keromdl` and `.kerobsp`. Skip the script and the game will tell
+`.png`, `.obj`, `.wav`, `.kmap` — and the engine loads only compiled
+`.ktex`, `.kmdl` and `.kbsp`. Skip the script and the game will tell
 you which map has never been compiled and what to run; textures it now handles
 itself, because Chisel builds them on the way to opening its window and again
 before every compile. On Linux the audio backend also needs ALSA headers
@@ -155,7 +155,7 @@ before every compile. On Linux the audio backend also needs ALSA headers
 
 Nothing has to be run from the repository root. Every tool and the engine find
 the content tree the same way, with the same code, and each says which answer
-it took. The reliable way to settle it is a **project file** — a `.keroproj`
+it took. The reliable way to settle it is a **project file** — a `.kproj`
 naming the content directory, like the one at the top of this repository:
 
 ```
@@ -190,7 +190,7 @@ cargo run --release -p kerosene-tools
 To open a specific map in the editor:
 
 ```sh
-cargo run --release -p kerosene-tools -- chisel content/maps/kerosene_room.keromap
+cargo run --release -p kerosene-tools -- chisel content/maps/kerosene_room.kmap
 ```
 
 Chisel builds the content tree's textures before it finishes loading, so the
@@ -225,7 +225,7 @@ which way it stands.
 `ctrl-S` saves; a map that has never been saved is asked for a name rather
 than being written somewhere you would have to go looking for.
 `file → rename…` moves a map and takes what was compiled from it along, so a
-renamed map is not shadowed by a `.kerobsp` under its old name. The title bar
+renamed map is not shadowed by a `.kbsp` under its old name. The title bar
 and the status bar both name the file, with a `*` when it has unsaved changes.
 
 `` ` `` opens the developer console, `` ` `` or escape closes it. It says what
@@ -248,10 +248,10 @@ can stop after any of them, run them from a Makefile, or parallelise them
 across a build farm.
 
 ```sh
-kerosene-tools cleave    content/maps/kerosene_room.keromap  # → .kerobsp and .keroprt
-kerosene-tools umbra     content/maps/kerosene_room.kerobsp  # → adds visibility
-kerosene-tools resonance content/maps/kerosene_room.kerobsp  # → adds acoustics
-kerosene-tools radiance  content/maps/kerosene_room.kerobsp  # → adds lighting
+kerosene-tools cleave    content/maps/kerosene_room.kmap  # → .kbsp and .kprt
+kerosene-tools umbra     content/maps/kerosene_room.kbsp  # → adds visibility
+kerosene-tools resonance content/maps/kerosene_room.kbsp  # → adds acoustics
+kerosene-tools radiance  content/maps/kerosene_room.kbsp  # → adds lighting
 ```
 
 An unvised, unlit map still loads and plays; it just draws everything, looks
@@ -316,13 +316,13 @@ crates/
   kerosene-audio      the mixer, spatial sound and reverb
   kerosene-anim       skeletal animation
   kerosene-math       vectors, planes, convex windings with exact clipping
-  kerosene-kv         KeyValues, the text format .keromap and materials use
-  kerosene-config     engine.kconfig — the settings every program shares
+  kerosene-kv         KeyValues, the text format .kmap and materials use
+  kerosene-config     engine.kcfg — the settings every program shares
   kerosene-console    convars, concommands, the command buffer
   kerosene-vfs        layered search paths and the .vault archive format
-  kerosene-asset      .kerotex textures, .keromat materials, .keromdl models
-  kerosene-map        .keromap — the editable map format
-  kerosene-bsp        .kerobsp — the compiled map, plus tracing and PVS
+  kerosene-asset      .ktex textures, .kmat materials, .kmdl models
+  kerosene-map        .kmap — the editable map format
+  kerosene-bsp        .kbsp — the compiled map, plus tracing and PVS
   kerosene-walk       walkable-surface data and pathfinding over it
   kerosene-toolui     the look and widgets the tools share
 tools/                in the published crate behind the `tools` feature
@@ -331,7 +331,7 @@ tools/                in the published crate behind the `tools` feature
 apps/
   kerosene            the stock runtime (package kerosene-runtime)
 xtask/                repository chores: `cargo xtask bundle`
-kerosene.keroproj     the project file: what content tree this is, and where
+kerosene.kproj     the project file: what content tree this is, and where
 content/              the engine's own content: developer textures, stock
                       props, sounds and UI, and the base room -- packed into
                       crates/kerosene-engine/base/base.vault. The demo level
@@ -380,7 +380,7 @@ Known limits, stated plainly:
   correct — it has a real depth buffer — and it draws materials, mipped and
   perspective-correct. There is no lighting and there are no shadows. The
   compiled map in the engine is one keystroke away.
-- **No block compression for textures.** `.kerotex` is uncompressed.
+- **No block compression for textures.** `.ktex` is uncompressed.
 - **Not on crates.io yet.** Until the first release is published, `new`
   takes `--kerosene-git` or `--kerosene-path` to depend on a checkout.
 

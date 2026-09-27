@@ -3,13 +3,13 @@
 //! toolset calls for the `alchemy` subcommand.
 //!
 //! ```text
-//! kerosene-tools alchemy compile art/grid.png -o materials/dev/grid.kerotex
+//! kerosene-tools alchemy compile art/grid.png -o materials/dev/grid.ktex
 //! kerosene-tools alchemy material dev/grid --basetexture dev/grid
 //! kerosene-tools alchemy batch art -o materials --make-materials
 //! kerosene-tools alchemy build content
 //! kerosene-tools alchemy new-texture Walls/brick --basecolor ~/brick.png --normal ~/brick_n.png
 //! kerosene-tools alchemy texture-set content/textures/Walls/brick
-//! kerosene-tools alchemy info materials/dev/grid.kerotex
+//! kerosene-tools alchemy info materials/dev/grid.ktex
 //! ```
 
 use anyhow::{Result, bail};
@@ -43,7 +43,7 @@ enum Command {
         #[arg(long)]
         materials: Option<PathBuf>,
     },
-    /// Compile an image into a .kerotex.
+    /// Compile an image into a .ktex.
     Compile {
         image: PathBuf,
         #[arg(short, long)]
@@ -64,7 +64,7 @@ enum Command {
         #[arg(long)]
         opaque: bool,
     },
-    /// Write a .keromat material definition.
+    /// Write a .kmat material definition.
     Material {
         /// Material name, as geometry refers to it (e.g. `dev/grid`).
         name: String,
@@ -89,7 +89,7 @@ enum Command {
         directory: PathBuf,
         #[arg(short, long)]
         output: PathBuf,
-        /// Also write a matching .keromat next to each texture.
+        /// Also write a matching .kmat next to each texture.
         #[arg(long)]
         make_materials: bool,
     },
@@ -147,7 +147,7 @@ enum Command {
         #[arg(long)]
         build: bool,
     },
-    /// Describe a compiled .kerotex or .keromat.
+    /// Describe a compiled .ktex or .kmat.
     Info { file: PathBuf },
 }
 
@@ -164,7 +164,7 @@ pub fn run(args: Vec<String>) -> Result<()> {
             ui,
             opaque,
         } => {
-            let out = output.unwrap_or_else(|| image.with_extension("kerotex"));
+            let out = output.unwrap_or_else(|| image.with_extension("ktex"));
             let flags = build_flags(normal, clamp, point, ui);
             // A normal map is never translucent: its alpha, if any, is data.
             let size = compile_image(&image, &out, flags, opaque || normal)?;
@@ -256,9 +256,9 @@ pub fn run(args: Vec<String>) -> Result<()> {
                 set.name, report.compiled, report.skipped
             );
             if report.material {
-                println!("  wrote {}.keromat", set.name);
+                println!("  wrote {}.kmat", set.name);
             } else {
-                println!("  kept the existing {}.keromat", set.name);
+                println!("  kept the existing {}.kmat", set.name);
             }
             Ok(())
         }

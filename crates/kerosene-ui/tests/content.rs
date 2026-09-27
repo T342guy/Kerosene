@@ -68,7 +68,7 @@ fn the_hud_and_its_overlay_run_clean() {
     let files = content();
     let mut ui = UiSystem::new();
     let mut s = store();
-    ui.show("hud", "ui/hud.keroui", &files).unwrap();
+    ui.show("hud", "ui/hud.kui", &files).unwrap();
     ui.update(0.016, (1920, 1080), &mut s, &files);
     assert!(ui.is_visible("overlay"), "the HUD puts the overlay up");
 
@@ -112,7 +112,7 @@ fn the_pause_menu_runs_clean_and_its_controls_work() {
     let files = content();
     let mut ui = UiSystem::new();
     let mut s = store();
-    ui.show("menu", "ui/menus/pause.keroui", &files).unwrap();
+    ui.show("menu", "ui/menus/pause.kui", &files).unwrap();
     ui.update(0.016, (1920, 1080), &mut s, &files);
     assert!(ui.wants_input());
 
@@ -155,7 +155,7 @@ fn the_status_screen_runs_clean() {
     let files = content();
     let mut ui = UiSystem::new();
     let mut s = store();
-    ui.set_panel("status", "ui/panels/status.keroui", (640, 360), &files)
+    ui.set_panel("status", "ui/panels/status.kui", (640, 360), &files)
         .unwrap();
     for _ in 0..5 {
         ui.update(0.05, (1920, 1080), &mut s, &files);

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
-//! `.keroproj` -- a project's own account of where its content is.
+//! `.kproj` -- a project's own account of where its content is.
 //!
 //! Everything up to here *infers* the content root: climb the tree looking
 //! for something that has the shape of one. That works, and it is what makes
@@ -57,7 +57,7 @@ use kerosene_kv::KeyValues;
 use std::path::{Path, PathBuf};
 
 /// The extension a project file carries.
-pub const EXTENSION: &str = "keroproj";
+pub const EXTENSION: &str = crate::ext::PROJECT;
 
 /// What a project says about itself.
 #[derive(Clone, Debug, Default, PartialEq)]

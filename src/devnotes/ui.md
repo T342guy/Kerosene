@@ -21,9 +21,9 @@ How the UI is built, for someone changing it. For how to *use* it, see
 
 ```mermaid
 flowchart LR
-    xml[".keroui"] --> markup["markup.rs<br/>escape, parse"] --> doc
-    css[".kerocss"] --> cssrs["css.rs<br/>rules, selectors"] --> doc
-    rhai[".keroscript"] --> script["script.rs<br/>sandboxed VM"] --> doc
+    xml[".kui"] --> markup["markup.rs<br/>escape, parse"] --> doc
+    css[".kcss"] --> cssrs["css.rs<br/>rules, selectors"] --> doc
+    rhai[".kscr"] --> script["script.rs<br/>sandboxed VM"] --> doc
     store["store.rs<br/>UiStore"] --> bind["bind.rs<br/>templates, deps"] --> doc
     doc["document.rs<br/>Document::update"] --> style["style.rs<br/>cascade"]
     doc --> layout["taffy<br/>flexbox"]

@@ -20,20 +20,20 @@ fn manifest() -> Vec<String> {
 fn the_base_content_mounts_and_holds_what_the_engine_asks_for_by_default() {
     let archive = Archive::from_static(BASE_VAULT, "base").expect("the base vault reads");
     for needed in [
-        "ui/hud.keroui",
-        "ui/menus/pause.keroui",
-        "scripts/kerosene.kerosnd",
-        "materials/dev/grid.keromat",
-        "materials/dev/grid.kerotex",
-        "materials/tools/nodraw.keromat",
-        "maps/kerosene_room.kerobsp",
-        "models/props/cube.keromdl",
+        "ui/hud.kui",
+        "ui/menus/pause.kui",
+        "scripts/kerosene.ksnd",
+        "materials/dev/grid.kmat",
+        "materials/dev/grid.ktex",
+        "materials/tools/nodraw.kmat",
+        "maps/kerosene_room.kbsp",
+        "models/props/cube.kmdl",
     ] {
         assert!(archive.contains(needed), "base content is missing {needed}");
     }
     let mut vfs = Vfs::new();
     mount(&mut vfs);
-    assert!(vfs.exists("ui/hud.keroui"));
+    assert!(vfs.exists("ui/hud.kui"));
 }
 
 #[test]

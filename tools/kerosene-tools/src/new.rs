@@ -330,7 +330,7 @@ fn project(dir: &Path, names: &Names, game: Option<&str>) -> Result<()> {
         bail!("the starter map is wrong: {problems:?}");
     }
     let maps = content.join("maps");
-    let path = maps.join(format!("{}.keromap", names.map));
+    let path = maps.join(format!("{}.kmap", names.map));
     std::fs::create_dir_all(&maps)?;
     std::fs::write(&path, map.to_text()).with_context(|| format!("writing {}", path.display()))?;
     Ok(())

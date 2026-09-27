@@ -42,7 +42,7 @@ separate SDK download.
 
 ## The project file
 
-Everything Steam needs to know goes in the `.keroproj`:
+Everything Steam needs to know goes in the `.kproj`:
 
 ```text
 project
@@ -111,7 +111,7 @@ for "open ten doors". It shows Steam's progress toast on the way (3/10, 4/10,
 [Kerosene Demo](https://github.com/t342guy/kerosene-demo) has one
 example: typing the code into the keypad in `kero_start` fires
 `ach_keypad`'s `Unlock`, and the HUD toasts "Code breaker". Its
-`kerosene-demo.keroproj` declares `ACH_KEYPAD`.
+`kerosene-demo.kproj` declares `ACH_KEYPAD`.
 
 ## From a script: `platform` (or `steam`)
 
@@ -163,7 +163,7 @@ The stock HUD's achievement toast is built from these.
 use kerosene::platform::PlatformAction;
 
 if let Err(why) = engine.platform_apply(&PlatformAction::AddStat { name: "kills".into(), delta: 1.0 }) {
-    log::warn!("{why}"); // e.g. the stat is not declared in the .keroproj
+    log::warn!("{why}"); // e.g. the stat is not declared in the .kproj
 }
 let user = engine.platform().user();
 ```

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
-//! `.keroaud` -- compiled audio, the format Timbre writes and the engine reads.
+//! `.kaud` -- compiled audio, the format Timbre writes and the engine reads.
 //!
 //! Every other kind of content in this engine has a source and a compiled
-//! form: `.png` becomes `.kerotex`, `.obj` becomes `.keromdl`. Sound was the
+//! form: `.png` becomes `.ktex`, `.obj` becomes `.kmdl`. Sound was the
 //! exception. WAV shipped raw, which cost a factor of four in download size,
 //! carried no loop points, and let a stereo file be placed in the world where
 //! it cannot meaningfully be panned -- silently, and forever.
@@ -30,7 +30,7 @@ use crate::wav::Sound;
 use crate::{AudioError, adpcm};
 
 /// The extension compiled audio uses.
-pub const EXTENSION: &str = "keroaud";
+pub const EXTENSION: &str = "kaud";
 
 const MAGIC: [u8; 4] = *b"KRAU";
 const VERSION: u32 = 1;
@@ -127,7 +127,7 @@ impl Info {
     }
 }
 
-/// Compile samples into the bytes of a `.keroaud`.
+/// Compile samples into the bytes of a `.kaud`.
 pub fn encode(sound: &Sound, encoding: Encoding, looping: Loop) -> Vec<u8> {
     let samples: Vec<i16> = sound
         .samples
@@ -163,7 +163,7 @@ pub fn encode(sound: &Sound, encoding: Encoding, looping: Loop) -> Vec<u8> {
     out
 }
 
-/// Read a `.keroaud` back into samples the mixer can use.
+/// Read a `.kaud` back into samples the mixer can use.
 pub fn decode(bytes: &[u8]) -> Result<(Sound, Info), AudioError> {
     let info = read_info(bytes)?;
     let body = &bytes[HEADER_SIZE..];

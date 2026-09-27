@@ -56,7 +56,7 @@ repository.
 | Keep your game code, levels, assets and scripts closed | The exception's linking permission: an independent module does not become a covered work by being linked | The permission's conditions: engine source, the notice, the attribution screen |
 | Statically link the engine | Rust does this by default and the exception names static linking explicitly | Nothing more; there is no relinking clause |
 | Ship on any storefront | No storefront term conflicts with the licence | The storefront's own requirements, none of which the engine helps with yet ([Platforms](platforms.md)) |
-| Ship the stock `kerosene` runtime, unmodified, as your game | A content-only project does exactly this; `kiln --ship` copies the runtime when `.keroproj` names no `game` package | The notice and licence texts, which `kiln --ship` writes |
+| Ship the stock `kerosene` runtime, unmodified, as your game | A content-only project does exactly this; `kiln --ship` copies the runtime when `.kproj` names no `game` package | The notice and licence texts, which `kiln --ship` writes |
 | Fork the engine | The GPL permits it | The whole fork stays GPL with the exception, says "modified from Kerosene" and the version, and — when a closed game ships on it — publishes its whole source; and you now maintain a fork ([Forks and derived engines](#forks-and-derived-engines)) |
 | Call your fork *Kerosene: Something* | The project wants derived engines to be able to say where they came from | The name's price, §2(d) of the exception: the whole engine published as source, a link to yours and a "modified from Kerosene" link to this one |
 | Ship without worrying about Valve or id content | There is none. Every format is Kerosene's own, byte-tagged, and cannot open theirs | Nothing, provided you do not put any of theirs in |
@@ -94,11 +94,11 @@ roughly the order you will hit them; the fuller list is
 | Ship with gamepad support | Keyboard and mouse only; no action-map layer, no rebinding UI | `missing-features.md` §9 |
 | Ship multiplayer | The simulation runs headless, which is the hard part, but there is no wire protocol, prediction or replication | README; `missing-features.md` §12 |
 | Ship with crash reporting | `kerosene_console::install_crash_handler` writes `crash.log` beside the binary with the panic, a backtrace and the last 64 log lines. Nothing sends it anywhere: the player has to find it and mail it to you | `crates/kerosene-console/src/logging.rs`; `missing-features.md` §13 |
-| Ship uncompressed textures | `.kerotex` has no block compression, so the download is several times the size it needs to be | `missing-features.md` §2 |
+| Ship uncompressed textures | `.ktex` has no block compression, so the download is several times the size it needs to be | `missing-features.md` §2 |
 | Ship a modified engine | Legal: the whole fork public, "modified from Kerosene" everywhere the game names itself, plus §2(d) if you call it Kerosene. Practical: you maintain a fork, and every upstream fix is a merge. The project asks for a pull request first | [Forks and derived engines](#forks-and-derived-engines) |
 | Write gameplay in Rhai instead of Rust | The script layer is sandboxed on purpose: it cannot allocate an entity, walk the BSP, open a file or touch the renderer. Level glue, yes; a weapon system, no | `scripting.md` |
 | Let players drop loose files beside the `.vault` | The feature that makes modding trivial makes tampering trivial too. There is no signing, no manifest, no integrity check on loose files — only per-entry CRCs *inside* the archive | `tools.md`, Vault; `crates/kerosene-vfs` |
-| Install the game somewhere read-only | The first run writes `engine.kconfig` into the content tree beside the binary. In a read-only install directory that write fails and the defaults apply every run | `crates/kerosene-config` |
+| Install the game somewhere read-only | The first run writes `engine.kcfg` into the content tree beside the binary. In a read-only install directory that write fails and the defaults apply every run | `crates/kerosene-config` |
 | Rely on the engine being deterministic (replays, ghosts) | Asserted, not audited: nothing replays a session yet to prove it | `missing-features.md` §4 |
 | Ship on Steam | Build with the `steam` feature and ship with `kiln --ship --steam`. The drawbacks: your game links Valve's proprietary SDK, which the Exception permits but the GPL alone would not, and there is no Steam Input yet | [Steam](steam.md) |
 
@@ -179,7 +179,7 @@ names one, and assembles:
 ```text
 dist/
   my_game            the game, or the engine runtime when the project names none
-  my_game.keroproj   content = "content", so the game finds its own archive
+  my_game.kproj   content = "content", so the game finds its own archive
   content/
     my_game.vault
   LICENSE            the GNU General Public License, version 3, full text

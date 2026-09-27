@@ -166,7 +166,7 @@ Key decisions, each stated in the source comments:
   player/monster clips are skipped entirely.
 - **Each prop gets a dynamic box** shaped from its model's bounds, centred on
   the bounds' centre so a model built off-centre still sits where it draws.
-  `load_model` fails are cached so a missing `.keromdl` is warned about once.
+  `load_model` fails are cached so a missing `.kmdl` is warned about once.
 - **The player is kinematic, not dynamic.** The player's own movement code is
   the authority on where they are; a dynamic body would be shoved around by the
   very props it is meant to shove. Without a body at all the player was a hole

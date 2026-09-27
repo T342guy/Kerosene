@@ -54,7 +54,7 @@ pub struct PhysicsProps {
     section_bodies: Vec<Vec<Body>>,
     /// The player, as the simulation sees them.
     player: Option<PlayerBody>,
-    /// Model names that would not load, so a prop with a missing `.keromdl`
+    /// Model names that would not load, so a prop with a missing `.kmdl`
     /// is read from disk and warned about once rather than every tick.
     missing_models: std::collections::HashSet<String>,
     /// Each prop's pose as of the *previous* tick, so the renderer can
@@ -1069,7 +1069,7 @@ fn model_brush_indices(bsp: &Bsp, model: usize) -> Vec<usize> {
         .collect()
 }
 
-/// The bounding box of a `.keromdl` model, by the name an entity refers to it.
+/// The bounding box of a `.kmdl` model, by the name an entity refers to it.
 fn model_bounds(vfs: &Vfs, name: &str) -> Option<Aabb> {
     let path = kerosene_asset::model_path(name);
     let bytes = vfs.read(&path).ok()?;

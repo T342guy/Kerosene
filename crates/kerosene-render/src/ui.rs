@@ -13,7 +13,7 @@
 //! the scene pass (`shaders/panel.wgsl`), depth-tested and lit by itself.
 //!
 //! Images are loaded here, not by the UI: [`UiRenderer::sync_images`] reads
-//! any `.kerotex` the UI has asked for since the last frame and reports its
+//! any `.ktex` the UI has asked for since the last frame and reports its
 //! size back, so `contain` and `cover` can fit it.
 
 use crate::gpu::{DEPTH_FORMAT, HDR_FORMAT, load_texture};
@@ -413,7 +413,7 @@ impl UiRenderer {
             match &loaded {
                 Some(t) => images.set_size(id, t.width(), t.height()),
                 None => log::warn!(
-                    "ui: image {path} would not load (is it compiled? materials/{path}.kerotex)"
+                    "ui: image {path} would not load (is it compiled? materials/{path}.ktex)"
                 ),
             }
             let entry = loaded.map(|t| {

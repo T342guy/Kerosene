@@ -7,7 +7,7 @@
 //! kerosene-tools timbre build                            # compile a project's sounds
 //! kerosene-tools timbre build --content path/to/content --force
 //! kerosene-tools timbre compile sound/door/move.wav --gain 0.8 --mono
-//! kerosene-tools timbre info sound/door/move.keroaud
+//! kerosene-tools timbre info sound/door/move.kaud
 //! ```
 //!
 //! Run with no arguments it opens a window, because the useful things to know
@@ -22,7 +22,7 @@ use kerosene_audio::compiled::{self, Encoding};
 use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
-#[command(name = "timbre", version, about = "Compile sounds into .keroaud")]
+#[command(name = "timbre", version, about = "Compile sounds into .kaud")]
 struct Args {
     #[command(subcommand)]
     command: Option<Command>,

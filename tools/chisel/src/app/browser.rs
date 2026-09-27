@@ -364,7 +364,7 @@ impl ChiselApp {
 
     /// Read a model out of the content tree.
     pub(super) fn load_model(&self, name: &str) -> Option<kerosene_asset::Model> {
-        let bytes = self.vfs.read(&format!("models/{name}.keromdl")).ok()?;
+        let bytes = self.vfs.read(&format!("models/{name}.kmdl")).ok()?;
         kerosene_asset::Model::from_bytes(&bytes).ok()
     }
 

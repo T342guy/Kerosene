@@ -36,7 +36,7 @@ machine first: Rust, the Linux sound headers, the GPU.
 orbital-drift/
   Cargo.toml              the package: kerosene, and two binaries
   .cargo/config.toml      cargo play, cargo tools, cargo ship
-  orbital-drift.keroproj  the project: its name, content, start map, game
+  orbital-drift.kproj  the project: its name, content, start map, game
   README.md               the commands, and what is where
   .gitignore              the build's outputs, and the player's own files
   .gitattributes          art and sound are binary
@@ -46,7 +46,7 @@ orbital-drift/
     game.rs               the game: a Game, a class of its own, and a test
     tools.rs              the game's own editor and compilers
   content/
-    maps/orbital_drift_start.keromap
+    maps/orbital_drift_start.kmap
     art/ materials/ models/ sound/ scripts/ textures/
 ```
 
@@ -70,7 +70,7 @@ changed, the game starts at once.
 | `cargo play +map other` | ...on another map. Anything after `play` goes to the game. |
 | `cargo play --full` | Build maps with full visibility and lighting first |
 | `cargo tools` | The toolset window: project, editor, sound editor, build, archive |
-| `cargo tools chisel content/maps/x.keromap` | The editor, on a map. F9 in it compiles the map and plays it. |
+| `cargo tools chisel content/maps/x.kmap` | The editor, on a map. F9 in it compiles the map and plays it. |
 | `cargo ship` | Build everything properly and assemble `dist/`, ready to hand out |
 | `cargo run` | The game on its own, with the content as it is |
 | `cargo test` | The game's own tests: `game.rs` starts with one |
@@ -95,7 +95,7 @@ its source.
 developer textures, the stock props, sounds and UI, and a plain room, compiled
 into the engine, so a game has something to show before it has anything of
 its own. Put a file at the same path in `content/` and yours is used
-instead: `content/ui/hud.keroui` replaces the stock HUD.
+instead: `content/ui/hud.kui` replaces the stock HUD.
 
 ## Another platform
 

@@ -15,12 +15,10 @@ impl ChiselApp {
     pub(super) fn after_compile(&mut self) {
         let Some(job) = &self.compile else { return };
         let failed = job.failed;
-        let map = job.output().map(|p| p.to_path_buf()).or_else(|| {
-            self.document
-                .path
-                .clone()
-                .map(|p| p.with_extension("kerobsp"))
-        });
+        let map = job
+            .output()
+            .map(|p| p.to_path_buf())
+            .or_else(|| self.document.path.clone().map(|p| p.with_extension("kbsp")));
 
         // Cleared first, and unconditionally. A trace is about one compile,
         // and keeping the last one around because this compile wrote none is
@@ -193,7 +191,7 @@ impl ChiselApp {
                             "A map that leaks has no sealed inside, so visibility is near \
                              useless and light bleeds through walls. Cleave normally \
                              refuses to build one. With this it builds anyway and writes a \
-                             .keroleak trace beside the map showing the way out.",
+                             .kleak trace beside the map showing the way out.",
                         );
                 });
                 if running {
@@ -265,7 +263,7 @@ impl ChiselApp {
         self.commit_properties();
         self.commit_property_window();
         // One at a time: a second pipeline over the same files would race
-        // the first for the `.kerobsp`, and the first's log would vanish
+        // the first for the `.kbsp`, and the first's log would vanish
         // with its channel.
         if self.compile.as_ref().is_some_and(|job| !job.finished) {
             self.status = "already compiling; wait for it to finish".into();

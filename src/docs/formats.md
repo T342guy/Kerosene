@@ -2,21 +2,21 @@
 
 | Extension | What | Text or binary | Written by | Source analogue |
 |---|---|---|---|---|
-| `.keromap` | Editable map source | text (KeyValues) | Chisel | `.vmf` |
-| `.kerobsp` | Compiled map | binary, lump directory | Cleave / Umbra / Resonance / Radiance | `.bsp` |
-| `.keroprt` | Portal graph | text | Cleave | `.prt` |
-| `.keroleak` | Leak trace | text | Cleave | `.lin` |
-| `.kerowalk` | NPC walkmap | binary | Cleave | (Source has no equivalent) |
-| `.kerotex` | Texture | binary | Alchemy | `.vtf` |
-| `.keromat` | Material | text (KeyValues) | Alchemy, by hand | `.vmt` |
-| `texture.kconfig` | Texture set definition | text (KeyValues) | Alchemy, by hand | (no equivalent) |
-| `.keromdl` | Model | binary | Forge | `.mdl` |
-| `.kerodef` | Entity class definitions | text (KeyValues) | the game, by hand | `.fgd` |
-| `.keroscript` | Level script, UI script | text (Rhai) | by hand | `.nut` (VScript) |
-| `.keroui` | UI layout | text (XML) | by hand | Panorama `.xml` |
-| `.kerocss` | UI stylesheet | text (CSS subset) | by hand | Panorama `.css` |
-| `.kerosnd` | Sound script | text (KeyValues) | by hand | `game_sounds.txt` |
-| `.keroaud` | Compiled sound | binary | Timbre | `.wav` (ADPCM) |
+| `.kmap` | Editable map source | text (KeyValues) | Chisel | `.vmf` |
+| `.kbsp` | Compiled map | binary, lump directory | Cleave / Umbra / Resonance / Radiance | `.bsp` |
+| `.kprt` | Portal graph | text | Cleave | `.prt` |
+| `.kleak` | Leak trace | text | Cleave | `.lin` |
+| `.kwalk` | NPC walkmap | binary | Cleave | (Source has no equivalent) |
+| `.ktex` | Texture | binary | Alchemy | `.vtf` |
+| `.kmat` | Material | text (KeyValues) | Alchemy, by hand | `.vmt` |
+| `texture.kcfg` | Texture set definition | text (KeyValues) | Alchemy, by hand | (no equivalent) |
+| `.kmdl` | Model | binary | Forge | `.mdl` |
+| `.kdef` | Entity class definitions | text (KeyValues) | the game, by hand | `.fgd` |
+| `.kscr` | Level script, UI script | text (Rhai) | by hand | `.nut` (VScript) |
+| `.kui` | UI layout | text (XML) | by hand | Panorama `.xml` |
+| `.kcss` | UI stylesheet | text (CSS subset) | by hand | Panorama `.css` |
+| `.ksnd` | Sound script | text (KeyValues) | by hand | `game_sounds.txt` |
+| `.kaud` | Compiled sound | binary | Timbre | `.wav` (ADPCM) |
 | `.wav` `.flac` `.mp3` | Sound sources | binary | any audio tool | `.wav` |
 | `.vault` | Content archive | binary | Vault | `.vpk` |
 
@@ -28,7 +28,7 @@ and Z is up.
 
 ## KeyValues
 
-The text format `.keromap`, `.keromat`, `.kerodef` and the compiled entity lump
+The text format `.kmap`, `.kmat`, `.kdef` and the compiled entity lump
 all use.
 
 ```
@@ -52,7 +52,7 @@ through the editor does not reshuffle it and produce a noisy diff.
 Backslashes are literal, so `materials\dev\grid` survives intact. Only the
 escapes the writer emits (`\"`, `\\`, `\n`, `\t`) are resolved on read.
 
-## `.keromap` — editable maps
+## `.kmap` — editable maps
 
 ```
 versioninfo { "formatversion" "1" }
@@ -132,7 +132,7 @@ cordon { "mins" "-512 -512 0" "maxs" "512 512 256" "active" "1" }
 VisGroups nest, and hiding a parent hides its children. A visgroup with
 `"stream" "1"` is also a *section*: Cleave tags its brushes with it and the
 engine streams the section's geometry in and out around the player (see
-`.kerobsp` below). Groups are flat: objects that share a `groupid` select
+`.kbsp` below). Groups are flat: objects that share a `groupid` select
 together. `"visible" "0"` in an object's `editor` block is quick-hide. Every
 one of these blocks is omitted when it would say nothing, so a map that uses
 none of them is byte-for-byte the map it was before they existed, and a
@@ -178,7 +178,7 @@ map or block visibility. Block a space out in brushes; dress it in meshes.
 Only the world's meshes compile for now; a brush entity carrying one is
 warned about and left out.
 
-## `.kerobsp` — compiled maps
+## `.kbsp` — compiled maps
 
 A header (`KROS`, a version, a 24-slot lump directory) followed by flat arrays
 of `#[repr(C)]` records. Every record is padding-free, so loading a lump is a
@@ -250,7 +250,7 @@ hardware cube map. The next lump needs a version bump.
 Every index in the file is validated at load. A dangling one becomes an
 out-of-bounds read deep inside the renderer, where the cause is invisible.
 
-## `.keroprt` — the portal graph
+## `.kprt` — the portal graph
 
 Written by Cleave, read by Umbra.
 
@@ -265,7 +265,7 @@ The winding's own plane normal points toward the first cluster listed. Only
 portals between two non-solid leaves appear: sight does not travel through
 rock, so a portal with a solid side is not a portal.
 
-## `.kerowalk` — the NPC walkmap
+## `.kwalk` — the NPC walkmap
 
 Written by Cleave, read by whatever drives NPC navigation. It is the answer
 to "where can NPCs go", precomputed once at build time the same way the PVS
@@ -293,7 +293,7 @@ faces that share an edge and A*-searches them into a list of waypoints, with
 detour is not much longer. The runtime asks for a path the way it asks whether
 a point is walkable — cheaply, against data the compiler already produced.
 
-## `.kerotex` — textures
+## `.ktex` — textures
 
 A 48-byte header (dimensions, format, flags, average colour) then the mip
 chain, largest first. Uncompressed RGBA8, RGB8 or R8.
@@ -302,7 +302,7 @@ Mipmaps, the average colour Radiance needs for bounce lighting, and sampling
 intent are all resolved at build time. Doing them at load costs startup on
 every run, and doing them *well* is not something to redo per launch.
 
-## `.keromat` — materials
+## `.kmat` — materials
 
 ```
 lit
@@ -369,7 +369,7 @@ meant to be acoustic tile: either four absorption coefficients for 125, 500,
 2000 and 8000 Hz — `"0.02 0.14 0.60 0.65"` — or the name of a surface type
 to borrow them from, `"carpet"`, leaving the footsteps as they were.
 
-## `.keromdl` — models
+## `.kmdl` — models
 
 A 64-byte header, then vertices, indices, meshes, bones and a string table.
 
@@ -395,12 +395,12 @@ interpolation per bone. A version 1 file -- every static prop compiled before
 animations existed -- still loads, as a model with none.
 
 Triangles are wound **counter-clockwise as seen from the front** -- the
-convention the GPU renderer culls by, and the opposite of `.keromap` faces,
+convention the GPU renderer culls by, and the opposite of `.kmap` faces,
 which are clockwise. Forge takes an OBJ's winding as-is (the axis remap
 preserves handedness), so the OBJ must already be counter-clockwise: a face
 wound the other way compiles and collides fine but renders inside out.
 
-## `texture.kconfig` — texture sets
+## `texture.kcfg` — texture sets
 
 A single PNG is not a surface. A surface is a colour, the bumps in it, how rough
 it is, what it glows with and where it self-shadows — five images that belong
@@ -414,14 +414,14 @@ content/textures/Walltextures/variant1/
     roughness.png
     emissive.png
     ao.png
-    texture.kconfig      (optional)
+    texture.kcfg      (optional)
 ```
 
 It **names itself from where it sits**: `Walltextures/variant1` compiles to
 `Walltextures_variant1`, and each map takes a suffix — `_normal`, `_rough`,
 `_emissive`, `_ao`. The path is already unique and already describes the thing,
 so restating it in a file would only be a second answer that can disagree with
-the first. Alchemy writes the matching `.keromat` wiring up whichever maps are
+the first. Alchemy writes the matching `.kmat` wiring up whichever maps are
 there, once, and never overwrites one afterwards.
 
 Filenames are matched generously (`albedo`, `diffuse`, `col`; `nrm`, `bump`;
@@ -432,7 +432,7 @@ with no base colour is not a set: the other maps modulate a colour, and with
 nothing to modulate they would compile into a material that draws the
 missing-texture checkerboard.
 
-`texture.kconfig` is how you overrule any of that. Every key is optional — the
+`texture.kcfg` is how you overrule any of that. Every key is optional — the
 point of the folder convention is that the common case needs no file at all:
 
 ```text
@@ -469,8 +469,8 @@ with.
 
 Not a format, but content worth knowing the provenance of: `alchemy
 dev-textures` writes `content/art/dev/` and `content/art/tools/` along with
-their materials. The PNGs and `.keromat` files it writes are committed; only
-the compiled `.kerotex` is not, because that is a build artefact.
+their materials. The PNGs and `.kmat` files it writes are committed; only
+the compiled `.ktex` is not, because that is a build artefact.
 
 `dev/` are 256x256 checkerboards. At the default texture scale of 0.25 world
 units per texel that covers 64 ku, so the 4x4 grid on them reads as **16 ku
@@ -494,14 +494,14 @@ already correct, so re-running it on an unchanged tree is a no-op and a diff
 against it is meaningful.
 
 Chisel runs the generator, and the batch compile after it, before it finishes
-loading. So a clone with the `.kerotex` files missing -- which is every clone,
+loading. So a clone with the `.ktex` files missing -- which is every clone,
 since they are build artefacts -- still opens an editor with textures in it.
 
 A test checks the set against the compiler's tool-material table in both
 directions: offering a tool material the compiler treats as world geometry
 would silently wall off a doorway.
 
-## `.keroproj` — the project file
+## `.kproj` — the project file
 
 Where a project says, rather than implies, where its content is.
 
@@ -543,7 +543,7 @@ one of them absent does not announce itself; it looks like whichever tool went
 looking for it being broken, which is the same class of problem the content-root
 search was written to end.
 
-`kerosene-tools init [dir]` does it deliberately, writing a `.keroproj` and the
+`kerosene-tools init [dir]` does it deliberately, writing a `.kproj` and the
 tree beside it. It is safe to run on an existing project: the project file is
 left exactly as it is, and only missing directories are created.
 
@@ -565,7 +565,7 @@ written so far. A `dir` naming a path outside the tree is ignored with a
 warning: the list is text somebody typed, and it does not get to create
 directories beside the project.
 
-## `.kerodef` — entity class definitions
+## `.kdef` — entity class definitions
 
 What an editor needs to know about the game's entities: for each class, the
 keys it reads, the inputs it answers to and the outputs it fires. The engine
@@ -650,15 +650,15 @@ Files are merged in sorted path order and a later definition of a class
 replaces an earlier one, so a mod can drop its own file beside the game's.
 
 A `default` is what the *game* assumes when a key is absent. Chisel shows it
-greyed rather than writing it into the map, so a `.keromap` only carries the
+greyed rather than writing it into the map, so a `.kmap` only carries the
 keys someone chose — which is what makes a diff between two saves readable.
 
-`content/kerosene.kerodef` describes the sample game, and a test in
+`content/kerosene.kdef` describes the sample game, and a test in
 `kerosene-game` checks it against the class registry in both directions: an input
 the game handles and the file does not offer is a build failure, and so is an
 input the file offers that nothing handles.
 
-## `.keroscript` — level scripts
+## `.kscr` — level scripts
 
 A map's script, loaded automatically when the level starts if it is named
 after the map. The language is [Rhai](https://rhai.rs); the API, the hooks and
@@ -676,7 +676,7 @@ Nothing about the format is special — it is source text the engine hands to a
 VM. It is listed here because it is content the engine loads by name and packs
 into a `.vault` with everything else.
 
-## `.kerosnd` — sound scripts
+## `.ksnd` — sound scripts
 
 What a sound name means: which file, how loud, how far it carries. The format
 and the model behind it are in [`audio.md`](audio.md).

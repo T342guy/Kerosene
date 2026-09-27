@@ -142,7 +142,7 @@ impl Drop for CompileJob {
 }
 
 impl CompileJob {
-    /// Start compiling a saved `.keromap`.
+    /// Start compiling a saved `.kmap`.
     ///
     /// The map must already be on disk: the compilers read files, and writing
     /// the editor's buffer somewhere else first would mean compiling something
@@ -210,7 +210,7 @@ fn run_compile(
     sender: &Sender<CompileMessage>,
     cancel: &std::sync::atomic::AtomicBool,
 ) -> Result<(), ()> {
-    let compiled = map.with_extension("kerobsp");
+    let compiled = map.with_extension("kbsp");
     let cancelled = || cancel.load(std::sync::atomic::Ordering::Relaxed);
 
     // Alchemy first, and in-process rather than as a stage. The compilers run
@@ -488,7 +488,7 @@ mod tests {
     #[test]
     fn ignoring_leaks_reaches_the_command_line() {
         // The checkbox is only meaningful if the flag arrives at cleave.
-        let mut args = vec!["map.keromap".to_string()];
+        let mut args = vec!["map.kmap".to_string()];
         let settings = CompileSettings {
             ignore_leaks: true,
             ..Default::default()
@@ -531,7 +531,7 @@ mod tests {
             log: vec![
                 CompileMessage::Stage("cleave".into()),
                 CompileMessage::Line("68 faces".into()),
-                CompileMessage::Finished(PathBuf::from("maps/x.kerobsp")),
+                CompileMessage::Finished(PathBuf::from("maps/x.kbsp")),
             ],
             finished: true,
             failed: false,
@@ -540,7 +540,7 @@ mod tests {
         let text = job.text();
         assert!(text.contains("--- cleave ---"), "{text}");
         assert!(text.contains("68 faces"));
-        assert_eq!(job.output(), Some(Path::new("maps/x.kerobsp")));
+        assert_eq!(job.output(), Some(Path::new("maps/x.kbsp")));
     }
 
     #[test]

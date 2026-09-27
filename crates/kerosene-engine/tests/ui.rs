@@ -57,7 +57,7 @@ fn room() -> Map {
     panel.set("targetname", "keypad");
     panel.set_origin(Vec3::new(112.0, 64.0, 64.0));
     panel.set("angles", "0 180 0");
-    panel.set("layout", "ui/keypad.keroui");
+    panel.set("layout", "ui/keypad.kui");
     panel.set("width", "64");
     panel.set("height", "64");
     panel.set("resolution", "256");
@@ -99,12 +99,12 @@ fn setup(name: &str, script: &str) -> (Engine, PathBuf) {
     }
     let out = compile(&room(), &CompileOptions::default()).expect("the test map compiles");
     assert!(out.leak.is_none());
-    std::fs::write(dir.join("maps/uimap.kerobsp"), out.bsp.to_bytes()).unwrap();
-    std::fs::write(dir.join("scripts/uimap.keroscript"), script).unwrap();
-    std::fs::write(dir.join("ui/keypad.keroui"), KEYPAD).unwrap();
-    std::fs::write(dir.join("ui/hud.keroui"), HUD).unwrap();
+    std::fs::write(dir.join("maps/uimap.kbsp"), out.bsp.to_bytes()).unwrap();
+    std::fs::write(dir.join("scripts/uimap.kscr"), script).unwrap();
+    std::fs::write(dir.join("ui/keypad.kui"), KEYPAD).unwrap();
+    std::fs::write(dir.join("ui/hud.kui"), HUD).unwrap();
     let mut engine = common::stock(&EngineConfig::default().with_content(dir.clone()));
-    engine.console.set("ui_hud", "ui/hud.keroui");
+    engine.console.set("ui_hud", "ui/hud.kui");
     engine.load_map("uimap").unwrap();
     (engine, dir)
 }
@@ -253,18 +253,18 @@ fn pressing_use_on_a_world_panel_clicks_it_and_its_output_opens_the_door() {
 #[test]
 fn the_pause_menu_falls_back_to_the_base_one_and_a_games_own_wins() {
     let (mut engine, dir) = setup("menu", "");
-    // No ui/menus/pause.keroui in this tree: the engine's base content has one.
+    // No ui/menus/pause.kui in this tree: the engine's base content has one.
     assert!(engine.toggle_pause_menu());
     assert!(engine.toggle_pause_menu(), "and it closes");
     // No file at all is no menu.
     engine.console.set("ui_pausemenu", "");
     assert!(!engine.toggle_pause_menu());
-    engine.console.set("ui_pausemenu", "ui/menus/pause.keroui");
+    engine.console.set("ui_pausemenu", "ui/menus/pause.kui");
 
     // The game's own, over the base one.
     std::fs::create_dir_all(dir.join("ui/menus")).unwrap();
     std::fs::write(
-        dir.join("ui/menus/pause.keroui"),
+        dir.join("ui/menus/pause.kui"),
         r#"<root interactive="true" z="100"><Button id="resume" text="Resume" onactivate="hide_layer('menu')"/></root>"#,
     )
     .unwrap();

@@ -1,6 +1,6 @@
 # The map pipeline
 
-A `.keromap` is edited by hand or by Chisel; a `.kerobsp` is what the engine
+A `.kmap` is edited by hand or by Chisel; a `.kbsp` is what the engine
 loads. In between sit four compilers, each a separate crate and a separate
 subcommand, each writing back into the same file. This page follows the data.
 
@@ -10,16 +10,16 @@ config:
   layout: elk
 ---
 flowchart LR
-    map(["maps/x.keromap<br/>KeyValues, brushes as planes"]) --> cleave["cleave"]
-    cleave --> bsp0(["x.kerobsp<br/>+ x.keroprt<br/>+ x.kerowalk"])
+    map(["maps/x.kmap<br/>KeyValues, brushes as planes"]) --> cleave["cleave"]
+    cleave --> bsp0(["x.kbsp<br/>+ x.kprt<br/>+ x.kwalk"])
     bsp0 --> umbra["umbra"]
     bsp0 --> resonance["resonance"]
-    umbra --> bsp1(["x.kerobsp<br/>+ visibility"])
+    umbra --> bsp1(["x.kbsp<br/>+ visibility"])
     bsp1 --> resonance
-    resonance --> bsp2(["x.kerobsp<br/>+ acoustics"])
+    resonance --> bsp2(["x.kbsp<br/>+ acoustics"])
     bsp2 --> radiance["radiance"]
     bsp1 --> radiance
-    radiance --> bsp3(["x.kerobsp<br/>+ lighting"])
+    radiance --> bsp3(["x.kbsp<br/>+ lighting"])
     bsp3 --> vault["vault"]
     vault --> archive(["content.vault"])
     archive --> engine(["kerosene runtime"])
@@ -36,7 +36,7 @@ any of the three data sets is missing (`bsp.visibility.is_empty()`,
 `bsp.lighting.is_empty()`, `bsp.acoustics.is_none()`), because a map is still
 playable unlit and unseen.
 
-## Cleave: `.keromap` → `.kerobsp`
+## Cleave: `.kmap` → `.kbsp`
 
 Source of truth: `tools/cleave/src/pipeline.rs`, function `compile`. The
 stages run in this order and the code comments mark each with `// ---- name ----`.
@@ -60,7 +60,7 @@ flowchart TB
     clusters --> file["filter_brush: non-structural brushes into leaves"]
     file --> models["brush entities → per-model BrushModel"]
     models --> emit["emit::emit<br/>file faces, weld, write lumps"]
-    emit --> out1(["Bsp, .keroprt text, .kerowalk"])
+    emit --> out1(["Bsp, .kprt text, .kwalk"])
 
     classDef stage fill:#FF6D00,color:#fff
     classDef decision fill:#AA00FF,color:#fff
@@ -112,8 +112,8 @@ then numbers the surviving leaves for Umbra.
 `tools/cleave/src/emit.rs` does three jobs in order: file each CSG fragment
 down the tree into the leaf that can see it (dropping fragments in solid
 leaves), weld vertices/edges so seams stay watertight (WELD_EPSILON 0.05, well
-under `ON_EPSILON`), and write the lumps. The `.keroprt` is written by
-`portal::write_prt`; the `.kerowalk` by `tools/cleave/src/walk.rs` from the
+under `ON_EPSILON`), and write the lumps. The `.kprt` is written by
+`portal::write_prt`; the `.kwalk` by `tools/cleave/src/walk.rs` from the
 same final polygons — so a face CSG cut back to a sliver contributes only the
 sliver.
 
@@ -154,7 +154,7 @@ the box's own walls seal it so the result does not leak. See
 ## Umbra: the PVS
 
 Source: `tools/umbra/src/lib.rs`, `flow.rs`, `prt.rs`, `bitset.rs`. It reads
-the `.kerobsp` and the `.keroprt`, and writes the visibility lump.
+the `.kbsp` and the `.kprt`, and writes the visibility lump.
 
 Two passes that tighten on each other (`tools/umbra/src/flow.rs`):
 
@@ -188,7 +188,7 @@ flowchart LR
     perleaf --> eyring["Eyring's formula → rt60 per band"]
     eyring --> rooms["rooms.rs<br/>union-find over portal graph,<br/>widest portals first, merge while alike"]
     rooms --> rec(["AcousticRoom records<br/>+ leaf→room table"])
-    mats["materials.rs<br/>.keromat $surfaceprop / $acoustics → absorption per band"] --> probe
+    mats["materials.rs<br/>.kmat $surfaceprop / $acoustics → absorption per band"] --> probe
 
     classDef proc fill:#FF6D00,color:#fff
     classDef data fill:#2962FF,color:#fff

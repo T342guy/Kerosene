@@ -262,7 +262,7 @@ impl Solid {
     /// An axis-aligned box brush -- what the block tool produces.
     ///
     /// Points are written as real corners rather than derived from the planes,
-    /// so a generated `.keromap` reads the way a hand-authored one does.
+    /// so a generated `.kmap` reads the way a hand-authored one does.
     pub fn cube(bounds: Aabb, material: &str) -> Solid {
         let (lo, hi) = (bounds.min, bounds.max);
         let d = bounds.size();

@@ -157,8 +157,8 @@ fn setup(name: &str) -> (Engine, PathBuf) {
     }
     let out = compile(&room(), &CompileOptions::default()).expect("the test map compiles");
     assert!(out.leak.is_none());
-    std::fs::write(dir.join("maps/store.kerobsp"), out.bsp.to_bytes()).unwrap();
-    std::fs::write(dir.join("scripts/store.keroscript"), SCRIPT).unwrap();
+    std::fs::write(dir.join("maps/store.kbsp"), out.bsp.to_bytes()).unwrap();
+    std::fs::write(dir.join("scripts/store.kscr"), SCRIPT).unwrap();
     let mut engine = common::stock(
         &EngineConfig::default()
             .with_content(dir.clone())

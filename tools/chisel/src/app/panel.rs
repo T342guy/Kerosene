@@ -657,7 +657,7 @@ impl ChiselApp {
         ui.separator();
 
         // How the selected faces take part in the NPC walkmap. Set per face
-        // here; the compiler folds these rules into the `.kerowalk` it writes
+        // here; the compiler folds these rules into the `.kwalk` it writes
         // on every compile.
         ui.label(theme::section_title("walkmap"));
         let rules: std::collections::BTreeSet<WalkmapRule> =

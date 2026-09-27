@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
-//! `.keromap` -- Kerosene's editable map source format.
+//! `.kmap` -- Kerosene's editable map source format.
 //!
 //! This is the analogue of Source's `.vmf`: what Chisel saves, what version
-//! control tracks, and what Cleave compiles into a `.kerobsp`. It is KeyValues
+//! control tracks, and what Cleave compiles into a `.kbsp`. It is KeyValues
 //! text, deliberately, so that a map is reviewable in a diff and repairable in
 //! a text editor when a tool corrupts it.
 //!

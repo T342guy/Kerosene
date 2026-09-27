@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! Resonance -- the Kerosene acoustics compiler.
 //!
-//! Reads a compiled `.kerobsp`, listens to every leaf by throwing rays at
+//! Reads a compiled `.kbsp`, listens to every leaf by throwing rays at
 //! its walls, and writes back what each part of the map sounds like: how
 //! long sound lingers in each band, how soon the first echo returns, how
 //! open to the sky it is. The engine's reverb reads those numbers straight
@@ -9,10 +9,10 @@
 //! not, without a designer placing anything.
 //!
 //! ```text
-//! cleave     map.keromap   ->  map.kerobsp + map.keroprt
-//! umbra      map.kerobsp   ->  map.kerobsp with visibility
-//! resonance  map.kerobsp   ->  map.kerobsp with acoustics   <- you are here
-//! radiance   map.kerobsp   ->  map.kerobsp with lighting
+//! cleave     map.kmap   ->  map.kbsp + map.kprt
+//! umbra      map.kbsp   ->  map.kbsp with visibility
+//! resonance  map.kbsp   ->  map.kbsp with acoustics   <- you are here
+//! radiance   map.kbsp   ->  map.kbsp with lighting
 //! ```
 //!
 //! It runs after Umbra because it reads the portal file to know which leaves
@@ -47,13 +47,13 @@ pub use rooms::{Adjacency, Tolerance};
 #[command(
     name = "resonance",
     version,
-    about = "Work out what each part of a compiled .kerobsp sounds like"
+    about = "Work out what each part of a compiled .kbsp sounds like"
 )]
 struct Args {
-    /// The .kerobsp to add acoustics to, modified in place.
+    /// The .kbsp to add acoustics to, modified in place.
     map: PathBuf,
 
-    /// The portal file. Defaults to the map path with a .keroprt extension;
+    /// The portal file. Defaults to the map path with a .kprt extension;
     /// without one, leaves are joined by touching bounds instead.
     #[arg(long)]
     portals: Option<PathBuf>,
@@ -181,7 +181,7 @@ pub fn run(args: Vec<String>) -> Result<()> {
     let prt_path = args
         .portals
         .clone()
-        .unwrap_or_else(|| args.map.with_extension("keroprt"));
+        .unwrap_or_else(|| args.map.with_extension("kprt"));
     let graph = match std::fs::read_to_string(&prt_path) {
         Ok(text) => Some(
             PortalGraph::parse(&text).with_context(|| format!("parsing {}", prt_path.display()))?,

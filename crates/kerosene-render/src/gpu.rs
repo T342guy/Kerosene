@@ -24,7 +24,7 @@ use wgpu::util::DeviceExt;
 
 /// A vertex in a studio model, as uploaded to the GPU.
 ///
-/// The same forty bytes as a `.keromdl` vertex, bone influences included: a
+/// The same forty bytes as a `.kmdl` vertex, bone influences included: a
 /// static model is fully weighted to bone 0, which the identity palette in
 /// bone slot 0 leaves where it is, so one vertex format and one shader serve
 /// a crate and a character alike.
@@ -1661,7 +1661,7 @@ impl Renderer {
     /// Draw one uploaded studio model, at the pose in model slot `slot`.
     ///
     /// Physics props and other dynamic models are drawn through here: the
-    /// geometry comes from a `.keromdl` (not from the BSP), and the transform
+    /// geometry comes from a `.kmdl` (not from the BSP), and the transform
     /// comes from the same model buffer the brush models use.
     ///
     /// `bones` is the palette slot from [`Renderer::update_palettes`] -- 0,
@@ -3034,7 +3034,7 @@ pub struct GpuModel {
     pub bounds: kerosene_math::Aabb,
 }
 
-/// Load and upload a `.keromdl` model by the name an entity refers to it by.
+/// Load and upload a `.kmdl` model by the name an entity refers to it by.
 ///
 /// Returns `None` when the model is missing or malformed -- a missing prop
 /// should be a logged warning and nothing drawn, not a crash.

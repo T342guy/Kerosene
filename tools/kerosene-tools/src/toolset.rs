@@ -103,7 +103,7 @@ pub struct Launch {
     pub content: Option<PathBuf>,
     /// A map to open in the editor, when named on the command line.
     pub map: Option<PathBuf>,
-    /// The `.kerodef` text of a game's own classes, shown in the editor
+    /// The `.kdef` text of a game's own classes, shown in the editor
     /// after the stock ones. What a game hands over when it re-hosts the
     /// toolset; empty for the stock one.
     pub schema: Vec<&'static str>,
@@ -544,13 +544,13 @@ mod tests {
     fn a_project_naming_a_game_package_is_what_f9_launches() {
         let (_, root) = toolset_in("game-key");
         std::fs::write(
-            root.join("mine.keroproj"),
+            root.join("mine.kproj"),
             "project { \"name\" \"Mine\" \"content\" \".\" \"game\" \"my-game\" }",
         )
         .unwrap();
         // Found through the map, the way a double-clicked map is: an
         // explicit --content is taken at its word and reads no project.
-        let map = root.join("maps").join("mine.keromap");
+        let map = root.join("maps").join("mine.kmap");
         std::fs::create_dir_all(map.parent().unwrap()).unwrap();
         std::fs::write(&map, chisel::app::starter_document().map.to_text()).unwrap();
         let toolset = Toolset::open(Launch {
@@ -626,7 +626,7 @@ mod tests {
     #[test]
     fn opening_a_map_from_the_project_page_goes_to_the_editor() {
         let (mut toolset, root) = toolset_in("open-map");
-        let map = root.join("maps").join("arena.keromap");
+        let map = root.join("maps").join("arena.kmap");
         std::fs::create_dir_all(map.parent().unwrap()).unwrap();
         toolset.editor.document = chisel::app::starter_document();
         assert!(toolset.editor.save(Some(map.clone())));

@@ -61,7 +61,7 @@ stack, because each crate can pass its own tests and still not add up to a
 level you can walk around:
 
 - `playthrough.rs` — build a map in memory, compile it through Cleave, load
-  the `.kerobsp`, spawn entities, move the player, fire inputs, walk through a
+  the `.kbsp`, spawn entities, move the player, fire inputs, walk through a
   door.
 - `streaming.rs` — a hall of four rooms; the far room's crates are in a
   streamed visgroup and the section comes and goes as the player approaches

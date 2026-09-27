@@ -14,7 +14,7 @@ keywords.workspace = true
 categories.workspace = true
 
 # A model viewer: what Half-Life Model Viewer is to a `.mdl`, for a
-# `.keromdl`. It renders through Chisel's own model-preview rasteriser
+# `.kmdl`. It renders through Chisel's own model-preview rasteriser
 # (`chisel::preview`) rather than a copy of it, so a model looks the same
 # spinning here as it does in the asset browser and the placement ghost.
 

@@ -75,7 +75,7 @@ fn hall() -> Map {
 fn compiled() -> Bsp {
     let out = compile(&hall(), &CompileOptions::default()).expect("should compile");
     assert!(out.leak.is_none(), "the test map leaks");
-    let mut bsp = Bsp::from_bytes(&out.bsp.to_bytes(), "test.kerobsp").unwrap();
+    let mut bsp = Bsp::from_bytes(&out.bsp.to_bytes(), "test.kbsp").unwrap();
     let graph = umbra::prt::PortalGraph::parse(&out.prt).unwrap();
     let vis = umbra::flow::compute(&graph, false);
     let mut builder = VisBuilder::new(graph.clusters);
@@ -86,13 +86,13 @@ fn compiled() -> Bsp {
     }
     builder.derive_pas();
     bsp.visibility = builder.build();
-    Bsp::from_bytes(&bsp.to_bytes(), "test.kerobsp").expect("round-trips")
+    Bsp::from_bytes(&bsp.to_bytes(), "test.kbsp").expect("round-trips")
 }
 
 fn engine_on(bsp: &Bsp) -> Engine {
     let dir = std::env::temp_dir().join(format!("kerosene-stream-{}", std::process::id()));
     std::fs::create_dir_all(dir.join("maps")).unwrap();
-    std::fs::write(dir.join("maps/hall.kerobsp"), bsp.to_bytes()).unwrap();
+    std::fs::write(dir.join("maps/hall.kbsp"), bsp.to_bytes()).unwrap();
     let mut engine = common::stock(&EngineConfig::default().with_content(dir));
     engine.load_map("hall").expect("loads");
     engine

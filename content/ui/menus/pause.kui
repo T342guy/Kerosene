@@ -9,10 +9,10 @@
 -->
 <root interactive="true" z="100">
     <styles>
-        <include src="ui/menus/menu.kerocss"/>
+        <include src="ui/menus/menu.kcss"/>
     </styles>
     <scripts>
-        <include src="ui/menus/pause.keroscript"/>
+        <include src="ui/menus/pause.kscr"/>
     </scripts>
 
     <Panel id="backdrop">

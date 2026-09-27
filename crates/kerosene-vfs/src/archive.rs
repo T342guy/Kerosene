@@ -501,9 +501,9 @@ mod tests {
     fn an_archive_in_memory_reads_the_same_as_one_on_disk() {
         let out = tmp("static.vault");
         let mut b = ArchiveBuilder::new();
-        b.add("materials/dev/grid.keromat", b"shader { }".to_vec())
+        b.add("materials/dev/grid.kmat", b"shader { }".to_vec())
             .unwrap();
-        b.add("sound/a.keroaud", vec![3u8; 999]).unwrap();
+        b.add("sound/a.kaud", vec![3u8; 999]).unwrap();
         b.write(&out).unwrap();
         let bytes: &'static [u8] = Box::leak(std::fs::read(&out).unwrap().into_boxed_slice());
 
@@ -511,10 +511,10 @@ mod tests {
         assert_eq!(a.source(), "base");
         assert_eq!(a.len(), 2);
         assert_eq!(
-            a.read("Materials/Dev/Grid.keromat").unwrap().unwrap(),
+            a.read("Materials/Dev/Grid.kmat").unwrap().unwrap(),
             b"shader { }"
         );
-        assert_eq!(a.read("sound/a.keroaud").unwrap().unwrap(), vec![3u8; 999]);
+        assert_eq!(a.read("sound/a.kaud").unwrap().unwrap(), vec![3u8; 999]);
         assert!(a.read("nope").unwrap().is_none());
         assert!(Archive::from_static(&bytes[..20], "cut").is_err());
         let _ = std::fs::remove_file(out);
@@ -524,25 +524,22 @@ mod tests {
     fn round_trips_content() {
         let out = tmp("roundtrip.vault");
         let mut b = ArchiveBuilder::new();
-        b.add("materials/dev/grid.keromat", b"shader { }".to_vec())
+        b.add("materials/dev/grid.kmat", b"shader { }".to_vec())
             .unwrap();
-        b.add(r"Maps\Kero_Start.kerobsp", vec![7u8; 5000]).unwrap();
+        b.add(r"Maps\Kero_Start.kbsp", vec![7u8; 5000]).unwrap();
         b.write(&out).unwrap();
 
         let a = Archive::open(&out).unwrap();
         assert_eq!(a.len(), 2);
         assert_eq!(
-            a.read("materials/dev/grid.keromat").unwrap().unwrap(),
+            a.read("materials/dev/grid.kmat").unwrap().unwrap(),
             b"shader { }"
         );
         // Path was normalised on the way in, so it reads back lowercase.
-        assert_eq!(
-            a.read("maps/kero_start.kerobsp").unwrap().unwrap().len(),
-            5000
-        );
+        assert_eq!(a.read("maps/kero_start.kbsp").unwrap().unwrap().len(), 5000);
         assert!(a.read("nothing/here").unwrap().is_none());
         // And however the name is capitalised on the way out.
-        assert!(a.read("Maps/Kero_Start.kerobsp").unwrap().is_some());
+        assert!(a.read("Maps/Kero_Start.kbsp").unwrap().is_some());
         let _ = std::fs::remove_file(&out);
     }
 
@@ -617,16 +614,13 @@ mod tests {
     fn listing_filters_by_directory_and_extension() {
         let out = tmp("list.vault");
         let mut b = ArchiveBuilder::new();
-        b.add("materials/a.keromat", b"1".to_vec()).unwrap();
-        b.add("materials/b.kerotex", b"2".to_vec()).unwrap();
-        b.add("maps/c.kerobsp", b"3".to_vec()).unwrap();
+        b.add("materials/a.kmat", b"1".to_vec()).unwrap();
+        b.add("materials/b.ktex", b"2".to_vec()).unwrap();
+        b.add("maps/c.kbsp", b"3".to_vec()).unwrap();
         b.write(&out).unwrap();
         let a = Archive::open(&out).unwrap();
         assert_eq!(a.list("materials", None).len(), 2);
-        assert_eq!(
-            a.list("materials", Some("keromat")),
-            vec!["materials/a.keromat"]
-        );
+        assert_eq!(a.list("materials", Some("kmat")), vec!["materials/a.kmat"]);
         assert_eq!(a.list("", None).len(), 3);
         let _ = std::fs::remove_file(&out);
     }

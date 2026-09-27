@@ -31,8 +31,8 @@ fn a_batch_compiles_what_is_there_and_writes_a_material_for_it() {
     assert_eq!(report.compiled, 1);
     assert_eq!(report.skipped, 0);
     assert_eq!(report.materials, 1);
-    assert!(dir.join("materials/dev/thing.kerotex").is_file());
-    assert!(dir.join("materials/dev/thing.keromat").is_file());
+    assert!(dir.join("materials/dev/thing.ktex").is_file());
+    assert!(dir.join("materials/dev/thing.kmat").is_file());
 
     let _ = std::fs::remove_dir_all(&dir);
 }
@@ -90,7 +90,7 @@ fn a_missing_output_is_out_of_date() {
     let dir = scratch("uptodate");
     let source = dir.join("thing.png");
     png(&source, 8);
-    assert!(!is_up_to_date(&source, &dir.join("nothing-here.kerotex")));
+    assert!(!is_up_to_date(&source, &dir.join("nothing-here.ktex")));
     let _ = std::fs::remove_dir_all(&dir);
 }
 
@@ -108,7 +108,7 @@ fn a_texture_build_populates_an_empty_content_tree() {
 
     // The generator's own materials must survive the batch that follows it:
     // the sky is not a lit surface, and only the generator knows that.
-    let sky = std::fs::read_to_string(dir.join("materials/dev/sky_kero.keromat")).unwrap();
+    let sky = std::fs::read_to_string(dir.join("materials/dev/sky_kero.kmat")).unwrap();
     assert!(
         sky.starts_with("sky"),
         "expected the sky shader, got {sky:?}"
@@ -157,11 +157,11 @@ fn a_set_compiles_every_map_it_has_and_writes_one_material() {
 
     for name in ["Walls_v1", "Walls_v1_normal", "Walls_v1_rough"] {
         assert!(
-            dir.join(format!("materials/{name}.kerotex")).is_file(),
-            "{name}.kerotex should have been compiled"
+            dir.join(format!("materials/{name}.ktex")).is_file(),
+            "{name}.ktex should have been compiled"
         );
     }
-    assert!(dir.join("materials/Walls_v1.keromat").is_file());
+    assert!(dir.join("materials/Walls_v1.kmat").is_file());
 
     let _ = std::fs::remove_dir_all(&dir);
 }
@@ -176,7 +176,7 @@ fn the_material_a_set_writes_names_every_map_it_compiled() {
 
     batch_sets(&dir.join("textures"), &dir.join("materials")).unwrap();
 
-    let text = std::fs::read_to_string(dir.join("materials/brick.keromat")).unwrap();
+    let text = std::fs::read_to_string(dir.join("materials/brick.kmat")).unwrap();
     let material = Material::parse(&text).unwrap();
     assert_eq!(material.base_texture(), Some("brick"));
     assert_eq!(material.bump_map(), Some("brick_normal"));
@@ -218,7 +218,7 @@ fn an_authored_material_survives_a_rebuild() {
     batch_sets(&dir.join("textures"), &dir.join("materials")).unwrap();
 
     // Somebody sets the surface property by hand, as they are meant to.
-    let path = dir.join("materials/brick.keromat");
+    let path = dir.join("materials/brick.kmat");
     let text = std::fs::read_to_string(&path).unwrap();
     let mut material = Material::parse(&text).unwrap();
     material.set("$surfaceprop", "brick");
@@ -242,7 +242,7 @@ fn each_map_carries_the_flags_its_kind_calls_for() {
     batch_sets(&dir.join("textures"), &dir.join("materials")).unwrap();
 
     let read = |name: &str| {
-        let bytes = std::fs::read(dir.join(format!("materials/{name}.kerotex"))).unwrap();
+        let bytes = std::fs::read(dir.join(format!("materials/{name}.ktex"))).unwrap();
         Texture::from_bytes(&bytes).unwrap().flags
     };
 
@@ -263,7 +263,7 @@ fn a_folder_with_no_base_colour_is_not_built() {
 
     let report = batch_sets(&dir.join("textures"), &dir.join("materials")).unwrap();
     assert_eq!(report.compiled, 0);
-    assert!(!dir.join("materials/notes_normal.kerotex").exists());
+    assert!(!dir.join("materials/notes_normal.ktex").exists());
 
     let _ = std::fs::remove_dir_all(&dir);
 }
@@ -286,9 +286,9 @@ fn a_full_build_compiles_loose_art_and_sets_together() {
     let build = build_textures(&dir).unwrap();
     assert!(build.did_anything());
     assert_eq!(build.sets.compiled, 2);
-    assert!(dir.join("materials/props/crate.kerotex").is_file());
-    assert!(dir.join("materials/Walls_v1.kerotex").is_file());
-    assert!(dir.join("materials/Walls_v1_normal.kerotex").is_file());
+    assert!(dir.join("materials/props/crate.ktex").is_file());
+    assert!(dir.join("materials/Walls_v1.ktex").is_file());
+    assert!(dir.join("materials/Walls_v1_normal.ktex").is_file());
 
     // And a second pass changes nothing at all.
     let again = build_textures(&dir).unwrap();
@@ -323,17 +323,17 @@ fn a_new_texture_lands_where_a_build_will_find_it() {
     let set_dir = dir.join("textures/Walls/brick");
     assert!(set_dir.join("basecolor.png").is_file());
     assert!(set_dir.join("normal.png").is_file());
-    assert!(set_dir.join("texture.kconfig").is_file());
+    assert!(set_dir.join("texture.kcfg").is_file());
     // The artist's originals are untouched.
     assert!(art.join("my_brick.png").is_file());
 
     // And the ordinary build picks it up with no further help.
     let build = build_textures(&dir).unwrap();
     assert_eq!(build.sets.compiled, 2);
-    assert!(dir.join("materials/Walls_brick.kerotex").is_file());
-    assert!(dir.join("materials/Walls_brick_normal.kerotex").is_file());
+    assert!(dir.join("materials/Walls_brick.ktex").is_file());
+    assert!(dir.join("materials/Walls_brick_normal.ktex").is_file());
 
-    let text = std::fs::read_to_string(dir.join("materials/Walls_brick.keromat")).unwrap();
+    let text = std::fs::read_to_string(dir.join("materials/Walls_brick.kmat")).unwrap();
     assert_eq!(
         Material::parse(&text).unwrap().surface_property(),
         "brick",

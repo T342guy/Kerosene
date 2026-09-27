@@ -41,7 +41,7 @@ pub trait Game: 'static {
     /// spawns, thinks and answers inputs the same way the stock ones do.
     fn classes(&self, registry: &mut ClassRegistry) {}
 
-    /// The `.kerodef` text describing [`classes`](Game::classes), for the
+    /// The `.kdef` text describing [`classes`](Game::classes), for the
     /// tools: what Chisel shows in its property inspector. Empty means the
     /// game has no classes of its own to describe.
     fn schema(&self) -> &'static str {

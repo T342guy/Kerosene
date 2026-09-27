@@ -19,7 +19,7 @@
 //! thousand lines of someone else's solved problem.
 //!
 //! Alchemy already made this call: it pulls in `image` for PNG and JPEG, and
-//! the engine reads only `.kerotex`. This is the same split.
+//! the engine reads only `.ktex`. This is the same split.
 //!
 //! ## On lossy sources
 //!

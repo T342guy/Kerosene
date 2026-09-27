@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
-//! `.keromat` -- material definitions, the VMT analogue.
+//! `.kmat` -- material definitions, the VMT analogue.
 //!
 //! A material says which shader draws a surface and what to feed it. The
 //! indirection matters: brush faces and models reference *materials*, never
@@ -342,7 +342,7 @@ pub enum SurfaceProperty {
 }
 
 impl SurfaceProperty {
-    /// Parse the spelling a `.keromat` uses. Unknown names become
+    /// Parse the spelling a `.kmat` uses. Unknown names become
     /// [`SurfaceProperty::Other`] so they round-trip rather than being lost,
     /// which is the same treatment unknown material parameters get.
     pub fn parse(s: &str) -> SurfaceProperty {

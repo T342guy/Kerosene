@@ -5,14 +5,14 @@ Six layers, separable on purpose.
 | | |
 |---|---|
 | `kerosene-audio::wav` | Source `.wav` files to samples |
-| `kerosene-audio::compiled` | `.keroaud` files to samples — what a shipped game reads |
+| `kerosene-audio::compiled` | `.kaud` files to samples — what a shipped game reads |
 | `kerosene-audio::adpcm` | Four bits a sample, for the above |
 | `kerosene-audio::mixer` | Voices to a stereo buffer — no device, so it is testable |
 | `kerosene-audio::reverb`, `env`, `dsp` | The room and the air: what the world does to a sound on the way |
 | `kerosene-audio::device` | That buffer to the sound card, behind a feature flag |
 
 Sound has a compiled form as well as a source one. `timbre` turns `.wav` into
-`.keroaud`, which is a quarter the size, carries loop points and a peak, and
+`.kaud`, which is a quarter the size, carries loop points and a peak, and
 records whether the sound may be positioned at all. The engine prefers it and
 falls back to the `.wav` when there is no compiled form — so a designer who has
 just dropped a file in hears it without running a build first, and a shipped
@@ -50,7 +50,7 @@ play_sound("door/move", find_by_name("gate").origin, 0.5);
 stop_sounds();
 ```
 
-## `.kerosnd` — sound scripts
+## `.ksnd` — sound scripts
 
 A level fires `door/move`, and what that *is* lives in a script rather than on
 the entity. The same indirection materials have, for the same reason: making
@@ -70,7 +70,7 @@ sound
 }
 ```
 
-Every `.kerosnd` under `scripts/` loads at startup, later files overriding
+Every `.ksnd` under `scripts/` loads at startup, later files overriding
 earlier ones so a mod can change one sound without copying a file. A name
 nothing defines is taken as a path under `sound/`, so `play ui/click.wav`
 works before anyone has written a script.
@@ -131,7 +131,7 @@ each tick, the rest keeping last tick's answer until their turn.
 
 **What the compiler looked at.** Every surface's absorption per band comes
 from its material — from `$surfaceprop`, or from an explicit `$acoustics`
-key (see [`formats.md`](formats.md#keromat--materials)). A designer who
+key (see [`formats.md`](formats.md#kmat--materials)). A designer who
 wants a room to sound a particular way regardless places an
 `env_acoustic_override` in it.
 

@@ -30,7 +30,7 @@ of a given version was built and tested together.
   release of one of them reaches Kerosene only in a major release.
 - The Cargo features `audio`, `steam` and `tools`.
 - What a game's content relies on: the entity classes and their keys, inputs
-  and outputs; the `.keroproj` keys; the console commands and convars the
+  and outputs; the `.kproj` keys; the console commands and convars the
   engine registers; the Rhai functions scripts can call; and the command-line
   flags of the engine and the tools. A map that loads and plays in `1.2`
   loads and plays in `1.3`.
@@ -80,8 +80,8 @@ the crate's:
 | Acoustics lump | `ACST` | 1 |
 | Cubemaps lump | `KCUB` | 1 |
 | Walk data | `KRWL` | 1 |
-| Map source | `.keromap` | 1 |
-| Saved game | `.kerosave` | 1 |
+| Map source | `.kmap` | 1 |
+| Saved game | `.ksav` | 1 |
 
 A format change is judged by what it does to files people already have:
 

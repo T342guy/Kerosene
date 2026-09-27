@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! Umbra -- the Kerosene visibility compiler.
 //!
-//! Reads a compiled `.kerobsp` and the `.keroprt` portal graph Cleave wrote beside
+//! Reads a compiled `.kbsp` and the `.kprt` portal graph Cleave wrote beside
 //! it, works out which clusters can see which, and writes the result back into
 //! the map's visibility lump.
 //!
 //! This is the second of the three compile stages, mirroring Source's `vvis`:
 //!
 //! ```text
-//! cleave   map.keromap   ->  map.kerobsp + map.keroprt
-//! umbra    map.kerobsp   ->  map.kerobsp with visibility     <- you are here
-//! radiance map.kerobsp   ->  map.kerobsp with lighting
+//! cleave   map.kmap   ->  map.kbsp + map.kprt
+//! umbra    map.kbsp   ->  map.kbsp with visibility     <- you are here
+//! radiance map.kbsp   ->  map.kbsp with lighting
 //! ```
 //!
 //! Vis is the slowest stage of any BSP compile and the one that matters most
@@ -35,13 +35,13 @@ use std::time::Instant;
 #[command(
     name = "umbra",
     version,
-    about = "Compute the PVS for a compiled .kerobsp"
+    about = "Compute the PVS for a compiled .kbsp"
 )]
 struct Args {
-    /// The .kerobsp to add visibility to, modified in place.
+    /// The .kbsp to add visibility to, modified in place.
     map: PathBuf,
 
-    /// The portal file. Defaults to the map path with a .keroprt extension.
+    /// The portal file. Defaults to the map path with a .kprt extension.
     #[arg(long)]
     portals: Option<PathBuf>,
 
@@ -65,7 +65,7 @@ pub fn run(args: Vec<String>) -> Result<()> {
 
     let prt_path = args
         .portals
-        .unwrap_or_else(|| args.map.with_extension("keroprt"));
+        .unwrap_or_else(|| args.map.with_extension("kprt"));
     let prt_text = std::fs::read_to_string(&prt_path).with_context(|| {
         format!(
             "reading {}. Umbra needs the portal file Cleave writes next to the map.",

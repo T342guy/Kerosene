@@ -190,11 +190,8 @@ fn the_cloud_round_trips_and_refuses_paths() {
         ..Default::default()
     });
     assert!(p.cloud_enabled());
-    p.cloud_write("save1.kerosave", b"hello").unwrap();
-    assert_eq!(
-        p.cloud_read("save1.kerosave").as_deref(),
-        Some(&b"hello"[..])
-    );
+    p.cloud_write("save1.ksav", b"hello").unwrap();
+    assert_eq!(p.cloud_read("save1.ksav").as_deref(), Some(&b"hello"[..]));
     assert!(p.cloud_write("../escape", b"x").is_err());
     assert!(p.cloud_read("missing").is_none());
     let _ = std::fs::remove_dir_all(dir);

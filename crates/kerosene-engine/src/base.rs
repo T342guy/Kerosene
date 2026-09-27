@@ -9,7 +9,7 @@
 //! and mounted beneath everything else.
 //!
 //! Beneath, so it is only ever a fallback: a game that ships
-//! `ui/hud.keroui` sees its own HUD, and a file the game has not replaced is
+//! `ui/hud.kui` sees its own HUD, and a file the game has not replaced is
 //! found here. `path` in the console lists it last, as `BASE`.
 //!
 //! The archive is `base/base.vault`, packed from the repository's content by

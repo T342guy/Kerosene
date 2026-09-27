@@ -42,11 +42,11 @@ pub enum Helper {
 }
 
 /// A model path as the content tree names it: `props/crate`, from any of
-/// `props/crate`, `models/props/crate` or `models/props/crate.keromdl`.
+/// `props/crate`, `models/props/crate` or `models/props/crate.kmdl`.
 pub fn model_name(path: &str) -> &str {
     let path = path.trim();
     let path = path.strip_prefix("models/").unwrap_or(path);
-    path.strip_suffix(".keromdl").unwrap_or(path)
+    path.strip_suffix(".kmdl").unwrap_or(path)
 }
 
 /// The model an entity shows: its own `model` key, or the class's default

@@ -714,13 +714,13 @@ pub(crate) fn register(console: &mut kerosene_console::Console) {
     use kerosene_console::ConVarFlags;
     console.register_cvar(
         "ui_hud",
-        "ui/hud.keroui",
+        "ui/hud.kui",
         ConVarFlags::NONE,
         "The HUD layout shown while a map is running. Empty for none.",
     );
     console.register_cvar(
         "ui_pausemenu",
-        "ui/menus/pause.keroui",
+        "ui/menus/pause.kui",
         ConVarFlags::NONE,
         "The layout Escape opens over a running map. Empty to have Escape only free the mouse.",
     );

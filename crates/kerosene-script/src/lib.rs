@@ -52,7 +52,7 @@ pub use bindings::{ID_TARGET_PREFIX, parse_id_target};
 pub use view::{EntityView, WorldView};
 
 /// The extension a script file uses.
-pub const EXTENSION: &str = "keroscript";
+pub const EXTENSION: &str = "kscr";
 
 /// Well-known entry points the engine calls when a script defines them.
 pub mod hooks {
@@ -163,7 +163,7 @@ pub enum ScriptAction {
     UiLayer {
         /// The layer: `hud`, `menu`, or a game's own.
         layer: String,
-        /// The `.keroui` to show, or empty to hide the layer.
+        /// The `.kui` to show, or empty to hide the layer.
         path: String,
     },
     /// Project a decal onto the surface at `origin`, facing along `normal`.

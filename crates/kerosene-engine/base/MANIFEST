@@ -10,11 +10,11 @@ models/props/
 
 # Sounds, and the table that names them.
 sound/
-scripts/kerosene.kerosnd
+scripts/kerosene.ksnd
 
 # The default HUD, pause menu, panels and overlays.
 ui/
 
 # A plain room: what a project with no start map opens on.
-maps/kerosene_room.kerobsp
-maps/kerosene_room.kerowalk
+maps/kerosene_room.kbsp
+maps/kerosene_room.kwalk

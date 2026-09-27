@@ -19,7 +19,7 @@ keeps state of its own.
 | `load <name>` | Load one |
 | `saves` | List them, newest first |
 
-Saves are files, `save/<name>.kerosave`, in the player's own directory: the
+Saves are files, `save/<name>.ksav`, in the player's own directory: the
 same place `cfg/config.cfg` goes.
 
 | Platform | Directory |

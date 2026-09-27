@@ -2,8 +2,8 @@
 //! Kiln -- building a project's content.
 //!
 //! Everything a project ships has a source that is not what the engine loads:
-//! `.png` becomes `.kerotex`, `.obj` becomes `.keromdl`, `.keromap` becomes a
-//! `.kerobsp` with visibility and lighting baked into it, and the lot is
+//! `.png` becomes `.ktex`, `.obj` becomes `.kmdl`, `.kmap` becomes a
+//! `.kbsp` with visibility and lighting baked into it, and the lot is
 //! packed into a `.vault`. Running those in the right order over a whole tree
 //! is a job, and it used to be a shell script in the repository.
 //!
@@ -288,9 +288,9 @@ pub fn build(settings: &Settings) -> Result<Report> {
 
     if settings.runs(Stage::Maps) {
         say("maps");
-        let maps = sources(&settings.content.join("maps"), "keromap");
+        let maps = sources(&settings.content.join("maps"), "kmap");
         if maps.is_empty() {
-            println!("  no .keromap sources under maps/")
+            println!("  no .kmap sources under maps/")
         }
         for map in &maps {
             if !settings.force && map_is_current(map, settings.fast) {
@@ -396,14 +396,14 @@ pub fn is_current(source: &Path, output: &Path) -> bool {
 /// The file beside a compiled map that says how thoroughly it was built:
 /// `full`, or `fast` for one whose visibility and lighting were skimped.
 fn build_stamp(map: &Path) -> PathBuf {
-    map.with_extension("kerobuild")
+    map.with_extension("kbuild")
 }
 
 /// Whether a map's compiled form is newer than its source and was built at
 /// least as thoroughly as this build wants: a fast build is current for
 /// another fast build, never for a full one.
 fn map_is_current(map: &Path, fast: bool) -> bool {
-    let compiled = map.with_extension("kerobsp");
+    let compiled = map.with_extension("kbsp");
     if !is_current(map, &compiled) || !is_current(map, &build_stamp(map)) {
         return false;
     }
@@ -437,14 +437,14 @@ fn build_models(settings: &Settings) -> Result<(usize, usize)> {
     let mut current = 0;
 
     for source in &sources {
-        // `art/props/crate.obj` becomes `models/props/crate.keromdl`: the
+        // `art/props/crate.obj` becomes `models/props/crate.kmdl`: the
         // path under `art` is the path under `models`, so a model's name is
         // decided by where its source is rather than by a list somebody has
         // to remember to update.
         let relative = source
             .strip_prefix(&art)
             .unwrap_or(source)
-            .with_extension("keromdl");
+            .with_extension("kmdl");
         let out = settings.content.join("models").join(&relative);
         if !settings.force && is_current(source, &out) {
             current += 1;
@@ -479,7 +479,7 @@ fn build_map(settings: &Settings, map: &Path, report: &mut Report) -> Result<()>
         .into_owned();
     println!("--- {name}");
 
-    let compiled = map.with_extension("kerobsp");
+    let compiled = map.with_extension("kbsp");
     let mut args = vec![map.display().to_string()];
     if settings.ignore_leaks {
         args.push("--ignore-leaks".into())
@@ -491,7 +491,7 @@ fn build_map(settings: &Settings, map: &Path, report: &mut Report) -> Result<()>
     // forty maps beats finding out on the first one. The other stages are
     // skipped -- there is no BSP to light or cull -- unless the leak was
     // waved through with --ignore-leaks, in which case there is.
-    if !settings.dry_run && map.with_extension("keroleak").is_file() {
+    if !settings.dry_run && map.with_extension("kleak").is_file() {
         report.leaking.push(name.clone());
     }
     if let Err(e) = sealed {
@@ -538,26 +538,10 @@ fn build_map(settings: &Settings, map: &Path, report: &mut Report) -> Result<()>
 /// What goes into the archive.
 ///
 /// Compiled formats and the loose data the engine reads directly. Sources --
-/// `.png`, `.obj`, `.wav`, `.keromap` -- are deliberately left out: shipping
+/// `.png`, `.obj`, `.wav`, `.kmap` -- are deliberately left out: shipping
 /// them doubles the download to deliver files the engine can read a smaller
 /// version of.
-pub const PACKED: &[&str] = &[
-    "kerotex",
-    "keromat",
-    "keromdl",
-    "kerobsp",
-    "kerowalk",
-    "keroscript",
-    "kerosnd",
-    "keroaud",
-    "kerodef",
-    // The game UI: layouts and stylesheets are read as they are written, and
-    // fonts a stylesheet names with `@font-face` are loaded as they are.
-    "keroui",
-    "kerocss",
-    "ttf",
-    "otf",
-];
+pub const PACKED: &[&str] = kerosene_vfs::ext::PACKED;
 
 fn pack(settings: &Settings, archive: &Path) -> Result<()> {
     let mut args = vec![

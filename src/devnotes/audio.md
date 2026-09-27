@@ -10,7 +10,7 @@ the third playthrough.
 | Layer | Source | Responsibility |
 |---|---|---|
 | `wav` | `wav.rs` | Source `.wav` → samples |
-| `compiled` + `adpcm` | `compiled.rs`, `adpcm.rs` | `.keroaud` → samples (4 bits/sample) |
+| `compiled` + `adpcm` | `compiled.rs`, `adpcm.rs` | `.kaud` → samples (4 bits/sample) |
 | `mixer` | `mixer.rs` | Voices → stereo buffer, no device |
 | `reverb`, `env`, `dsp` | `reverb.rs`, `env.rs`, `dsp.rs` | The room and the air |
 | `device` | `device.rs` (feature `device`) | Buffer → sound card |
@@ -27,11 +27,11 @@ nothing else (`AudioSystem::silent`).
 ## From a name to samples
 
 `kerosene-audio::SoundBank` turns `"door/open"` into samples through a sound
-script (`*.kerosnd`, parsed by `script.rs`). `AudioSystem::sound` tries every
+script (`*.ksnd`, parsed by `script.rs`). `AudioSystem::sound` tries every
 form the name might be, not one guessed path — guessing was what reported
 `sound/ambient/track.wav` missing when the file on disk was a `.flac`, a path
 nobody had written about a file that was right there. The engine prefers
-`.keroaud` and falls back to `.wav`, so a designer who just dropped a file in
+`.kaud` and falls back to `.wav`, so a designer who just dropped a file in
 hears it without running a build, and a shipped game carries only the small
 one. A missing name is warned about once (`mark_missing`), because a trigger
 firing every tick would otherwise fill the console.

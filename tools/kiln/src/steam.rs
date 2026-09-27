@@ -186,7 +186,7 @@ pub fn engine_workspace(from: &Path) -> Option<PathBuf> {
 pub fn ids(project: Option<&kerosene_vfs::Project>) -> Result<(u32, u32)> {
     let Some(appid) = project.and_then(|p| p.steam_appid) else {
         bail!(
-            "--steam needs the game's app id. Add \"steam_appid\" \"<id>\" to the .keroproj \
+            "--steam needs the game's app id. Add \"steam_appid\" \"<id>\" to the .kproj \
              (480 is Valve's test app, Spacewar)."
         );
     };

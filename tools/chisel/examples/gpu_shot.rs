@@ -2,7 +2,7 @@
 //! Render a map through Chisel's GPU 3D pane and write it out as a PNG.
 //!
 //! ```text
-//! cargo run -p kerosene-chisel --example gpu_shot -- <map.keromap> <out.png> [x y z yaw pitch] [--select <id>] [--all-helpers]
+//! cargo run -p kerosene-chisel --example gpu_shot -- <map.kmap> <out.png> [x y z yaw pitch] [--select <id>] [--all-helpers]
 //! ```
 //!
 //! The same scene the editor builds -- models, helpers, selection -- drawn
@@ -25,7 +25,7 @@ fn main() -> Result<()> {
     let map = args
         .first()
         .map(String::as_str)
-        .unwrap_or("content/maps/kerosene_room.keromap");
+        .unwrap_or("content/maps/kerosene_room.kmap");
     let out = args.get(1).map(String::as_str).unwrap_or("gpu_shot.png");
     let number = |i: usize, fallback: f32| -> f32 {
         args.get(i).and_then(|v| v.parse().ok()).unwrap_or(fallback)

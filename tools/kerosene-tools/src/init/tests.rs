@@ -24,7 +24,7 @@ fn a_fresh_directory_becomes_a_project_the_search_can_find() {
     let dir = scratch("fresh");
     init(&dir.join("mygame"), &["--name", "My Game"]).unwrap();
 
-    let project_path = dir.join("mygame/my_game.keroproj");
+    let project_path = dir.join("mygame/my_game.kproj");
     assert!(project_path.is_file());
 
     let project = kerosene_vfs::Project::read(&project_path).unwrap();
@@ -49,7 +49,7 @@ fn the_directory_name_is_the_default_project_name() {
     let dir = scratch("default-name");
     init(&dir.join("orbital"), &[]).unwrap();
 
-    assert!(dir.join("orbital/orbital.keroproj").is_file());
+    assert!(dir.join("orbital/orbital.kproj").is_file());
 
     let _ = std::fs::remove_dir_all(&dir);
 }
@@ -61,7 +61,7 @@ fn running_it_twice_leaves_the_project_file_alone() {
     let dir = scratch("twice");
     init(&dir.join("g"), &["--name", "G"]).unwrap();
 
-    let path = dir.join("g/g.keroproj");
+    let path = dir.join("g/g.kproj");
     let mut project = kerosene_vfs::Project::read(&path).unwrap();
     project.start_map = Some("intro".to_string());
     std::fs::write(
@@ -97,7 +97,7 @@ fn a_project_that_names_its_own_directories_gets_those() {
     let dir = scratch("custom-dirs");
     std::fs::create_dir_all(dir.join("g")).unwrap();
     std::fs::write(
-        dir.join("g/g.keroproj"),
+        dir.join("g/g.kproj"),
         "project { \"content\" \"content\" \"dir\" \"maps\" \"dir\" \"materials\" }",
     )
     .unwrap();

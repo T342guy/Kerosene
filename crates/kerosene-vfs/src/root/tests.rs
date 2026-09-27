@@ -59,7 +59,7 @@ fn an_explicit_root_wins_even_when_it_looks_wrong() {
     project(&dir.join("real"));
     let found = find(
         Some(&dir.join("elsewhere")),
-        Some(&dir.join("real/maps/x.keromap")),
+        Some(&dir.join("real/maps/x.kmap")),
     )
     .expect("an explicit path is always taken");
     assert_eq!(found.root, dir.join("elsewhere"));
@@ -73,7 +73,7 @@ fn a_map_finds_the_tree_it_lives_in() {
     // find that map's content, not the content of wherever a shell was.
     let dir = scratch("beside");
     project(&dir);
-    let map = dir.join("maps/level.keromap");
+    let map = dir.join("maps/level.kmap");
     std::fs::write(&map, "").unwrap();
 
     let found = find(None, Some(&map)).expect("found from the map");
@@ -84,12 +84,12 @@ fn a_map_finds_the_tree_it_lives_in() {
 
 #[test]
 fn a_map_in_a_repository_finds_the_content_directory() {
-    // The layout this repository has: `<repo>/content/maps/x.keromap`, with
+    // The layout this repository has: `<repo>/content/maps/x.kmap`, with
     // the root one level in rather than at the top.
     let dir = scratch("repo");
     project(&dir.join("content"));
     std::fs::create_dir_all(dir.join("crates")).unwrap();
-    let map = dir.join("content/maps/level.keromap");
+    let map = dir.join("content/maps/level.kmap");
     std::fs::write(&map, "").unwrap();
 
     assert_eq!(find(None, Some(&map)).unwrap().root, dir.join("content"));
@@ -103,7 +103,7 @@ fn it_climbs_out_of_a_subdirectory() {
     project(&dir);
     let deep = dir.join("maps/chapter1/act2");
     std::fs::create_dir_all(&deep).unwrap();
-    let map = deep.join("level.keromap");
+    let map = deep.join("level.kmap");
     std::fs::write(&map, "").unwrap();
 
     assert_eq!(find(None, Some(&map)).unwrap().root, dir);
@@ -144,7 +144,7 @@ fn with_no_map_it_still_looks_around() {
 fn what_it_found_is_something_a_person_can_read() {
     let dir = scratch("describe");
     project(&dir);
-    let text = describe(&find(None, Some(&dir.join("maps/x.keromap"))));
+    let text = describe(&find(None, Some(&dir.join("maps/x.kmap"))));
     assert!(text.contains(&dir.display().to_string()), "{text}");
     assert!(text.contains("next to the map"), "{text}");
 
@@ -159,10 +159,10 @@ fn what_it_found_is_something_a_person_can_read() {
 #[test]
 fn the_repositorys_own_content_tree_is_found_from_a_map_in_it() {
     // The real thing, not a fixture. This repository no longer ships the
-    // `.kerodef` marker (the class definitions are compiled into the game
+    // `.kdef` marker (the class definitions are compiled into the game
     // crate), so discovery falls back to `maps/` + `materials/`.
     let repo = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let map = repo.join("content/maps/kerosene_room.keromap");
+    let map = repo.join("content/maps/kerosene_room.kmap");
     assert!(map.exists(), "the repository ships {}", map.display());
 
     let found = find(None, Some(&map)).expect("the room's content is findable");
@@ -183,16 +183,16 @@ fn a_project_file_names_the_content_and_the_search_stops_guessing() {
     project(&dir);
     std::fs::create_dir_all(dir.join("elsewhere/maps")).unwrap();
     std::fs::write(
-        dir.join("game.keroproj"),
+        dir.join("game.kproj"),
         "project { \"content\" \"elsewhere\" }",
     )
     .unwrap();
 
-    let found = find(None, Some(&dir.join("maps/x.keromap"))).unwrap();
+    let found = find(None, Some(&dir.join("maps/x.kmap"))).unwrap();
     assert_eq!(found.root, dir.join("elsewhere"));
     assert_eq!(
         found.project.as_ref().map(|p| p.path.clone()),
-        Some(dir.join("game.keroproj"))
+        Some(dir.join("game.kproj"))
     );
     assert!(found.why.contains("project"), "{}", found.why);
 
@@ -204,17 +204,13 @@ fn a_project_further_up_beats_a_content_tree_closer_down() {
     // The whole reason to write one: a stated answer that loses to an
     // inferred one is not an answer.
     let dir = scratch("project-depth");
-    std::fs::write(
-        dir.join("game.keroproj"),
-        "project { \"content\" \"real\" }",
-    )
-    .unwrap();
+    std::fs::write(dir.join("game.kproj"), "project { \"content\" \"real\" }").unwrap();
     std::fs::create_dir_all(dir.join("real/maps")).unwrap();
 
     let deep = dir.join("a/b/c");
     project(&deep);
 
-    let found = find(None, Some(&deep.join("maps/x.keromap"))).unwrap();
+    let found = find(None, Some(&deep.join("maps/x.kmap"))).unwrap();
     assert_eq!(found.root, dir.join("real"));
 
     let _ = std::fs::remove_dir_all(&dir);
@@ -224,14 +220,14 @@ fn a_project_further_up_beats_a_content_tree_closer_down() {
 fn an_explicit_content_directory_still_beats_a_project_file() {
     let dir = scratch("explicit-wins");
     std::fs::write(
-        dir.join("game.keroproj"),
+        dir.join("game.kproj"),
         "project { \"content\" \"elsewhere\" }",
     )
     .unwrap();
 
     let asked = dir.join("what/i/asked/for");
     std::fs::create_dir_all(&asked).unwrap();
-    let found = find(Some(&asked), Some(&dir.join("maps/x.keromap"))).unwrap();
+    let found = find(Some(&asked), Some(&dir.join("maps/x.kmap"))).unwrap();
     assert_eq!(found.root, asked);
     // The project is still read for what else it says, without moving the
     // root: a game package named there is what the tools launch.
@@ -248,9 +244,9 @@ fn a_project_file_that_will_not_parse_falls_through_to_the_search() {
     // A broken project file should cost you a warning, not an editor.
     let dir = scratch("project-broken");
     project(&dir);
-    std::fs::write(dir.join("game.keroproj"), "project { \"content\"").unwrap();
+    std::fs::write(dir.join("game.kproj"), "project { \"content\"").unwrap();
 
-    let found = find(None, Some(&dir.join("maps/x.keromap"))).unwrap();
+    let found = find(None, Some(&dir.join("maps/x.kmap"))).unwrap();
     assert_eq!(found.root, dir);
     assert!(found.project.is_none());
 
@@ -261,10 +257,10 @@ fn a_project_file_that_will_not_parse_falls_through_to_the_search() {
 fn what_it_found_names_the_project_file_when_one_decided_it() {
     let dir = scratch("project-describe");
     std::fs::create_dir_all(dir.join("content/maps")).unwrap();
-    std::fs::write(dir.join("game.keroproj"), "project { }").unwrap();
+    std::fs::write(dir.join("game.kproj"), "project { }").unwrap();
 
-    let text = describe(&find(None, Some(&dir.join("content/maps/x.keromap"))));
-    assert!(text.contains("game.keroproj"), "{text}");
+    let text = describe(&find(None, Some(&dir.join("content/maps/x.kmap"))));
+    assert!(text.contains("game.kproj"), "{text}");
 
     let _ = std::fs::remove_dir_all(&dir);
 }
@@ -278,7 +274,7 @@ fn a_map_sitting_in_its_own_content_tree_is_not_claimed_by_a_project_elsewhere()
     let dir = scratch("nearness");
     project(&dir);
 
-    let found = find(None, Some(&dir.join("maps/x.keromap"))).unwrap();
+    let found = find(None, Some(&dir.join("maps/x.kmap"))).unwrap();
     assert_eq!(found.root, dir);
     assert!(found.project.is_none());
 

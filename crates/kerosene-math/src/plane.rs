@@ -72,7 +72,7 @@ impl Plane {
         }
     }
 
-    /// Plane from three points in the `.keromap` / Quake `.map` brush convention.
+    /// Plane from three points in the `.kmap` / Quake `.map` brush convention.
     ///
     /// The three points are listed **clockwise when viewed from the front of
     /// the face**, so the normal comes out as `(p0 - p1) x (p2 - p1)`. This
@@ -277,7 +277,7 @@ impl PlaneSet {
 
         // Store the canonical orientation first so that the pair ordering is
         // reproducible between runs -- a compile that shuffles plane indices
-        // produces gratuitously different .kerobsp files.
+        // produces gratuitously different .kbsp files.
         let base = self.planes.len() as u32;
         let (a, b) = if is_canonical(plane.normal) {
             (plane, flipped)

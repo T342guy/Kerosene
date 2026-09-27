@@ -181,7 +181,7 @@ impl EngineConfig {
 ///
 /// "not found in any search path" is true and useless. The overwhelmingly
 /// common reason a map is missing is that it has never been compiled -- the
-/// `.keromap` is right there, and nothing turned it into a `.kerobsp`. The
+/// `.kmap` is right there, and nothing turned it into a `.kbsp`. The
 /// next most common is that the content tree being searched is not the one
 /// the map lives in. Both are worth saying outright, along with what was
 /// searched, because the alternative is reading the source to find out.
@@ -195,21 +195,21 @@ pub fn explain_missing_map(vfs: &Vfs, name: &str, why: &VfsError) -> String {
         return format!("{said}  {why}").trim_end().to_string();
     }
 
-    if vfs.exists(&format!("maps/{name}.keromap")) {
+    if vfs.exists(&format!("maps/{name}.kmap")) {
         said.push_str(&format!(
-            "  maps/{name}.keromap is there, but has not been compiled.\n"
+            "  maps/{name}.kmap is there, but has not been compiled.\n"
         ));
         said.push_str("  build it with:  kerosene-tools play  (cargo play, in a game crate)\n");
         said.push_str(&format!(
-            "  or on its own:  kerosene-tools cleave maps/{name}.keromap\n"
+            "  or on its own:  kerosene-tools cleave maps/{name}.kmap\n"
         ));
     } else {
         let mut maps: Vec<String> = vfs
-            .list("maps", Some("kerobsp"))
+            .list("maps", Some("kbsp"))
             .iter()
             .filter_map(|p| {
                 p.strip_prefix("maps/")
-                    .map(|n| n.trim_end_matches(".kerobsp").to_string())
+                    .map(|n| n.trim_end_matches(".kbsp").to_string())
             })
             .collect();
         maps.sort();
@@ -247,7 +247,7 @@ pub struct Level {
     /// map is loaded, and the entity that names it is inert at runtime, so
     /// this is the only moment anything asks.
     pub sky_color: Vec3,
-    /// Where characters may walk, from `maps/<name>.kerowalk`. See
+    /// Where characters may walk, from `maps/<name>.kwalk`. See
     /// [`Engine::nav`].
     pub nav: Option<crate::nav::Nav>,
 }
@@ -724,7 +724,7 @@ impl Engine {
         name: &str,
         save: Option<&crate::save::SaveGame>,
     ) -> anyhow::Result<()> {
-        let path = format!("maps/{name}.kerobsp");
+        let path = format!("maps/{name}.kbsp");
         let bytes = match self.vfs.read(&path) {
             Ok(bytes) => bytes,
             Err(e) => anyhow::bail!("{}", explain_missing_map(&self.vfs, name, &e)),
@@ -1949,9 +1949,9 @@ impl Engine {
     }
 }
 
-/// Where a map's `.kerobsp` should be, given its name.
+/// Where a map's `.kbsp` should be, given its name.
 pub fn map_path(name: &str) -> String {
-    format!("maps/{name}.kerobsp")
+    format!("maps/{name}.kbsp")
 }
 
 /// Whether a path looks like a map name rather than a file.
@@ -1988,17 +1988,17 @@ mod tests {
     }
 
     fn not_found(name: &str) -> VfsError {
-        VfsError::NotFound(format!("maps/{name}.kerobsp"))
+        VfsError::NotFound(format!("maps/{name}.kbsp"))
     }
 
     #[test]
     fn a_map_that_was_never_compiled_is_told_so_and_told_what_to_run() {
-        let dir = tree("uncompiled", &["maps/arena.keromap"]);
+        let dir = tree("uncompiled", &["maps/arena.kmap"]);
         let said = explain_missing_map(&vfs_over(&dir), "arena", &not_found("arena"));
 
         assert!(said.contains("has not been compiled"), "{said}");
         assert!(
-            said.contains("kerosene-tools cleave maps/arena.keromap"),
+            said.contains("kerosene-tools cleave maps/arena.kmap"),
             "{said}"
         );
         assert!(said.contains("kerosene-tools play"), "{said}");
@@ -2007,7 +2007,7 @@ mod tests {
 
     #[test]
     fn a_map_nobody_has_heard_of_gets_the_list_of_ones_that_exist() {
-        let dir = tree("wrong-name", &["maps/arena.kerobsp", "maps/lobby.kerobsp"]);
+        let dir = tree("wrong-name", &["maps/arena.kbsp", "maps/lobby.kbsp"]);
         let said = explain_missing_map(&vfs_over(&dir), "areena", &not_found("areena"));
 
         assert!(said.contains("arena, lobby"), "{said}");
@@ -2026,7 +2026,7 @@ mod tests {
 
     #[test]
     fn the_search_paths_are_always_listed() {
-        let dir = tree("paths", &["maps/arena.keromap"]);
+        let dir = tree("paths", &["maps/arena.kmap"]);
         let said = explain_missing_map(&vfs_over(&dir), "arena", &not_found("arena"));
 
         assert!(said.contains("searched:"), "{said}");
@@ -2110,11 +2110,11 @@ mod tests {
     fn a_failure_that_is_not_a_missing_file_is_reported_as_itself() {
         // A truncated archive is not a map you forgot to compile, and telling
         // someone to run the compiler would send them the wrong way.
-        let dir = tree("io", &["maps/arena.keromap"]);
+        let dir = tree("io", &["maps/arena.kmap"]);
         let said = explain_missing_map(
             &vfs_over(&dir),
             "arena",
-            &VfsError::BadPath("maps/arena.kerobsp".into()),
+            &VfsError::BadPath("maps/arena.kbsp".into()),
         );
 
         assert!(!said.contains("has not been compiled"), "{said}");

@@ -2,11 +2,11 @@
 //! The compile, start to finish.
 //!
 //! ```text
-//!   .keromap  ->  brushes  ->  CSG  ->  BSP tree  ->  portals
+//!   .kmap  ->  brushes  ->  CSG  ->  BSP tree  ->  portals
 //!                                                     |
-//!                     .keroprt  <----  clusters  <---  flood fill
+//!                     .kprt  <----  clusters  <---  flood fill
 //!                                                     |
-//!                                        fill outside  ->  emit  ->  .kerobsp
+//!                                        fill outside  ->  emit  ->  .kbsp
 //! ```
 //!
 //! Each stage is separately testable and reports its own numbers, because
@@ -79,7 +79,7 @@ pub enum CompileError {
     #[error("the map has no brushes to compile")]
     NoBrushes,
     /// The map is not sealed. Carries the trace, so the caller can write
-    /// the `.keroleak` for Chisel without compiling a second time.
+    /// the `.kleak` for Chisel without compiling a second time.
     #[error(
         "the map leaks: the entity at {} could reach the void. Compile with --ignore-leaks to build it anyway.",
         .0.from

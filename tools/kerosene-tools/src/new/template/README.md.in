@@ -5,7 +5,7 @@ A game on [Kerosene](https://github.com/t342guy/kerosene).
 ```sh
 cargo play                 # build what changed, then play
 cargo play +map @MAP@      # any console command after it
-cargo tools chisel content/maps/@MAP@.keromap   # edit the map
+cargo tools chisel content/maps/@MAP@.kmap   # edit the map
 cargo ship                 # build everything properly, into dist/
 cargo test                 # the game's own tests
 cargo tools doctor         # is this machine ready?

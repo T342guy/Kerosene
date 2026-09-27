@@ -3,7 +3,7 @@
 //!
 //! A ray that hits a wall needs to know how much of it comes back, per band,
 //! and the wall is a texinfo index. This is the table from one to the other,
-//! built once from the map's material names and the `.keromat` files behind
+//! built once from the map's material names and the `.kmat` files behind
 //! them, so the hot loop is an array lookup.
 
 use kerosene_asset::{AcousticProfile, Material, SurfaceProperty, material_path};
@@ -55,7 +55,7 @@ impl Absorption {
 
     /// The table for a map whose materials are all in one content tree.
     ///
-    /// Reads each `.keromat` through the VFS the way the engine will, so a
+    /// Reads each `.kmat` through the VFS the way the engine will, so a
     /// material in a `.vault` counts as much as one on disk.
     pub fn from_content(bsp: &Bsp, content: &Path) -> Absorption {
         let mut vfs = kerosene_vfs::Vfs::new();
@@ -65,7 +65,7 @@ impl Absorption {
             .flatten()
             .flatten()
             .map(|e| e.path())
-            .filter(|p| p.extension().is_some_and(|e| e == "vault"))
+            .filter(|p| kerosene_vfs::ext::is(p, kerosene_vfs::ext::ARCHIVE))
         {
             let _ = vfs.mount_archive(&archive, "GAME");
         }

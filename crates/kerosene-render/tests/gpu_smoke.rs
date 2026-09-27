@@ -346,7 +346,7 @@ fn a_metal_floor_reflects_its_probe() {
     let dir = std::env::temp_dir().join(format!("kerosene-probe-smoke-{}", std::process::id()));
     std::fs::create_dir_all(dir.join("materials/test")).unwrap();
     std::fs::write(
-        dir.join("materials/test/chrome.keromat"),
+        dir.join("materials/test/chrome.kmat"),
         "lit { \"$metalness\" \"1\" }\n",
     )
     .unwrap();
@@ -455,7 +455,7 @@ fn a_dynamic_light_lights_the_floor_and_a_roof_shadows_it() {
     );
 }
 
-/// A 32-unit cube `.keromdl`, wound counter-clockwise from outside, in a
+/// A 32-unit cube `.kmdl`, wound counter-clockwise from outside, in a
 /// material that will not load (so it draws as the checkerboard).
 fn cube_model() -> kerosene_asset::Model {
     use kerosene_asset::{Mesh, Model, Vertex};
@@ -516,11 +516,7 @@ fn copies_of_a_model_draw_in_one_instanced_call() {
     };
     let dir = std::env::temp_dir().join(format!("kerosene-instances-{}", std::process::id()));
     std::fs::create_dir_all(dir.join("models/test")).unwrap();
-    std::fs::write(
-        dir.join("models/test/cube.keromdl"),
-        cube_model().to_bytes(),
-    )
-    .unwrap();
+    std::fs::write(dir.join("models/test/cube.kmdl"), cube_model().to_bytes()).unwrap();
     let mut vfs = kerosene_vfs::Vfs::new();
     vfs.add_directory(&dir, "test");
 
@@ -627,11 +623,7 @@ fn a_bone_palette_moves_the_vertices_bound_to_it() {
     };
     let dir = std::env::temp_dir().join(format!("kerosene-skin-{}", std::process::id()));
     std::fs::create_dir_all(dir.join("models/test")).unwrap();
-    std::fs::write(
-        dir.join("models/test/cube.keromdl"),
-        cube_model().to_bytes(),
-    )
-    .unwrap();
+    std::fs::write(dir.join("models/test/cube.kmdl"), cube_model().to_bytes()).unwrap();
     let mut vfs = kerosene_vfs::Vfs::new();
     vfs.add_directory(&dir, "test");
 
@@ -753,10 +745,10 @@ fn an_alpha_tested_surface_is_cut_out_and_an_opaque_one_is_not() {
     // which draws it solid whatever the texture's alpha.
     let dir = std::env::temp_dir().join(format!("kerosene-alpha-smoke-{}", std::process::id()));
     std::fs::create_dir_all(dir.join("materials/test")).unwrap();
-    std::fs::write(dir.join("materials/test/clear.kerotex"), clear_texture()).unwrap();
+    std::fs::write(dir.join("materials/test/clear.ktex"), clear_texture()).unwrap();
     for (name, keys) in [("fence", r#""$alphatest" "1""#), ("wall", "")] {
         std::fs::write(
-            dir.join(format!("materials/test/{name}.keromat")),
+            dir.join(format!("materials/test/{name}.kmat")),
             format!("unlit {{ \"$basetexture\" \"test/clear\" {keys} }}\n"),
         )
         .unwrap();

@@ -35,7 +35,7 @@ fn the_archive_is_named_after_the_project_and_lives_in_the_content_tree() {
     let settings = Settings {
         content: PathBuf::from("/game/content"),
         project: Some(Project {
-            path: PathBuf::from("/game/thing.keroproj"),
+            path: PathBuf::from("/game/thing.kproj"),
             name: "My Great Mod".into(),
             content: PathBuf::from("/game/content"),
             start_map: None,
@@ -101,7 +101,7 @@ fn a_missing_directory_yields_no_sources_rather_than_an_error() {
 fn a_dry_run_touches_nothing_and_says_what_it_would_do() {
     let dir = scratch("dry");
     touch(&dir.join("art/props/crate.obj"));
-    touch(&dir.join("maps/arena.keromap"));
+    touch(&dir.join("maps/arena.kmap"));
 
     let settings = Settings {
         content: dir.clone(),
@@ -114,7 +114,7 @@ fn a_dry_run_touches_nothing_and_says_what_it_would_do() {
     assert_eq!(report.maps, 1);
     assert_eq!(report.textures, 0, "and compiled nothing");
     assert!(!dir.join("models").exists(), "a dry run writes nothing");
-    assert!(!dir.join("arena.kerobsp").exists());
+    assert!(!dir.join("arena.kbsp").exists());
 
     let _ = std::fs::remove_dir_all(&dir);
 }
@@ -123,7 +123,7 @@ fn a_dry_run_touches_nothing_and_says_what_it_would_do() {
 fn naming_a_stage_runs_only_that_one() {
     let dir = scratch("only");
     touch(&dir.join("art/props/crate.obj"));
-    touch(&dir.join("maps/arena.keromap"));
+    touch(&dir.join("maps/arena.kmap"));
 
     let settings = Settings {
         content: dir.clone(),
@@ -163,7 +163,7 @@ fn the_texture_stage_builds_a_real_tree() {
     let report = build(&settings).unwrap();
 
     assert!(report.textures > 0);
-    assert!(dir.join("materials/dev/grid.kerotex").is_file());
+    assert!(dir.join("materials/dev/grid.ktex").is_file());
     assert!(dir.join("art/dev/grid.png").is_file());
 
     // And again does nothing, which is what makes it cheap to run always.
@@ -176,12 +176,12 @@ fn the_texture_stage_builds_a_real_tree() {
 
 #[test]
 fn sources_are_never_packed() {
-    // Shipping the .png next to the .kerotex doubles the download to deliver
+    // Shipping the .png next to the .ktex doubles the download to deliver
     // a file the engine cannot read.
-    for source in ["png", "obj", "keromap", "keroprt", "keroleak"] {
+    for source in ["png", "obj", "kmap", "kprt", "kleak"] {
         assert!(!PACKED.contains(&source), "{source} should not be packed");
     }
-    for compiled in ["kerotex", "keromdl", "kerobsp"] {
+    for compiled in ["ktex", "kmdl", "kbsp"] {
         assert!(PACKED.contains(&compiled), "{compiled} should be packed");
     }
 }
@@ -201,7 +201,7 @@ fn age(path: &Path, seconds_ago: u64) {
 #[test]
 fn an_output_newer_than_its_source_is_current_and_one_older_is_not() {
     let dir = scratch("current");
-    let (source, output) = (dir.join("a.obj"), dir.join("a.keromdl"));
+    let (source, output) = (dir.join("a.obj"), dir.join("a.kmdl"));
     touch(&source);
     assert!(!is_current(&source, &output), "no output yet");
     touch(&output);
@@ -215,10 +215,10 @@ fn an_output_newer_than_its_source_is_current_and_one_older_is_not() {
 #[test]
 fn a_fast_map_is_current_for_a_fast_build_and_never_for_a_full_one() {
     let dir = scratch("stamp");
-    let map = dir.join("maps/a.keromap");
+    let map = dir.join("maps/a.kmap");
     touch(&map);
     age(&map, 60);
-    touch(&map.with_extension("kerobsp"));
+    touch(&map.with_extension("kbsp"));
     assert!(
         !map_is_current(&map, true),
         "no stamp, no telling how it was built"
@@ -235,7 +235,7 @@ fn a_fast_map_is_current_for_a_fast_build_and_never_for_a_full_one() {
     assert!(map_is_current(&map, true));
     assert!(map_is_current(&map, false));
 
-    age(&map.with_extension("kerobsp"), 120);
+    age(&map.with_extension("kbsp"), 120);
     assert!(!map_is_current(&map, true), "edited since it was compiled");
     let _ = std::fs::remove_dir_all(dir);
 }
@@ -244,16 +244,16 @@ fn a_fast_map_is_current_for_a_fast_build_and_never_for_a_full_one() {
 fn an_archive_is_current_until_something_it_packs_is_newer() {
     let dir = scratch("pack");
     let archive = dir.join("content.vault");
-    touch(&dir.join("materials/a.keromat"));
+    touch(&dir.join("materials/a.kmat"));
     touch(&dir.join("art/a.png"));
-    age(&dir.join("materials/a.keromat"), 60);
+    age(&dir.join("materials/a.kmat"), 60);
     assert!(!archive_is_current(&dir, &archive), "no archive yet");
     touch(&archive);
     assert!(
         archive_is_current(&dir, &archive),
         "a newer source that is never packed does not matter"
     );
-    touch(&dir.join("materials/b.keromat"));
+    touch(&dir.join("materials/b.kmat"));
     age(&archive, 30);
     assert!(!archive_is_current(&dir, &archive));
     let _ = std::fs::remove_dir_all(dir);
@@ -264,16 +264,16 @@ fn clean_deletes_what_the_build_wrote_and_nothing_else() {
     let dir = std::env::temp_dir().join(format!("kiln-clean-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     for (path, compiled) in [
-        ("maps/a.keromap", false),
-        ("maps/a.kerobsp", true),
-        ("maps/a.kerowalk", true),
-        ("maps/a.kerobuild", true),
+        ("maps/a.kmap", false),
+        ("maps/a.kbsp", true),
+        ("maps/a.kwalk", true),
+        ("maps/a.kbuild", true),
         ("art/dev/grid.png", false),
-        ("materials/dev/grid.keromat", false),
-        ("materials/dev/grid.kerotex", true),
-        ("models/props/cube.keromdl", false),
+        ("materials/dev/grid.kmat", false),
+        ("materials/dev/grid.ktex", true),
+        ("models/props/cube.kmdl", false),
         ("sound/hum.wav", false),
-        ("sound/hum.keroaud", true),
+        ("sound/hum.kaud", true),
         ("content.vault", true),
     ] {
         let file = dir.join(path);
@@ -284,25 +284,25 @@ fn clean_deletes_what_the_build_wrote_and_nothing_else() {
     let dry = crate::clean(&dir, None, true).unwrap();
     assert_eq!(dry.files, 6);
     assert!(
-        dir.join("maps/a.kerobsp").exists(),
+        dir.join("maps/a.kbsp").exists(),
         "a dry run deletes nothing"
     );
 
     let done = crate::clean(&dir, None, false).unwrap();
     assert_eq!(done, dry);
     for source in [
-        "maps/a.keromap",
+        "maps/a.kmap",
         "art/dev/grid.png",
-        "materials/dev/grid.keromat",
-        "models/props/cube.keromdl",
+        "materials/dev/grid.kmat",
+        "models/props/cube.kmdl",
         "sound/hum.wav",
     ] {
         assert!(dir.join(source).exists(), "{source} is a source and stays");
     }
     for built in [
-        "maps/a.kerobsp",
-        "materials/dev/grid.kerotex",
-        "sound/hum.keroaud",
+        "maps/a.kbsp",
+        "materials/dev/grid.ktex",
+        "sound/hum.kaud",
         "content.vault",
     ] {
         assert!(!dir.join(built).exists(), "{built} was built and goes");

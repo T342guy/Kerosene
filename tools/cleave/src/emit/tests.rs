@@ -70,7 +70,7 @@ fn a_sealed_room_compiles_to_a_valid_map() {
 fn the_compiled_map_survives_a_file_round_trip() {
     let out = compile_ok(&room_map(false));
     let bytes = out.bsp.to_bytes();
-    let back = kerosene_bsp::Bsp::from_bytes(&bytes, "room.kerobsp").expect("should reload");
+    let back = kerosene_bsp::Bsp::from_bytes(&bytes, "room.kbsp").expect("should reload");
     assert_eq!(back.faces.len(), out.bsp.faces.len());
     assert_eq!(back.leaves.len(), out.bsp.leaves.len());
     assert_eq!(back.to_bytes(), bytes, "writing must be stable");
@@ -598,7 +598,7 @@ fn a_streamed_visgroup_becomes_a_section_with_its_faces_tagged() {
         }
     }
     // And the round trip keeps it all.
-    let again = kerosene_bsp::Bsp::from_bytes(&bsp.to_bytes(), "t.kerobsp").unwrap();
+    let again = kerosene_bsp::Bsp::from_bytes(&bsp.to_bytes(), "t.kbsp").unwrap();
     assert_eq!(again.face_sections, bsp.face_sections);
     assert_eq!(again.sections, bsp.sections);
     // The section's faces mark the far room's cluster and not the near one.
