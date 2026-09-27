@@ -119,9 +119,9 @@ impl ChiselApp {
                             icons::CROSSHAIR,
                             &format!(
                                 "{} {} {}",
-                                kerosene_math::format_float(world.x),
-                                kerosene_math::format_float(world.y),
-                                kerosene_math::format_float(world.z),
+                                pointer_coordinate(world.x),
+                                pointer_coordinate(world.y),
+                                pointer_coordinate(world.z),
                             ),
                             colors::TEXT,
                         )
@@ -222,4 +222,14 @@ fn divider(ui: &mut egui::Ui) {
         rect.y_range(),
         egui::Stroke::new(1.0_f32, colors::BORDER),
     );
+}
+
+/// A pointer coordinate to a tenth of a unit: finer than that is the
+/// pointer's pixel, not anything in the map.
+fn pointer_coordinate(v: f32) -> String {
+    let rounded = (v * 10.0).round() / 10.0;
+    // Never "-0".
+    let rounded = if rounded == 0.0 { 0.0 } else { rounded };
+    let text = format!("{rounded:.1}");
+    text.strip_suffix(".0").map(str::to_string).unwrap_or(text)
 }

@@ -23,6 +23,7 @@ impl ChiselApp {
                     ui.menu_button("Map", |ui| self.map_menu(ui));
                     ui.menu_button("Tools", |ui| self.tools_menu(ui));
                     ui.menu_button("View", |ui| self.view_menu(ui));
+                    ui.menu_button("Help", |ui| self.help_menu(ui));
 
                     // The map's name, at the far end, with a mark when it has
                     // unsaved changes.
@@ -181,12 +182,18 @@ impl ChiselApp {
         if menu_item(ui, "Check for problems", None).clicked() {
             // Every one, in the output panel: the status bar had room for
             // the first, and a map with five problems showed one at a time.
-            let problems: Vec<String> = self
+            let mut problems: Vec<String> = self
                 .document
                 .problems()
                 .iter()
                 .map(ToString::to_string)
                 .collect();
+            // And every wire that goes nowhere: the same check the Outputs
+            // tab's lights make, for the whole map at once.
+            problems.extend(crate::wiring::broken_wires(
+                &self.document.map.entities,
+                &self.schema,
+            ));
             self.status = match problems.len() {
                 0 => "no problems found".into(),
                 n => format!("{n} problem(s): see the output panel"),
@@ -260,6 +267,18 @@ impl ChiselApp {
             self.show_hollow = true;
             ui.close();
         }
+        if menu_item_enabled(
+            ui,
+            self.document.selected_solid_ids().len() > 1,
+            "Merge brushes",
+            None,
+        )
+        .on_hover_text("Make the selected brushes one, when together they are convex.")
+        .clicked()
+        {
+            self.merge_brushes();
+            ui.close();
+        }
         if menu_item_enabled(ui, has_selection, "Convert to mesh", None)
             .on_hover_text(
                 "Turn the selected world brushes into polygon meshes: detail geometry that is \
@@ -327,34 +346,58 @@ impl ChiselApp {
             }
         }
         ui.separator();
-        if menu_item(ui, "Browse materials...", Some("M")).clicked() {
-            self.browsing = Some(Browsing::Material);
-            ui.close();
+        ui.label(theme::caption("helpers"));
+        for mode in [
+            crate::helpers::HelperMode::Selected,
+            crate::helpers::HelperMode::All,
+            crate::helpers::HelperMode::None,
+        ] {
+            let label = match mode {
+                crate::helpers::HelperMode::Selected => "For the selection",
+                crate::helpers::HelperMode::All => "For every entity",
+                crate::helpers::HelperMode::None => "Off (models only)",
+            };
+            ui.radio_value(&mut self.helper_mode, mode, label)
+                .on_hover_text(
+                    "Light cones, sound radii, target lines: what Hammer calls helpers.",
+                );
         }
-        if menu_item(ui, "Browse models...", None).clicked() {
-            self.browsing = Some(Browsing::Model {
-                row: None,
-                current: String::new(),
-            });
-            ui.close();
+
+        ui.separator();
+        ui.label(theme::caption("views"));
+        let current = self.pane_layout();
+        for layout in PaneLayout::all() {
+            let shortcut = (layout == PaneLayout::One).then_some("shift-space");
+            if ui
+                .add(
+                    egui::Button::new(layout.label())
+                        .selected(current == layout)
+                        .shortcut_text(shortcut.unwrap_or_default()),
+                )
+                .on_hover_text(layout.describe())
+                .clicked()
+            {
+                self.set_pane_layout(layout);
+                ui.close();
+            }
         }
-        if menu_item(ui, "Reload textures", None).clicked() {
-            self.reload_textures();
+        if menu_item(ui, "Frame the selection", Some("F")).clicked() {
+            self.frame_all();
             ui.close();
         }
 
         ui.separator();
-        if menu_item(ui, "Frame everything", None).clicked() {
-            self.frame_all();
+        let mut assets = self.show_assets;
+        if ui.checkbox(&mut assets, "Asset browser  (M)").changed() {
+            self.show_assets = assets;
+        }
+        if menu_item(ui, "Materials in a window...", None).clicked() {
+            self.browsing = Some(Browsing::Material);
             ui.close();
         }
-        let label = if self.maximised.is_some() {
-            "Show four panes"
-        } else {
-            "Maximise the active pane"
-        };
-        if menu_item(ui, label, Some("shift-space")).clicked() {
-            self.toggle_maximised();
+        if menu_item(ui, "Reload textures and models", None).clicked() {
+            self.reload_textures();
+            self.models = scan_models(&self.content_root);
             ui.close();
         }
         ui.separator();
@@ -362,5 +405,12 @@ impl ChiselApp {
             "{}  keys reach the pane under the pointer",
             icons::INFO
         )));
+    }
+
+    fn help_menu(&mut self, ui: &mut egui::Ui) {
+        if menu_item(ui, "Keyboard shortcuts", Some("F1")).clicked() {
+            self.show_shortcuts = true;
+            ui.close();
+        }
     }
 }

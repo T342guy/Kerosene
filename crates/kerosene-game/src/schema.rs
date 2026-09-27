@@ -127,6 +127,7 @@ class
     "name" "info_player_start"
     "base" "Entity" "base" "Point" "base" "Angles"
     "help" "Where the player appears. A map needs exactly one."
+    helper { "type" "direction" }
 }
 
 class
@@ -134,6 +135,7 @@ class
     "name" "info_target"
     "base" "Entity" "base" "Point" "base" "Angles"
     "help" "A named position with no behaviour, for other entities to point at."
+    helper { "type" "direction" }
 }
 
 class
@@ -142,6 +144,7 @@ class
     "base" "Entity" "base" "Point" "base" "Angles"
     "help" "A model placed in the world that never moves. Drawn instanced -- a hundred copies of one model cost about what one does -- and solid to the player and to physics."
     key { "name" "model" "label" "Model" "type" "model" "default" "props/cube" }
+    helper { "type" "model" }
 }
 
 class
@@ -156,6 +159,7 @@ class
     input  { "name" "SetDefaultAnimation" "help" "Change the clip it returns to." }
     input  { "name" "SetPlaybackRate" "help" "Play faster or slower: 1 is as authored, 0 freezes." }
     output { "name" "OnAnimationDone" "help" "Fired when a clip that does not loop reaches its end." }
+    helper { "type" "model" }
 }
 
 class
@@ -172,6 +176,7 @@ class
     input  { "name" "Wake"  "help" "Nudge it so it reacts." }
     input  { "name" "Sleep" "help" "Stop it dead." }
     output { "name" "OnBreak" "help" "Fired when it breaks." }
+    helper { "type" "model" }
 }
 
 class
@@ -194,6 +199,8 @@ class
     input  { "name" "Trigger" "help" "Spawn a batch of props." }
     input  { "name" "Spawn" "help" "The same as Trigger." }
     output { "name" "OnSpawned" "help" "Fired after spawning a batch." }
+    helper { "type" "model" }
+    helper { "type" "sphere" "radius" "spread" "color" "160 210 140" }
 }
 
 // --------------------------------------------------------------- lights ----
@@ -214,6 +221,7 @@ class
     key { "name" "_linear_attn"    "label" "Linear falloff"    "type" "float" "default" "0" }
     key { "name" "_quadratic_attn" "label" "Quadratic falloff" "type" "float" "default" "1"
           "help" "The physical default. Leave the three at 0 0 1 unless you want a light that carries further than it should." }
+    helper { "type" "lightradius" }
 }
 
 class
@@ -230,6 +238,8 @@ class
     key { "name" "_constant_attn"  "type" "float" "default" "0" }
     key { "name" "_linear_attn"    "type" "float" "default" "0" }
     key { "name" "_quadratic_attn" "type" "float" "default" "1" }
+    helper { "type" "lightcone" }
+    helper { "type" "lightradius" }
 }
 
 class
@@ -242,6 +252,7 @@ class
           "help" "Fills shadows. Without it, anything the sun cannot reach is black." }
     key { "name" "pitch" "label" "Sun pitch" "type" "float" "default" "-45"
           "help" "Negative points downward. Overrides the pitch in Angles when non-zero." }
+    helper { "type" "direction" "length" "128" }
 }
 
 class
@@ -274,6 +285,8 @@ class
     input  { "name" "Toggle"  "help" "Switch it the other way." }
     output { "name" "OnTurnedOn"  "help" "Fired when it comes on." }
     output { "name" "OnTurnedOff" "help" "Fired when it goes off." }
+    helper { "type" "lightcone" }
+    helper { "type" "lightradius" }
 }
 
 // ----------------------------------------------------------- reflections ---
@@ -308,6 +321,7 @@ class
           "help" "Time before the first echo, up to 0.1. Longer sounds bigger. Negative keeps the measured value." }
     key { "name" "openness" "label" "Openness" "type" "float" "default" "-1"
           "help" "0 to 1: how much of the sky the room sees. Over 0.35 counts as outdoors. Negative keeps the measured value." }
+    helper { "type" "sphere" "radius" "radius" "color" "120 230 220" }
 }
 
 // ------------------------------------------------------------- brushwork ---
@@ -488,6 +502,7 @@ class
     "help" "Moves whatever enters it to the entity it targets. The view is left alone -- you arrive facing the way you were going."
     key { "name" "target" "label" "Destination" "type" "target_destination"
           "help" "The targetname of an info_target, or anything else with a position." }
+    helper { "type" "line" "key" "target" }
 }
 
 class
@@ -501,6 +516,7 @@ class
     key { "name" "landmark" "label" "Landmark" "type" "target_destination"
           "help" "The targetname of an info_landmark placed at the same spot in both maps. Empty starts the player at the next map's spawn point." }
     input { "name" "ChangeLevel" "help" "Go now, whether or not the player is inside." }
+    helper { "type" "line" "key" "landmark" }
 }
 
 class
@@ -612,6 +628,7 @@ class
     input  { "name" "Toggle" }
     input  { "name" "Volume" "parameter" "0 to 1" }
     output { "name" "OnPlay" }
+    helper { "type" "sphere" "radius" "radius" "color" "120 230 220" }
 }
 
 class
@@ -634,6 +651,7 @@ class
     input  { "name" "PlaySound" "help" "The same, spelt as ambient_generic spells it." }
     input  { "name" "Volume" "parameter" "0 to 1" }
     output { "name" "OnPlay" }
+    helper { "type" "sphere" "radius" "radius" "color" "120 230 220" }
 }
 
 class
@@ -699,6 +717,7 @@ class
     input  { "name" "Disable" "help" "Hide the panel." }
     input  { "name" "Emit" "parameter" "<event> [data]" "help" "An event for the panel's layout." }
     output { "name" "OnPanelEvent" "help" "Fired for every event the panel's script emits, with the event's name as the parameter. An event whose name starts with On also fires the output of that name, with its data." }
+    helper { "type" "rect" "width" "width" "height" "height" }
 }
 
 class
@@ -708,6 +727,7 @@ class
     "help" "A decal -- a sign, a stain, a crack -- projected onto the surface nearest to it when the map starts."
     key { "name" "texture" "label" "Material" "type" "material" "default" "decals/crack" }
     key { "name" "size" "label" "Size (units)" "type" "float" "default" "32" }
+    helper { "type" "rect" "width" "size" "height" "size" }
 }
 
 class

@@ -219,6 +219,9 @@ pub struct Tool {
     drag_origin_px: (f32, f32),
     /// Class placed by the entity tool.
     pub entity_class: String,
+    /// Keys every entity the tool places starts with -- a model picked
+    /// from the asset browser, say. Cleared when the class changes.
+    pub entity_keys: Vec<(String, String)>,
     /// What the shape tool draws.
     pub shape: crate::shapes::Shape,
     /// How many sides it has, how far round it goes, how thick its wall is.
@@ -260,6 +263,7 @@ impl Tool {
     pub fn new() -> Tool {
         Tool {
             entity_class: "info_player_start".to_string(),
+            entity_keys: Vec::new(),
             shape_options: crate::shapes::Options::default(),
             texture_mode: TextureMode::default(),
             texture_target: TextureTarget::default(),
@@ -717,6 +721,90 @@ pub fn pick_3d(document: &Document, origin: Vec3, direction: Vec3) -> Option<Pic
         }
     }
     best.map(|(_, p)| p)
+}
+
+/// What a 3D ray reaches first, found exactly.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Hit {
+    /// A point entity, by its box: its model's bounds, or its marker's.
+    Entity(u32),
+    /// One face of a brush.
+    Face { solid: u32, side: u32 },
+    /// A mesh.
+    Mesh(u32),
+}
+
+/// The first thing along a ray, and how far away it is.
+///
+/// Brushes by their faces rather than their bounds, so what the pointer is
+/// over is what is drawn under it; point entities by `entity_box`, which
+/// the caller answers with a model's bounds where there is one. Picking in
+/// the 3D pane used to test brushes only, which made an entity there
+/// impossible to click.
+pub fn hit_3d(
+    document: &Document,
+    origin: Vec3,
+    direction: Vec3,
+    entity_box: &dyn Fn(&kerosene_map::Entity) -> Aabb,
+) -> Option<(f32, Hit)> {
+    let mut best: Option<(f32, Hit)> = None;
+    let mut consider = |d: f32, hit: Hit| {
+        if best.is_none_or(|(b, _)| d < b) {
+            best = Some((d, hit));
+        }
+    };
+    if let Some((solid, side)) = pick_face_3d(document, origin, direction)
+        && let Some(d) = face_distance(document, solid, side, origin, direction)
+    {
+        consider(d, Hit::Face { solid, side });
+    }
+    for mesh in document.visible_meshes() {
+        for face in &mesh.faces {
+            for piece in mesh.face_pieces(face) {
+                let normal = kerosene_map::polygon_normal(&piece);
+                let facing = normal.dot(direction);
+                if facing >= -1e-6 {
+                    continue;
+                }
+                let d = -(normal.dot(origin) - normal.dot(piece[0])) / facing;
+                if d >= 0.0
+                    && winding_contains(
+                        &Winding::new(piece.clone()),
+                        normal,
+                        origin + direction * d,
+                    )
+                {
+                    consider(d, Hit::Mesh(mesh.id));
+                }
+            }
+        }
+    }
+    for entity in document.visible_point_entities() {
+        if let Some(d) = ray_box(origin, direction, entity_box(entity)) {
+            // An entity inside a wall's face still wins over the wall: it
+            // is small, and the thing you were aiming at.
+            consider((d - 1.0).max(0.0), Hit::Entity(entity.id));
+        }
+    }
+    best
+}
+
+/// How far along a ray one brush face is.
+fn face_distance(
+    document: &Document,
+    solid: u32,
+    side: u32,
+    origin: Vec3,
+    direction: Vec3,
+) -> Option<f32> {
+    let plane = document
+        .find_solid(solid)?
+        .sides
+        .iter()
+        .find(|s| s.id == side)?
+        .plane()?;
+    let facing = plane.normal.dot(direction);
+    (facing.abs() > 1e-6).then(|| -(plane.normal.dot(origin) - plane.dist) / facing)
 }
 
 /// The entity nearest a point in a 2D view.

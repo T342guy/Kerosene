@@ -158,4 +158,117 @@ impl ChiselApp {
             }
         }
     }
+
+    /// Every shortcut, on one sheet, grouped by what it is for.
+    pub(super) fn shortcuts_window(&mut self, ctx: &Context) {
+        if !self.show_shortcuts {
+            return;
+        }
+        let mut open = true;
+        egui::Window::new("keyboard shortcuts")
+            .open(&mut open)
+            .default_width(620.0)
+            .collapsible(false)
+            .show(ctx, |ui| {
+                ui.columns(2, |columns| {
+                    for (column, groups) in columns.iter_mut().zip(SHORTCUTS.chunks(3)) {
+                        for (title, keys) in groups {
+                            column.label(theme::section_title(*title));
+                            egui::Grid::new(("shortcuts", *title))
+                                .num_columns(2)
+                                .spacing([14.0, 2.0])
+                                .show(column, |ui| {
+                                    for (key, what) in *keys {
+                                        ui.label(theme::mono(*key).color(colors::ACCENT));
+                                        ui.label(RichText::new(*what).size(12.0));
+                                        ui.end_row();
+                                    }
+                                });
+                            column.add_space(8.0);
+                        }
+                    }
+                });
+                ui.label(theme::caption(
+                    "Keys reach the pane under the pointer. F1 shows this sheet.",
+                ));
+            });
+        if !open {
+            self.show_shortcuts = false;
+        }
+    }
 }
+
+/// The sheet the shortcuts window shows. Kept beside it, and checked by a
+/// test against the tools' own shortcuts, so the two cannot drift.
+pub(super) const SHORTCUTS: [(&str, &[(&str, &str)]); 6] = [
+    (
+        "tools",
+        &[
+            ("1", "select"),
+            ("2", "block"),
+            ("3", "entity"),
+            ("4", "texture"),
+            ("5", "shape"),
+            ("6", "clip (again: which side is kept)"),
+        ],
+    ),
+    (
+        "selection",
+        &[
+            ("click", "select; shift adds or takes away"),
+            ("double-click", "object properties"),
+            ("ctrl-A", "select all"),
+            ("escape", "clear the selection, or the clip line"),
+            ("delete", "delete"),
+            ("ctrl-D", "duplicate one grid step over"),
+            ("ctrl-G / ctrl-U", "group / ungroup"),
+            ("H / ctrl-H / U", "hide / hide the rest / unhide all"),
+        ],
+    ),
+    (
+        "brushes",
+        &[
+            ("[ / ]", "finer / coarser grid"),
+            ("ctrl-B", "align to the grid"),
+            ("R", "rotate 90 degrees"),
+            ("ctrl-L / ctrl-I", "flip horizontally / vertically"),
+            ("ctrl-M", "transform..."),
+            ("ctrl-shift-C", "carve"),
+            ("ctrl-shift-H", "hollow..."),
+            ("enter", "cut along the clip line"),
+        ],
+    ),
+    (
+        "views",
+        &[
+            ("W A S D", "fly the 3D view; Q / E down and up"),
+            ("right-drag", "look around in 3D"),
+            ("middle-drag", "pan"),
+            ("wheel", "zoom a flat view; fly forward in 3D"),
+            ("ctrl-wheel", "3D camera speed"),
+            ("F", "frame the selection, or everything"),
+            ("shift-space", "maximise the pane under the pointer"),
+        ],
+    ),
+    (
+        "materials and entities",
+        &[
+            ("M", "asset browser"),
+            ("T", "texture tool: cycle what a click does"),
+            ("ctrl-click", "texture tool: pick up a face's material"),
+            ("alt-enter", "object properties"),
+            ("ctrl-shift-E", "entity report"),
+        ],
+    ),
+    (
+        "file",
+        &[
+            ("ctrl-N", "new map"),
+            ("ctrl-S", "save"),
+            ("ctrl-shift-S", "save as"),
+            ("ctrl-Z / ctrl-shift-Z", "undo / redo"),
+            ("F9", "compile (fast) and run"),
+            ("F1", "this sheet"),
+        ],
+    ),
+];

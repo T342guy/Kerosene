@@ -36,7 +36,9 @@ pub use io::{Connection, InputEvent, PendingEvent, Target};
 pub use registry::{
     ClassDef, ClassRegistry, InputHandler, ModelRole, RestoreHandler, SpawnHandler, ThinkHandler,
 };
-pub use schema::{ClassKind, ClassSpec, IoSpec, KeyKind, KeySpec, Schema, SchemaError};
+pub use schema::{
+    ClassKind, ClassSpec, HelperKind, HelperSpec, IoSpec, KeyKind, KeySpec, Schema, SchemaError,
+};
 pub use snapshot::{SavedEntity, SavedEvent, SavedTarget, SavedValue, WorldSnapshot};
 pub use value::{Fields, Value};
 pub use world::{Entity, EntityId, EntityWorld, HostRequest, SpawnError, host_requests};

@@ -6,169 +6,65 @@ use kerosene_toolui::theme::{self, colors, icons};
 use kerosene_toolui::widgets;
 
 impl ChiselApp {
-    /// The panel on the right: what is selected, the tool's settings, and
-    /// the materials, as three tabs.
+    /// The dock on the right: the outliner above, the selection's
+    /// properties below, split where it was last dragged.
     pub(super) fn inspector(&mut self, ctx: &Context) {
-        self.follow_the_work();
-
         egui::SidePanel::right("inspector")
             .resizable(true)
             .default_width(340.0)
-            .width_range(260.0..=600.0)
-            .frame(
-                egui::Frame::new()
-                    .fill(colors::BG_PANEL)
-                    .inner_margin(egui::Margin::symmetric(8, 6)),
-            )
+            .width_range(260.0..=640.0)
+            .frame(egui::Frame::new().fill(colors::BG_PANEL))
             .show(ctx, |ui| {
-                let mut tab = self.inspector_tab as usize;
-                widgets::tab_bar(
-                    ui,
-                    &[
-                        (icons::LIST_BULLETS, "Object"),
-                        (self.tool.kind.glyph(), "Tool"),
-                        (icons::PAINT_BUCKET, "Materials"),
-                        (icons::EYE, "VisGroups"),
-                    ],
-                    &mut tab,
-                );
-                self.inspector_tab = InspectorTab::from_index(tab);
-
-                match self.inspector_tab {
-                    InspectorTab::Object => self.object_tab(ui),
-                    InspectorTab::Tool => self.tool_tab(ui),
-                    InspectorTab::Materials => self.materials_tab(ui, ctx),
-                    InspectorTab::VisGroups => self.visgroups_tab(ui),
-                }
+                egui::TopBottomPanel::top("outliner")
+                    .resizable(true)
+                    .default_height(250.0)
+                    .height_range(90.0..=ui.available_height() * 0.8)
+                    .frame(
+                        egui::Frame::new()
+                            .fill(colors::BG_PANEL)
+                            .inner_margin(egui::Margin::symmetric(8, 6)),
+                    )
+                    .show_inside(ui, |ui| {
+                        let mut tab = self.outliner_tab as usize;
+                        widgets::tab_bar(
+                            ui,
+                            &[
+                                (icons::TREE_STRUCTURE, "Outliner"),
+                                (icons::EYE, "VisGroups"),
+                            ],
+                            &mut tab,
+                        );
+                        self.outliner_tab = if tab == 1 {
+                            OutlinerTab::VisGroups
+                        } else {
+                            OutlinerTab::Outliner
+                        };
+                        match self.outliner_tab {
+                            OutlinerTab::Outliner => self.outliner_tab(ui),
+                            OutlinerTab::VisGroups => self.visgroups_tab(ui),
+                        }
+                    });
+                egui::CentralPanel::default()
+                    .frame(
+                        egui::Frame::new()
+                            .fill(colors::BG_PANEL)
+                            .inner_margin(egui::Margin::symmetric(8, 6)),
+                    )
+                    .show_inside(ui, |ui| {
+                        ui.horizontal(|ui| {
+                            ui.label(
+                                theme::icon(icons::SLIDERS_HORIZONTAL).color(colors::TEXT_MUTED),
+                            );
+                            ui.label(theme::section_title("properties"));
+                        });
+                        ui.add_space(2.0);
+                        self.object_tab(ui);
+                    });
             });
     }
 
-    /// Switch tabs when the work moves: a fresh selection wants the Object
-    /// tab, picking the entity or shape tool wants its settings. Anything
-    /// else leaves the tab where it was put.
-    fn follow_the_work(&mut self) {
-        let selection = (
-            self.document.selection.solids.len(),
-            self.document.selection.entities.len(),
-            self.document.selected_face_count(),
-        );
-        let had_selection = self.inspector_seen != (0, 0, 0);
-        let has_selection = selection != (0, 0, 0);
-        if selection != self.inspector_seen && has_selection && !had_selection {
-            self.inspector_tab = InspectorTab::Object;
-        }
-        self.inspector_seen = selection;
-
-        if self.tool.kind != self.inspector_tool {
-            if matches!(self.tool.kind, ToolKind::Entity | ToolKind::Shape) {
-                self.inspector_tab = InspectorTab::Tool;
-            }
-            self.inspector_tool = self.tool.kind;
-        }
-    }
-
-    /// The tool's settings, and a word on how to use it.
-    fn tool_tab(&mut self, ui: &mut egui::Ui) {
-        ui.horizontal(|ui| {
-            ui.label(theme::icon(self.tool.kind.glyph()).color(colors::ACCENT));
-            ui.label(RichText::new(format!("{} tool", self.tool.kind.label())).strong());
-            ui.label(theme::mono(self.tool.kind.shortcut()).color(colors::TEXT_MUTED));
-        });
-        ui.label(theme::caption(self.tool.kind.describe()));
-        ui.add_space(4.0);
-
-        match self.tool.kind {
-            ToolKind::Entity => self.entity_panel(ui),
-            ToolKind::Shape => self.shape_panel(ui),
-            ToolKind::Texture => {
-                widgets::section(ui, "select", |ui| {
-                    for target in TextureTarget::all() {
-                        let selected = self.tool.texture_target == target;
-                        if ui
-                            .selectable_label(selected, target.label())
-                            .on_hover_text(target.describe())
-                            .clicked()
-                        {
-                            self.tool.texture_target = target;
-                        }
-                    }
-                });
-                widgets::section(ui, "apply", |ui| {
-                    for mode in TextureMode::all() {
-                        let selected = self.tool.texture_mode == mode;
-                        if ui
-                            .selectable_label(selected, mode.label())
-                            .on_hover_text(mode.describe())
-                            .clicked()
-                        {
-                            self.tool.texture_mode = mode;
-                        }
-                    }
-                    ui.label(theme::caption("T cycles these. Shift always just selects."));
-                });
-            }
-            ToolKind::Block => {
-                widgets::section(ui, "material", |ui| {
-                    ui.label(theme::mono(&self.document.current_material).color(colors::ACCENT));
-                    ui.label(theme::caption(
-                        "New brushes wear this. Pick another on the Materials tab.",
-                    ));
-                });
-                widgets::section(ui, "grid", |ui| {
-                    ui.label(theme::caption(format!(
-                        "Brushes snap outward to the grid, so one is never smaller than the \
-                         box you drew. The grid is {} now; [ and ] change it.",
-                        kerosene_math::units::length(self.document.grid.size)
-                    )));
-                });
-            }
-            ToolKind::Clip => {
-                widgets::section(ui, "keep", |ui| {
-                    for mode in [ClipMode::Both, ClipMode::Front, ClipMode::Back] {
-                        let selected = self.tool.clip_mode == mode;
-                        if ui.selectable_label(selected, mode.label()).clicked() {
-                            self.tool.clip_mode = mode;
-                        }
-                    }
-                    ui.label(theme::caption(
-                        "Front is the side the cut's arrow points to. 6 cycles these.",
-                    ));
-                });
-                widgets::section(ui, "keys", |ui| {
-                    for (key, what) in [
-                        ("drag", "lay the cut across the selection"),
-                        ("enter", "cut"),
-                        ("escape", "forget the line"),
-                    ] {
-                        ui.horizontal(|ui| {
-                            ui.label(theme::mono(key).color(colors::TEXT));
-                            ui.label(theme::caption(what));
-                        });
-                    }
-                });
-            }
-            ToolKind::Select => {
-                widgets::section(ui, "keys", |ui| {
-                    for (key, what) in [
-                        ("shift-click", "add to or take from the selection"),
-                        ("drag a grip", "resize; the opposite grip holds still"),
-                        ("ctrl-D", "duplicate one grid step over"),
-                        ("alt-enter", "object properties"),
-                        ("delete", "delete the selection"),
-                        ("escape", "clear the selection"),
-                    ] {
-                        ui.horizontal(|ui| {
-                            ui.label(theme::mono(key).color(colors::TEXT));
-                            ui.label(theme::caption(what));
-                        });
-                    }
-                });
-            }
-        }
-    }
-
     /// What is selected, and everything about it.
-    fn object_tab(&mut self, ui: &mut egui::Ui) {
+    pub(super) fn object_tab(&mut self, ui: &mut egui::Ui) {
         let targets = self.properties_targets();
         self.sync_properties(targets.clone());
 
@@ -270,15 +166,18 @@ impl ChiselApp {
         }
         ui.add_space(4.0);
 
+        let tab = if multi {
+            EntityTab::Properties
+        } else {
+            self.entity_tab_bar(ui, id)
+        };
         egui::ScrollArea::vertical()
             .auto_shrink([false, false])
             .show(ui, |ui| {
-                widgets::section(ui, "properties", |ui| {
-                    self.property_rows(ui, false);
-                });
-                if !multi {
-                    ui.add_space(6.0);
-                    self.outputs_section(ui, id, spec.as_ref());
+                match tab {
+                    EntityTab::Properties => self.property_rows(ui, false),
+                    EntityTab::Outputs => self.outputs_section(ui, id, spec.as_ref()),
+                    EntityTab::Inputs => self.inputs_list(ui, id),
                 }
 
                 if is_brush_entity {
@@ -468,9 +367,14 @@ impl ChiselApp {
                         self.property_rows(ui, false);
                     }
                     (Some((id, _)), Some(spec)) => {
-                        self.property_rows(ui, false);
-                        if !self.properties.as_ref().is_some_and(|e| e.is_multi()) {
-                            self.outputs_section(ui, *id, Some(spec));
+                        if self.properties.as_ref().is_some_and(|e| e.is_multi()) {
+                            self.property_rows(ui, false);
+                        } else {
+                            match self.entity_tab_bar(ui, *id) {
+                                EntityTab::Properties => self.property_rows(ui, false),
+                                EntityTab::Outputs => self.outputs_section(ui, *id, Some(spec)),
+                                EntityTab::Inputs => self.inputs_list(ui, *id),
+                            }
                         }
                     }
                 }
@@ -612,47 +516,73 @@ impl ChiselApp {
     pub(super) fn outputs_section(
         &mut self,
         ui: &mut egui::Ui,
-        _id: u32,
-        spec: Option<&kerosene_entity::ClassSpec>,
+        id: u32,
+        _spec: Option<&kerosene_entity::ClassSpec>,
     ) {
-        ui.separator();
-        ui.label(RichText::new("when this happens").strong());
-
-        let (outputs, help_for) = class_outputs(spec);
-        let targets = inspector::target_names(&self.document);
-
-        // Worked out before the buffer is borrowed: the answer depends on the
-        // whole map rather than on this entity.
-        let inputs_for: Vec<Vec<String>> = self
+        let connections = self
             .properties
             .as_ref()
-            .map(|edit| {
-                edit.connections
-                    .iter()
-                    .map(|c| inspector::inputs_for_target(&self.schema, &self.document, &c.target))
-                    .collect()
-            })
+            .map(|edit| edit.connections.clone())
             .unwrap_or_default();
-
+        let io = self.io_data(id, &connections);
         let Some(edit) = self.properties.as_mut() else {
             return;
         };
         let mut dirty = edit.dirty;
-        let commit = outputs_editor(
-            ui,
-            "dock",
-            &mut edit.connections,
-            &outputs,
-            &help_for,
-            &targets,
-            &inputs_for,
-            &mut dirty,
-        );
+        let commit = super::io::outputs_editor(ui, "dock", &mut edit.connections, &io, &mut dirty);
         edit.dirty = dirty;
-
         if commit {
             self.commit_properties();
         }
+    }
+
+    /// The tabs over one entity's panel, with how many connections each
+    /// way -- and how many of its outputs go nowhere, in red, so a broken
+    /// wire is seen without opening the tab.
+    pub(super) fn entity_tab_bar(&mut self, ui: &mut egui::Ui, id: u32) -> EntityTab {
+        let Some(entity) = self.document.find_entity(id) else {
+            return EntityTab::Properties;
+        };
+        let entities = &self.document.map.entities;
+        let outputs = entity.connections.len();
+        let inputs = crate::wiring::inputs_to(entities, entity).len();
+        let broken = entity
+            .connections
+            .iter()
+            .filter(|c| crate::wiring::validate(entity, c, entities, &self.schema).is_broken())
+            .count();
+        let outputs_label = if outputs == 0 {
+            "Outputs".to_string()
+        } else {
+            format!("Outputs {outputs}")
+        };
+        let inputs_label = if inputs == 0 {
+            "Inputs".to_string()
+        } else {
+            format!("Inputs {inputs}")
+        };
+        let mut tab = self.entity_tab as usize;
+        ui.horizontal(|ui| {
+            widgets::tab_bar(
+                ui,
+                &[
+                    (icons::SLIDERS_HORIZONTAL, "Properties"),
+                    (icons::SIGN_OUT, &outputs_label),
+                    (icons::SIGN_IN, &inputs_label),
+                ],
+                &mut tab,
+            );
+            if broken > 0 {
+                ui.label(theme::err(format!("{broken} broken")).size(11.0))
+                    .on_hover_text("Outputs that fire at nothing, or at something without that input. The Outputs tab says which.");
+            }
+        });
+        self.entity_tab = match tab {
+            1 => EntityTab::Outputs,
+            2 => EntityTab::Inputs,
+            _ => EntityTab::Properties,
+        };
+        self.entity_tab
     }
 
     /// The face editor: how the texture sits on the selected faces.

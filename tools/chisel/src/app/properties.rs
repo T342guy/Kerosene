@@ -213,20 +213,11 @@ impl ChiselApp {
 
         // Worked out before the buffer is borrowed: what a target accepts is a
         // question about the whole map, not about this entity.
-        let (outputs, help_for) = class_outputs(self.schema.get(classname));
-        let targets = inspector::target_names(&self.document);
-        let inputs_for: Vec<Vec<String>> = self
-            .property_window
-            .as_ref()
-            .map(|window| {
-                window
-                    .edit
-                    .connections
-                    .iter()
-                    .map(|c| inspector::inputs_for_target(&self.schema, &self.document, &c.target))
-                    .collect()
-            })
-            .unwrap_or_default();
+        let _ = classname;
+        let io = self.property_window.as_ref().and_then(|window| {
+            let id = window.edit.single_entity()?;
+            Some((id, self.io_data(id, &window.edit.connections)))
+        });
         let raw = self.raw_keys;
 
         egui::ScrollArea::vertical()
@@ -256,21 +247,25 @@ impl ChiselApp {
                 // entity is; outputs say what it does, and an editor that only
                 // shows the first half means reaching for the docked panel to
                 // finish every job the popup started.
-                if window.edit.single_entity().is_some() {
+                if let Some((_, io)) = &io {
+                    ui.add_space(8.0);
+                    ui.label(theme::section_title("outputs"));
                     let mut dirty = window.edit.dirty;
-                    if outputs_editor(
+                    if super::io::outputs_editor(
                         ui,
                         "popup",
                         &mut window.edit.connections,
-                        &outputs,
-                        &help_for,
-                        &targets,
-                        &inputs_for,
+                        io,
                         &mut dirty,
                     ) {
                         commit = true;
                     }
                     window.edit.dirty = dirty;
+                }
+                if let Some((id, _)) = io {
+                    ui.add_space(8.0);
+                    ui.label(theme::section_title("inputs"));
+                    self.inputs_list(ui, id);
                 }
             });
 

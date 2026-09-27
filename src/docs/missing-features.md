@@ -42,9 +42,10 @@ elsewhere in these docs.
   is no separate music or effects volume.
 - ~~**`kerosene-ui` is not a UI toolkit.**~~ Fixed: the tools' egui host is
   now `kerosene-toolui`, and `kerosene-ui` is the game UI (section 8).
-- **Chisel is a fifth of the codebase in one crate.** About twenty-five
-  thousand lines of some hundred and twenty-six thousand; worth splitting
-  before the GPU viewport lands.
+- **Chisel is a fifth of the codebase in one crate.** About twenty-eight
+  thousand lines now that the GPU viewport has landed in it (as `gpu/`);
+  the renderer, the geometry (`brush_edit`, `shapes`, `faces`) and the egui
+  layer would split cleanly.
 
 ## 2. Already acknowledged
 
@@ -57,8 +58,9 @@ for completeness.
 - ~~**Skeletal animation.**~~ Playback exists: Forge imports skinned glTF
   with its clips, the renderer skins on the GPU, and `prop_dynamic` plays,
   switches and crossfades clips. See section 5 for what is not there.
-- **Chisel 3D view.** Software-rasterised, with correct occlusion but no
-  lighting or shadow preview.
+- **Chisel 3D view.** ~~Software-rasterised.~~ It renders on the GPU now,
+  with props drawn as their models and entity helpers (section 19). Still
+  no lighting or shadow preview: the view is flat-shaded.
 - **Texture block compression.** `.kerotex` is uncompressed; no BCn. The
   README's reason -- a bad encoder is worse than none -- no longer holds:
   `intel_tex_2` and `texpresso` are pure-Rust BC7 encoders that are good
@@ -387,14 +389,16 @@ Chisel:
   nothing.
 - **Check for problems.** Leak detection exists, the entity report finds
   dangling I/O, and "Check for problems" lists every problem in the output
-  panel. It does not yet look for a missing texture, and its lines do not
-  lead to what they name.
+  panel -- broken wires included, by the same check the Outputs tab's
+  lights make. It does not yet look for a missing texture, and its lines do
+  not lead to what they name.
 - ~~**Undo history panel.**~~ Fixed: `Edit → History...`.
-- **Vertex/edge editing.** Maps can hold polygon meshes now, and Chisel draws,
-  picks, moves, resizes, duplicates and deletes them, and converts brushes to
-  them (Tools → Convert to mesh). What it cannot do yet is edit one: no
-  vertex, edge or face selection, extrude or bevel. Until it can, a mesh is
-  shaped by converting a brush, or by hand in the `.keromap`.
+- **Vertex/edge editing.** ~~None.~~ Brushes have it: the select tool's
+  vertex, edge and face modes, with drag in the flat views, extrude and
+  merge, refusing any edit that would make a brush concave. Meshes still do
+  not: Chisel draws, picks, moves, resizes, duplicates and deletes them, but
+  a mesh is shaped by converting a brush, or by hand in the `.keromap`. No
+  bevel yet, for either.
 - **Texture painting.** No brush-based texture painting or blending.
 - **Walkmap visualization.** The rule-tint view exists, but there is no
   in-editor preview of the compiled walkmap faces versus what Cleave will
@@ -488,14 +492,17 @@ The runtime:
 
 The tools:
 
-- **Chisel.** No clipboard copy and paste; no texture-lock toggle, though
-  `Solid::translate_world_locked` exists; no find and replace; no go-to by
-  brush or entity id, so Cleave's `brush N` warnings cannot be followed; no
-  camera bookmarks; no File > Open. Settings, layout and grid reset every
-  launch; there is no Preferences dialog, keymap file, or light theme. Undo
-  keeps a whole copy of the map per step.
-- **Validation.** Nothing checks that a connection's input exists on its
-  target's class. There is no sound key type, so sound keys have no picker.
+- **Chisel.** No clipboard copy and paste of objects (connections have
+  one); no texture-lock toggle, though `Solid::translate_world_locked`
+  exists; no find and replace; no go-to by brush or entity id, so Cleave's
+  `brush N` warnings cannot be followed; no camera bookmarks. The layout,
+  helper mode, shading and fly speed are remembered now (`chisel.layout`);
+  the grid is not, and there is no Preferences dialog, keymap file, or light
+  theme. Undo keeps a whole copy of the map per step.
+- **Validation.** ~~Nothing checks that a connection's input exists on its
+  target's class.~~ Fixed: every connection has a light, green, yellow or
+  red, with the reason (section 19). There is no sound key type, so sound
+  keys have no picker.
 - **The output panel** cannot be searched, filtered or copied, and its lines
   do not lead to what they name.
 - **Other tools.** Timbre, Alchemy and Loupe have no undo. Alchemy reads PNG,
@@ -655,6 +662,32 @@ Code health:
   with warnings as errors.
 - **Big files.** `engine.rs`'s console commands are in their own module now;
   `kerosene-render/src/gpu.rs` is still 3,200 lines.
+
+## 19. The editor overhaul (September 2026)
+
+Chisel was reworked towards Source 2's Hammer: a GPU 3D view, a layout of
+toolbar, per-tool options bar, outliner and docked asset browser, hover
+cards, schema-declared entity helpers, a Hammer-style Outputs/Inputs pair
+with validation, and vertex/edge/face editing on brushes. See
+[Tools](tools.md#chisel--the-world-editor). What doing it turned up:
+
+- **Handles move only in the flat views.** A corner can be picked in 3D but
+  not dragged there; the move gizmo still moves whole objects.
+- **No marquee for handles.** Corners are picked one click at a time (with
+  shift); dragging a box around several is not there yet.
+- **No bevel, no edge split, no face split.** Extrude and merge are the
+  only operations beyond moving; a face with a new edge across it needs the
+  clip tool.
+- **Helpers are drawn, not edited.** A spot light's cone cannot be dragged
+  wider, a sound's sphere cannot be dragged bigger; the keys are typed.
+- **Models are static in the editor.** An animated `prop_dynamic` shows its
+  rest pose, and a model's skin or body group is not previewed.
+- **`infodecal` and `point_worldpanel` draw an outline**, not the decal's
+  material or the panel's layout.
+- **The hover card has no material swatch**, only the name.
+- **The software rasteriser is kept for tests and thumbnails.** It no
+  longer draws models or helpers, so a toolset without a GPU callback path
+  shows less than one with it.
 
 ## 17. What the mainstream engines have, and whether it matters
 

@@ -45,4 +45,12 @@ anyhow.workspace = true
 log.workspace = true
 glam.workspace = true
 egui.workspace = true
+# The 3D pane renders through the device the toolset's window already has.
+egui-wgpu.workspace = true
+wgpu.workspace = true
+bytemuck.workspace = true
 image.workspace = true
+
+[dev-dependencies]
+# The GPU pane test asks for an adapter and waits on it.
+pollster.workspace = true

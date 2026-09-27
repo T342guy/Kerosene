@@ -244,7 +244,15 @@ pub fn stroke_polygons_3d(
     }
 }
 
+/// What a 2D pane draws for entities beyond their icons.
+pub struct Helpers2d<'a> {
+    pub helpers: &'a [crate::helpers::Helper],
+    /// A loaded model's bounds, for its outline.
+    pub model_bounds: &'a dyn Fn(&str) -> Option<Aabb>,
+}
+
 /// Draw one 2D pane.
+#[allow(clippy::too_many_arguments)]
 pub fn draw_2d(
     painter: &Painter,
     rect: Rect,
@@ -253,6 +261,7 @@ pub fn draw_2d(
     tool: &Tool,
     leak: &crate::leak::LeakTrace,
     entity_ghost: Option<(Vec3, Option<Aabb>)>,
+    helpers: &Helpers2d<'_>,
 ) {
     painter.rect_filled(rect, 0.0, colors::BACKGROUND);
     draw_grid(painter, rect, viewport, document);
@@ -306,6 +315,8 @@ pub fn draw_2d(
         }
     }
 
+    draw_helpers_2d(painter, &to_screen, helpers);
+
     // Point entities, each drawn as what it is. A room full of identical
     // squares is a wall of labels you have to read; a shape is something you
     // see without reading.
@@ -331,7 +342,9 @@ pub fn draw_2d(
         // and what you are looking for when you are looking. The classname is
         // the icon's job now, and repeating it beside every icon is the wall
         // of text the icons were drawn to replace.
-        if viewport.zoom > 0.15 {
+        // Only close enough to read without piling up, or when it is the
+        // one you picked: at a distance a room's labels are one smear.
+        if viewport.zoom > 0.45 || selected {
             let label = entity
                 .get("targetname")
                 .filter(|n| !n.trim().is_empty())
@@ -353,6 +366,45 @@ pub fn draw_2d(
     draw_tool_preview(painter, rect, viewport, document, tool);
     draw_clip_line(painter, rect, viewport, tool);
     draw_entity_ghost_2d(painter, rect, viewport, tool, entity_ghost);
+}
+
+/// Models as their outlines, and every helper's lines, flattened onto the
+/// pane. Fills are left out: a translucent cone seen side-on is its outline.
+fn draw_helpers_2d(painter: &Painter, to_screen: &dyn Fn(Vec3) -> Pos2, helpers: &Helpers2d<'_>) {
+    use crate::helpers::Helper;
+    for helper in helpers.helpers {
+        match helper {
+            Helper::Model {
+                path,
+                pose,
+                selected,
+                ..
+            } => {
+                let Some(bounds) = (helpers.model_bounds)(path) else {
+                    continue;
+                };
+                let corners =
+                    crate::gpu::scene::corners(bounds).map(|c| to_screen(pose.to_world(c)));
+                let color = if *selected {
+                    colors::SELECTED
+                } else {
+                    crate::icons::Kind::Prop.colour().gamma_multiply(0.7)
+                };
+                for (a, b) in crate::gpu::scene::BOX_EDGES {
+                    painter.line_segment([corners[a], corners[b]], Stroke::new(1.0_f32, color));
+                }
+            }
+            Helper::Lines {
+                segments, color, ..
+            } => {
+                let stroke = Stroke::new(1.0_f32, *color);
+                for [a, b] in segments {
+                    painter.line_segment([to_screen(*a), to_screen(*b)], stroke);
+                }
+            }
+            Helper::Fill { .. } => {}
+        }
+    }
 }
 
 /// The entity tool's placement preview, in a 2D pane: the model's bounds

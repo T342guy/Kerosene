@@ -609,6 +609,43 @@ first, and a key the class redefines wins. Key types are `string`, `int`,
 closed, so an unrecognised type is an error at load rather than a text box at
 edit time.
 
+A class may also declare **helpers**: what the editor draws for it beyond
+its marker -- the FGD's `studio()`, `lightcone()` and `sphere()`. They change
+nothing in the game.
+
+```
+class
+{
+    "name" "light_spot"
+    "base" "Entity" "base" "Point" "base" "Angles"
+    helper { "type" "lightcone" }
+    helper { "type" "lightradius" }
+}
+class
+{
+    "name" "ambient_generic"
+    helper { "type" "sphere" "radius" "radius" "color" "120 230 220" }
+}
+```
+
+| type | draws | parameters |
+|---|---|---|
+| `model` | the entity's model, posed by its angles | `key` (default `model`) |
+| `lightradius` | two spheres: where the light lights a surface fully, and where it has all but faded -- from `_light` and the `_*_attn` keys, by the falloff Radiance uses | |
+| `lightcone` | a cone along the angles, from `_cone` and `_inner_cone` (half-angles), honouring the `pitch` override | |
+| `sphere` | a sphere | `radius`, `color` |
+| `frustum` | what a camera sees | `fov` (90), `length` (256) |
+| `direction` | an arrow along the angles | `length` (48) |
+| `line` | a line to every entity the key names | `key` (default `target`) |
+| `rect` | a flat rectangle facing along the angles: a panel, a decal | `width`, `height` |
+
+A numeric parameter is a number or the name of a key: `"radius" "radius"`
+reads the entity's own `radius`, `"radius" "256"` is always 256. Helpers are
+inherited from bases like keys, and a class's own helper of a type replaces
+an inherited one. Two need no declaring: a class with a `model`-typed `model`
+key is drawn as its model, and every `target_destination` key draws a line to
+what it names. An unknown helper type is an error at load, naming the class.
+
 Files are merged in sorted path order and a later definition of a class
 replaces an earlier one, so a mod can drop its own file beside the game's.
 

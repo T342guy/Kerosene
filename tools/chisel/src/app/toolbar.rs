@@ -33,7 +33,9 @@ impl ToolKind {
             ToolKind::Block => {
                 "Drag a box in a 2D pane to make a brush, snapped outward to the grid."
             }
-            ToolKind::Entity => "Click in a pane to place the chosen entity class.",
+            ToolKind::Entity => {
+                "Click in a pane to place the chosen class; in 3D it lands on the surface under the pointer."
+            }
             ToolKind::Texture => {
                 "Click a face in the 3D pane to select it; the inspector edits how its material sits."
             }
@@ -63,7 +65,7 @@ impl ChiselApp {
                 ui.spacing_mut().item_spacing.y = 4.0;
                 for kind in ToolKind::all() {
                     let selected = self.tool.kind == kind;
-                    let name = format!("{} tool", capitalise(kind.label()));
+                    let name = format!("{} tool", super::options_bar::capitalise(kind.label()));
                     let response = widgets::tool_button(
                         ui,
                         kind.glyph(),
@@ -151,19 +153,7 @@ impl ChiselApp {
 
                     toolbar_gap(ui);
 
-                    // Groups and the cordon: what a click takes hold of, and
-                    // how much of the map is in play.
-                    let mut select_groups = !self.document.ignore_groups;
-                    if widgets::icon_toggle(
-                        ui,
-                        icons::SELECTION_ALL,
-                        "select whole groups  (off: pick one member at a time)",
-                        &mut select_groups,
-                    )
-                    .clicked()
-                    {
-                        self.document.ignore_groups = !select_groups;
-                    }
+                    // The cordon: how much of the map is in play.
                     let mut cordon = self.document.cordon_active();
                     if widgets::icon_toggle(
                         ui,
@@ -202,63 +192,32 @@ impl ChiselApp {
                         self.status = format!("3D panes: {}", self.shading.label());
                     }
 
-                    // The gizmo, only while the select tool is active: a
-                    // brush or a shape tool drag has nothing selected to put
-                    // handles on yet.
-                    if self.tool.kind == ToolKind::Select {
-                        toolbar_gap(ui);
-                        use crate::gizmo::GizmoMode;
-                        for (mode, glyph, tip) in [
-                            (
-                                Some(GizmoMode::Move),
-                                icons::ARROWS_OUT_CARDINAL,
-                                "move gizmo",
-                            ),
-                            (
-                                Some(GizmoMode::Rotate),
-                                icons::ARROWS_CLOCKWISE,
-                                "rotate gizmo",
-                            ),
-                        ] {
-                            let mut on = self.gizmo_mode == mode;
-                            if widgets::icon_toggle(ui, glyph, tip, &mut on).clicked() {
-                                self.gizmo_mode = if on { mode } else { None };
-                            }
-                        }
+                    // Which helpers the panes draw: cones, radii, target lines.
+                    let (glyph, tip) = match self.helper_mode {
+                        crate::helpers::HelperMode::Selected => (
+                            icons::LIGHTBULB,
+                            "helpers for the selection: light cones, sound radii, target lines. \
+                             Click for every entity's.",
+                        ),
+                        crate::helpers::HelperMode::All => (
+                            icons::LIGHTBULB,
+                            "helpers for every entity. Click to turn them off.",
+                        ),
+                        crate::helpers::HelperMode::None => (
+                            icons::LIGHTBULB,
+                            "helpers off: models only. Click for the selection's.",
+                        ),
+                    };
+                    let mut on = self.helper_mode != crate::helpers::HelperMode::None;
+                    if widgets::icon_toggle(ui, glyph, tip, &mut on).clicked() {
+                        self.helper_mode = self.helper_mode.next();
+                        self.status = self.helper_mode.label().to_string();
                     }
-
-                    // The texture tool's two settings, only while it is the tool.
-                    if self.tool.kind == ToolKind::Texture {
-                        toolbar_gap(ui);
-                        ui.label(theme::caption("select"));
-                        for target in TextureTarget::all() {
-                            let selected = self.tool.texture_target == target;
-                            if ui
-                                .selectable_label(
-                                    selected,
-                                    RichText::new(target.label()).size(12.0),
-                                )
-                                .on_hover_text(target.describe())
-                                .clicked()
-                            {
-                                self.tool.texture_target = target;
-                                self.status = format!("texture tool: {}", target.label());
-                            }
-                        }
-                        ui.add_space(6.0);
-                        ui.label(theme::caption("apply"));
-                        for mode in TextureMode::all() {
-                            let selected = self.tool.texture_mode == mode;
-                            if ui
-                                .selectable_label(selected, RichText::new(mode.label()).size(12.0))
-                                .on_hover_text(format!("{}\n\nT cycles these.", mode.describe()))
-                                .clicked()
-                            {
-                                self.tool.texture_mode = mode;
-                                self.status = format!("texture tool: {}", mode.label());
-                            }
-                        }
-                    }
+                    ui.label(theme::caption(match self.helper_mode {
+                        crate::helpers::HelperMode::Selected => "selected",
+                        crate::helpers::HelperMode::All => "all",
+                        crate::helpers::HelperMode::None => "off",
+                    }));
 
                     // The right end: compile, and the pane layout.
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -290,19 +249,31 @@ impl ChiselApp {
 
                         toolbar_gap(ui);
 
-                        let maximised = self.maximised.is_some();
-                        let glyph = if maximised {
-                            icons::CORNERS_IN
-                        } else {
-                            icons::CORNERS_OUT
-                        };
-                        let tip = if maximised {
-                            "show four panes  (shift-space)"
-                        } else {
-                            "maximise the active pane  (shift-space)"
-                        };
-                        if widgets::icon_button(ui, glyph, tip).clicked() {
-                            self.toggle_maximised();
+                        if widgets::icon_toggle(
+                            ui,
+                            icons::IMAGES,
+                            "the asset browser along the bottom  (M)",
+                            &mut self.show_assets,
+                        )
+                        .clicked()
+                        {
+                            self.save_layout();
+                        }
+                        let before = self.pane_layout();
+                        let mut layout = before;
+                        egui::ComboBox::from_id_salt("pane-layout")
+                            .selected_text(RichText::new(layout.label()).size(12.0))
+                            .width(96.0)
+                            .show_ui(ui, |ui| {
+                                for option in PaneLayout::all() {
+                                    ui.selectable_value(&mut layout, option, option.label())
+                                        .on_hover_text(option.describe());
+                                }
+                            })
+                            .response
+                            .on_hover_text("How many views, and which. Shift-space maximises the one under the pointer.");
+                        if layout != before {
+                            self.set_pane_layout(layout);
                         }
                         if widgets::icon_button(ui, icons::CROSSHAIR, "frame everything").clicked()
                         {
@@ -344,128 +315,6 @@ impl ChiselApp {
             self.status = format!("redid {label}");
         }
     }
-
-    /// What the shape tool will draw, and how many pieces of it.
-    ///
-    /// Only the settings the chosen shape actually uses are shown. A slider
-    /// that does nothing is worse than no slider: it makes you wonder what
-    /// you did wrong.
-    pub(super) fn shape_panel(&mut self, ui: &mut egui::Ui) {
-        use crate::shapes::{MAX_SIDES, MIN_SIDES, Shape};
-
-        widgets::section(ui, "shape", |ui| {
-            for shape in Shape::all() {
-                let selected = self.tool.shape == shape;
-                if ui
-                    .selectable_label(selected, shape.label())
-                    .on_hover_text(shape.help())
-                    .clicked()
-                {
-                    self.tool.shape = shape;
-                    self.status = format!("{}: {}", shape.label(), shape.help());
-                }
-            }
-            ui.label(theme::caption(self.tool.shape.help()));
-        });
-
-        let shape = self.tool.shape;
-        let options = &mut self.tool.shape_options;
-        if shape.uses_sides() || shape.uses_arc() || shape.uses_wall() {
-            widgets::section(ui, "settings", |ui| {
-                if shape.uses_sides() {
-                    let label = if shape == Shape::Stairs {
-                        "steps"
-                    } else {
-                        "sides"
-                    };
-                    ui.add(
-                        egui::Slider::new(&mut options.sides, MIN_SIDES..=MAX_SIDES).text(label),
-                    )
-                    .on_hover_text(
-                        "More segments read as smoother and cost the compiler more \
-                         faces. Eight is round enough for a pillar you walk past.",
-                    );
-                }
-                if shape.uses_arc() {
-                    ui.add(egui::Slider::new(&mut options.arc, 15.0..=360.0).text("arc"))
-                        .on_hover_text("Degrees. 180 is a doorway, 360 a ring.");
-                }
-                if shape.uses_wall() {
-                    ui.add(egui::Slider::new(&mut options.wall, 4.0..=256.0).text("wall"))
-                        .on_hover_text("How thick the arch is, in kerosene units.");
-                }
-            });
-        }
-
-        ui.add_space(4.0);
-        ui.label(theme::caption(
-            "Drag a box in a 2D pane; the pane you draw in decides which way the shape stands.",
-        ));
-    }
-
-    /// The entity tool's class list, with a search box.
-    pub(super) fn entity_panel(&mut self, ui: &mut egui::Ui) {
-        widgets::section(ui, "entity class", |ui| {
-            ui.horizontal(|ui| {
-                ui.label(theme::icon(icons::MAGNIFYING_GLASS).color(colors::TEXT_MUTED));
-                ui.add(
-                    egui::TextEdit::singleline(&mut self.entity_filter)
-                        .desired_width(f32::INFINITY)
-                        .hint_text("filter classes"),
-                );
-            });
-            ui.add_space(2.0);
-
-            let filter = self.entity_filter.to_ascii_lowercase();
-            let classes: Vec<String> = self
-                .point_classes()
-                .into_iter()
-                .filter(|c| filter.is_empty() || c.to_ascii_lowercase().contains(&filter))
-                .collect();
-            if classes.is_empty() {
-                ui.label(theme::caption("nothing matches"));
-            }
-
-            egui::ScrollArea::vertical()
-                .auto_shrink([false, false])
-                .show(ui, |ui| {
-                    ui.spacing_mut().item_spacing.y = 1.0;
-                    for class in classes {
-                        let selected = self.tool.entity_class == class;
-                        let help = self
-                            .schema
-                            .get(&class)
-                            .map(|s| s.help.clone())
-                            .unwrap_or_default();
-                        let kind = crate::icons::Kind::of(&class);
-
-                        // The same icon the viewport will draw, so the list
-                        // and the map read as the same thing.
-                        let item = ui.horizontal(|ui| {
-                            let (rect, _) = ui
-                                .allocate_exact_size(egui::vec2(16.0, 16.0), egui::Sense::hover());
-                            crate::icons::draw(
-                                ui.painter(),
-                                rect.center(),
-                                6.0,
-                                kind,
-                                kind.colour(),
-                            );
-                            ui.selectable_label(selected, theme::mono(&class))
-                        });
-                        let item = item.inner;
-                        let item = if help.is_empty() {
-                            item
-                        } else {
-                            item.on_hover_text(help)
-                        };
-                        if item.clicked() {
-                            self.tool.entity_class = class;
-                        }
-                    }
-                });
-        });
-    }
 }
 
 /// A gap between two groups on the toolbar, with a hairline in it.
@@ -478,12 +327,4 @@ fn toolbar_gap(ui: &mut egui::Ui) {
         egui::Stroke::new(1.0_f32, colors::BORDER),
     );
     ui.add_space(6.0);
-}
-
-fn capitalise(word: &str) -> String {
-    let mut chars = word.chars();
-    match chars.next() {
-        Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
-        None => String::new(),
-    }
 }

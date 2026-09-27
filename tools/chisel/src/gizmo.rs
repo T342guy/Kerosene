@@ -250,8 +250,8 @@ enum DragStart {
 impl GizmoDrag {
     /// Start a drag on `axis`, about `pivot`, from the ray through the
     /// pointer's press position. `None` when that ray cannot establish a
-    /// reference to measure against (see [`axis_parameter`] and
-    /// [`plane_hit`]) -- the press falls through to an ordinary pick instead
+    /// reference to measure against (see `axis_parameter` and
+    /// `plane_hit`) -- the press falls through to an ordinary pick instead
     /// of starting a drag that cannot go anywhere.
     pub fn begin(
         mode: GizmoMode,

@@ -1509,7 +1509,9 @@ name = "kerosene-chisel"
 version = "1.0.0-a3"
 dependencies = [
  "anyhow",
+ "bytemuck",
  "egui",
+ "egui-wgpu",
  "glam",
  "image",
  "kerosene-alchemy",
@@ -1525,6 +1527,8 @@ dependencies = [
  "kerosene-toolui",
  "kerosene-vfs",
  "log",
+ "pollster",
+ "wgpu",
 ]
 
 [[package]]

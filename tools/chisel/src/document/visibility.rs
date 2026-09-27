@@ -175,7 +175,7 @@ impl Document {
         self.inside_cordon(solid.bounds())
     }
 
-    fn entity_visible(&self, entity: &Entity) -> bool {
+    pub fn entity_visible(&self, entity: &Entity) -> bool {
         if !entity.editor.visible {
             return false;
         }

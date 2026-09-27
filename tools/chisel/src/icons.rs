@@ -99,6 +99,21 @@ impl Kind {
         }
     }
 
+    /// The family's name for more than one, for a list heading.
+    pub fn plural(self) -> &'static str {
+        match self {
+            Kind::Light => "lights",
+            Kind::Player => "players",
+            Kind::Sound => "sounds",
+            Kind::Logic => "logic",
+            Kind::Script => "scripts",
+            Kind::Message => "messages",
+            Kind::Prop => "props",
+            Kind::Target => "targets",
+            Kind::Other => "other",
+        }
+    }
+
     /// Every family, for a legend.
     pub fn all() -> [Kind; 9] {
         [

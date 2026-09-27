@@ -302,6 +302,70 @@ impl Document {
     }
 
     /// Create a point entity at a position.
+    /// [`Self::create_entity`], starting with some keys already set -- a
+    /// model picked from the browser -- as the same one undo step.
+    pub fn create_entity_with(
+        &mut self,
+        classname: &str,
+        position: Vec3,
+        keys: &[(String, String)],
+    ) -> u32 {
+        let position = self.grid.snap_point(position);
+        let classname = classname.to_string();
+        let keys = keys.to_vec();
+        self.apply(format!("create {classname}"), move |doc| {
+            let id = doc.map.next_id();
+            let mut entity = Entity::new(id, &classname);
+            entity.set_origin(position);
+            for (key, value) in &keys {
+                entity.set(key, value.clone());
+            }
+            doc.map.entities.push(entity);
+            doc.selection.clear();
+            doc.selection.entities.insert(id);
+            id
+        })
+    }
+
+    /// Put edited brushes back where they were, by id, as one undo step --
+    /// the end of a vertex, edge or face drag.
+    pub fn replace_solids(&mut self, label: impl Into<String>, solids: Vec<Solid>) -> usize {
+        if solids.is_empty() {
+            return 0;
+        }
+        self.apply(label, move |doc| {
+            let mut replaced = 0;
+            for edited in solids {
+                if let Some(slot) = all_solids_mut(&mut doc.map).find(|s| s.id == edited.id) {
+                    *slot = edited;
+                    replaced += 1;
+                }
+            }
+            replaced
+        })
+    }
+
+    /// Merge the selected brushes into one, when together they are convex.
+    /// The first keeps its id and whatever it belonged to; the rest go.
+    pub fn merge_selected_solids(&mut self) -> Result<u32, crate::brush_edit::EditError> {
+        let ids = self.selected_solid_ids();
+        let solids: Vec<&Solid> = ids.iter().filter_map(|id| self.find_solid(*id)).collect();
+        let merged = crate::brush_edit::merge(&solids)?;
+        let keep = merged.id;
+        let gone: Vec<u32> = ids.iter().copied().filter(|id| *id != keep).collect();
+        self.apply("merge brushes", move |doc| {
+            if let Some(slot) = all_solids_mut(&mut doc.map).find(|s| s.id == keep) {
+                *slot = merged;
+            }
+            doc.map.world.solids.retain(|s| !gone.contains(&s.id));
+            for entity in &mut doc.map.entities {
+                entity.solids.retain(|s| !gone.contains(&s.id));
+            }
+            doc.selection.solids.retain(|id| !gone.contains(id));
+        });
+        Ok(keep)
+    }
+
     pub fn create_entity(&mut self, classname: &str, position: Vec3) -> u32 {
         let position = self.grid.snap_point(position);
         let classname = classname.to_string();

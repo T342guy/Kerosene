@@ -474,11 +474,22 @@ impl kerosene_toolui::App for Toolset {
     fn wants_to_quit(&self) -> bool {
         self.editor.wants_to_quit()
     }
+
+    fn gpu_ready(&mut self, target: wgpu::TextureFormat) {
+        self.editor.gpu_target = Some(target);
+    }
 }
 
 /// Open the toolset window.
 pub fn run_gui(launch: Launch) -> Result<()> {
-    let toolset = Toolset::open(launch)?;
+    let mut toolset = Toolset::open(launch)?;
+    // The editor's layout is the person's, kept with their other settings --
+    // and only here, in the real window, so no test ever writes to it.
+    if let Some(dir) = kerosene_vfs::user_data_dir("kerosene") {
+        toolset
+            .editor
+            .set_layout_file(dir.join(chisel::app::LAYOUT_FILE));
+    }
     kerosene_toolui::run("Kerosene toolset", (1600, 950), toolset)
 }
 

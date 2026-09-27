@@ -121,6 +121,83 @@ impl ChiselApp {
         picked
     }
 
+    /// The asset browser, docked along the bottom: materials to paint with,
+    /// models to place.
+    pub(super) fn assets_dock(&mut self, ctx: &Context) {
+        if !self.show_assets {
+            return;
+        }
+        egui::TopBottomPanel::bottom("assets")
+            .resizable(true)
+            .default_height(230.0)
+            .height_range(120.0..=640.0)
+            .frame(
+                egui::Frame::new()
+                    .fill(colors::BG_PANEL)
+                    .inner_margin(egui::Margin::symmetric(8, 6)),
+            )
+            .show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    let mut tab = self.assets_tab as usize;
+                    widgets::tab_bar(
+                        ui,
+                        &[(icons::PAINT_BUCKET, "Materials"), (icons::CUBE, "Models")],
+                        &mut tab,
+                    );
+                    self.assets_tab = if tab == 1 {
+                        AssetsTab::Models
+                    } else {
+                        AssetsTab::Materials
+                    };
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if widgets::icon_button(ui, icons::X, "close the asset browser  (M)")
+                            .clicked()
+                        {
+                            self.show_assets = false;
+                        }
+                        if widgets::icon_button(
+                            ui,
+                            icons::ARROW_CLOCKWISE,
+                            "look again for new textures and models",
+                        )
+                        .clicked()
+                        {
+                            self.reload_textures();
+                            self.models = scan_models(&self.content_root);
+                        }
+                        let hint = match self.assets_tab {
+                            AssetsTab::Materials => {
+                                "click: paint the selection, and draw new brushes with it"
+                            }
+                            AssetsTab::Models => {
+                                "click: place it -- the next click in a view puts one there"
+                            }
+                        };
+                        ui.label(theme::caption(hint));
+                    });
+                });
+                match self.assets_tab {
+                    AssetsTab::Materials => self.materials_tab(ui, ctx),
+                    AssetsTab::Models => {
+                        let all = self.models.clone();
+                        let browsing = Browsing::Model {
+                            row: None,
+                            current: self
+                                .tool
+                                .entity_keys
+                                .iter()
+                                .find(|(k, _)| k == "model")
+                                .map(|(_, v)| v.clone())
+                                .unwrap_or_default(),
+                        };
+                        if let Some(item) = self.browse_grid(ui, ctx, &browsing, &all) {
+                            self.apply_browsed(&browsing, &item);
+                        }
+                    }
+                }
+            });
+    }
+
     /// The inspector's Materials tab: the browser, docked, applying to the
     /// selection on a click.
     pub(super) fn materials_tab(&mut self, ui: &mut egui::Ui, ctx: &Context) {
@@ -131,13 +208,8 @@ impl ChiselApp {
                     "What the block tool draws with, and what a click here puts on the selection.",
                 );
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if widgets::icon_button(ui, icons::ARROW_SQUARE_OUT, "open in a window  (M)")
-                    .clicked()
-                {
+                if widgets::icon_button(ui, icons::ARROW_SQUARE_OUT, "open in a window").clicked() {
                     self.browsing = Some(Browsing::Material);
-                }
-                if widgets::icon_button(ui, icons::ARROW_CLOCKWISE, "reload textures").clicked() {
-                    self.reload_textures();
                 }
             });
         });
@@ -151,7 +223,7 @@ impl ChiselApp {
     /// Forget every decoded texture and look again, so a build done outside
     /// shows up without a restart.
     pub(super) fn reload_textures(&mut self) {
-        self.textures.clear();
+        self.forget_content();
         self.thumbnails.clear();
         self.materials = scan_materials(&self.content_root);
         self.status = "textures reloaded".into();
@@ -238,9 +310,27 @@ impl ChiselApp {
                 self.commit_properties();
                 self.status = format!("model {item}");
             }
-            // Opened from the menu, with nothing to set: looking is the point.
+            // Picked with nothing to set: arm the entity tool with it, so
+            // the next click in a view places one -- Hammer 5's way of
+            // dragging a model out of the browser into the world.
             Browsing::Model { row: None, .. } => {
-                self.status = format!("{item} -- place one with a prop_static");
+                let takes_a_model = self
+                    .schema
+                    .get(&self.tool.entity_class)
+                    .and_then(|s| s.key("model"))
+                    .is_some_and(|k| k.kind == KeyKind::Model);
+                if !takes_a_model {
+                    self.tool.entity_class = "prop_static".to_string();
+                }
+                self.tool.entity_keys.retain(|(k, _)| k != "model");
+                self.tool
+                    .entity_keys
+                    .push(("model".to_string(), item.to_string()));
+                self.tool.set_kind(ToolKind::Entity);
+                self.status = format!(
+                    "placing {item} as a {}: click in a view",
+                    self.tool.entity_class
+                );
             }
         }
     }

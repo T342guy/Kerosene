@@ -143,20 +143,35 @@ unsaved changes asks first, and offers to save. The title bar and the status
 bar both name the file, with a `*` when there are unsaved changes; a map with
 no file yet says `not saved` rather than showing an invented one.
 
-**The layout is Hammer's.** A strip of tool icons down the left edge -- hover
-one for its name and key -- a toolbar row under the menu with the grid size,
-snap, how the 3D panes draw, the texture tool's modes and the compile button,
-and an inspector on the right with four tabs: **Object** (what is selected),
-**Tool** (the current tool's settings: the entity classes with a search box,
-the shape sliders), **Materials** (the browser, docked) and **VisGroups**
-(what is shown; see below). The tab follows
-the work -- a fresh selection brings up Object, picking the entity or shape
-tool brings up Tool -- and otherwise stays where it was put. The status bar
-along the bottom names the file, the selection's size, the pointer's place in
-the world, the grid, and what content was found.
+**The layout is Hammer 5's.** A strip of tool icons down the left edge --
+hover one for its name and key. Across the top, two rows: the **toolbar**,
+for what applies whatever you are doing (undo, the grid and snap, the cordon,
+how the 3D view draws, which helpers are shown, how many views, the asset
+browser, compile), and under it the **options bar**, which belongs to the tool
+in hand and changes with it -- the select tool's pick mode and gizmo, the
+block tool's material, the shape tool's shape and sides, the entity tool's
+class, the texture tool's modes, the clip tool's side. Its right end says, in
+one line, how to use the tool.
 
-Four panes fill the middle, each showing whichever view you point it at: 3D,
-or any of the six flat views -- top, bottom, front, back, left and right.
+On the right, a dock in two halves, split where you last dragged it. The
+**Outliner** above lists every entity in the map by family -- lights,
+players, sounds, logic, props -- named ones first, with a search that matches
+any part of a class or a name; click to select, double-click to fly there.
+Its **VisGroups** tab is what is shown (see below). **Properties** below is
+whatever is selected; for an entity it has three tabs, **Properties**,
+**Outputs** and **Inputs** (see *Wiring*). Along the bottom, when `M` or the
+toolbar asks for it, the **asset browser** is docked. The status bar names
+the file, the selection's size, the pointer's place in the world, the grid,
+and what content was found.
+
+The layout is remembered between sessions -- how many views, whether the
+asset browser is open, the helper mode, how the 3D view draws, where the
+panes divide -- in `chisel.layout` in your user data directory, never in the
+project.
+
+Four panes fill the middle -- or two side by side, or one, from the toolbar
+-- each showing whichever view you point it at: 3D, or any of the six flat
+views -- top, bottom, front, back, left and right.
 Brush geometry is axis-aligned far more often than not and an orthographic
 view along an axis is the only way to place a vertex exactly without typing
 numbers. Each pane has a header: its view is a menu there, its zoom or fly
@@ -167,7 +182,11 @@ bars between the panes to resize them.
 | Key | |
 |---|---|
 | `1` `2` `3` `4` `5` `6` | select, block, entity, texture, shape, clip tool |
-| `M` | the material browser, as a window |
+| `Shift+1` .. `Shift+4` | select tool, picking objects, vertices, edges or faces |
+| `M` | the asset browser, docked along the bottom |
+| `F` | frame the selection (everything, with nothing selected) |
+| `F1` | every shortcut, on one sheet |
+| Double-click | object properties of what was clicked |
 | `Alt+Enter` | object properties, as a window |
 | `Ctrl+Shift+E` | the entity report |
 | `Ctrl+G` / `Ctrl+U` | group / ungroup the selection |
@@ -179,7 +198,7 @@ bars between the panes to resize them.
 | `R` | rotate 90 degrees about the axis the pane looks along |
 | `Ctrl+L` / `Ctrl+I` | flip horizontally / vertically |
 | `Ctrl+B` | align the selection to the grid |
-| `Shift+Space` | maximise the active pane, or show four again |
+| `Shift+Space` | maximise the pane under the pointer, or put the layout back |
 | `[` `]` | finer / coarser grid |
 | `Ctrl+Z` / `Ctrl+Shift+Z` | undo / redo |
 | `Ctrl+S` | save (asks for a name the first time) |
@@ -204,27 +223,52 @@ Keys only reach the pane the pointer is over, and none of them fire while a
 property field has the keyboard -- naming an entity `wasd_door` should not fly
 the camera across the level.
 
-**Seeing what things are.** Point entities are drawn as what they are: a lamp
-for a light, a figure for the player start, a speaker for a sound, a diamond
-for logic, a crate for a prop. A room full of identical squares tells you where
-things are and not what they are, and the label beside each one was a wall of
-text you had to read to navigate. The label now shows the entity's *name* when
-it has one, which is what the wiring refers to and what you are actually
-looking for. The 3D pane marks them in the same colours.
+**Seeing what things are.** In the flat views point entities are drawn as
+what they are: a lamp for a light, a figure for the player start, a speaker
+for a sound, a diamond for logic, a crate for a prop. Their names are written
+beside them when you are zoomed in close enough to read them, and always for
+what is selected. In the 3D view a prop is its **model** -- the one its
+`model` key names, or its class's default -- posed by its angles; anything
+without a model is a small box in its family's colour. Rest the pointer on
+anything, in any view, and a **card** comes up: the class, its name, the
+first line of its help, the keys it sets, how many outputs and inputs it has
+and how many of them are broken. On a brush it gives the size and the
+material of the face under the pointer.
+
+**Helpers** are what an entity looks like beyond its marker, as the game's
+`.kerodef` declares them: a spot light's cone, pointing where it shines; a
+light's two spheres, where it lights a surface fully and where it has all but
+faded; a sound's audible radius; a panel's rectangle; an arrow along the
+player start's facing; a line to whatever a `target` key names. They are
+drawn for the selection by default -- a level with every light's sphere drawn
+at once is a level you cannot see -- and the bulb on the toolbar cycles
+between the selection's, every entity's, and none. Flat views draw their
+outlines; the 3D view fills the cones.
+
+**The 3D view runs on the GPU**, in the same window, so it keeps up with a
+whole level while you fly. Selected brushes are tinted and outlined, and
+their outline is drawn faintly *through* walls as well, so something selected
+behind a wall can still be found. Tool brushes -- triggers, clips -- are
+see-through. (Where there is no GPU, as in the tests, the older software
+rasteriser draws the pane instead.)
 
 Shapes are drawn rather than loaded from files: an icon set is a set of things
 to ship, scale, theme and keep in step with the class list, and a dozen lines
 of geometry is none of those. Classes are matched by prefix, so a game that
 adds `light_dynamic` gets the right icon without anything here changing.
 
-**The asset browser** is the inspector's *Materials* tab, and also a window
-(`M`, or `view → browse materials...`) when a property field wants a model or
-the tab is not enough room. Names, folders, a size slider and a search that
-matches words in any order — so `wood crate` and `crate wood` both find
-`props/crate_wood`. Materials show what each one does on hover, read from
-Cleave's table; models show a rendered preview, because a name is not a shape
-and `crate_wood` tells you nothing about whether it is the crate you want.
-Clicking a material with something selected applies it.
+**The asset browser** is docked along the bottom (`M`, or the pictures icon
+on the toolbar), with a tab for materials and one for models. Names, folders,
+a size slider and a search that matches words in any order -- so `wood crate`
+and `crate wood` both find `props/crate_wood`. Materials show what each one
+does on hover, read from Cleave's table; models show a rendered preview,
+because a name is not a shape. Clicking a material makes it the one new
+brushes wear, and applies it to the selection. Clicking a **model** arms the
+entity tool with it: the next click in a view places a `prop_static` wearing
+it (or whatever prop class was already chosen), shown in place as a
+see-through ghost until you click. The options bar says which model is armed,
+and its `x` goes back to the class's own. `view → materials in a window...`
+is the same browser floating, for a property field that wants a model.
 
 The old picker was a two-column strip of unlabelled 48-pixel swatches in a
 120-point panel, which is a keyhole rather than a browser. Worse, every swatch
@@ -246,7 +290,7 @@ stays put in world space rather than stretching, so making a wall twice as
 wide tiles the bricks twice instead of drawing bricks twice the size.
 
 **Key-values on anything.** Every object in a map -- an entity, a brush, a
-face -- carries key-values, and the Object tab edits whatever is selected.
+face -- carries key-values, and the Properties panel edits whatever is selected.
 An entity shows every key its class reads, set or not, with a widget for
 each (a colour picker for a colour, a dropdown for a choice, checkboxes for
 flags); a brush or a face shows the keys it carries, and `+ add a key` puts
@@ -264,9 +308,60 @@ to the compiler: `detail 1` keeps a brush out of the vis tree, `section
 <name>` puts it in a streamed section. Under the keys sit the editor's own
 notes: a colour to draw the object in, and comments.
 
+**Wiring.** Outputs are how a map behaves without scripting: a button's
+`OnPressed` fires a door's `Open`. An entity's **Outputs** tab lists what it
+fires, one connection a line -- *output* `->` *target*`.`*input*, with the
+parameter, the delay and *once* when there are any -- in the order they will
+fire. The light at the start of each line says whether it will do anything:
+
+| | |
+|---|---|
+| green | the target exists and takes that input |
+| yellow | the target is `!activator`, `!caller` or `!player`: who that is is decided while the game runs, so only the input is checked |
+| red | nothing is called that, or it is but has no such input, or this class never fires that output |
+
+Hover the light for the reason. Click a line and a form opens under the list
+for that connection: the output (with its help), the target (every name in
+the map, and the four special targets), the input -- offered from what the
+target's class actually takes, with its help and what its parameter means --
+the parameter, the delay and *only once*. `+ Add` starts another connection
+after the picked one, on the same output and target, which is how a sequence
+is built; **Copy** and **Paste** move a connection between entities. Target
+names are matched exactly, ignoring case, as the engine matches them: there
+are no wildcards, and a `door*` is flagged as the name nobody has.
+
+The **Inputs** tab is the same list turned round: every connection on any
+entity that fires at this one. It answers "what opens this door?", which a
+list of outputs cannot. Click one to go to the entity it is on. The tab
+headings count both ways, and say in red how many outputs are broken, so a
+broken wire is seen without opening the tab. `Map → Check for problems` lists
+every broken wire in the map with the rest.
+
+In the views, the selected entity's wiring is drawn: green arrows to what its
+outputs fire at, red where the target cannot take the input, blue from
+whatever fires at it. They are drawn through walls, because a wire does not
+care what is between.
+
+**Brush modelling.** The select tool picks whole objects by default. Its
+other modes, in the options bar or `Shift+2`..`Shift+4`, put handles on the
+selected brushes: squares on the **vertices**, diamonds on the **edges**,
+circles on the **faces**. Click a handle to pick it, shift-click to add
+another, and drag one in a flat view to move everything picked; it snaps to
+the grid, and the brush is drawn as it will be while you drag. A brush has to
+stay convex, so a drag that would dent one is refused: the preview turns red
+and says why, and nothing changes. Pull a top corner up for a slope, drag two
+top corners down onto the bottom for a wedge, push a face out to lengthen a
+brush. Faces keep their material and texture alignment through all of it.
+In face mode, **extrude** grows a new brush off each picked face, as far out
+as the options bar says. In object mode, **merge** (also in the Tools menu)
+makes the selected brushes one, when together they are convex -- two halves
+of a clipped block back into the block. Handles can be picked in the 3D
+view too, so a corner can be found by looking at it; moving it is done in
+whichever flat view suits.
+
 **Groups and VisGroups.** `Ctrl+G` groups the selection, and from then on
-a click on any member takes the whole group -- unless the toolbar's
-*select whole groups* toggle is off, which is how you nudge one thing in a
+a click on any member takes the whole group -- unless the select tool's
+*whole groups* option is off, which is how you nudge one thing in a
 group. `Ctrl+U` ungroups. VisGroups are named sets you can hide together:
 select the things that make up a room and press `Ctrl+Shift+G`, name it,
 and the VisGroups tab has a checkbox that makes the room vanish from every
@@ -345,7 +440,7 @@ way you would with the block tool, and it fills it.
 
 The pane you draw in decides which way the shape stands: a cylinder drawn from
 above is a pillar, the same drag in the front view is a pipe lying across the
-room. Sides, arc and wall thickness are on the Tool tab, and only the ones the
+room. Sides, arc and wall thickness are on the options bar, and only the ones the
 chosen shape uses are shown. The preview draws the actual shape and the number
 of brushes it will cost, not the box it is being fitted into. A whole arch is
 one undo step.
@@ -393,26 +488,24 @@ luck. Anything with `angles` gets a facing arrow the same way.
 
 **Building a level.** Draw brushes with the block tool in a 2D view; they snap
 to the grid, outward, so a brush is never smaller than the rubber band. Pick a
-material from the Materials tab — picking one with something selected applies
-it. Place entities with the entity tool; its classes are on the Tool tab. Give
-brushes a type on the Object tab to make them a door or a trigger. Wire
-outputs to inputs in the same panel.
+material from the asset browser (`M`) — picking one with something selected
+applies it. Place entities with the entity tool; its class is picked on the
+options bar, grouped by family and searchable. Give brushes a type in the
+Properties panel to make them a door or a trigger. Wire outputs to inputs on
+the entity's Outputs tab.
 
-**Wiring, as a sequence.** A `.keromap` stores wiring as a flat list of
-connections, which is the right thing to store and the wrong thing to show:
-what a designer is building is *when this happens, do these things, in this
-order*, and a column of rows with delays in them makes the order something you
-reconstruct in your head. The panel groups them by event instead. Under
-`OnStartTouch` you get `do Open on gate`, then `then Trigger on siren`, in the
-order they will actually fire, and `+ then` adds another step after the last
-one — with a delay, because two actions at the same instant fire in whatever
-order the file happens to hold.
+**Wiring, in firing order.** A `.keromap` stores wiring as a flat list of
+connections. The Outputs tab lists them grouped by output and sorted by delay
+-- the order they will actually fire in -- and `+ Add` after a picked line
+starts the next step of a sequence a tenth of a second later, because two
+actions at the same instant fire in whatever order the file happens to hold.
 
 **Alternatives need an entity that can choose.** Every other class fires a
 list; firing one of two lists depending on something is a decision, and a
 decision cannot be faked in the editor. That is what `logic_branch` is for: it
 remembers a yes or no and fires `OnTrue` or `OnFalse`, never both. When one
-side of a pair is wired and the other is not, the panel says so — an `OnTrue`
+side of a pair is wired and the other is not, the Outputs tab says so, with a
+button to wire the other — an `OnTrue`
 with nothing on `OnFalse` does nothing half the time, which is a bug you find
 by playing rather than by reading.
 
@@ -437,10 +530,9 @@ Without a `.kerodef` the inspector can only show the keys an entity already
 carries, which for a freshly placed entity is none. Chisel says so in the
 status bar rather than looking like a game with no settings.
 
-**The 3D pane** is rasterised in software with a depth buffer, so what hides
-what is decided per pixel, and it draws the materials themselves --
-perspective-correct, mipped, with a face tinted rather than painted over when
-it is selected so you can still see what it is wearing. `view` switches
+**The 3D pane** draws the materials themselves, mipped and filtered, with a
+selected face tinted rather than painted over so you can still see what it is
+wearing. `view` switches
 between *textured*, *flat colour* (each material's average, when a texture is
 too busy to read shape through), *shaded only* (untextured grey, for hunting
 a brush in the wrong place) and *walkmap* -- which colours each face by its
@@ -452,8 +544,8 @@ Tool **volumes** are drawn see-through, as they are in Hammer, because that is
 what they are: a trigger is a region, not a wall, and one drawn solid hides the
 room it is sitting in. `tools/nodraw` and the other solid tool materials are
 the exception -- those *are* walls, just ones nobody sees, so they stay opaque.
-A volume does not claim the depth buffer either, so two overlapping ones both
-show and neither erases what is behind it.
+A volume does not write depth either, so two overlapping ones both show and
+neither erases what is behind it.
 
 It reads the **compiled** `.kerotex`, through the same VFS the engine uses, so
 what it shows is what the engine will draw -- including from inside a `.vault`

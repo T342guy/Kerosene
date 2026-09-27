@@ -19,6 +19,7 @@
 pub mod app;
 pub mod browse;
 pub mod brush;
+pub mod brush_edit;
 pub mod classes;
 pub mod compile;
 pub mod document;
@@ -26,7 +27,9 @@ pub mod draw;
 pub mod faces;
 pub mod files;
 pub mod gizmo;
+pub mod gpu;
 pub mod grid;
+pub mod helpers;
 pub mod icons;
 pub mod inspector;
 pub mod leak;

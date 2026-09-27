@@ -273,7 +273,7 @@ impl ChiselApp {
         let name = format!("visgroup {n}");
         let id = self.document.new_visgroup_from_selection(&name);
         self.renaming_visgroup = Some((id, name, true));
-        self.inspector_tab = InspectorTab::VisGroups;
+        self.outliner_tab = OutlinerTab::VisGroups;
         self.status = format!("new visgroup of {}", self.document.selection.len());
     }
 }

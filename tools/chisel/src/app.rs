@@ -26,7 +26,13 @@ use std::path::PathBuf;
 mod browser;
 mod compile;
 mod dialogs;
+mod hover;
+mod io;
+mod layout;
 mod menu;
+mod modelling;
+mod options_bar;
+mod outliner;
 mod panel;
 mod properties;
 mod report;
@@ -36,6 +42,9 @@ mod transform;
 mod viewports;
 mod visgroups;
 mod widgets;
+pub use hover::Hovered;
+pub use layout::LAYOUT_FILE;
+pub use modelling::{Element, SelectMode};
 pub use report::{EntityReport, ReportKind, ReportRow};
 pub use transform::{TransformDialog, TransformMode};
 
@@ -169,27 +178,65 @@ pub enum Discarding {
     Quit,
 }
 
-/// The inspector's tabs.
+/// The upper half of the right-hand dock.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
-pub enum InspectorTab {
-    /// What is selected: an entity's keys, a brush's type, a face's texture.
+pub enum OutlinerTab {
+    /// Every entity in the map, by family, with a search.
     #[default]
-    Object,
-    /// The current tool's settings: entity classes, shape sliders.
-    Tool,
-    /// The material browser, docked.
-    Materials,
+    Outliner,
     /// What is shown: the visgroup tree and the automatic groups.
     VisGroups,
 }
 
-impl InspectorTab {
-    fn from_index(index: usize) -> InspectorTab {
-        match index {
-            1 => InspectorTab::Tool,
-            2 => InspectorTab::Materials,
-            3 => InspectorTab::VisGroups,
-            _ => InspectorTab::Object,
+/// The tabs over an entity's properties.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum EntityTab {
+    /// Its keyvalues.
+    #[default]
+    Properties,
+    /// What it fires.
+    Outputs,
+    /// What fires at it.
+    Inputs,
+}
+
+/// What the dock along the bottom is showing.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum AssetsTab {
+    #[default]
+    Materials,
+    Models,
+}
+
+/// How the viewports share the middle of the window.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PaneLayout {
+    /// Four panes: 3D and three flat views.
+    Four,
+    /// Two side by side: the first two panes.
+    Two,
+    /// The active pane alone.
+    One,
+}
+
+impl PaneLayout {
+    pub fn all() -> [PaneLayout; 3] {
+        [PaneLayout::Four, PaneLayout::Two, PaneLayout::One]
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            PaneLayout::Four => "four views",
+            PaneLayout::Two => "two views",
+            PaneLayout::One => "one view",
+        }
+    }
+
+    pub fn describe(self) -> &'static str {
+        match self {
+            PaneLayout::Four => "3D and three flat views, the classic layout.",
+            PaneLayout::Two => "The first two panes side by side: the 3D view and the top view.",
+            PaneLayout::One => "The active pane, as big as the window allows.",
         }
     }
 }
@@ -222,13 +269,34 @@ pub struct ChiselApp {
     pub shading: Shading,
     /// Substring filter on the entity class list.
     pub entity_filter: String,
-    /// Which of the inspector's tabs is showing.
-    pub inspector_tab: InspectorTab,
-    /// The selection as the inspector last saw it -- solids, entities, faces
-    /// -- so it can notice a fresh selection and show the Object tab.
-    inspector_seen: (usize, usize, usize),
-    /// The tool as the inspector last saw it, for the same reason.
-    inspector_tool: ToolKind,
+    /// Which half of the outliner is showing.
+    pub outliner_tab: OutlinerTab,
+    /// What has been typed into the outliner's search.
+    pub outliner_filter: String,
+    /// Families folded shut in the outliner.
+    pub outliner_closed: std::collections::HashSet<&'static str>,
+    /// What a click with the select tool takes hold of.
+    pub select_mode: SelectMode,
+    /// The corners and edges picked in vertex and edge mode. Faces are the
+    /// document's own face selection.
+    pub elements: Vec<Element>,
+    /// A handle being dragged in a flat pane.
+    element_drag: Option<modelling::ElementDrag>,
+    /// How far the face mode's extrude grows a brush.
+    pub extrude_distance: f32,
+    /// Which of an entity's tabs the properties panel shows.
+    pub entity_tab: EntityTab,
+    /// Whether the asset browser is docked along the bottom.
+    pub show_assets: bool,
+    /// What the asset dock shows.
+    pub assets_tab: AssetsTab,
+    /// Two panes side by side, rather than four. `maximised` wins over it.
+    pub two_panes: bool,
+    /// Where the window's layout is remembered. `None` -- the default, and
+    /// always so in tests -- remembers nothing.
+    layout_file: Option<PathBuf>,
+    /// The layout as last written, so it is written only when it changes.
+    saved_layout: String,
     /// Where the pointer is in the world, and in which pane, when it is over
     /// a flat view. The status bar shows it.
     pub pointer_world: Option<(usize, Vec3)>,
@@ -284,6 +352,8 @@ pub struct ChiselApp {
     pending_visgroup_color: Option<(u32, [u8; 3])>,
     pub show_hollow: bool,
     pub show_transform: bool,
+    /// The keyboard shortcut sheet.
+    pub show_shortcuts: bool,
     /// The hollow dialog's thickness, remembered between uses.
     hollow_thickness: f32,
     /// The transform dialog's state.
@@ -307,7 +377,22 @@ pub struct ChiselApp {
     entity_hover: Option<(usize, Vec3)>,
     /// Models loaded for the placement ghost, by name. `None` remembers a
     /// failed load so it is not retried every frame the ghost is on screen.
-    ghost_models: std::collections::HashMap<String, Option<std::sync::Arc<kerosene_asset::Model>>>,
+    model_cache: std::collections::HashMap<String, Option<std::sync::Arc<kerosene_asset::Model>>>,
+    /// The format egui renders into, once the window has a GPU. `None`
+    /// draws the 3D panes with the software rasteriser instead.
+    pub gpu_target: Option<wgpu::TextureFormat>,
+    /// The GPU pane's scene, and the key it was built for.
+    scene: Option<(u64, crate::gpu::SharedScene)>,
+    /// Counts scenes built, so the renderer knows a new one from the old.
+    scene_generation: u64,
+    /// The entity helpers as last built, and the scene key they were built
+    /// for: shared by the 2D panes and the GPU scene.
+    helpers_cache: Option<(u64, std::sync::Arc<Vec<crate::helpers::Helper>>)>,
+    /// Which entity helpers the panes draw.
+    pub helper_mode: crate::helpers::HelperMode,
+    /// Bumped whenever the texture cache is emptied, so the GPU drops its
+    /// copies too.
+    texture_epoch: u64,
 }
 
 /// A rendered 3D pane and the state it was rendered from.
@@ -523,9 +608,19 @@ impl ChiselApp {
             vfs,
             shading: Shading::default(),
             entity_filter: String::new(),
-            inspector_tab: InspectorTab::Object,
-            inspector_seen: (0, 0, 0),
-            inspector_tool: ToolKind::Select,
+            outliner_tab: OutlinerTab::Outliner,
+            outliner_filter: String::new(),
+            outliner_closed: std::collections::HashSet::new(),
+            entity_tab: EntityTab::Properties,
+            select_mode: SelectMode::Object,
+            elements: Vec::new(),
+            element_drag: None,
+            extrude_distance: 64.0,
+            show_assets: false,
+            assets_tab: AssetsTab::Materials,
+            two_panes: false,
+            layout_file: None,
+            saved_layout: String::new(),
             pointer_world: None,
             content_note: String::new(),
             leak: crate::leak::LeakTrace::default(),
@@ -548,6 +643,7 @@ impl ChiselApp {
             pending_visgroup_color: None,
             show_hollow: false,
             show_transform: false,
+            show_shortcuts: false,
             hollow_thickness: 16.0,
             transform: TransformDialog::default(),
             report: EntityReport::default(),
@@ -556,27 +652,40 @@ impl ChiselApp {
             gizmo_drag: None,
             gizmo_preview: None,
             entity_hover: None,
-            ghost_models: std::collections::HashMap::new(),
+            model_cache: std::collections::HashMap::new(),
+            gpu_target: None,
+            scene: None,
+            scene_generation: 0,
+            texture_epoch: 0,
+            helper_mode: Default::default(),
+            helpers_cache: None,
         }
     }
 
     /// The model the entity tool's current class places, if it names one in
     /// the schema, loaded and cached by name.
     fn ghost_model(&mut self) -> Option<std::sync::Arc<kerosene_asset::Model>> {
-        let name = self
-            .schema
-            .get(&self.tool.entity_class)?
-            .key("model")
-            .filter(|k| k.kind == KeyKind::Model)
-            .map(|k| k.default.clone())
-            .filter(|d| !d.is_empty())?;
+        let name = self.placement_model()?;
+        self.model(&name)
+    }
 
-        if let Some(cached) = self.ghost_models.get(&name) {
+    /// A model by its path, loaded once. A failed load is remembered too, so
+    /// a missing model is not looked for again every frame it would show.
+    pub(crate) fn model(&mut self, name: &str) -> Option<std::sync::Arc<kerosene_asset::Model>> {
+        let name = crate::helpers::model_name(name);
+        if let Some(cached) = self.model_cache.get(name) {
             return cached.clone();
         }
-        let model = self.load_model(&name).map(std::sync::Arc::new);
-        self.ghost_models.insert(name, model.clone());
+        let model = self.load_model(name).map(std::sync::Arc::new);
+        self.model_cache.insert(name.to_string(), model.clone());
         model
+    }
+
+    /// Forget every loaded texture and model: the content was rebuilt.
+    pub(crate) fn forget_content(&mut self) {
+        self.textures.clear();
+        self.model_cache.clear();
+        self.texture_epoch += 1;
     }
 
     /// Class names for the entity tool, from the game's definitions.
@@ -830,9 +939,11 @@ impl ChiselApp {
         self.shortcuts(ctx);
         self.menu_bar(ctx);
         self.toolbar(ctx);
+        self.tool_options(ctx);
         self.status_bar(ctx);
         self.tool_strip(ctx);
         self.inspector(ctx);
+        self.assets_dock(ctx);
         self.compile_window(ctx);
         self.browser_window(ctx);
         self.file_windows(ctx);
@@ -840,8 +951,12 @@ impl ChiselApp {
         self.transform_window(ctx);
         self.report_window(ctx);
         self.history_window(ctx);
+        self.shortcuts_window(ctx);
         self.property_window_ui(ctx);
         self.viewports_panel(ctx);
+        // Dragged splitters and toggles land here, once a frame, and are
+        // written only when they changed.
+        self.save_layout();
     }
 
     fn shortcuts(&mut self, ctx: &Context) {
@@ -892,6 +1007,9 @@ impl ChiselApp {
             Rotate90,
             AlignToGrid,
             Report,
+            Frame,
+            Shortcuts,
+            SelectMode(SelectMode),
         }
 
         let mut actions = Vec::new();
@@ -993,6 +1111,20 @@ impl ChiselApp {
                 actions.push(Action::Properties)
             }
 
+            // Shift and a digit: what the select tool takes hold of. Read
+            // before the plain digits, which would otherwise match loosely
+            // and switch tools as well.
+            for (key, mode) in [
+                (Key::Num1, SelectMode::Object),
+                (Key::Num2, SelectMode::Vertex),
+                (Key::Num3, SelectMode::Edge),
+                (Key::Num4, SelectMode::Face),
+            ] {
+                if i.consume_key(Modifiers::SHIFT, key) {
+                    actions.push(Action::SelectMode(mode));
+                }
+            }
+
             // Tool shortcuts, as Hammer numbers them. Driven by the number
             // each tool advertises rather than by its position in the list,
             // so adding a tool in the middle cannot silently renumber the
@@ -1025,6 +1157,12 @@ impl ChiselApp {
             }
             if i.consume_key(Modifiers::SHIFT, Key::Space) {
                 actions.push(Action::Maximise)
+            }
+            if i.consume_key(Modifiers::NONE, Key::F) {
+                actions.push(Action::Frame)
+            }
+            if i.consume_key(Modifiers::NONE, Key::F1) {
+                actions.push(Action::Shortcuts)
             }
         });
 
@@ -1066,7 +1204,16 @@ impl ChiselApp {
                         self.status = format!("duplicated {n}; drag to place");
                     }
                 }
-                Action::Browse => self.browsing = Some(Browsing::Material),
+                Action::Browse => {
+                    // M shows the materials along the bottom, and hides
+                    // them again when they are already what is showing.
+                    if self.show_assets && self.assets_tab == AssetsTab::Materials {
+                        self.show_assets = false;
+                    } else {
+                        self.show_assets = true;
+                        self.assets_tab = AssetsTab::Materials;
+                    }
+                }
                 Action::Delete => {
                     let n = self.document.delete_selection();
                     if n > 0 {
@@ -1075,6 +1222,11 @@ impl ChiselApp {
                 }
                 Action::Cancel => {
                     self.tool.cancel();
+                    self.element_drag = None;
+                    if !self.elements.is_empty() {
+                        self.elements.clear();
+                        continue;
+                    }
                     // A laid clip line goes first; the selection only if
                     // there was no line to forget.
                     if self.tool.clip_line.take().is_none() {
@@ -1102,6 +1254,20 @@ impl ChiselApp {
                 Action::Rotate90 => self.rotate_90(),
                 Action::AlignToGrid => self.align_to_grid(),
                 Action::Report => self.report.open = !self.report.open,
+                Action::Frame => {
+                    self.frame_all();
+                    self.status = if self.document.selection.is_empty() {
+                        "framed everything".into()
+                    } else {
+                        "framed the selection".into()
+                    };
+                }
+                Action::Shortcuts => self.show_shortcuts = !self.show_shortcuts,
+                Action::SelectMode(mode) => {
+                    self.tool.set_kind(ToolKind::Select);
+                    self.select_mode = mode;
+                    self.status = format!("select: {}", mode.label());
+                }
                 Action::CycleTextureMode => {
                     self.tool.texture_mode = self.tool.texture_mode.next();
                     self.status = format!("texture tool: {}", self.tool.texture_mode.label());
@@ -1310,7 +1476,6 @@ mod tests {
         app.document.selection.entities.insert(b);
 
         // Drawing the tab points the buffer at both.
-        app.inspector_tab = InspectorTab::Object;
         let ctx = Context::default();
         let _ = ctx.run(egui::RawInput::default(), |ctx| app.ui(ctx));
         let edit = app.properties.as_mut().unwrap();
@@ -2500,48 +2665,167 @@ mod tests {
     // ---- the frame's furniture ------------------------------------------
 
     #[test]
-    fn every_tool_draws_its_strip_toolbar_and_inspector_tabs() {
+    fn every_tool_draws_its_strip_options_and_docks() {
         let (mut app, root) = app_in("frame-tools");
         for kind in ToolKind::all() {
             app.tool.set_kind(kind);
-            for tab in [
-                InspectorTab::Object,
-                InspectorTab::Tool,
-                InspectorTab::Materials,
-            ] {
-                app.inspector_tab = tab;
-                let output = draw_a_frame(&mut app);
-                assert!(!output.shapes.is_empty(), "{kind:?} on {tab:?}");
+            for tab in [OutlinerTab::Outliner, OutlinerTab::VisGroups] {
+                for assets in [AssetsTab::Materials, AssetsTab::Models] {
+                    app.outliner_tab = tab;
+                    app.show_assets = true;
+                    app.assets_tab = assets;
+                    let output = draw_a_frame(&mut app);
+                    assert!(!output.shapes.is_empty(), "{kind:?} on {tab:?}, {assets:?}");
+                }
             }
         }
         let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
-    fn picking_the_entity_or_shape_tool_shows_the_tool_tab() {
-        let (mut app, root) = app_in("frame-follow");
-        app.inspector_tab = InspectorTab::Materials;
-        draw_a_frame(&mut app);
-        app.tool.set_kind(ToolKind::Entity);
-        draw_a_frame(&mut app);
-        assert_eq!(app.inspector_tab, InspectorTab::Tool);
+    fn the_shortcut_sheet_agrees_with_the_tools() {
+        let (_, tools) = dialogs::SHORTCUTS[0];
+        for kind in ToolKind::all() {
+            assert!(
+                tools
+                    .iter()
+                    .any(|(key, what)| *key == kind.shortcut() && what.starts_with(kind.label())),
+                "{kind:?} is {} on the sheet",
+                kind.shortcut()
+            );
+        }
+    }
 
-        // Looking at the materials again, then selecting something, brings
-        // the Object tab up -- but only on a *fresh* selection.
-        app.inspector_tab = InspectorTab::Materials;
-        draw_a_frame(&mut app);
-        let id = app.document.create_block(Vec3::ZERO, Vec3::splat(64.0));
-        app.document.selection.solids.insert(id);
-        draw_a_frame(&mut app);
-        assert_eq!(app.inspector_tab, InspectorTab::Object);
-        app.inspector_tab = InspectorTab::Tool;
-        draw_a_frame(&mut app);
-        assert_eq!(
-            app.inspector_tab,
-            InspectorTab::Tool,
-            "left where it was put"
+    /// A button wired to a door, and a door; `door_name` is what the door
+    /// is actually called.
+    fn wired(app: &mut ChiselApp, door_name: &str) -> (u32, u32) {
+        let button = app.document.create_entity("func_button", Vec3::ZERO);
+        app.document
+            .find_entity_mut(button)
+            .unwrap()
+            .connect(kerosene_map::Connection::new("OnPressed", "door", "Open"));
+        let door = app.document.create_entity("func_door", Vec3::X * 64.0);
+        app.document
+            .find_entity_mut(door)
+            .unwrap()
+            .set("targetname", door_name);
+        (button, door)
+    }
+
+    #[test]
+    fn a_wire_to_a_name_nobody_has_is_broken_until_somebody_has_it() {
+        let (mut app, root) = app_in("io-status");
+        let (button, _) = wired(&mut app, "gate");
+        let connections = app
+            .document
+            .find_entity(button)
+            .unwrap()
+            .connections
+            .clone();
+        let io = app.io_data(button, &connections);
+        assert!(io.statuses[0].is_broken(), "{:?}", io.statuses);
+        assert!(io.targets.iter().any(|t| t == "gate"));
+        assert!(
+            io.targets.iter().any(|t| t == "!activator"),
+            "specials are offered"
         );
 
+        let (mut app, _) = app_in("io-status-ok");
+        let (button, _) = wired(&mut app, "Door");
+        let connections = app
+            .document
+            .find_entity(button)
+            .unwrap()
+            .connections
+            .clone();
+        let io = app.io_data(button, &connections);
+        assert_eq!(
+            io.statuses[0],
+            crate::wiring::Status::Ok,
+            "names ignore case"
+        );
+        assert!(
+            io.inputs_for[0].iter().any(|i| i.name == "Open"),
+            "the door's inputs are offered"
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn an_entitys_outputs_and_inputs_tabs_draw() {
+        let (mut app, root) = app_in("io-tabs");
+        let (button, door) = wired(&mut app, "door");
+        for (id, tab) in [
+            (button, EntityTab::Outputs),
+            (door, EntityTab::Inputs),
+            (door, EntityTab::Properties),
+        ] {
+            app.document.selection.clear();
+            app.document.selection.entities.insert(id);
+            app.entity_tab = tab;
+            assert!(!draw_a_frame(&mut app).shapes.is_empty(), "{tab:?}");
+            assert_eq!(app.entity_tab, tab, "the tab stays where it was put");
+        }
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn a_selected_entitys_wiring_is_drawn_both_ways() {
+        let (mut app, root) = app_in("io-lines");
+        let (button, door) = wired(&mut app, "door");
+        let lines = |app: &ChiselApp| {
+            app.entity_helpers()
+                .into_iter()
+                .filter(|h| matches!(h, crate::helpers::Helper::Lines { xray: true, .. }))
+                .count()
+        };
+        app.document.selection.clear();
+        assert_eq!(lines(&app), 0, "nothing selected, no wires");
+        app.document.selection.entities.insert(button);
+        assert_eq!(lines(&app), 1, "the button's output");
+        app.document.selection.clear();
+        app.document.selection.entities.insert(door);
+        assert_eq!(lines(&app), 1, "the door's input");
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn every_pane_layout_draws() {
+        let (mut app, root) = app_in("frame-layouts");
+        for layout in PaneLayout::all() {
+            app.set_pane_layout(layout);
+            assert_eq!(app.pane_layout(), layout);
+            assert!(!draw_a_frame(&mut app).shapes.is_empty(), "{layout:?}");
+        }
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn a_model_picked_in_the_asset_dock_arms_the_entity_tool() {
+        let (mut app, root) = app_in("frame-model-pick");
+        app.tool.entity_class = "light".into();
+        app.apply_browsed(
+            &Browsing::Model {
+                row: None,
+                current: String::new(),
+            },
+            "props/crate",
+        );
+        assert_eq!(app.tool.kind, ToolKind::Entity);
+        assert_eq!(app.tool.entity_class, "prop_static", "a light has no model");
+        assert_eq!(app.placement_model().as_deref(), Some("props/crate"));
+
+        // And what it places carries the model, as one undo step.
+        let keys = app.tool.entity_keys.clone();
+        let depth = app.document.undo_depth();
+        let id = app
+            .document
+            .create_entity_with("prop_static", Vec3::ZERO, &keys);
+        assert_eq!(app.document.undo_depth(), depth + 1);
+        assert_eq!(
+            app.document.find_entity(id).unwrap().get("model"),
+            Some("props/crate")
+        );
         let _ = std::fs::remove_dir_all(&root);
     }
 

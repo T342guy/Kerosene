@@ -175,7 +175,7 @@ impl Settings<'_> {
 
 /// A translucent preview of a model at a candidate placement point.
 ///
-/// Drawn last, through the same translucent fill [`Surface::opacity`] below
+/// Drawn last, through the same translucent fill `Surface::opacity` below
 /// 1.0 already gives a tool volume: the depth buffer is read, so real
 /// geometry occludes the ghost, but never written, so the ghost can never
 /// occlude something that is actually there.

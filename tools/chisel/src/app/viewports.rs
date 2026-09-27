@@ -25,6 +25,45 @@ impl ChiselApp {
                     return;
                 }
 
+                if self.two_panes {
+                    // Side by side, divided where the four-pane split's
+                    // vertical bar would be.
+                    self.split.x = self.split.x.clamp(0.1, 0.9);
+                    let cut = available.min.x + available.width() * self.split.x;
+                    let half = SPLITTER * 0.5;
+                    let left = egui::Rect::from_min_max(
+                        available.min,
+                        egui::pos2(cut - half, available.max.y),
+                    );
+                    let right = egui::Rect::from_min_max(
+                        egui::pos2(cut + half, available.min.y),
+                        available.max,
+                    );
+                    self.viewport_ui(ui, 0, left);
+                    self.viewport_ui(ui, 1, right);
+                    let bar = egui::Rect::from_min_max(
+                        egui::pos2(cut - half, available.min.y),
+                        egui::pos2(cut + half, available.max.y),
+                    );
+                    let response =
+                        ui.interact(bar, ui.id().with(("splitter", 0usize)), egui::Sense::drag());
+                    if response.hovered() || response.dragged() {
+                        ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeHorizontal);
+                    }
+                    if response.dragged() {
+                        self.split.x = (self.split.x
+                            + response.drag_delta().x / available.width().max(1.0))
+                        .clamp(0.1, 0.9);
+                    }
+                    let lit = response.hovered() || response.dragged();
+                    ui.painter().rect_filled(
+                        bar,
+                        0.0,
+                        if lit { colors::ACCENT } else { colors::BORDER },
+                    );
+                    return;
+                }
+
                 // Panes divide at a draggable fraction rather than at the middle.
                 // Half of laying out a level is looking at one view closely and
                 // the others only for reference.
@@ -140,6 +179,7 @@ impl ChiselApp {
         }
 
         if kind.is_2d() {
+            let helpers = self.cached_helpers();
             let entity_ghost = self
                 .entity_hover
                 .filter(|(i, _)| *i == index)
@@ -152,10 +192,15 @@ impl ChiselApp {
                 &self.tool,
                 &self.leak,
                 entity_ghost,
+                &draw::Helpers2d {
+                    helpers: &helpers,
+                    model_bounds: &|path| self.loaded_model_bounds(path),
+                },
             );
         } else {
             self.draw_preview(ui, &painter, index, body);
         }
+        self.draw_handles(&painter, index, body);
 
         self.pane_header(ui, index, header);
 
@@ -196,6 +241,19 @@ impl ChiselApp {
             self.pointer_world = Some((index, world));
         } else if self.pointer_world.is_some_and(|(i, _)| i == index) && !response.hovered() {
             self.pointer_world = None;
+        }
+
+        // The card for what the pointer rests on. Only while nothing is
+        // being dragged or placed: a card over a drag is in the way.
+        let pointer_busy = ui.input(|i| i.pointer.any_down());
+        if matches!(self.tool.kind, ToolKind::Select | ToolKind::Texture)
+            && !pointer_busy
+            && let Some(pos) = response.hover_pos()
+            && let Some(hovered) = self.hovered_at(index, pos.x - body.min.x, pos.y - body.min.y)
+        {
+            response
+                .clone()
+                .on_hover_ui_at_pointer(|ui| self.hover_card(ui, hovered));
         }
 
         self.viewport_input(index, body, &response, ui);
@@ -397,31 +455,88 @@ impl ChiselApp {
         if !add {
             self.document.selection.clear();
         }
-        let picked = crate::tools::pick_3d(&self.document, origin, direction);
-        if let Some(crate::tools::Picked::Mesh(id)) = picked {
-            self.document.selection.meshes.insert(id);
-            self.document.expand_selection_groups();
-            return;
-        }
-        if let Some(crate::tools::Picked::Solid(id)) = picked {
-            // Clicking a brush that belongs to an entity selects the entity:
-            // that is the thing a designer thinks of as the door. Same rule
-            // the 2D views follow.
-            let owner = self
-                .document
-                .map
-                .all_solids()
-                .find(|(_, s)| s.id == id)
-                .map(|(e, _)| (e.id, e.is_brush_entity() && e.classname() != "worldspawn"));
-            match owner {
-                Some((entity, true)) => {
-                    self.document.selection.entities.insert(entity);
+        let entity_box = |e: &kerosene_map::Entity| self.entity_box(e);
+        let hit = crate::tools::hit_3d(&self.document, origin, direction, &entity_box);
+        match hit.map(|(_, h)| h) {
+            Some(crate::tools::Hit::Entity(id)) => {
+                // Shift-clicking a selected entity takes it back out, as a
+                // brush does.
+                if add && self.document.selection.entities.contains(&id) {
+                    self.document.selection.entities.remove(&id);
+                } else {
+                    self.document.selection.entities.insert(id);
                 }
-                _ => {
-                    self.document.selection.solids.insert(id);
+                if double {
+                    self.open_property_window();
                 }
             }
-            self.document.expand_selection_groups();
+            Some(crate::tools::Hit::Mesh(id)) => {
+                self.document.selection.meshes.insert(id);
+                self.document.expand_selection_groups();
+            }
+            Some(crate::tools::Hit::Face { solid: id, .. }) => {
+                // Clicking a brush that belongs to an entity selects the
+                // entity: that is the thing a designer thinks of as the
+                // door. Same rule the 2D views follow.
+                let owner = self
+                    .document
+                    .map
+                    .all_solids()
+                    .find(|(_, s)| s.id == id)
+                    .map(|(e, _)| (e.id, e.is_brush_entity() && e.classname() != "worldspawn"));
+                match owner {
+                    Some((entity, true)) => {
+                        self.document.selection.entities.insert(entity);
+                    }
+                    _ => {
+                        self.document.selection.solids.insert(id);
+                    }
+                }
+                self.document.expand_selection_groups();
+                if double {
+                    self.open_property_window();
+                }
+            }
+            None => {}
+        }
+    }
+
+    /// The box a point entity is picked by: its model's, posed, or its
+    /// marker's.
+    pub(super) fn entity_box(&self, entity: &kerosene_map::Entity) -> kerosene_math::Aabb {
+        let model = crate::helpers::entity_model(entity, self.schema.get(entity.classname()))
+            .and_then(|path| self.loaded_model_bounds(&path));
+        match model {
+            Some(bounds) if !bounds.is_empty() => crate::gpu::scene::transformed_bounds(
+                &bounds,
+                &kerosene_math::Pose::new(entity.origin(), entity.angles()),
+            ),
+            _ => kerosene_math::Aabb::from_center_half(
+                entity.origin(),
+                Vec3::splat(crate::gpu::scene::MARKER_HALF),
+            ),
+        }
+    }
+
+    /// What the pointer is over in a pane, if anything.
+    pub(super) fn hovered_at(&self, index: usize, x: f32, y: f32) -> Option<Hovered> {
+        let viewport = &self.viewports[index];
+        if viewport.kind.is_2d() {
+            let point = viewport.screen_to_world(x, y, 0.0);
+            if let Some(id) = crate::tools::pick_entity_2d(&self.document, point, viewport) {
+                return Some(Hovered::Entity(id));
+            }
+            return match crate::tools::pick_2d(&self.document, point, viewport)? {
+                crate::tools::Picked::Solid(id) => Some(Hovered::Solid(id)),
+                crate::tools::Picked::Mesh(id) => Some(Hovered::Mesh(id)),
+            };
+        }
+        let (origin, direction) = viewport.pick_ray(x, y);
+        let entity_box = |e: &kerosene_map::Entity| self.entity_box(e);
+        match crate::tools::hit_3d(&self.document, origin, direction, &entity_box)?.1 {
+            crate::tools::Hit::Entity(id) => Some(Hovered::Entity(id)),
+            crate::tools::Hit::Face { solid, side } => Some(Hovered::Face { solid, side }),
+            crate::tools::Hit::Mesh(id) => Some(Hovered::Mesh(id)),
         }
     }
 
@@ -531,6 +646,14 @@ impl ChiselApp {
     ) {
         // Render at device resolution so the pane is not soft on a high-DPI
         // screen, but cap it: past a point this is work nobody can see.
+        if let Some(target) = self.gpu_target {
+            self.draw_gpu_pane(ui, painter, index, rect, target);
+            self.draw_drag_ghost(painter, index, rect);
+            self.draw_gizmo(painter, index, rect);
+            self.draw_leak_3d(painter, index, rect);
+            return;
+        }
+
         const MAX_EDGE: f32 = 1920.0;
         let scale = ui.ctx().pixels_per_point();
         let width = (rect.width() * scale).round().clamp(1.0, MAX_EDGE) as usize;
@@ -618,6 +741,247 @@ impl ChiselApp {
         self.draw_drag_ghost(painter, index, rect);
         self.draw_gizmo(painter, index, rect);
         self.draw_leak_3d(painter, index, rect);
+    }
+
+    /// What the GPU scene depends on, other than the camera.
+    fn scene_key(&self) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        self.document.revision().hash(&mut hasher);
+        let selection = &self.document.selection;
+        let mut ids: Vec<u32> = selection.solids.iter().copied().collect();
+        ids.push(u32::MAX);
+        ids.extend(selection.entities.iter().copied());
+        ids.push(u32::MAX);
+        ids.extend(selection.meshes.iter().copied());
+        ids[..].sort_unstable();
+        ids.hash(&mut hasher);
+        let mut faces: Vec<(u32, u32)> = selection.faces.iter().copied().collect();
+        faces.sort_unstable();
+        faces.hash(&mut hasher);
+        (self.shading as u8).hash(&mut hasher);
+        (self.helper_mode as u8).hash(&mut hasher);
+        self.textures.len().hash(&mut hasher);
+        self.texture_epoch.hash(&mut hasher);
+        if self.tool.kind == ToolKind::Entity
+            && let Some((_, point)) = self.entity_hover
+        {
+            self.tool.entity_class.hash(&mut hasher);
+            self.tool.entity_keys.hash(&mut hasher);
+            for c in [point.x, point.y, point.z] {
+                c.to_bits().hash(&mut hasher);
+            }
+        }
+        hasher.finish()
+    }
+
+    /// The scene every GPU pane draws, rebuilt only when it would differ.
+    pub fn shared_scene(&mut self) -> crate::gpu::SharedScene {
+        let key = self.scene_key();
+        if let Some((built, scene)) = &self.scene
+            && *built == key
+        {
+            return scene.clone();
+        }
+
+        let mut helpers: Vec<crate::helpers::Helper> = self.cached_helpers().as_ref().clone();
+        if self.tool.kind == ToolKind::Entity
+            && let Some((_, point)) = self.entity_hover
+            && let Some(path) = self.placement_model()
+        {
+            helpers.push(crate::helpers::Helper::Model {
+                owner: None,
+                path: crate::helpers::model_name(&path).to_string(),
+                pose: kerosene_math::Pose::new(point, kerosene_math::Angles::ZERO),
+                selected: false,
+                // Half-solid: enough to read the shape, not so much it is
+                // mistaken for something already placed.
+                opacity: 0.5,
+            });
+        }
+
+        // Models are loaded up front: the loader needs the whole editor,
+        // and the scene builder is holding the document.
+        let mut models = std::collections::HashMap::new();
+        for helper in &helpers {
+            if let crate::helpers::Helper::Model { path, .. } = helper
+                && !models.contains_key(path)
+                && let Some(model) = self.model(path)
+            {
+                models.insert(path.clone(), model);
+            }
+        }
+
+        let vfs = &self.vfs;
+        let cache = &mut self.textures;
+        let mut textures = move |material: &str| cache.get(vfs, material);
+        let mut find_model = |path: &str| models.get(path).cloned();
+        let scene = crate::gpu::scene::build(
+            &self.document,
+            &helpers,
+            &mut crate::gpu::scene::Options {
+                shading: self.shading,
+                textures: Some(&mut textures),
+                models: Some(&mut find_model),
+            },
+        );
+        self.scene_generation += 1;
+        let shared = crate::gpu::SharedScene {
+            generation: self.scene_generation,
+            scene: std::sync::Arc::new(scene),
+            texture_epoch: self.texture_epoch,
+        };
+        self.scene = Some((key, shared.clone()));
+        shared
+    }
+
+    /// [`Self::entity_helpers`], rebuilt only when the scene would be --
+    /// and with every model they name loaded, so a 2D pane can outline it.
+    pub(super) fn cached_helpers(&mut self) -> std::sync::Arc<Vec<crate::helpers::Helper>> {
+        let key = self.scene_key();
+        if let Some((built, helpers)) = &self.helpers_cache
+            && *built == key
+        {
+            return helpers.clone();
+        }
+        let helpers = std::sync::Arc::new(self.entity_helpers());
+        for helper in helpers.iter() {
+            if let crate::helpers::Helper::Model { path, .. } = helper {
+                let _ = self.model(path);
+            }
+        }
+        self.helpers_cache = Some((key, helpers.clone()));
+        helpers
+    }
+
+    /// The bounds of a model already loaded, without loading it.
+    pub(super) fn loaded_model_bounds(&self, path: &str) -> Option<kerosene_math::Aabb> {
+        self.model_cache
+            .get(crate::helpers::model_name(path))?
+            .as_ref()
+            .map(|m| m.bounds)
+    }
+
+    /// The model the entity tool would place: one picked from the asset
+    /// browser, or the class's own.
+    pub(super) fn placement_model(&self) -> Option<String> {
+        if let Some((_, model)) = self.tool.entity_keys.iter().find(|(k, _)| k == "model") {
+            return Some(crate::helpers::model_name(model).to_string());
+        }
+        self.schema
+            .get(&self.tool.entity_class)?
+            .key("model")
+            .filter(|k| k.kind == KeyKind::Model)
+            .map(|k| k.default.clone())
+            .filter(|d| !d.trim().is_empty())
+            .map(|d| crate::helpers::model_name(&d).to_string())
+    }
+
+    /// What every visible entity draws besides its marker: models always,
+    /// cones and radii as the helper mode says.
+    pub(super) fn entity_helpers(&self) -> Vec<crate::helpers::Helper> {
+        let names = crate::helpers::named_positions(&self.document.map.entities);
+        let targets = |name: &str| crate::helpers::lookup(&names, name);
+        let mut helpers = Vec::new();
+        for entity in &self.document.map.entities {
+            if entity.classname() == "worldspawn" || !self.document.entity_visible(entity) {
+                continue;
+            }
+            let selected = self.document.selection.entities.contains(&entity.id);
+            let extras = match self.helper_mode {
+                crate::helpers::HelperMode::All => true,
+                crate::helpers::HelperMode::Selected => selected,
+                crate::helpers::HelperMode::None => false,
+            };
+            helpers.extend(crate::helpers::for_entity(
+                entity,
+                self.schema.get(entity.classname()),
+                crate::helpers::entity_centre(entity),
+                selected,
+                extras,
+                &targets,
+            ));
+            if selected && self.helper_mode != crate::helpers::HelperMode::None {
+                helpers.extend(self.wiring_lines(entity, &names));
+            }
+        }
+        helpers
+    }
+
+    /// The selected entity's wiring, drawn: green to what its outputs fire
+    /// at, red where one fires at something without that input, blue from
+    /// whatever fires at it.
+    fn wiring_lines(
+        &self,
+        entity: &kerosene_map::Entity,
+        names: &std::collections::HashMap<String, Vec<Vec3>>,
+    ) -> Vec<crate::helpers::Helper> {
+        use kerosene_toolui::theme::colors;
+        let entities = &self.document.map.entities;
+        let centre = crate::helpers::entity_centre(entity);
+        let mut out = Vec::new();
+        for connection in &entity.connections {
+            let status = crate::wiring::validate(entity, connection, entities, &self.schema);
+            let colour = if status.is_broken() {
+                colors::ERR
+            } else {
+                colors::OK
+            };
+            for to in crate::helpers::lookup(names, &connection.target) {
+                if to.distance(centre) > 0.5 {
+                    out.push(crate::helpers::wire(centre, to, colour));
+                }
+            }
+        }
+        for (source, _) in crate::wiring::inputs_to(entities, entity) {
+            if source == entity.id {
+                continue;
+            }
+            if let Some(from) = entities.iter().find(|e| e.id == source) {
+                out.push(crate::helpers::wire(
+                    crate::helpers::entity_centre(from),
+                    centre,
+                    colors::INFO,
+                ));
+            }
+        }
+        out
+    }
+
+    /// A 3D pane, drawn by the GPU inside egui's own pass.
+    fn draw_gpu_pane(
+        &mut self,
+        ui: &egui::Ui,
+        painter: &egui::Painter,
+        index: usize,
+        rect: egui::Rect,
+        target: wgpu::TextureFormat,
+    ) {
+        let scene = self.shared_scene();
+        let scale = ui.ctx().pixels_per_point();
+        let size = [
+            (rect.width() * scale).round().max(1.0) as u32,
+            (rect.height() * scale).round().max(1.0) as u32,
+        ];
+        let viewport = &self.viewports[index];
+        let camera = crate::gpu::CameraUniform::new(
+            viewport.eye,
+            viewport.angles.vectors(),
+            viewport.fov,
+            rect.width() / rect.height().max(1.0),
+        );
+        let background = crate::gpu::scene::linear(crate::draw::colors::BACKGROUND);
+        painter.add(egui_wgpu::Callback::new_paint_callback(
+            rect,
+            crate::gpu::PaneCallback {
+                pane: index,
+                size,
+                camera,
+                scene,
+                target,
+                background: [background[0], background[1], background[2]],
+            },
+        ));
     }
 
     /// The move/rotate gizmo over the selection, in the 3D pane.
@@ -921,6 +1285,12 @@ impl ChiselApp {
             self.fly(index, response, ui);
         }
 
+        // Corner, edge and face handles come before the tool: a click on
+        // one is a click on it, not on the brush behind it.
+        if self.element_input(index, rect, response, ui) {
+            return;
+        }
+
         if !kind.is_2d() {
             // The 3D pane otherwise picks but does not drag geometry: a free
             // drag has no unambiguous depth. An axis or a rotation plane
@@ -935,7 +1305,8 @@ impl ChiselApp {
                     && hover_index == index
                 {
                     let class = self.tool.entity_class.clone();
-                    self.document.create_entity(&class, point);
+                    let keys = self.tool.entity_keys.clone();
+                    self.document.create_entity_with(&class, point, &keys);
                     self.status = format!("placed {class}");
                 }
                 return;
@@ -981,7 +1352,24 @@ impl ChiselApp {
             let add = ui.input(|i| i.modifiers.shift);
             if let Some(action) = self.tool.release(add) {
                 let viewport = self.viewports[index].clone();
-                draw::apply_action(&mut self.document, &viewport, action);
+                match action {
+                    // Placed with whatever keys the tool carries -- a model
+                    // picked in the asset browser.
+                    crate::tools::ToolAction::CreateEntity(class, at)
+                        if !self.tool.entity_keys.is_empty() =>
+                    {
+                        let keys = self.tool.entity_keys.clone();
+                        self.document.create_entity_with(&class, at, &keys);
+                    }
+                    action => draw::apply_action(&mut self.document, &viewport, action),
+                }
+            }
+            // A double-click opens what it selected, as in the 3D pane.
+            if response.double_clicked()
+                && self.tool.kind == ToolKind::Select
+                && !self.document.selection.is_empty()
+            {
+                self.open_property_window();
             }
         }
     }

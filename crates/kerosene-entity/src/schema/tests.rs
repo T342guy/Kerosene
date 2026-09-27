@@ -262,3 +262,57 @@ fn a_schema_parsed_after_another_inherits_its_bases() {
         Schema::parse_after(r#"class { "name" "npc_dog" "base" "Point" }"#, Some(&all)).unwrap();
     assert!(mod_.get("npc_dog").unwrap().key("origin").is_some());
 }
+
+#[test]
+fn helpers_are_read_with_their_parameters() {
+    let schema = Schema::parse(
+        r#"
+class {
+    "name" "ambient_generic"
+    helper { "type" "sphere" "radius" "radius" "color" "120 230 220" }
+    helper { "type" "Direction" }
+}
+"#,
+    )
+    .unwrap();
+    let helpers = &schema.get("ambient_generic").unwrap().helpers;
+    assert_eq!(helpers.len(), 2);
+    assert_eq!(helpers[0].kind, HelperKind::Sphere);
+    assert_eq!(helpers[0].param("radius"), Some("radius"));
+    assert_eq!(helpers[0].param("COLOR"), Some("120 230 220"));
+    assert_eq!(
+        helpers[0].param("type"),
+        None,
+        "the type is not a parameter"
+    );
+    assert_eq!(helpers[1].kind, HelperKind::Direction);
+}
+
+#[test]
+fn helpers_are_inherited_and_a_classes_own_replaces_its_bases() {
+    let schema = Schema::parse(
+        r#"
+base  { "name" "Aimed" helper { "type" "direction" "length" "48" } helper { "type" "line" } }
+class { "name" "point_camera" "base" "Aimed" helper { "type" "direction" "length" "128" } }
+"#,
+    )
+    .unwrap();
+    let helpers = &schema.get("point_camera").unwrap().helpers;
+    assert_eq!(helpers.len(), 2);
+    let direction = helpers
+        .iter()
+        .find(|h| h.kind == HelperKind::Direction)
+        .unwrap();
+    assert_eq!(direction.param("length"), Some("128"));
+}
+
+#[test]
+fn an_unknown_helper_is_an_error_that_names_the_class() {
+    let error = Schema::parse(r#"class { "name" "light_spot" helper { "type" "lightcoen" } }"#)
+        .unwrap_err()
+        .to_string();
+    assert!(
+        error.contains("light_spot") && error.contains("lightcoen"),
+        "{error}"
+    );
+}

@@ -11,6 +11,56 @@ with what to do about them.
 
 ## [Unreleased]
 
+### Added
+- Chisel's 3D view renders on the GPU, through a paint callback in the
+  toolset's own window: it keeps up with a whole level while flying, props
+  are drawn as their models, and a selection is outlined faintly through
+  walls. The software rasteriser remains for tests and thumbnails.
+- Entity helpers, declared in a `.kerodef` with `helper { "type" ... }`:
+  `model`, `lightradius`, `lightcone`, `sphere`, `frustum`, `direction`,
+  `line` and `rect`, drawn in the 3D and flat views for the selection, every
+  entity, or none. The stock classes declare theirs -- light cones and
+  radii, sound radii, panel rectangles, facing arrows. `ClassSpec::helpers`,
+  `HelperSpec` and `HelperKind` in `kerosene::entity::schema`.
+- Chisel's layout follows Hammer 5: a toolbar for what applies everywhere,
+  an options bar for the tool in hand, an outliner above the properties, and
+  the asset browser docked along the bottom -- whose Models tab arms the
+  entity tool with the model clicked. One, two or four views. The layout is
+  remembered between sessions (`chisel.layout` in the user data directory).
+- Hover cards in every view: what an entity is, its name, keys and wiring;
+  a brush's size and the face's material.
+- Entities can be picked in the 3D view (they could not be), and a
+  double-click opens the properties of what it selected.
+- Entity I/O in Hammer's form: an Outputs list with a green, yellow or red
+  light on every connection saying whether it will do anything and why, a
+  form for the picked one that offers the target's actual inputs with their
+  help, copy and paste of connections, and an Inputs tab listing everything
+  that fires at the entity. The selected entity's wiring is drawn in the
+  views. `Map → Check for problems` lists every broken wire.
+- Brush modelling: the select tool's vertex, edge and face modes
+  (`Shift+2`..`Shift+4`), with handles dragged in the flat views, extrude,
+  and merge; an edit that would make a brush concave is refused with the
+  reason. `F` frames the selection; `F1` shows every shortcut.
+- `kerosene_toolui::App::gpu_ready`, telling an app the window has a GPU and
+  what egui renders into.
+- Chisel examples `gpu_shot` and `ui_shot`: the GPU 3D view, and the whole
+  editor window, rendered off screen to a PNG.
+
+### Changed
+- **Breaking:** `kerosene::entity::schema::ClassSpec` has a `helpers` field,
+  so a `ClassSpec` built with a struct literal needs `..Default::default()`.
+- Chisel's inspector tabs are gone: tool settings moved to the options bar,
+  materials to the asset dock, visgroups beside the outliner. `M` shows the
+  asset dock rather than a window.
+- The old "when this happens, do, then" wiring editor is replaced by the
+  Outputs list and form.
+- Entity names are written beside their icons in the flat views only when
+  zoomed in far enough to read, or when selected.
+
+### Fixed
+- Chisel matched output targets to entity names case-sensitively when
+  offering inputs; the engine does not, and neither does the editor now.
+
 ## [1.0.0-a3] - 2026-09-26
 
 ### Added

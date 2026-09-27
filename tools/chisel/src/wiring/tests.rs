@@ -148,3 +148,125 @@ fn every_opposite_is_mutual() {
         assert_eq!(opposite_of(other), Some(name), "{name} <-> {other}");
     }
 }
+
+// ---- validation and inputs --------------------------------------------
+
+fn schema() -> kerosene_entity::Schema {
+    kerosene_entity::Schema::parse(
+        r#"
+class { "name" "func_button" output { "name" "OnPressed" } }
+class { "name" "func_door" input { "name" "Open" } input { "name" "Close" } }
+"#,
+    )
+    .unwrap()
+}
+
+fn named(id: u32, class: &str, name: &str) -> kerosene_map::Entity {
+    let mut e = kerosene_map::Entity::new(id, class);
+    e.set("targetname", name);
+    e
+}
+
+#[test]
+fn a_connection_to_a_door_that_opens_is_fine() {
+    let button = kerosene_map::Entity::new(1, "func_button");
+    let door = named(2, "func_door", "Door");
+    let c = Connection::new("OnPressed", "door", "Open");
+    assert_eq!(
+        validate(&button, &c, &[button.clone(), door], &schema()),
+        Status::Ok
+    );
+}
+
+#[test]
+fn each_way_a_connection_can_do_nothing_is_named() {
+    let button = kerosene_map::Entity::new(1, "func_button");
+    let door = named(2, "func_door", "door");
+    let entities = [button.clone(), door];
+    let check = |c: Connection| validate(&button, &c, &entities, &schema());
+    let broken = |c: Connection| match check(c) {
+        Status::Broken(why) => why,
+        other => panic!("{other:?}"),
+    };
+    assert!(
+        broken(Connection::new("OnPressed", "gate", "Open")).contains("no entity is called gate")
+    );
+    assert!(broken(Connection::new("OnPressed", "door", "Explode")).contains("no input Explode"));
+    assert!(broken(Connection::new("OnHeld", "door", "Open")).contains("never fires OnHeld"));
+    assert!(broken(Connection::new("OnPressed", "", "Open")).contains("no target"));
+    assert!(broken(Connection::new("OnPressed", "door", "")).contains("no input"));
+    assert!(broken(Connection::new("OnPressed", "do*", "Open")).contains("no wildcards"));
+}
+
+#[test]
+fn the_activator_is_checked_only_as_far_as_it_can_be() {
+    let button = kerosene_map::Entity::new(1, "func_button");
+    let entities = [button.clone()];
+    let c = Connection::new("OnPressed", "!activator", "Open");
+    assert!(matches!(
+        validate(&button, &c, &entities, &schema()),
+        Status::Runtime(_)
+    ));
+    let c = Connection::new("OnPressed", "!activator", "Fly");
+    assert!(validate(&button, &c, &entities, &schema()).is_broken());
+}
+
+#[test]
+fn self_is_this_entity_and_is_checked_like_a_name() {
+    let door = named(2, "func_door", "door");
+    let mut schema = schema();
+    schema.merge(
+        kerosene_entity::Schema::parse(
+            r#"class { "name" "func_door" input { "name" "Open" } output { "name" "OnOpen" } }"#,
+        )
+        .unwrap(),
+    );
+    let c = Connection::new("OnOpen", "!self", "Open");
+    assert_eq!(
+        validate(&door, &c, std::slice::from_ref(&door), &schema),
+        Status::Ok
+    );
+    let c = Connection::new("OnOpen", "!self", "Press");
+    assert!(validate(&door, &c, std::slice::from_ref(&door), &schema).is_broken());
+}
+
+#[test]
+fn a_class_with_no_definition_is_taken_on_trust() {
+    let button = kerosene_map::Entity::new(1, "mod_button");
+    let thing = named(2, "mod_thing", "thing");
+    let c = Connection::new("OnWhatever", "thing", "Anything");
+    assert_eq!(
+        validate(&button, &c, &[button.clone(), thing], &schema()),
+        Status::Ok
+    );
+}
+
+#[test]
+fn inputs_are_every_connection_that_fires_at_an_entity() {
+    let mut a = kerosene_map::Entity::new(1, "func_button");
+    a.connect(Connection::new("OnPressed", "DOOR", "Open"));
+    a.connect(Connection::new("OnPressed", "light", "TurnOn"));
+    let mut b = kerosene_map::Entity::new(3, "trigger_once");
+    b.connect(Connection::new("OnTrigger", "door", "Close"));
+    let door = named(2, "func_door", "door");
+    let mut selfish = named(4, "func_door", "other");
+    selfish.connect(Connection::new("OnOpen", "!self", "Close"));
+    let entities = [a, door.clone(), b, selfish.clone()];
+    assert_eq!(inputs_to(&entities, &door), vec![(1, 0), (3, 0)]);
+    assert_eq!(inputs_to(&entities, &selfish), vec![(4, 0)]);
+}
+
+#[test]
+fn a_maps_broken_wires_are_listed_by_the_entity_they_are_on() {
+    let mut button = named(1, "func_button", "switch");
+    button.connect(Connection::new("OnPressed", "door", "Open"));
+    button.connect(Connection::new("OnPressed", "nowhere", "Open"));
+    let door = named(2, "func_door", "door");
+    let problems = broken_wires(&[button, door], &schema());
+    assert_eq!(problems.len(), 1, "{problems:?}");
+    assert!(
+        problems[0].contains("`switch`") && problems[0].contains("nowhere"),
+        "{}",
+        problems[0]
+    );
+}

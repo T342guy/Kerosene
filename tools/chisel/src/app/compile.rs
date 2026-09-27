@@ -34,7 +34,7 @@ impl ChiselApp {
         // the editor started. Without this the pane keeps drawing the flat
         // fallback until someone restarts, which looks exactly like the
         // compile having done nothing.
-        self.textures.clear();
+        self.forget_content();
         self.thumbnails.clear();
         self.model_previews.clear();
         self.materials = scan_materials(&self.content_root);

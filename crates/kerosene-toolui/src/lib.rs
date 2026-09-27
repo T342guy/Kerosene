@@ -83,6 +83,17 @@ pub trait App {
     fn wants_to_quit(&self) -> bool {
         false
     }
+
+    /// The window has a GPU, and egui renders into `target`.
+    ///
+    /// Called once, before the first frame. An app that draws with the
+    /// device itself -- through an [`egui_wgpu::Callback`], which this host
+    /// runs -- needs the format its pipelines must write, and to know that
+    /// the callbacks will run at all: without this call they never do, and
+    /// an app should keep drawing the way it would with no GPU.
+    fn gpu_ready(&mut self, target: wgpu::TextureFormat) {
+        let _ = target;
+    }
 }
 
 /// Open a window and run `app` in it until it is closed.
@@ -130,7 +141,10 @@ impl ApplicationHandler for Host {
             return;
         }
         match pollster::block_on(create_gfx(event_loop, &self.initial_title, self.size)) {
-            Ok(gfx) => self.gfx = Some(gfx),
+            Ok(gfx) => {
+                self.app.gpu_ready(gfx.config.format);
+                self.gfx = Some(gfx);
+            }
             Err(e) => {
                 log::error!("could not open a window: {e}");
                 event_loop.exit();

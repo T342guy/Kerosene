@@ -320,7 +320,11 @@ pub fn target_names(document: &Document) -> Vec<String> {
 pub fn inputs_for_target(schema: &Schema, document: &Document, target: &str) -> Vec<String> {
     let mut inputs: Vec<String> = Vec::new();
     for entity in document.map.all_entities() {
-        if entity.targetname() != Some(target) {
+        // Ignoring case, as the engine matches names.
+        if !entity
+            .targetname()
+            .is_some_and(|name| name.trim().eq_ignore_ascii_case(target.trim()))
+        {
             continue;
         }
         let Some(spec) = schema.get(entity.classname()) else {

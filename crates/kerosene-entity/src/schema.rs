@@ -52,6 +52,10 @@ pub enum SchemaError {
     UnknownKeyType(String),
     #[error("`{0}` is not a class kind (expected point, brush or any)")]
     UnknownKind(String),
+    #[error(
+        "`{0}` is not a helper type (expected model, lightradius, lightcone, sphere, frustum, direction, line or rect)"
+    )]
+    UnknownHelper(String),
     /// Any of the above, with the class it happened in. A schema is hundreds
     /// of classes; "`strng` is not a key type" is a search, "in class
     /// `func_door`: ..." is a fix.
@@ -196,6 +200,95 @@ pub struct IoSpec {
     pub parameter: Option<String>,
 }
 
+/// What kind of thing an editor draws for an entity, besides its marker.
+///
+/// Hammer's FGD calls these helpers: `studio()`, `lightcone()`, `sphere()`
+/// and friends. They change nothing in the game; they are how a level stays
+/// readable when it is full of entities.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[non_exhaustive]
+pub enum HelperKind {
+    /// The entity's model, where it stands. Parameter `key`: which key holds
+    /// the model (default `model`).
+    Model,
+    /// How far a light reaches: two spheres, where it lights a surface fully
+    /// and where it stops being worth tracing. Reads `_light` and the three
+    /// `_*_attn` keys, as Radiance does.
+    LightRadius,
+    /// Where a spot light shines: a cone along its angles, from `_cone` and
+    /// `_inner_cone`, honouring the `pitch` override.
+    LightCone,
+    /// A sphere. Parameters `radius` (a key name or a number) and `color`.
+    Sphere,
+    /// What a camera sees: a pyramid along its angles. Parameters `fov`
+    /// (default 90) and `length` (default 256).
+    Frustum,
+    /// An arrow along the entity's angles. Parameter `length` (default 48).
+    Direction,
+    /// A line to every entity named by a key. Parameter `key` (default
+    /// `target`).
+    Line,
+    /// A flat rectangle facing along the entity's angles, for a panel or a
+    /// decal. Parameters `width` and `height`.
+    Rect,
+}
+
+impl HelperKind {
+    fn parse(s: &str) -> Result<HelperKind, SchemaError> {
+        match s.trim().to_ascii_lowercase().as_str() {
+            "model" | "studio" => Ok(HelperKind::Model),
+            "lightradius" | "light" => Ok(HelperKind::LightRadius),
+            "lightcone" => Ok(HelperKind::LightCone),
+            "sphere" => Ok(HelperKind::Sphere),
+            "frustum" => Ok(HelperKind::Frustum),
+            "direction" | "arrow" => Ok(HelperKind::Direction),
+            "line" => Ok(HelperKind::Line),
+            "rect" => Ok(HelperKind::Rect),
+            other => Err(SchemaError::UnknownHelper(other.to_string())),
+        }
+    }
+
+    pub fn name(self) -> &'static str {
+        match self {
+            HelperKind::Model => "model",
+            HelperKind::LightRadius => "lightradius",
+            HelperKind::LightCone => "lightcone",
+            HelperKind::Sphere => "sphere",
+            HelperKind::Frustum => "frustum",
+            HelperKind::Direction => "direction",
+            HelperKind::Line => "line",
+            HelperKind::Rect => "rect",
+        }
+    }
+}
+
+/// One helper on a class, with its parameters as the schema wrote them.
+///
+/// A numeric parameter may name a key or be a number: `"radius" "radius"`
+/// reads the entity's own `radius`, `"radius" "256"` is always 256.
+#[derive(Clone, Debug, PartialEq)]
+pub struct HelperSpec {
+    pub kind: HelperKind,
+    pub params: Vec<(String, String)>,
+}
+
+impl HelperSpec {
+    pub fn new(kind: HelperKind) -> HelperSpec {
+        HelperSpec {
+            kind,
+            params: Vec::new(),
+        }
+    }
+
+    /// A parameter's raw value.
+    pub fn param(&self, name: &str) -> Option<&str> {
+        self.params
+            .iter()
+            .find(|(k, _)| k.eq_ignore_ascii_case(name))
+            .map(|(_, v)| v.as_str())
+    }
+}
+
 /// Everything an editor knows about one class.
 #[derive(Clone, Debug, Default)]
 pub struct ClassSpec {
@@ -205,6 +298,9 @@ pub struct ClassSpec {
     pub keys: Vec<KeySpec>,
     pub inputs: Vec<IoSpec>,
     pub outputs: Vec<IoSpec>,
+    /// What an editor draws for it: its model, a light's cone, a sound's
+    /// radius. Inherited from bases, like keys.
+    pub helpers: Vec<HelperSpec>,
 }
 
 impl ClassSpec {
@@ -272,6 +368,7 @@ impl Schema {
             let mut keys = Vec::new();
             let mut inputs = Vec::new();
             let mut outputs = Vec::new();
+            let mut helpers = Vec::new();
             for base_name in block.get_all("base") {
                 let base = bases.get(&base_name.to_ascii_lowercase()).ok_or_else(|| {
                     SchemaError::UnknownBase {
@@ -282,15 +379,21 @@ impl Schema {
                 keys.extend(base.keys.iter().cloned());
                 inputs.extend(base.inputs.iter().cloned());
                 outputs.extend(base.outputs.iter().cloned());
+                helpers.extend(base.helpers.iter().cloned());
             }
             // A class redefining an inherited key wins: the base supplies the
             // common case and the class narrows it.
             merge_keys(&mut keys, std::mem::take(&mut spec.keys));
             merge_io(&mut inputs, std::mem::take(&mut spec.inputs));
             merge_io(&mut outputs, std::mem::take(&mut spec.outputs));
+            // A class's own helper of a kind replaces an inherited one.
+            let own = std::mem::take(&mut spec.helpers);
+            helpers.retain(|h: &HelperSpec| !own.iter().any(|o| o.kind == h.kind));
+            helpers.extend(own);
             spec.keys = keys;
             spec.inputs = inputs;
             spec.outputs = outputs;
+            spec.helpers = helpers;
 
             schema.push(spec);
         }
@@ -524,6 +627,22 @@ fn parse_class_body(
                 parameter: io_block.get("parameter").map(str::to_string),
             });
         }
+    }
+
+    for helper_block in block.blocks("helper") {
+        let kind =
+            HelperKind::parse(helper_block.get("type").unwrap_or_default()).map_err(|e| {
+                SchemaError::InClass {
+                    class: spec.name.clone(),
+                    source: Box::new(e),
+                }
+            })?;
+        let params = helper_block
+            .pairs()
+            .filter(|(k, _)| !k.eq_ignore_ascii_case("type"))
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect();
+        spec.helpers.push(HelperSpec { kind, params });
     }
 
     Ok(spec)
