@@ -107,10 +107,11 @@ door frames that are already right. See
 
 One application, `kerosene-tools` — and, in a game made with `new`, the same
 application as the game's own `mygame-tools`, knowing its classes. Open it with no arguments and you get one
-window holding every tool: a project page, the world editor, the sound
-editor, a build form and an archive form, switched with an activity bar down
-the left edge, and one output panel every job logs into. None of it is the
-engine.
+window holding every tool: a home page, an asset browser, the world editor,
+the model viewer, the sound editor, a build page and an archive page, switched
+from a sidebar down the left edge, a command palette (`ctrl-P`) that finds any
+map, model, sound or command, and one output panel every job logs into. None
+of it is the engine.
 
 | Tool | Does | Source analogue |
 |---|---|---|

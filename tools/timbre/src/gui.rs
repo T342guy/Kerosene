@@ -117,6 +117,27 @@ impl Timbre {
         Ok(timbre)
     }
 
+    /// Look at the tree again and select the source sound at `path`.
+    /// `false` when it is not one of them. The toolset calls this when a
+    /// sound is opened from its asset browser or its palette.
+    pub fn show_sound(&mut self, path: &Path) -> bool {
+        self.rescan();
+        match self.entries.iter().position(|e| e.path == path) {
+            Some(index) => {
+                self.selected = Some(index);
+                true
+            }
+            None => false,
+        }
+    }
+
+    /// The name of the selected sound, relative to `sound/`.
+    pub fn selected_name(&self) -> Option<&str> {
+        self.selected
+            .and_then(|i| self.entries.get(i))
+            .map(|e| e.name.as_str())
+    }
+
     /// Find every source sound under the tree and note its state.
     fn rescan(&mut self) {
         let previous = self

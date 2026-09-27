@@ -134,7 +134,7 @@ pub fn main_with(options: Options) -> Result<()> {
         .clone()
         .unwrap_or_else(|| std::env::args().skip(1).collect());
     let Some(first) = args.first().cloned() else {
-        return run_gui(options.launch(Tab::Project, None, None));
+        return run_gui(options.launch(Tab::Home, None, None));
     };
 
     match first.as_str() {

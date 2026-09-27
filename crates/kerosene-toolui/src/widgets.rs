@@ -517,14 +517,21 @@ pub fn badge(ui: &mut Ui, text: &str, tone: Tone) -> Response {
 }
 
 /// A key, or a chord of them, drawn as keycaps: `ctrl-P` is two caps.
+///
+/// Laid out as one allocation and painted left to right, so the chord reads
+/// the same way in a right-to-left row as in a left-to-right one.
 pub fn kbd(ui: &mut Ui, keys: &str) {
-    ui.horizontal(|ui| {
-        ui.spacing_mut().item_spacing.x = 3.0;
-        for key in keys.split(['-', '+']).filter(|k| !k.is_empty()) {
+    let gap = 3.0;
+    let caps: Vec<_> = keys
+        .split(['-', '+'])
+        .filter(|k| !k.is_empty())
+        .map(|key| {
             let label = match key.to_ascii_lowercase().as_str() {
                 "ctrl" => "Ctrl".to_string(),
                 "shift" => "Shift".to_string(),
                 "alt" => "Alt".to_string(),
+                "enter" => "Enter".to_string(),
+                "esc" => "Esc".to_string(),
                 _ => key.to_uppercase(),
             };
             let galley = ui.painter().layout_no_wrap(
@@ -532,23 +539,34 @@ pub fn kbd(ui: &mut Ui, keys: &str) {
                 FontId::new(10.5, FontFamily::Monospace),
                 colors::TEXT_MUTED,
             );
-            let size = Vec2::new((galley.size().x + 10.0).max(18.0), 18.0);
-            let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
-            let radius = CornerRadius::same(4);
-            ui.painter().rect_filled(rect, radius, colors::BG_FIELD);
-            ui.painter().rect_stroke(
-                rect,
-                radius,
-                Stroke::new(1.0_f32, colors::BORDER_STRONG),
-                StrokeKind::Inside,
-            );
-            ui.painter().galley(
-                rect.center() - galley.size() / 2.0,
-                galley,
-                colors::TEXT_MUTED,
-            );
-        }
-    });
+            let width = (galley.size().x + 10.0).max(18.0);
+            (galley, width)
+        })
+        .collect();
+    let total =
+        caps.iter().map(|(_, w)| w).sum::<f32>() + gap * caps.len().saturating_sub(1) as f32;
+    let (rect, _) = ui.allocate_exact_size(Vec2::new(total, 18.0), Sense::hover());
+    if !ui.is_rect_visible(rect) {
+        return;
+    }
+    let mut x = rect.left();
+    for (galley, width) in caps {
+        let cap = Rect::from_min_size(egui::pos2(x, rect.top()), Vec2::new(width, 18.0));
+        let radius = CornerRadius::same(4);
+        ui.painter().rect_filled(cap, radius, colors::BG_FIELD);
+        ui.painter().rect_stroke(
+            cap,
+            radius,
+            Stroke::new(1.0_f32, colors::BORDER_STRONG),
+            StrokeKind::Inside,
+        );
+        ui.painter().galley(
+            cap.center() - galley.size() / 2.0,
+            galley,
+            colors::TEXT_MUTED,
+        );
+        x += width + gap;
+    }
 }
 
 /// A text field with a magnifier in it and a button to clear it. Returns

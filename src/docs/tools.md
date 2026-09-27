@@ -1,18 +1,49 @@
 # Tool reference
 
 One application, `kerosene-tools`. Open it with no arguments and you get one
-window holding every tool: a project page, the world editor, the sound editor,
-a build form and an archive form, switched with an activity bar of icons down
-the left edge (`ctrl-1` to `ctrl-5`), and one **output panel** along the
-bottom (`` ctrl-` ``) that every job -- a compile, a build, a pack -- logs
-into. It comes up on its own when a job starts. None of it is the engine, and
-none of it depends on it.
+window holding every tool, switched from a sidebar down the left edge:
 
-The **project page** is where the window opens: which project this is, where
-its content is and how that was decided, how many maps, materials, models,
-sounds and scripts it holds, and the maps themselves with whether each has
-been compiled. Click a map to edit it; *new map*, *build everything* and
-*pack archive* are the three buttons.
+| Tab | Keys | What it is |
+|---|---|---|
+| Home | `ctrl-1` | the project, its content, what needs building, recent activity |
+| Assets | `ctrl-2` | every file in the content tree, searchable, with its build status |
+| Editor | `ctrl-3` | Chisel, the world editor |
+| Models | `ctrl-4` | Loupe, the model viewer |
+| Sound | `ctrl-5` | Timbre, the sound editor |
+| Build | `ctrl-6` | Kiln: stages, options, one button, and Cancel |
+| Archive | `ctrl-7` | Vault: pack, verify, and the archive's contents as a table |
+
+Across the top, a bar says where you are, holds a **search box** and a
+**Play** button, and shows any running build or pack with its elapsed time
+and a way to stop it. Along the bottom, one **output panel** (`` ctrl-` ``)
+that every job -- a compile, a build, a pack, a play session -- logs into.
+It comes up on its own when a job starts, counts each log's errors and
+warnings, and can be filtered by text, narrowed to problems, or copied.
+None of it is the engine, and none of it depends on it.
+
+**`ctrl-P`** (or `ctrl-K`) opens the **command palette**: type a few letters
+of any map, model, sound, tab, job or recent project and press Enter. The
+match is forgiving -- `bf` finds *Build (fast)*, `arena` finds
+`maps/dm/arena.kmap` -- and the matched letters are highlighted.
+
+**Home** is where the window opens: which project this is and where its
+content is, the four things people come to do (*new map*, *build*, *pack*,
+*play*), counts of maps, materials, textures, models, sounds and scripts --
+click one to browse them -- and the maps themselves, each marked compiled,
+stale or not compiled.
+
+**Assets** lists everything under the content folder by category. Sources
+that compile to something -- maps, meshes under `models/`, sounds under
+`sound/`, images under `art/` -- say whether their compiled form is there
+and newer than they are. Double-click a map, model or sound to open it in
+its tool; right-click for *show in folder* and *copy path*.
+
+The **start page** comes up when no project is found, and from *Switch
+project* on Home or the project menu at the bottom of the sidebar. It lists
+recent projects and has three forms: **Open** a project folder, project file
+or content folder; start a **New game** (what `kerosene-tools new` does);
+or **Make a project** of an existing folder (what `kerosene-tools init`
+does). Switching away from an unsaved map asks first.
 
 The same stages also run headless, as subcommands, so a script or build server
 can drive them without a screen: `kerosene-tools cleave map.kmap`, and so
@@ -79,7 +110,7 @@ should have done.
 A tab in the toolset window, and openable straight to a map:
 
 ```sh
-kerosene-tools                 # the toolset window, on the project page
+kerosene-tools                 # the toolset window, on Home
 kerosene-tools chisel [map.kmap] [--content <dir>]   # straight to the editor
 ```
 
@@ -867,8 +898,9 @@ merging them rounds off every corner of the model.
 
 ## Kiln — building a project
 
-The Build tab in the toolset window -- stages as toggles, one button, and the
-log in the output panel -- and also a headless stage:
+The Build tab in the toolset window -- stages as cards with a switch each,
+*fast*, *rebuild everything*, *ignore leaks* and *dry run* as options, Build
+and Cancel, and the log in the output panel -- and also a headless stage:
 
 ```sh
 kerosene-tools kiln                              # build everything, from here
@@ -928,8 +960,9 @@ not do for a release is the subject of
 
 ## Vault — content archives
 
-The Archive tab in the toolset window -- pack, verify and list, with the log
-in the output panel -- and also a headless stage:
+The Archive tab in the toolset window -- pack and verify, with the log in the
+output panel, whether the archive is older than what it packs, and its
+contents as a searchable table -- and also a headless stage:
 
 ```sh
 kerosene-tools vault pack content -o content/kerosene_content.vault [--ext ktex] [--exclude tmp]

@@ -91,6 +91,20 @@ impl LoupeApp {
         self.render = None;
     }
 
+    /// Show one model, by the name a schema's `model` key holds
+    /// (`props/crate`). The toolset calls this when a model is opened from
+    /// its asset browser or its palette; the list is scanned again first,
+    /// since the model may be one a build has only just written.
+    pub fn show_model(&mut self, name: &str) {
+        self.refresh();
+        self.select(name);
+    }
+
+    /// The model being shown, if any.
+    pub fn selected(&self) -> Option<&str> {
+        self.selected.as_deref()
+    }
+
     fn select(&mut self, name: &str) {
         self.selected = Some(name.to_string());
         self.load_error = None;

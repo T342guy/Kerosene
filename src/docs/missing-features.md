@@ -503,8 +503,8 @@ The tools:
   target's class.~~ Fixed: every connection has a light, green, yellow or
   red, with the reason (section 19). There is no sound key type, so sound
   keys have no picker.
-- **The output panel** cannot be searched, filtered or copied, and its lines
-  do not lead to what they name.
+- **The output panel** ~~cannot be searched, filtered or copied~~ can now;
+  its lines still do not lead to what they name.
 - **Other tools.** Timbre, Alchemy and Loupe have no undo. Alchemy reads PNG,
   JPEG and TGA only: no EXR or HDR for skies. Radiance has no named quality
   presets. ~~No `kerosene-tools doctor`~~: there is one now.

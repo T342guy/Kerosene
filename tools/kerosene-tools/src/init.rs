@@ -16,7 +16,7 @@
 
 use anyhow::{Context, Result};
 use clap::Parser;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 #[derive(Parser, Debug)]
 #[command(name = "init", version, about = "Start a Kerosene project")]
@@ -34,18 +34,58 @@ struct Args {
 
 pub fn run(args: Vec<String>) -> Result<()> {
     let args = Args::parse_from(std::iter::once("init".to_string()).chain(args));
+    let made = init_project(&args.directory, args.name.as_deref(), &args.content)?;
 
-    std::fs::create_dir_all(&args.directory)
-        .with_context(|| format!("creating {}", args.directory.display()))?;
+    if made.existed {
+        println!(
+            "init: {} already names this project",
+            made.project.display()
+        );
+    } else {
+        println!("init: wrote {}", made.project.display());
+    }
+    println!("init: content tree at {}", made.content.display());
+    if made.created.is_empty() {
+        println!("  every directory was already there");
+    } else {
+        for name in &made.created {
+            println!("  created {name}/");
+        }
+    }
+    println!("\nNext: put a texture in with `alchemy new-texture`, or open the editor.");
+    Ok(())
+}
+
+/// What [`init_project`] did.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Initialized {
+    /// The project file.
+    pub project: PathBuf,
+    /// Whether the project file was already there, and so left alone.
+    pub existed: bool,
+    /// The content tree it names.
+    pub content: PathBuf,
+    /// The directories that were missing and are now made.
+    pub created: Vec<String>,
+}
+
+/// Make `directory` a project: a project file, unless there is one, and
+/// the content tree beside it. What `init` does, and what the toolset's
+/// start page does when asked to make a project of a folder.
+///
+/// `name` defaults to the directory's own name; `content` is relative to
+/// the project file.
+pub fn init_project(directory: &Path, name: Option<&str>, content: &str) -> Result<Initialized> {
+    std::fs::create_dir_all(directory)
+        .with_context(|| format!("creating {}", directory.display()))?;
 
     // Canonicalised only for the name and for what gets printed: `init .`
     // should say where it made a project, not say it made one in ".".
-    let directory = args
-        .directory
+    let directory = directory
         .canonicalize()
-        .unwrap_or_else(|_| args.directory.clone());
+        .unwrap_or_else(|_| directory.to_path_buf());
 
-    let name = args.name.unwrap_or_else(|| {
+    let name = name.map(str::to_string).unwrap_or_else(|| {
         directory
             .file_name()
             .map(|n| n.to_string_lossy().into_owned())
@@ -56,36 +96,28 @@ pub fn run(args: Vec<String>) -> Result<()> {
     // here somebody is expected to have edited, and rewriting it to add a
     // directory would be a poor trade.
     let existing = kerosene_vfs::project::in_directory(&directory);
+    let existed = existing.is_some();
     let project_path = match existing {
-        Some(path) => {
-            println!("init: {} already names this project", path.display());
-            path
-        }
+        Some(path) => path,
         None => {
             let path = directory.join(format!(
                 "{}.{}",
                 slug(&name),
                 kerosene_vfs::project::EXTENSION
             ));
-            kerosene_vfs::Project::write_new(&path, &name, &args.content)?;
-            println!("init: wrote {}", path.display());
+            kerosene_vfs::Project::write_new(&path, &name, content)?;
             path
         }
     };
 
     let project = kerosene_vfs::Project::read(&project_path)?;
-    let made = kerosene_vfs::root::scaffold(&project.content, project.dirs.as_deref());
-
-    println!("init: content tree at {}", project.content.display());
-    if made.is_empty() {
-        println!("  every directory was already there");
-    } else {
-        for name in &made {
-            println!("  created {name}/");
-        }
-    }
-    println!("\nNext: put a texture in with `alchemy new-texture`, or open the editor.");
-    Ok(())
+    let created = kerosene_vfs::root::scaffold(&project.content, project.dirs.as_deref());
+    Ok(Initialized {
+        project: project_path,
+        existed,
+        content: project.content,
+        created,
+    })
 }
 
 /// A project name as a filename: lowercase, spaces to dashes, nothing exotic.

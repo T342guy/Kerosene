@@ -246,16 +246,28 @@ appears in the result.
 
 ## The toolset window
 
-`tools/kerosene-tools/src/toolset.rs` holds `Toolset` with six tabs
-(`Project, Editor, Sound, Build, Archive, Models`) switched by an activity bar
-and `ctrl-1`..`ctrl-6`. Each tab is the tool it used to be: `ChiselApp`,
-`timbre::gui::Timbre`, `loupe`, and the project/build/archive panels in
-`tools/kerosene-tools/src/panels.rs` and `project.rs`. One output panel
+`tools/kerosene-tools/src/toolset/` holds `Toolset` with seven tabs
+(`Home, Assets, Editor, Models, Sound, Build, Archive`) switched by the
+sidebar (`sidebar.rs`) and `ctrl-1`..`ctrl-7`, under a top bar (`topbar.rs`)
+with the palette's search box, Play, and the running jobs. Editor, Models and
+Sound are the tools they used to be: `ChiselApp`, `loupe`,
+`timbre::gui::Timbre`. The others are pages in `src/pages/`: `home.rs`,
+`assets.rs`, `build.rs`, `archive.rs`, and `start.rs` for choosing a project.
+
+Every page returns what was asked for as a `toolset::Action`, carried out
+after the frame, so a button, the sidebar and the command palette
+(`kerosene_toolui::palette`, fed by `toolset/commands.rs`) all mean one thing
+by "build". Jobs are `src/job.rs`: the toolset re-run with a subcommand, its
+output piped back, cancellable as a whole process group. One output panel
 (`kerosene_toolui::output::OutputPanel`) receives every job's log.
 
-`tools/kerosene-tools/src/project.rs` is where the window opens. It counts
-maps, compiled maps, materials, models, sounds and scripts so a person arriving
-does not have to guess which project this is or what state it is in.
+`pages/assets.rs` walks the content tree into an `Index` once, when the tree
+may have changed (a job finishing, Home or Assets coming up, Rescan), and
+Home, Assets, Archive and the palette all read that one index. Recent
+projects are `src/recent.rs`, plain lines in the user data directory.
+
+`cargo run -p kerosene-tools --example shot -- <tab> out.png` draws the
+window off screen, the way Chisel's `ui_shot` draws the editor.
 
 `tools/chisel` is the editor proper. Its *logic* — document and undo, grid,
 viewport projection/picking, tools, compile pipeline — lives in the library and

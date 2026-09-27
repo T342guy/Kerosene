@@ -266,6 +266,28 @@ pub fn run(args: Vec<String>) -> Result<()> {
     Ok(())
 }
 
+/// Start a game in `dir` the way `new` does with no flags: the toolset's
+/// own Kerosene, and a git repository when git is there. With
+/// `content_only`, a project with no Rust in it. Returns the content tree.
+/// What the toolset's start page calls.
+pub fn create(dir: &Path, title: &str, content_only: bool) -> Result<PathBuf> {
+    if dir.exists() && std::fs::read_dir(dir).map(|mut d| d.next().is_some())? {
+        bail!(
+            "{} already has files in it. A new project goes in a fresh folder; \
+             make a project of an existing one instead.",
+            dir.display()
+        );
+    }
+    let names = Names::from_title(title);
+    if content_only {
+        make_content_only(dir, &names)?;
+    } else {
+        make_game(dir, &names, &Source::default_for_this_toolset())?;
+        git_init(dir);
+    }
+    Ok(dir.join("content"))
+}
+
 /// Write a game crate into `dir`.
 pub fn make_game(dir: &Path, names: &Names, source: &Source) -> Result<()> {
     let write = |path: &str, text: String| -> Result<()> {
