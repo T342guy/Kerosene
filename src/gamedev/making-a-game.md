@@ -149,7 +149,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-kerosene = { version = "1.0.0-a2", default-features = false }
+kerosene = { version = "1.0.0-a3", default-features = false }
 
 [features]
 default = ["audio"]
@@ -291,22 +291,48 @@ yours, not Kerosene's — is what `version` in the console and the log print
 beside Kerosene's own.
 
 The hooks, in the order the engine calls them: `classes` (once, at
-construction), `setup`, `map_loaded`, then per tick `pre_tick` (before the
-player moves — change movement convars here), `tick` (after entities have
-thought), with `entity_request` and `console_request` answering anything
-the engine did not understand, and `ui` each frame while `wants_ui` says so.
-`save` and `load` keep the game's own state in saved games and carry it
-across level changes; see [Saving and level changes](saving.md).
+construction), `setup`, `map_loaded` and `player_spawned`, then per tick
+`pre_tick` (before the player moves — change movement convars here), `tick`
+(after entities have thought), with `entity_request` and `console_request`
+answering anything the engine did not understand; each frame `frame`
+(paused or not, with the real time elapsed) and `ui` while `wants_ui` says
+so. `map_unloading` comes before a map is replaced and `shutdown` as the
+engine exits. `save` and `load` keep the game's own state in saved games and
+carry it across level changes, and `can_save` can refuse one; see [Saving
+and level changes](saving.md). `player_damaged` decides how much a hit
+takes, and `player_died` can take a death over -- a death screen, reloading
+the last save -- instead of the instant respawn: return `true` and the
+player stays down until `engine.respawn_player()`.
 One rule: a hook must not make the engine call another hook on the same
 game, so `tick` uses `engine.request_map(..)` rather than `load_map` (the
 inner hook would be skipped and logged, not run). Everything else on
 `&mut Engine` is yours: the fields `console`, `entities`, `player`, `ui`,
-`audio` and `platform`, and methods such as `vfs()`, `time()`,
+`audio`, `platform` and `input`, and methods such as `vfs()`, `time()`,
 `map_name()`, `run_script(..)` and `quit()`.
 
-Input reaches a game the way it reaches the engine: as console commands.
-Register `+fire`/`-fire` in `setup` and bind them in `cfg/autoexec.cfg`;
-the binding system, the console and headless tests all work unchanged.
+What a game most often reaches for:
+
+| | |
+|---|---|
+| `engine.trace_view((0.0, 0.0), 4096.0)` | What the player is looking at: a `TraceHit` with the point, the surface's normal and the entity, if it was one |
+| `engine.trace(start, end, mins, maxs, mask)` | Any line or box, against the world, the moving brushes and the props |
+| `engine.spawn_entity("npc_guard", &[("origin", "0 0 16")])` | An entity of any class, with keyvalues, as if the map had it |
+| `engine.find_path(from, to)` | Waypoints over the map's walkable floor |
+| `engine.rng()` | Dice seeded by the map and kept in saves: replays and bug reports repeat |
+| `engine.view_punch(..)`, `screen_shake(..)`, `set_fov_override(..)` | Recoil, an explosion, a scope |
+| `engine.set_view_angles(..)`, `set_camera(Some(..))` | Where the player looks; a cutscene or death camera |
+| `engine.debug_line(a, b, color, seconds)`, `debug_box`, `debug_point` | Seeing what your code is doing, while `r_debugdraw` is on |
+| `engine.set_player_max_health(..)` | What the player spawns with |
+
+A class of the game's own with a model is drawn and collided with when it
+says how: `ClassDef::new("npc_guard").model(ModelRole::Animated)`.
+
+Input reaches a game the way it reaches the engine: as console commands,
+bound to keys. A game's own held action needs no command of its own: bind a
+key to `+zoom` and read `engine.input.action_held("zoom")` in `tick`. For a
+one-shot, register a command in `setup` and bind it in `cfg/autoexec.cfg`.
+`engine.input` is also what a rebinding screen changes: `bind`, `unbind`
+and `keys_for("+jump")`.
 
 ### The schema
 

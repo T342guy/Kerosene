@@ -13,7 +13,8 @@ homepage.workspace = true
 keywords.workspace = true
 categories.workspace = true
 
-# Published as kerosene-radiance; the library keeps its short name.
+# Named kerosene-radiance so the package name is Kerosene's; the library keeps its short
+# name. Not published by itself: `cargo xtask bundle` folds it into `kerosene`.
 [lib]
 name = "radiance"
 path = "src/lib.rs"

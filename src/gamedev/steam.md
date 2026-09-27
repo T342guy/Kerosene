@@ -108,8 +108,10 @@ A `logic_stat` with a `threshold` and an `achievement` does the usual thing
 for "open ten doors". It shows Steam's progress toast on the way (3/10, 4/10,
 ...) and awards the achievement when the stat reaches the threshold.
 
-`kero_start` has one example: typing the code into the keypad fires
-`ach_keypad`'s `Unlock`, and the HUD toasts "Code breaker".
+[Kerosene Demo](https://github.com/t342guy/kerosene-demo) has one
+example: typing the code into the keypad in `kero_start` fires
+`ach_keypad`'s `Unlock`, and the HUD toasts "Code breaker". Its
+`kerosene-demo.keroproj` declares `ACH_KEYPAD`.
 
 ## From a script: `platform` (or `steam`)
 

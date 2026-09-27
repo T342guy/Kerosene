@@ -683,3 +683,24 @@ fn voice_env_swap_never_allocates() {
         seen.len()
     );
 }
+
+#[test]
+fn a_paused_world_holds_its_sounds_and_the_interface_plays_on() {
+    let mut m = mixer();
+    m.control().set_listener(facing_x());
+    let world = m.play(steady(4800, 1), SoundParams::at(Vec3::new(64.0, 0.0, 0.0)));
+    let click = m.play(steady(4800, 1), SoundParams::default());
+    m.control().set_world_paused(true);
+
+    // Plenty of blocks: longer than either sound. The click ends; the world
+    // sound is exactly where it was.
+    for _ in 0..20 {
+        peaks(&mut m, 480);
+    }
+    assert!(!m.is_playing(click), "a flat sound is not held");
+    assert!(m.is_playing(world), "a sound in the world is held");
+
+    m.control().set_world_paused(false);
+    let (l, r) = peaks(&mut m, 480);
+    assert!(l > 0.0 && r > 0.0, "and carries on when unpaused");
+}

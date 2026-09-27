@@ -26,14 +26,16 @@ cd mygame
 cargo play
 ```
 
-(Until the first crates.io release, install from the repository:
-`cargo install --git https://github.com/t342guy/kerosene kerosene-tools`.)
-
 That is a game: a Cargo package with a `Game` of its own, a starter map, and
 the editor and compilers knowing its classes. `cargo play` builds whatever
 content changed and runs it; `cargo tools chisel` opens the editor;
 `cargo ship` builds a copy to hand out. [Getting
 started](src/gamedev/getting-started.md) walks through it.
+
+To see a finished level first, [Kerosene
+Demo](https://github.com/t342guy/kerosene-demo) is one: a game crate like
+the one `new` makes, on the published `kerosene`, with a door, a ladder, a
+keypad, a checkpoint and an achievement.
 
 ```rust
 use kerosene::prelude::*;
@@ -134,11 +136,11 @@ it; `kerosene`, the stock runtime, is that with the stock game.
 ## Working on Kerosene itself
 
 Everything above is for making a game. To build this repository — the
-engine, the tools and the sample content — you need Rust 1.94 or later.
+engine, the tools and the base content — you need Rust 1.94 or later.
 
 ```sh
 cargo build --release              # the engine and the toolset
-./scripts/build-content.sh         # compile the sample content and map
+./scripts/build-content.sh         # compile the base content and its room
 cargo run --release -p kerosene-runtime
 ```
 
@@ -161,7 +163,7 @@ project
 {
     "name"     "Kerosene"
     "content"  "content"
-    "startmap" "kero_start"
+    "startmap" "kerosene_room"
 }
 ```
 
@@ -176,7 +178,8 @@ content — textures, models, maps, and the archive — from anywhere, and the
 program rather than a shell script because a script is not shipped: install
 the toolchain somewhere and the thing that knows how to use it would stay
 behind in a git checkout. `scripts/build-content.sh` is a wrapper that builds
-the toolset from source and regenerates the sample map, then calls it.
+the toolset from source and regenerates the engine's base room from the code
+that defines it, then calls it, then packs the engine's base content.
 
 To open the toolset window (the editor, on the way in):
 
@@ -187,7 +190,7 @@ cargo run --release -p kerosene-tools
 To open a specific map in the editor:
 
 ```sh
-cargo run --release -p kerosene-tools -- chisel content/maps/kero_start.keromap
+cargo run --release -p kerosene-tools -- chisel content/maps/kerosene_room.keromap
 ```
 
 Chisel builds the content tree's textures before it finishes loading, so the
@@ -233,7 +236,7 @@ No display? The engine runs headless — which is what a dedicated server is,
 not a testing mode bolted on the side:
 
 ```sh
-cargo run -p kerosene-runtime -- --headless 640 +map kero_start
+cargo run -p kerosene-runtime -- --headless 640 +map kerosene_room
 ```
 
 ---
@@ -245,10 +248,10 @@ can stop after any of them, run them from a Makefile, or parallelise them
 across a build farm.
 
 ```sh
-cleave    content/maps/kero_start.keromap    # → .kerobsp and .keroprt
-umbra     content/maps/kero_start.kerobsp    # → adds visibility
-resonance content/maps/kero_start.kerobsp    # → adds acoustics
-radiance  content/maps/kero_start.kerobsp    # → adds lighting
+kerosene-tools cleave    content/maps/kerosene_room.keromap  # → .kerobsp and .keroprt
+kerosene-tools umbra     content/maps/kerosene_room.kerobsp  # → adds visibility
+kerosene-tools resonance content/maps/kerosene_room.kerobsp  # → adds acoustics
+kerosene-tools radiance  content/maps/kerosene_room.kerobsp  # → adds lighting
 ```
 
 An unvised, unlit map still loads and plays; it just draws everything, looks
@@ -278,9 +281,10 @@ possible.
 surface reflectivity, model welding. The engine loads what the tools produced;
 it does not compute it.
 
-**Entity I/O instead of scripting.** A button's `OnPressed` fires a door's
-`Open` after a delay. No scripting language, and it composes much further than
-it has any right to.
+**Entity I/O first, scripting second.** A button's `OnPressed` fires a door's
+`Open` after a delay, and that composes much further than it has any right
+to. For what wiring cannot say, a map has a Rhai script, sandboxed and
+reaching the world only through the same inputs and outputs.
 
 **Everything is a convar or a concommand.** Console text, key binds, `.cfg`
 files and command-line `+arguments` all take one path.
@@ -319,7 +323,8 @@ crates/
   kerosene-asset      .kerotex textures, .keromat materials, .keromdl models
   kerosene-map        .keromap — the editable map format
   kerosene-bsp        .kerobsp — the compiled map, plus tracing and PVS
-  kerosene-walk       walkable-surface data for navigation
+  kerosene-walk       walkable-surface data and pathfinding over it
+  kerosene-toolui     the look and widgets the tools share
 tools/                in the published crate behind the `tools` feature
   chisel cleave umbra resonance radiance alchemy forge timbre vault kiln loupe
   kerosene-tools      all of them as one application, and `new` and `play`
@@ -327,8 +332,10 @@ apps/
   kerosene            the stock runtime (package kerosene-runtime)
 xtask/                repository chores: `cargo xtask bundle`
 kerosene.keroproj     the project file: what content tree this is, and where
-content/              sample art, models, materials, the sample level, and the
-                      archive packed from them
+content/              the engine's own content: developer textures, stock
+                      props, sounds and UI, and the base room -- packed into
+                      crates/kerosene-engine/base/base.vault. The demo level
+                      lives in its own repository, kerosene-demo
 src/                  the book: getting started, the game developer guide,
                       the engine's documentation and the devnotes
 ```

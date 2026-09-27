@@ -33,6 +33,7 @@ pub const KU_PER_FOOT: f32 = 12.0;
 /// The names from before the unit was renamed, kept so older tools still build.
 #[deprecated(note = "renamed to KU_PER_METRE")]
 pub const VU_PER_METRE: f32 = KU_PER_METRE;
+/// Old name of [`KU_PER_FOOT`].
 #[deprecated(note = "renamed to KU_PER_FOOT")]
 pub const VU_PER_FOOT: f32 = KU_PER_FOOT;
 
@@ -47,12 +48,15 @@ pub const PLAYER_WIDTH: f32 = 32.0;
 /// How fast a player runs on the flat.
 pub const PLAYER_SPEED: f32 = 320.0;
 
+/// Kerosene units to metres.
 pub fn metres(ku: f32) -> f32 {
     ku / KU_PER_METRE
 }
+/// Metres to kerosene units.
 pub fn from_metres(m: f32) -> f32 {
     m * KU_PER_METRE
 }
+/// Kerosene units to feet.
 pub fn feet(ku: f32) -> f32 {
     ku / KU_PER_FOOT
 }
@@ -83,14 +87,17 @@ pub fn size(x: f32, y: f32, z: f32) -> String {
     )
 }
 
+/// An area, for display: `1024 ku²`.
 pub fn area(vu2: f32) -> String {
     format!("{} ku\u{b2}", trim(vu2))
 }
 
+/// A volume, for display: `4096 ku³`.
 pub fn volume(vu3: f32) -> String {
     format!("{} ku\u{b3}", trim(vu3))
 }
 
+/// A speed, for display, in both units: `320 ku/s (8.1 m/s)`.
 pub fn speed(vu_per_second: f32) -> String {
     format!(
         "{} ku/s ({:.1} m/s)",

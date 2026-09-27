@@ -17,6 +17,10 @@ use crate::set_field;
 use kerosene_entity::io::InputEvent;
 use kerosene_entity::{ClassDef, ClassRegistry, EntityId, EntityWorld, Value, host_requests};
 
+/// Register the triggers: `trigger_multiple`, `trigger_once`,
+/// `trigger_hurt`, `trigger_push`, `trigger_teleport` and
+/// `trigger_changelevel`. Their inputs and outputs are here; noticing the
+/// player walk in is the engine's.
 pub fn register(registry: &mut ClassRegistry) {
     for name in [
         "trigger_multiple",

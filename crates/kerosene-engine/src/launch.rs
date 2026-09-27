@@ -153,9 +153,13 @@ pub fn launch(game: impl Game, options: LaunchOptions) -> Result<()> {
 
     let parsed = parse_args(&args)?;
     let headless = parsed.headless_ticks;
+    let portable = parsed.portable;
     let mut config = config_from(parsed, Some(log));
     config.title = options.name.to_string();
     config.app_id = options.app_id.clone();
+    if !portable {
+        config.user_dir = kerosene_vfs::user_data_dir(&options.app_id);
+    }
     config.version = options.version.to_string();
     log::info!(
         "{} {} (Kerosene {})",
@@ -197,6 +201,9 @@ pub struct ParsedArgs {
     /// `--no-steam`: run without the store even when the build and the
     /// project have it.
     pub no_steam: bool,
+    /// `--portable`: keep saves and settings in the content tree rather
+    /// than the per-user directory.
+    pub portable: bool,
 }
 
 /// Take a command line apart: `--content`, `--vault`, `--headless`, and
@@ -218,6 +225,7 @@ pub fn parse_args(args: &[String]) -> Result<ParsedArgs> {
                 parsed.archives.push(PathBuf::from(value));
             }
             "--no-steam" => parsed.no_steam = true,
+            "--portable" => parsed.portable = true,
             "--headless" => {
                 let value = next(args, &mut i, "--headless")?;
                 parsed.headless_ticks = Some(value.parse()?);
@@ -309,11 +317,11 @@ pub fn config_from(
             }
         }
     }
-    // With nothing saying which map, the base content's demo rather than an
+    // With nothing saying which map, the base content's room rather than an
     // empty window.
     if config.map.is_none() && config.base_content {
-        log::info!("no start map: opening {}", crate::base::DEMO_MAP);
-        config.map = Some(crate::base::DEMO_MAP.to_string());
+        log::info!("no start map: opening {}", crate::base::FALLBACK_MAP);
+        config.map = Some(crate::base::FALLBACK_MAP.to_string());
     }
 
     // What the project declares for the store: the Steam app id, its
@@ -372,7 +380,7 @@ pub fn platform_config(project: &kerosene_vfs::Project) -> kerosene_platform::Pl
 /// bindings; saying so for each would bury every warning that matters.
 fn host_only(kind: &str) -> bool {
     use kerosene_console::requests::*;
-    [BIND, UNBIND, UNBIND_ALL, BIND_LIST, TOGGLE_CONSOLE].contains(&kind)
+    [TOGGLE_CONSOLE].contains(&kind)
 }
 
 /// Run the simulation with no display for `ticks` ticks, then report.
@@ -414,6 +422,7 @@ pub fn run_headless(config: EngineConfig, game: Box<dyn Game>, ticks: u64) -> Re
         }
     }
     let elapsed = started.elapsed().as_secs_f32();
+    engine.shutdown();
 
     let simulated = engine.tick_count as f32 * interval;
     println!("--- headless run ---");
@@ -514,14 +523,17 @@ options:
                       dedicated server runs.
   --no-steam          Run without Steam even when the build and the project
                       have it.
+  --portable          Keep saves and settings in the content directory, not
+                      the per-user one (~/.local/share/<game>, %APPDATA%,
+                      ~/Library/Application Support).
   --help              Show this.
 
 With no +map, the project's `startmap` is loaded if it names one.
 
 Anything starting with + is a console command, so any convar can be set:
-  {bin} +map kero_start
-  {bin} +map kero_start +sv_gravity 200 +developer 1
-  {bin} --headless 600 +map kero_start
+  {bin} +map kerosene_room
+  {bin} +map kerosene_room +sv_gravity 200 +developer 1
+  {bin} --headless 600 +map kerosene_room
 ",
         options.version
     );

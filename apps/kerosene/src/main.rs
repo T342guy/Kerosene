@@ -2,9 +2,9 @@
 //! `kerosene` -- the Kerosene runtime: the engine running the stock game.
 //!
 //! ```text
-//! kerosene +map kero_start
-//! kerosene +map kero_start +sv_gravity 200 +developer 1
-//! kerosene --headless 600 +map kero_start     # simulate without a display
+//! kerosene +map kerosene_room
+//! kerosene +map kerosene_room +sv_gravity 200 +developer 1
+//! kerosene --headless 600 +map kerosene_room     # simulate without a display
 //! ```
 //!
 //! This is the whole binary, and the shape of a game's own: one call with

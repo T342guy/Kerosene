@@ -7,7 +7,7 @@ says what is absent, this one says which of those absences actually matter.
 > Game titles here are named for one reason: to point at a shape of game, the
 > same way the README names Valve and id tools to point at a shape of tool.
 > None of their makers are affiliated with, endorse or sponsor Kerosene, and
-> none of their code or content is in it. See [`NOTICE`](../NOTICE).
+> none of their code or content is in it. See [`NOTICE`](https://github.com/t342guy/kerosene/blob/MASTER/NOTICE).
 
 ## The comparison people reach for
 
@@ -75,7 +75,7 @@ two things: **the movement solver and the brush pipeline**.
 
 Everything that makes that game feel the way it does -- wallrunning, sliding,
 carried momentum -- is built on top of the structure in
-[`kerosene-physics`](../crates/kerosene-physics/src/movement.rs):
+[`kerosene-physics`](https://github.com/t342guy/kerosene/blob/MASTER/crates/kerosene-physics/src/movement.rs):
 `accelerate`, `air_accelerate`, `clip_velocity`, `try_move`, `step_move`. That
 is the Quake-to-Source lineage, and it is why air-strafing works at all. It is
 also five readable functions with unit tests, rather than a character
@@ -95,7 +95,7 @@ top of them with a large team.
 **Movement feel.** The solver is legible and tested. Tuning air acceleration is
 editing a function, not fighting an abstraction.
 
-**Entity I/O.** [`kerosene-entity/src/io.rs`](../crates/kerosene-entity/src/io.rs)
+**Entity I/O.** [`kerosene-entity/src/io.rs`](https://github.com/t342guy/kerosene/blob/MASTER/crates/kerosene-entity/src/io.rs)
 has connections with delays, parameters and fire-once semantics. A designer
 wires an entire set-piece without writing code, and the result is a text file
 that diffs and reviews. This is an underrated design, and the mainstream

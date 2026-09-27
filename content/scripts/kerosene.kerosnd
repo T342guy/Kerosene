@@ -9,17 +9,6 @@
 
 sound
 {
-    "name"        "ambient/room_tone"
-    "file"        "sound/ambient/room_tone.wav"
-    "volume"      "0.35"
-    "loop"        "1"
-    "attenuation" "0.6"
-    "distance"    "192"
-    "max"         "1536"
-}
-
-sound
-{
     "name"        "door/move"
     "file"        "sound/door/move.wav"
     "volume"      "0.9"

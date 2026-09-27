@@ -19,8 +19,6 @@
 
 use anyhow::{Context, Result, bail};
 use clap::Parser;
-use kerosene_map::{Connection, Entity, Map, Solid};
-use kerosene_math::{Aabb, Vec3};
 use std::path::{Path, PathBuf};
 
 #[derive(Parser, Debug)]
@@ -46,6 +44,9 @@ struct Args {
     /// default.
     #[arg(long, value_name = "VERSION")]
     kerosene_version: Option<String>,
+    /// Do not make the directory a git repository.
+    #[arg(long)]
+    no_git: bool,
 }
 
 /// The files a game starts as, filled in by [`fill`].
@@ -56,6 +57,20 @@ const TOOLS_RS: &str = include_str!("new/template/tools.rs.in");
 const GAME_RS: &str = include_str!("new/template/game.rs.in");
 const GITIGNORE: &str = include_str!("new/template/gitignore.in");
 const README: &str = include_str!("new/template/README.md.in");
+const GITATTRIBUTES: &str = include_str!("new/template/gitattributes.in");
+const CI: &str = include_str!("new/template/ci.yml.in");
+
+/// Package names a game cannot have: Kerosene itself, which it depends on,
+/// and the names Rust keeps for its own crates.
+const RESERVED: &[&str] = &[
+    "kerosene",
+    "std",
+    "core",
+    "alloc",
+    "test",
+    "proc-macro",
+    "self",
+];
 
 /// Where the dependency on Kerosene comes from.
 #[derive(Clone, Debug, PartialEq)]
@@ -154,6 +169,10 @@ impl Names {
         if !package.starts_with(|c: char| c.is_ascii_alphabetic()) {
             package = format!("game-{package}");
         }
+        // A game called "Kerosene" would depend on itself.
+        if RESERVED.contains(&package.as_str()) {
+            package = format!("{package}-game");
+        }
         let mut type_name: String = words
             .iter()
             .map(|w| {
@@ -188,6 +207,7 @@ fn fill(template: &str, names: &Names, source: &Source) -> String {
         .replace("@TYPE@", &names.type_name)
         .replace("@MAP@", &names.map)
         .replace("@KEROSENE@", &source.to_toml())
+        .replace("@MSRV@", env!("CARGO_PKG_RUST_VERSION"))
 }
 
 pub fn run(args: Vec<String>) -> Result<()> {
@@ -233,7 +253,11 @@ pub fn run(args: Vec<String>) -> Result<()> {
         Source::default_for_this_toolset()
     };
     make_game(dir, &names, &source)?;
+    let git = !args.no_git && git_init(dir);
     println!("new: made the game {} in {}", names.title, dir.display());
+    if git {
+        println!("  and a git repository for it");
+    }
     println!("  kerosene from {}", source.to_toml());
     println!(
         "\nNext:\n  cd {}\n  cargo play        # the first build takes a few minutes",
@@ -258,8 +282,25 @@ pub fn make_game(dir: &Path, names: &Names, source: &Source) -> Result<()> {
     write("src/game.rs", fill(GAME_RS, names, source))?;
     write(".gitignore", fill(GITIGNORE, names, source))?;
     write("README.md", fill(README, names, source))?;
+    write(".gitattributes", fill(GITATTRIBUTES, names, source))?;
+    write(".github/workflows/ci.yml", fill(CI, names, source))?;
     project(dir, names, Some(&names.package))?;
     Ok(())
+}
+
+/// Make `dir` a git repository, unless it is already inside one or there is
+/// no git. Quietly: a game without version control is still a game.
+fn git_init(dir: &Path) -> bool {
+    let git = |args: &[&str]| {
+        std::process::Command::new("git")
+            .current_dir(dir)
+            .args(args)
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .is_ok_and(|s| s.success())
+    };
+    !git(&["rev-parse", "--is-inside-work-tree"]) && git(&["init", "--quiet"])
 }
 
 /// A project with no Rust: the project file, the tree, the starter map with
@@ -283,126 +324,16 @@ fn project(dir: &Path, names: &Names, game: Option<&str>) -> Result<()> {
     let content = dir.join("content");
     std::fs::create_dir_all(&content)?;
     kerosene_vfs::root::scaffold(&content, None);
-    let map = starter_map(game.is_some());
+    let map = kerosene_map::starter::room(game.is_some());
     let problems = map.validate();
     if !problems.is_empty() {
         bail!("the starter map is wrong: {problems:?}");
     }
-    let path = content.join("maps").join(format!("{}.keromap", names.map));
-    std::fs::create_dir_all(path.parent().unwrap())?;
+    let maps = content.join("maps");
+    let path = maps.join(format!("{}.keromap", names.map));
+    std::fs::create_dir_all(&maps)?;
     std::fs::write(&path, map.to_text()).with_context(|| format!("writing {}", path.display()))?;
     Ok(())
-}
-
-/// A room to start in: lit, with a crate, and -- in a game -- an
-/// `item_pickup` on a plinth that a `trigger_once` hands to whoever walks
-/// up to it. Every texture is the engine's base content, so it builds and
-/// looks right before the game has any art of its own.
-pub fn starter_map(with_pickup: bool) -> Map {
-    const T: f32 = 16.0;
-    const W: f32 = 768.0;
-    const D: f32 = 512.0;
-    const H: f32 = 256.0;
-    let mut map = Map::new();
-    map.world.set("skyname", "sky_kero");
-    let shell = [
-        (
-            Aabb::new(Vec3::new(-T, -T, -T), Vec3::new(W + T, D + T, 0.0)),
-            "dev/floor",
-        ),
-        (
-            Aabb::new(Vec3::new(-T, -T, H), Vec3::new(W + T, D + T, H + T)),
-            "dev/ceiling",
-        ),
-        (
-            Aabb::new(Vec3::new(-T, -T, 0.0), Vec3::new(0.0, D + T, H)),
-            "dev/wall",
-        ),
-        (
-            Aabb::new(Vec3::new(W, -T, 0.0), Vec3::new(W + T, D + T, H)),
-            "dev/wall",
-        ),
-        (
-            Aabb::new(Vec3::new(0.0, -T, 0.0), Vec3::new(W, 0.0, H)),
-            "dev/wall",
-        ),
-        (
-            Aabb::new(Vec3::new(0.0, D, 0.0), Vec3::new(W, D + T, H)),
-            "dev/wall",
-        ),
-    ];
-    for (bounds, material) in shell {
-        map.add_world_solid(Solid::cube(bounds, material));
-    }
-    // A plinth for the pickup to sit on, across the room from the start.
-    let plinth = Aabb::new(Vec3::new(576.0, 224.0, 0.0), Vec3::new(640.0, 288.0, 32.0));
-    map.add_world_solid(Solid::cube(plinth, "dev/orange"));
-
-    let point = |map: &mut Map, class: &str, at: Vec3, keys: &[(&str, &str)]| {
-        let id = map.next_id();
-        let mut e = Entity::new(id, class);
-        e.set_origin(at);
-        for (k, v) in keys {
-            e.set(k, *v);
-        }
-        map.entities.push(e);
-        map.entities.len() - 1
-    };
-    point(
-        &mut map,
-        "info_player_start",
-        Vec3::new(96.0, D / 2.0, 16.0),
-        &[("angles", "0 0 0")],
-    );
-    point(
-        &mut map,
-        "light",
-        Vec3::new(W / 2.0, D / 2.0, H - 48.0),
-        &[("_light", "255 240 220 360")],
-    );
-    point(
-        &mut map,
-        "light_environment",
-        Vec3::new(W / 2.0, D / 2.0, H - 24.0),
-        &[
-            ("pitch", "-50"),
-            ("angles", "0 210 0"),
-            ("_light", "255 250 235 120"),
-            ("_ambient", "70 80 100 80"),
-        ],
-    );
-    point(
-        &mut map,
-        "prop_physics",
-        Vec3::new(320.0, 128.0, 24.0),
-        &[("model", "props/crate")],
-    );
-
-    if with_pickup {
-        point(
-            &mut map,
-            "item_pickup",
-            Vec3::new(608.0, 256.0, 48.0),
-            &[("targetname", "gem"), ("item", "gem")],
-        );
-        // The trigger around the plinth, handing the gem to whoever walks in.
-        let entity = map.next_id();
-        let solid = map.next_id();
-        let sides: Vec<u32> = (0..6).map(|_| map.next_id()).collect();
-        let mut brush = Solid::cube(
-            Aabb::new(Vec3::new(528.0, 176.0, 0.0), Vec3::new(688.0, 336.0, 128.0)),
-            "tools/trigger",
-        );
-        brush.id = solid;
-        for (side, id) in brush.sides.iter_mut().zip(sides) {
-            side.id = id;
-        }
-        let mut trigger = Entity::new(entity, "trigger_once");
-        trigger.solids.push(brush);
-        trigger.connect(Connection::new("OnTrigger", "gem", "Pickup"));
-        map.entities.push(trigger);
-    }
-    map
 }
 
 #[cfg(test)]

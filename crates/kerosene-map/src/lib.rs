@@ -40,6 +40,7 @@ mod entity;
 pub mod mesh;
 mod ops;
 mod solid;
+pub mod starter;
 pub mod texture;
 mod walk;
 
@@ -861,14 +862,14 @@ world { "id" "1" "classname" "worldspawn"
     }
 
     #[test]
-    fn the_shipped_map_survives_a_round_trip_unchanged() {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../content/maps/kero_start.keromap");
-        let text = std::fs::read_to_string(path).unwrap();
-        let map = Map::parse(&text).unwrap();
-        let again = Map::parse(&map.to_text()).unwrap();
-        assert_eq!(again.to_text(), map.to_text());
-        assert_eq!(again.solid_count(), map.solid_count());
+    fn the_starter_room_survives_a_round_trip_unchanged() {
+        for with_pickup in [false, true] {
+            let map = crate::starter::room(with_pickup);
+            let again = Map::parse(&map.to_text()).unwrap();
+            assert_eq!(again.to_text(), map.to_text());
+            assert_eq!(again.solid_count(), map.solid_count());
+            assert_eq!(again.entities.len(), map.entities.len());
+        }
     }
 
     #[test]

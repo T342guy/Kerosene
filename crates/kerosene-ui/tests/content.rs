@@ -46,6 +46,8 @@ fn store() -> UiStore {
     s.set("ability.dash.charge", 1.0);
     s.set("ability.dash.remaining", 0.0);
     s.set("cvar.volume", 1);
+    s.set("cvar.mat_gamma", 1.0);
+    s.set("cvar.r_vsync", 1);
     s.set("cvar.cl_fov", 90);
     s.set("cvar.sensitivity", 3);
     s.set("cvar.m_invert", 0);
@@ -145,59 +147,6 @@ fn the_pause_menu_runs_clean_and_its_controls_work() {
     for _ in 0..10 {
         ui.update(0.05, (1920, 1080), &mut s, &files);
     }
-    assert_eq!(problems(&mut ui), Vec::<String>::new());
-}
-
-#[test]
-fn the_keypad_checks_its_code() {
-    let files = content();
-    let mut ui = UiSystem::new();
-    let mut s = store();
-    ui.set_panel("keypad", "ui/panels/keypad.keroui", (320, 448), &files)
-        .unwrap();
-    ui.update(0.016, (1920, 1080), &mut s, &files);
-    assert_eq!(
-        s.get("keypad.shown").map(|v| v.to_string()),
-        Some("----".into())
-    );
-
-    let doc = ui.panel_document("keypad").unwrap();
-    let centre = |label: &str| {
-        // The button whose label reads `label`.
-        let id = doc.find_by_attr("text", label).unwrap();
-        let r = doc.rect(id);
-        (r[0] + r[2] / 2.0, r[1] + r[3] / 2.0)
-    };
-    let presses: Vec<(f32, f32)> = ["1", "2", "3", "4", "OK"]
-        .iter()
-        .map(|k| centre(k))
-        .collect();
-    let mut emitted = Vec::new();
-    for (x, y) in presses {
-        ui.panel_input("keypad", UiInput::PointerMove { x, y });
-        ui.panel_input("keypad", UiInput::PointerButton { down: true });
-        ui.panel_input("keypad", UiInput::PointerButton { down: false });
-        emitted.extend(ui.update(0.016, (1920, 1080), &mut s, &files));
-    }
-    assert!(
-        emitted
-            .iter()
-            .any(|a| matches!(a, UiAction::Emit { name, data, .. } if name == "OnUnlock" && data == "1234")),
-        "{emitted:?} / {:?}",
-        problems(&mut ui)
-    );
-    assert_eq!(
-        s.get("keypad.state").map(|v| v.to_string()),
-        Some("ok".into())
-    );
-    // It clears itself a moment later.
-    for _ in 0..40 {
-        ui.update(0.05, (1920, 1080), &mut s, &files);
-    }
-    assert_eq!(
-        s.get("keypad.shown").map(|v| v.to_string()),
-        Some("----".into())
-    );
     assert_eq!(problems(&mut ui), Vec::<String>::new());
 }
 

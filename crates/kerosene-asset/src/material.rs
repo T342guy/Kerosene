@@ -244,6 +244,25 @@ impl Material {
         self.get_bool("$translucent") || self.get_bool("$alphatest")
     }
 
+    /// Whether the surface is blended over what is behind it (`$translucent`):
+    /// glass, water, smoke. Drawn after everything solid, back to front.
+    pub fn is_blended(&self) -> bool {
+        self.get_bool("$translucent")
+    }
+
+    /// Whether texels below [`alpha_test_reference`](Material::alpha_test_reference)
+    /// are cut out (`$alphatest`): a fence, a grate, leaves. Solid where it
+    /// is not cut, so it sorts and shadows like any wall.
+    pub fn is_alpha_tested(&self) -> bool {
+        self.get_bool("$alphatest")
+    }
+
+    /// The alpha below which an alpha-tested texel is cut out:
+    /// `$alphatestreference`, 0.5 unless it says.
+    pub fn alpha_test_reference(&self) -> f32 {
+        self.get_f32("$alphatestreference", 0.5).clamp(0.0, 1.0)
+    }
+
     /// Whether the surface should be drawn from both sides.
     pub fn is_two_sided(&self) -> bool {
         self.get_bool("$nocull")
@@ -494,6 +513,17 @@ lit
         assert!(!Shader::Unlit.is_lit());
         assert!(!Shader::Sky.is_lit(), "the sky is its own light source");
         assert!(!Shader::Ui.is_lit());
+    }
+
+    #[test]
+    fn blending_and_cutting_out_are_told_apart() {
+        let glass = Material::parse(r#"lit { "$translucent" "1" "$nocull" "1" }"#).unwrap();
+        let fence =
+            Material::parse(r#"lit { "$alphatest" "1" "$alphatestreference" "0.3" }"#).unwrap();
+        assert!(glass.is_blended() && !glass.is_alpha_tested() && glass.is_two_sided());
+        assert!(fence.is_alpha_tested() && !fence.is_blended() && !fence.is_two_sided());
+        assert_eq!(fence.alpha_test_reference(), 0.3);
+        assert_eq!(glass.alpha_test_reference(), 0.5, "the default");
     }
 
     #[test]

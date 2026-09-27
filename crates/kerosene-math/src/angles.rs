@@ -14,18 +14,23 @@ use std::fmt;
 /// view angle in the wild assumes it.
 #[derive(Clone, Copy, PartialEq, Default)]
 pub struct Angles {
+    /// Up and down, in degrees. Positive looks down.
     pub pitch: f32,
+    /// Left and right, in degrees. Positive turns left, from +X towards +Y.
     pub yaw: f32,
+    /// Tilt about the forward axis, in degrees.
     pub roll: f32,
 }
 
 impl Angles {
+    /// No rotation: looking along +X.
     pub const ZERO: Angles = Angles {
         pitch: 0.0,
         yaw: 0.0,
         roll: 0.0,
     };
 
+    /// Angles from pitch, yaw and roll, in degrees.
     #[inline]
     pub const fn new(pitch: f32, yaw: f32, roll: f32) -> Self {
         Self { pitch, yaw, roll }
@@ -114,11 +119,21 @@ impl Angles {
     /// than one axis is moving at once -- yaw races ahead of a pitch that has
     /// further to swing, and the object visibly wobbles off the straight
     /// path. Going through quaternions gets the straight path instead.
+    ///
+    /// The endpoints are returned as given, not round-tripped through a
+    /// quaternion: `from_quat(to_quat(a))` is `a` only to within rounding,
+    /// and how much rounding depends on the target (aarch64 fuses
+    /// multiply-adds), so a pose drawn exactly on a tick would otherwise be a
+    /// hair off it on some machines.
     pub fn slerp(self, other: Angles, t: f32) -> Angles {
-        if self == other {
+        let t = t.clamp(0.0, 1.0);
+        if self == other || t == 0.0 {
             return self;
         }
-        Angles::from_quat(self.to_quat().slerp(other.to_quat(), t.clamp(0.0, 1.0)))
+        if t == 1.0 {
+            return other;
+        }
+        Angles::from_quat(self.to_quat().slerp(other.to_quat(), t))
     }
 
     /// Wrap every component into `[-180, 180)`.
@@ -138,8 +153,11 @@ impl Angles {
 /// An orthonormal basis derived from [`Angles`].
 #[derive(Clone, Copy, Debug)]
 pub struct Basis {
+    /// The direction the angles look along.
     pub forward: Vec3,
+    /// To the right of `forward`.
     pub right: Vec3,
+    /// Up from `forward`'s point of view.
     pub up: Vec3,
 }
 
@@ -294,6 +312,9 @@ mod tests {
         let b = Angles::new(-40.0, 170.0, 5.0);
         assert!(close(a.slerp(b, 0.0).forward(), a.forward()));
         assert!(close(a.slerp(b, 1.0).forward(), b.forward()));
+        // Exactly, not just close: renderers draw tick boundaries with these.
+        assert_eq!(a.slerp(b, 0.0), a);
+        assert_eq!(a.slerp(b, 1.0), b);
     }
 
     #[test]

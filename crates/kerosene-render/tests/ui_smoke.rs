@@ -218,6 +218,8 @@ fn the_shipped_hud_draws() {
             "Open the shutter: the keypad code is 1234",
         ),
         ("cvar.volume", "0.8"),
+        ("cvar.mat_gamma", "1"),
+        ("cvar.r_vsync", "1"),
         ("cvar.cl_fov", "90"),
         ("cvar.sensitivity", "3"),
         ("cvar.m_invert", "0"),

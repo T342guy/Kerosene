@@ -186,5 +186,7 @@ shipping its script.
 
 ## An example
 
-`content/scripts/kero_start.keroscript` is the sample map's, written to be
-read.
+The demo level's, `content/scripts/kero_start.keroscript` in
+[Kerosene Demo](https://github.com/t342guy/kerosene-demo), is written to be
+read: it plays a room tone, puts the objective on the HUD and says when the
+map has been running two seconds.

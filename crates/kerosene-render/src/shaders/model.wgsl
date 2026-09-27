@@ -70,9 +70,30 @@ struct MaterialParams {
     metalness: f32,
     // `$roughnessfactor`; scales the roughness map the same way.
     roughness_factor: f32,
-    _pad0: f32,
-    _pad1: f32,
+    // Bit 0 alpha test (`$alphatest`), bit 1 blended (`$translucent`).
+    flags: u32,
+    // The alpha below which an alpha-tested texel is cut out.
+    alpha_cutoff: f32,
 };
+
+const MATERIAL_ALPHA_TEST: u32 = 1u;
+const MATERIAL_TRANSLUCENT: u32 = 2u;
+
+// What a surface writes, given its colour and its texture's alpha: a hole
+// where an alpha-tested texture is thin, the alpha itself for a blended
+// material, and solid otherwise -- a texture with an alpha channel does not
+// make a wall see-through unless its material says so. The cut is made here,
+// after every texture has been sampled, so it cannot disturb the derivatives
+// the samples before it need.
+fn finish(color: vec3<f32>, alpha: f32) -> vec4<f32> {
+    if ((material.flags & MATERIAL_ALPHA_TEST) != 0u && alpha < material.alpha_cutoff) {
+        discard;
+    }
+    if ((material.flags & MATERIAL_TRANSLUCENT) != 0u) {
+        return vec4<f32>(color, alpha);
+    }
+    return vec4<f32>(color, 1.0);
+}
 @group(1) @binding(1) var<uniform> material: MaterialParams;
 
 @group(1) @binding(2) var base_texture: texture_2d<f32>;
@@ -489,7 +510,7 @@ fn fs_model(input: VertexOut) -> @location(0) vec4<f32> {
 
     if (camera.params.w > 0.5) {
         // r_fullbright: show the material with no lighting at all.
-        return vec4<f32>(albedo.rgb, 1.0);
+        return finish(albedo.rgb, albedo.a);
     }
 
     let n = shading_normal(input);
@@ -539,5 +560,5 @@ fn fs_model(input: VertexOut) -> @location(0) vec4<f32> {
     }
 
     // Linear HDR out; the tone-map pass does the rest.
-    return vec4<f32>(color, albedo.a);
+    return finish(color, albedo.a);
 }

@@ -12,7 +12,7 @@
 
 use kerosene_anim::{Playback, Skeleton, Transform};
 use kerosene_asset::Model;
-use kerosene_entity::{Entity, EntityId, EntityWorld, Value};
+use kerosene_entity::{Entity, EntityId, EntityWorld, ModelRole, Value};
 use kerosene_math::Mat4;
 use kerosene_vfs::Vfs;
 use std::collections::HashMap;
@@ -26,9 +26,10 @@ pub const PREVIOUS_STARTED: &str = "anim_previous_start";
 pub const FADE_STARTED: &str = "anim_fade_start";
 pub const DONE: &str = "anim_done";
 
-/// Whether an entity is an animated model.
+/// Whether a class is the stock animated prop, by name. See
+/// [`crate::physics::is_physics_prop`].
 pub fn is_animated_prop(classname: &str) -> bool {
-    classname.eq_ignore_ascii_case("prop_dynamic")
+    ModelRole::of_stock_class(classname) == Some(ModelRole::Animated)
 }
 
 /// A model with its skeleton worked out, ready to pose.
@@ -114,7 +115,11 @@ impl Animations {
     pub fn tick(&mut self, entities: &mut EntityWorld, vfs: &Vfs) {
         let now = entities.time;
         let mut finished: Vec<(EntityId, Option<String>)> = Vec::new();
-        for entity in entities.iter().filter(|e| is_animated_prop(&e.classname)) {
+        let registry = std::sync::Arc::clone(&entities.registry);
+        for entity in entities
+            .iter()
+            .filter(|e| registry.model_role(&e.classname) == Some(ModelRole::Animated))
+        {
             if entity.fields.bool(DONE, false) {
                 continue;
             }

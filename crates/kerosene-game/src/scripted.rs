@@ -15,6 +15,7 @@
 use kerosene_entity::io::InputEvent;
 use kerosene_entity::{ClassDef, ClassRegistry, EntityId, EntityWorld, host_requests};
 
+/// Register `logic_script`, which runs a Rhai file.
 pub fn register(registry: &mut ClassRegistry) {
     registry.register(
         ClassDef::new("logic_script")

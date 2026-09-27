@@ -29,6 +29,10 @@
 //! surfing, and it is preserved deliberately: it is not a bug, and removing it
 //! would change the game.
 
+// Everything public is documented: this crate is part of `kerosene`'s
+// stable API. See src/docs/versioning.md.
+#![warn(missing_docs)]
+
 mod movement;
 mod world;
 

@@ -26,7 +26,7 @@ fn the_base_content_mounts_and_holds_what_the_engine_asks_for_by_default() {
         "materials/dev/grid.keromat",
         "materials/dev/grid.kerotex",
         "materials/tools/nodraw.keromat",
-        "maps/kero_start.kerobsp",
+        "maps/kerosene_room.kerobsp",
         "models/props/cube.keromdl",
     ] {
         assert!(archive.contains(needed), "base content is missing {needed}");
@@ -65,7 +65,9 @@ fn the_base_vault_matches_the_content_it_was_packed_from() {
             continue;
         };
         let packed = archive.read(&entry.path).unwrap().unwrap();
-        if packed != bytes {
+        // A checkout that turned LF into CRLF (Windows without the
+        // repository's .gitattributes) holds the same text.
+        if packed != bytes && packed != strip_cr(&bytes) {
             stale.push(entry.path.clone());
         }
     }
@@ -73,4 +75,8 @@ fn the_base_vault_matches_the_content_it_was_packed_from() {
         stale.is_empty(),
         "base.vault is out of date for {stale:?}: run scripts/build-content.sh"
     );
+}
+
+fn strip_cr(bytes: &[u8]) -> Vec<u8> {
+    bytes.iter().copied().filter(|&b| b != b'\r').collect()
 }

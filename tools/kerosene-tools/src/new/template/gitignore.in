@@ -11,6 +11,18 @@
 *.kerobuild
 *.vault
 
+# The engine's developer and tool textures (dev/grid, tools/nodraw, ...),
+# which every content build writes out again for the compilers to read.
+# The game gets them from the engine's base content, so nothing here is
+# the game's own.
+content/art/dev/
+content/art/tools/
+content/materials/dev/
+content/materials/tools/
+
+# Written by the engine the first time it runs, with its defaults.
+content/engine.kconfig
+
 # Written by the game as it runs.
 content/cfg/config.cfg
 content/save/

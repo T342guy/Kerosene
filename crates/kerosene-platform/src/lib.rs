@@ -4,7 +4,7 @@
 //!
 //! Steam is the reason this exists, and the only store it speaks to today.
 //! But no game code, map, or script names Steam. They name a [`Platform`],
-//! which forwards to a [`Backend`]: [`steam::SteamBackend`] when the engine
+//! which forwards to a [`Backend`]: `steam::SteamBackend` when the engine
 //! is built with the `steam` feature and the Steam client is running, and
 //! [`NullBackend`] otherwise. So a game that awards an achievement on Steam
 //! awards it -- in memory -- off Steam too, the same map works in both, and
@@ -33,6 +33,10 @@
 //! undeclared is refused with a message saying so, rather than silently
 //! doing nothing on a store that has never heard of it.
 
+// Everything public is documented: this crate is part of `kerosene`'s
+// stable API. See src/docs/versioning.md.
+#![warn(missing_docs)]
+
 use std::collections::{BTreeMap, HashSet};
 use std::path::PathBuf;
 
@@ -52,12 +56,16 @@ pub const STEAM_BUILT_IN: bool = cfg!(feature = "steam");
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 #[non_exhaustive]
 pub enum StatKind {
+    /// A whole number: a count.
     #[default]
     Int,
+    /// A number with a fraction: a distance, a time.
     Float,
 }
 
 impl StatKind {
+    /// A kind from the project file's text: `float` (or `f32`, `real`),
+    /// otherwise `int`.
     pub fn parse(text: &str) -> StatKind {
         match text.trim().to_ascii_lowercase().as_str() {
             "float" | "f32" | "real" => StatKind::Float,
@@ -100,36 +108,51 @@ pub enum PlatformAction {
     Clear(String),
     /// Show "3 / 10" progress toward an achievement, as a toast.
     Progress {
+        /// The achievement.
         id: String,
+        /// How far along.
         current: u32,
+        /// Out of how many.
         max: u32,
     },
+    /// Set a stat to a value.
     SetStat {
+        /// The stat, as the project declares it.
         name: String,
+        /// Its new value.
         value: f64,
     },
+    /// Add to a stat: a count going up.
     AddStat {
+        /// The stat, as the project declares it.
         name: String,
+        /// How much to add; negative takes away.
         delta: f64,
     },
     /// Push changed stats now rather than on the next batch.
     StoreStats,
     /// Rich presence: what friends see the player doing.
     Presence {
+        /// The presence key: `status`, `steam_display`.
         key: String,
+        /// Its value.
         value: String,
     },
+    /// Clear every presence key.
     ClearPresence,
     /// Open the overlay on a dialog: `friends`, `achievements`, `stats`,
     /// `community`, `settings`, ...
     OpenOverlay(String),
+    /// Open a web page in the store's overlay, or the browser without one.
     OpenUrl(String),
     /// The store page of an app; `None` is this game's own.
     OpenStore(Option<u32>),
     /// Post a score. The result comes back as [`PlatformEvent::ScoreSubmitted`]
     /// or [`PlatformEvent::ScoreFailed`].
     SubmitScore {
+        /// The leaderboard, by name.
         board: String,
+        /// The score.
         score: i32,
         /// Lower is better (a time), rather than higher (points).
         ascending: bool,
@@ -257,37 +280,58 @@ impl std::fmt::Display for PlatformAction {
 /// Something the platform reports back.
 #[derive(Clone, PartialEq, Debug)]
 pub enum PlatformEvent {
+    /// The store's overlay opened (`true`) or closed.
     OverlayChanged(bool),
+    /// An achievement was awarded, by id.
     AchievementUnlocked(String),
+    /// An achievement was taken back, by id.
     AchievementCleared(String),
+    /// Progress towards an achievement was shown.
     AchievementProgress {
+        /// The achievement.
         id: String,
+        /// How far along.
         current: u32,
+        /// Out of how many.
         max: u32,
     },
+    /// A stat changed value.
     StatChanged {
+        /// The stat.
         name: String,
+        /// What it was.
         old: f64,
+        /// What it is now.
         new: f64,
     },
+    /// A score reached the leaderboard.
     ScoreSubmitted {
+        /// The leaderboard.
         board: String,
+        /// The score posted.
         score: i32,
         /// Global rank after the upload, 1 being first.
         rank: i32,
         /// Whether this beat the player's previous best.
         improved: bool,
     },
+    /// A score could not be posted.
     ScoreFailed {
+        /// The leaderboard.
         board: String,
     },
+    /// Whether a DLC is installed, now the store has said.
     DlcChecked {
+        /// The DLC's app id.
         appid: u32,
+        /// Whether the player has it.
         owned: bool,
     },
     /// A Workshop item's content was mounted into the file system.
     WorkshopMounted {
+        /// The item's id.
         id: u64,
+        /// Where its content is.
         path: PathBuf,
     },
 }
@@ -340,8 +384,11 @@ pub struct PlatformView {
     pub available: bool,
     /// `steam`, or `none`.
     pub name: String,
+    /// The player's name on the store; empty off it.
     pub user: String,
+    /// The language the player chose in the store, `english`.
     pub language: String,
+    /// Whether the store's overlay is open.
     pub overlay: bool,
     /// Every declared achievement, and whether it is unlocked.
     pub achievements: BTreeMap<String, bool>,
@@ -360,39 +407,56 @@ pub trait Backend {
     fn name(&self) -> &'static str;
     /// A store is actually connected.
     fn available(&self) -> bool;
+    /// The signed-in player's name.
     fn user(&self) -> String;
+    /// The language the player chose.
     fn language(&self) -> String;
     /// Pump the store's callbacks, appending what came of them.
     fn frame(&mut self, events: &mut Vec<PlatformEvent>);
+    /// Whether the store's overlay is open.
     fn overlay_active(&self) -> bool;
 
+    /// Whether an achievement is unlocked.
     fn achievement(&self, id: &str) -> bool;
+    /// Award (`true`) or take back an achievement.
     fn set_achievement(&mut self, id: &str, unlocked: bool) -> Result<(), String>;
     /// The achievements the store knows of, when it can say.
     fn achievement_names(&self) -> Vec<String> {
         Vec::new()
     }
+    /// Show progress towards an achievement.
     fn indicate_progress(&mut self, id: &str, current: u32, max: u32) -> Result<(), String>;
 
+    /// A stat's value, read as `kind`.
     fn stat(&self, name: &str, kind: StatKind) -> Option<f64>;
+    /// Set a stat, written as `kind`.
     fn set_stat(&mut self, name: &str, kind: StatKind, value: f64) -> Result<(), String>;
     /// Send changed stats and achievements to the store.
     fn store_stats(&mut self) -> Result<(), String>;
 
+    /// Set a rich-presence key.
     fn set_presence(&mut self, key: &str, value: &str);
+    /// Clear every rich-presence key.
     fn clear_presence(&mut self);
 
+    /// Open the overlay on a dialog.
     fn open_overlay(&mut self, dialog: &str);
+    /// Open a web page.
     fn open_url(&mut self, url: &str);
+    /// Open a store page; `None` is this game's.
     fn open_store(&mut self, appid: Option<u32>);
 
     /// Post a score; the result arrives through [`Backend::frame`].
     fn submit_score(&mut self, board: &str, score: i32, ascending: bool);
 
+    /// Whether the player owns a DLC.
     fn owns_dlc(&self, appid: u32) -> bool;
 
+    /// Whether cloud saves are on, for this game and this player.
     fn cloud_enabled(&self) -> bool;
+    /// Write a file to the cloud.
     fn cloud_write(&mut self, name: &str, bytes: &[u8]) -> Result<(), String>;
+    /// Read a file from the cloud, if it is there.
     fn cloud_read(&self, name: &str) -> Option<Vec<u8>>;
 
     /// Installed Workshop items: their ids and folders.
@@ -453,6 +517,8 @@ impl Platform {
         Platform::new(PlatformConfig::default())
     }
 
+    /// A platform on a backend of the caller's choosing: a test's fake, a
+    /// store Kerosene does not ship.
     pub fn with_backend(config: PlatformConfig, backend: Box<dyn Backend>) -> Platform {
         Platform {
             overlay: backend.overlay_active(),
@@ -465,22 +531,28 @@ impl Platform {
         }
     }
 
+    /// What the game declared.
     pub fn config(&self) -> &PlatformConfig {
         &self.config
     }
 
+    /// The store's name: `steam`, `none`.
     pub fn name(&self) -> &'static str {
         self.backend.name()
     }
+    /// Whether a store is connected.
     pub fn available(&self) -> bool {
         self.backend.available()
     }
+    /// The signed-in player's name; empty off a store.
     pub fn user(&self) -> String {
         self.backend.user()
     }
+    /// The language the player chose in the store.
     pub fn language(&self) -> String {
         self.backend.language()
     }
+    /// Whether the store's overlay is open.
     pub fn overlay_active(&self) -> bool {
         self.overlay
     }
@@ -499,10 +571,12 @@ impl Platform {
         }
     }
 
+    /// Whether an achievement is unlocked.
     pub fn is_unlocked(&self, id: &str) -> bool {
         self.backend.achievement(id)
     }
 
+    /// How a stat is declared, if the project declares it.
     pub fn stat_kind(&self, name: &str) -> Option<StatKind> {
         self.config
             .stats
@@ -511,11 +585,13 @@ impl Platform {
             .map(|(_, k)| *k)
     }
 
+    /// A declared stat's value.
     pub fn stat(&self, name: &str) -> Option<f64> {
         let kind = self.stat_kind(name)?;
         self.backend.stat(name, kind)
     }
 
+    /// Whether the player owns a DLC.
     pub fn owns_dlc(&self, appid: u32) -> bool {
         self.backend.owns_dlc(appid)
     }
@@ -725,15 +801,19 @@ impl Platform {
             .push(PlatformEvent::WorkshopMounted { id, path });
     }
 
+    /// Whether cloud saves are on.
     pub fn cloud_enabled(&self) -> bool {
         self.backend.cloud_enabled()
     }
+    /// Write a file to the cloud.
     pub fn cloud_write(&mut self, name: &str, bytes: &[u8]) -> Result<(), String> {
         self.backend.cloud_write(name, bytes)
     }
+    /// Read a file from the cloud, if it is there.
     pub fn cloud_read(&self, name: &str) -> Option<Vec<u8>> {
         self.backend.cloud_read(name)
     }
+    /// Installed Workshop items: their ids and folders.
     pub fn workshop_items(&self) -> Vec<(u64, PathBuf)> {
         self.backend.workshop_items()
     }

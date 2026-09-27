@@ -19,9 +19,21 @@ keeps state of its own.
 | `load <name>` | Load one |
 | `saves` | List them, newest first |
 
-Saves are files, `save/<name>.kerosave`, in the first writable content
-directory: the same place `cfg/config.cfg` goes. They are JSON, so a bug
-report can include one and anyone can read it.
+Saves are files, `save/<name>.kerosave`, in the player's own directory: the
+same place `cfg/config.cfg` goes.
+
+| Platform | Directory |
+|---|---|
+| Linux | `~/.local/share/<game>` (or `$XDG_DATA_HOME/<game>`) |
+| Windows | `%APPDATA%\<game>` |
+| macOS | `~/Library/Application Support/<game>` |
+
+`<game>` is the game's app id, from its name (`orbital-drift`). Not beside
+the executable, which a game installed in Program Files or a Steam library
+cannot write to. `--portable` keeps them in the first content directory
+instead, which is where saves from before `1.0.0-a3` are, and those are
+still found and loaded either way. They are JSON, so a bug report can
+include one and anyone can read it.
 
 A game cannot be saved with no map loaded, or while the player is dead.
 

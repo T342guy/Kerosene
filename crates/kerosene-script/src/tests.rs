@@ -580,3 +580,39 @@ fn plain_variables_are_saved_and_put_back_over_the_top_level() {
     // A restored integer is still an integer to arithmetic.
     assert_eq!(b.run("visits + 1").unwrap().as_deref(), Some("4"));
 }
+
+// ---- chance ---------------------------------------------------------------
+
+#[test]
+fn random_numbers_stay_in_range_and_repeat_for_the_same_map() {
+    let rolls = |host: &mut ScriptHost| {
+        host.run("let r = []; for i in 0..20 { r.push(rand_int(1, 6)); } r")
+            .unwrap()
+            .unwrap()
+    };
+    let (mut a, mut b) = (host(), host());
+    let first = rolls(&mut a);
+    assert_eq!(first, rolls(&mut b), "the same map rolls the same way");
+    assert_ne!(first, rolls(&mut a), "and does not repeat itself");
+
+    let mut h = host();
+    assert_eq!(
+        h.run("let x = rand(); x >= 0.0 && x < 1.0")
+            .unwrap()
+            .as_deref(),
+        Some("true")
+    );
+    assert_eq!(
+        h.run("let x = rand_range(10.0, 20.0); x >= 10.0 && x < 20.0")
+            .unwrap()
+            .as_deref(),
+        Some("true")
+    );
+    assert_eq!(
+        h.run(r#"["a", "b"].contains(pick(["a", "b"]))"#)
+            .unwrap()
+            .as_deref(),
+        Some("true")
+    );
+    assert_eq!(h.run("pick([]) == ()").unwrap().as_deref(), Some("true"));
+}

@@ -4,7 +4,7 @@
 //! `prop_physics` is a model the engine gives a rigid body: it falls, bounces
 //! off walls, and settles. The class itself is thin on purpose -- the body,
 //! the stepping and the pose write-back all live in the engine's
-//! [`kerosene_engine::physics`] module, because a class handler only sees the
+//! `kerosene_engine::physics` module, because a class handler only sees the
 //! entity world and cannot reach the simulation. What lives here is the
 //! designer-facing surface: the inputs a prop answers to.
 //!
@@ -13,7 +13,7 @@
 //! a barrel when a door opens without any scripting.
 
 use kerosene_entity::io::InputEvent;
-use kerosene_entity::{ClassDef, ClassRegistry, EntityId, EntityWorld, Fields, Value};
+use kerosene_entity::{ClassDef, ClassRegistry, EntityId, EntityWorld, Fields, ModelRole, Value};
 use kerosene_math::Vec3;
 
 /// Spawnflag: `prop_dynamic_spawner` fires once when the map starts.
@@ -22,9 +22,11 @@ pub const SF_SPAWN_ON_START: u32 = 1;
 /// Spawnflag: `prop_physics` starts asleep until something wakes it.
 pub const SF_START_ASLEEP: u32 = 1;
 
+/// Register `prop_physics` and `prop_dynamic_spawner`.
 pub fn register(registry: &mut ClassRegistry) {
     registry.register(
         ClassDef::new("prop_physics")
+            .model(ModelRole::Physics)
             .input("Break", input_break)
             .input("Wake", input_wake)
             .input("Sleep", input_sleep)

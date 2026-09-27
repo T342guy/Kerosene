@@ -25,7 +25,43 @@ pub type RestoreHandler = fn(&mut EntityWorld, EntityId);
 /// an unhandled input can be reported rather than silently swallowed.
 pub type InputHandler = fn(&mut EntityWorld, EntityId, &crate::io::InputEvent) -> bool;
 
+/// What the engine does with an entity's `model` key.
+///
+/// The engine draws, animates and collides models, and the game decides
+/// which of its classes have one. A class with no role has its `model` key
+/// ignored, which is right for the many classes (a sound, a trigger) that
+/// never have one.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum ModelRole {
+    /// Drawn and collided with, and never moves: `prop_static`.
+    Static,
+    /// A rigid body the physics simulates: `prop_physics`.
+    Physics,
+    /// Drawn with its skeleton posed, and moved by entity I/O:
+    /// `prop_dynamic`. Collided with as it stands.
+    Animated,
+}
+
+impl ModelRole {
+    /// The role of the stock prop classes, by name, for a registry that does
+    /// not declare them -- an engine made with no game, in a test.
+    pub fn of_stock_class(classname: &str) -> Option<ModelRole> {
+        [
+            ("prop_static", ModelRole::Static),
+            ("prop_physics", ModelRole::Physics),
+            ("prop_dynamic", ModelRole::Animated),
+        ]
+        .into_iter()
+        .find(|(name, _)| classname.eq_ignore_ascii_case(name))
+        .map(|(_, role)| role)
+    }
+}
+
 /// Everything the engine needs to know about one entity class.
+///
+/// Built with [`ClassDef::new`] and its builder methods; new fields arrive
+/// as new builder methods, so it cannot be written as a struct literal.
+#[non_exhaustive]
 pub struct ClassDef {
     pub classname: &'static str,
     pub spawn: Option<SpawnHandler>,
@@ -43,6 +79,9 @@ pub struct ClassDef {
     /// output to the game and forgetting to offer it in Chisel is a build
     /// failure rather than a wiring session that silently does nothing.
     pub outputs: Vec<&'static str>,
+    /// What the engine does with the entity's `model` key. See
+    /// [`ClassDef::model`].
+    pub model: Option<ModelRole>,
 }
 
 impl ClassDef {
@@ -54,7 +93,16 @@ impl ClassDef {
             restore: None,
             inputs: Vec::new(),
             outputs: Vec::new(),
+            model: None,
         }
+    }
+
+    /// Give the class a model the engine draws and collides with, in the
+    /// given role: a game's `npc_*` or `item_*` with a `model` key is drawn
+    /// the way a stock prop is.
+    pub fn model(mut self, role: ModelRole) -> Self {
+        self.model = Some(role);
+        self
     }
 
     pub fn on_spawn(mut self, f: SpawnHandler) -> Self {
@@ -160,6 +208,16 @@ impl ClassRegistry {
             .iter()
             .find(|(n, _)| n.eq_ignore_ascii_case(input))
             .map(|(_, f)| *f)
+    }
+
+    /// What the engine does with an entity of this class's `model` key:
+    /// the role the class declared, or for a class nobody registered, the
+    /// stock prop classes' by name.
+    pub fn model_role(&self, classname: &str) -> Option<ModelRole> {
+        match self.get(classname) {
+            Some(def) => def.model.or_else(|| ModelRole::of_stock_class(classname)),
+            None => ModelRole::of_stock_class(classname),
+        }
     }
 
     pub fn spawn_handler(&self, classname: &str) -> Option<SpawnHandler> {

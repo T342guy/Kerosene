@@ -376,6 +376,12 @@ class
           "help" "A locked door fires OnLockedUse instead of opening." }
     key { "name" "wait" "label" "Wait before closing" "type" "float" "default" "4"
           "help" "Seconds it stays open before closing itself. -1 to stay open until told otherwise." }
+    key { "name" "noise_move" "label" "Sound: moving" "type" "string" "default" "door/move"
+          "help" "Played as it starts to move. Empty for silence." }
+    key { "name" "noise_stop" "label" "Sound: stopped" "type" "string" "default" ""
+          "help" "Played when it reaches either end." }
+    key { "name" "noise_locked" "label" "Sound: locked" "type" "string" "default" ""
+          "help" "Played when something tries it while it is locked." }
     input { "name" "Open" }
     input { "name" "Close" }
     input { "name" "Toggle" }
@@ -409,6 +415,12 @@ class
           "help" "A locked button fires OnUseLocked instead of pressing." }
     key { "name" "wait" "label" "Wait before returning" "type" "float" "default" "1"
           "help" "Seconds it stays in before popping back out. -1 to stay in until told otherwise." }
+    key { "name" "noise_move" "label" "Sound: pressed" "type" "string" "default" ""
+          "help" "Played as it moves in, and out again." }
+    key { "name" "noise_stop" "label" "Sound: stopped" "type" "string" "default" ""
+          "help" "Played when it reaches either end." }
+    key { "name" "noise_locked" "label" "Sound: locked" "type" "string" "default" ""
+          "help" "Played when something presses it while it is locked." }
     input { "name" "Press" "help" "Press it, as though the player had." }
     input { "name" "Use" "help" "What the player's use key sends." }
     input { "name" "Unpress" "help" "Send it back out early." }
@@ -672,7 +684,7 @@ class
     "base" "Entity" "base" "Point"
     "help" "A UI layout shown on a surface in the level: a screen, a keypad, a sign. It faces along its angles; place it just in front of a wall."
     key { "name" "angles" "label" "Facing (pitch yaw roll)" "type" "angles" "default" "0 0 0" }
-    key { "name" "layout" "label" "Layout" "type" "string" "default" "ui/panels/keypad.keroui"
+    key { "name" "layout" "label" "Layout" "type" "string" "default" "ui/panels/status.keroui"
           "help" "The .keroui file to show." }
     key { "name" "width" "label" "Width (units)" "type" "float" "default" "32" }
     key { "name" "height" "label" "Height (units)" "type" "float" "default" "32" }

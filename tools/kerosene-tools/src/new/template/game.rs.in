@@ -117,3 +117,28 @@ impl Game for @TYPE@ {
         self.publish(engine);
     }
 }
+
+// A class handler is a function of the entity world, so it is tested with
+// one: no engine, no window, no map. `cargo test` runs this.
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_pickup_asks_the_game_to_count_it_and_goes() {
+        let mut registry = ClassRegistry::new();
+        @TYPE@::default().classes(&mut registry);
+        let mut world = EntityWorld::new(std::sync::Arc::new(registry));
+        let pickup = world.spawn("item_pickup");
+        world
+            .get_mut(pickup)
+            .unwrap()
+            .fields
+            .set("item", Value::Text("key".into()));
+
+        assert!(world.accept_input(pickup, &InputEvent::new("Pickup")));
+        let asked = world.take_requests();
+        assert!(asked.iter().any(|r| r.kind == PICKUP && r.payload == "key"));
+        assert!(world.get(pickup).is_none_or(|e| e.pending_removal));
+    }
+}

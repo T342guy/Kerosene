@@ -36,8 +36,12 @@ The stock game ships these under `content/ui/`:
 | `ui/hud.keroui` | While a map is running (the `ui_hud` convar) |
 | `ui/overlays/damage.keroui` | By the HUD's script, on the `overlay` layer |
 | `ui/menus/pause.keroui` | By Escape (the `ui_pausemenu` convar) |
-| `ui/panels/keypad.keroui` | On a `point_worldpanel` in `kero_start` |
-| `ui/panels/status.keroui` | On a `point_worldpanel` in `kero_start` |
+| `ui/panels/status.keroui` | On a `point_worldpanel`; the default layout for one |
+
+A keypad panel -- buttons, a display, a script that checks the code and
+fires `OnUnlock` -- is in [Kerosene
+Demo](https://github.com/t342guy/kerosene-demo), as
+`content/ui/panels/keypad.*`, with a test that presses its buttons.
 
 They are written to be read. Copying one is the fastest way to start.
 
@@ -253,7 +257,7 @@ control's value.
 
 In Rhai a function can't see the script's top-level variables. Keep state
 in the store with `set_store`, which also lets the layout bind to it. This is
-how `ui/panels/keypad.keroscript` works.
+how the demo's `ui/panels/keypad.keroscript` works.
 
 ## Layers
 

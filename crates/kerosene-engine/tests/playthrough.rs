@@ -3398,12 +3398,15 @@ fn archived_settings_and_bindings_come_back_through_config_cfg() {
     let mut again = common::stock(&config);
     again.console.run_buffered();
     assert_eq!(again.console.float("sensitivity"), 7.5);
-    let requests = kerosene_engine::engine::take_console_requests(&mut again);
+    let unclaimed = kerosene_engine::engine::take_console_requests(&mut again);
     assert!(
-        requests
-            .iter()
-            .any(|(kind, payload)| kind == "bind" && payload.contains("+use")),
-        "the bind reaches the host: {requests:?}"
+        unclaimed.iter().all(|(kind, _)| kind != "bind"),
+        "{unclaimed:?}"
+    );
+    assert_eq!(
+        again.input.binding("f"),
+        Some("+use"),
+        "the engine keeps the bindings, headless or not"
     );
 
     let _ = std::fs::remove_dir_all(&dir);

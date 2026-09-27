@@ -5,7 +5,7 @@
 //!
 //! ```toml
 //! [dependencies]
-//! kerosene = "1.0.0-a2"
+//! kerosene = "1.0.0-a3"
 //! ```
 //!
 //! -- or, quicker, `kerosene-tools new mygame` makes a game crate with the
@@ -131,14 +131,30 @@ pub mod game {
                     WeaponEvent::Fired {
                         weapon,
                         directions,
+                        damage,
                         range,
                         decal,
                         decal_size,
                         ..
                     } => {
+                        let eye = engine.player.movement.eye_position();
+                        // A kick up the harder the shot hits; a shotgun
+                        // bucks, a pistol flicks.
+                        let kick = (damage * directions.len() as f32 * 0.04).clamp(0.5, 4.0);
+                        engine.view_punch(kerosene_math::Angles::new(-kick, 0.0, 0.0));
                         for offset in directions {
-                            if let Some((at, normal, _)) = engine.trace_view(offset, range) {
-                                engine.place_decal(decal, at, normal, decal_size);
+                            let Some(hit) = engine.trace_view(offset, range) else {
+                                continue;
+                            };
+                            // A shot pushes the prop it hits, and marks
+                            // anything else: a decal on a prop would hang in
+                            // the air the moment it moved.
+                            let pushed = hit.entity.is_some_and(|id| {
+                                let push = (hit.pos - eye).normalize_or_zero() * damage * 8.0;
+                                engine.physics_mut().apply_impulse(id, push)
+                            });
+                            if !pushed {
+                                engine.place_decal(decal, hit.pos, hit.normal, decal_size);
                             }
                         }
                         engine.ui_emit("weapon_fired", weapon);
@@ -215,6 +231,8 @@ pub mod game {
                 ("q", "lastinv"),
                 ("r", "reload"),
                 ("mouse2", "+ability1"),
+                ("mwheelup", "invprev"),
+                ("mwheeldown", "invnext"),
             ] {
                 engine.console.enqueue(format!("bind {key} {command}"));
             }
@@ -289,7 +307,8 @@ pub mod prelude {
     pub use egui;
     pub use kerosene_console::{Args, ConVarFlags, Console};
     pub use kerosene_entity::{
-        ClassDef, ClassRegistry, EntityId, EntityWorld, HostRequest, Value, host_requests,
+        ClassDef, ClassRegistry, EntityId, EntityWorld, HostRequest, ModelRole, Value,
+        host_requests,
     };
     pub use kerosene_math::{Aabb, Angles, Vec3};
 }

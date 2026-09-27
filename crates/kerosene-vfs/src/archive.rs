@@ -30,38 +30,69 @@ const MAGIC: [u8; 4] = *b"KVLT";
 const VERSION: u32 = 1;
 const HEADER_SIZE: u64 = 40;
 
+/// Why an archive could not be read or written.
 #[derive(Debug, Error)]
 #[non_exhaustive]
 pub enum ArchiveError {
+    /// The operating system refused.
     #[error("io error on {path}: {source}")]
     Io {
+        /// The archive, or the file being added to one.
         path: String,
+        /// What the operating system said.
         #[source]
         source: std::io::Error,
     },
+    /// The file does not start with `KVLT`: not an archive at all.
     #[error("{path} is not a .vault archive (bad magic)")]
-    BadMagic { path: String },
+    BadMagic {
+        /// The file.
+        path: String,
+    },
+    /// An archive of a format version this build does not read.
     #[error("{path} is a version {found} archive; this build reads version {expected}")]
     BadVersion {
+        /// The archive.
         path: String,
+        /// The version it is.
         found: u32,
+        /// The version this build reads.
         expected: u32,
     },
+    /// The directory or a file's extent does not fit the file: cut short, or
+    /// written wrong.
     #[error("{path} is truncated or malformed: {detail}")]
-    Malformed { path: String, detail: String },
+    Malformed {
+        /// The archive.
+        path: String,
+        /// What did not fit.
+        detail: String,
+    },
+    /// A file's contents do not match the checksum stored for it.
     #[error("{archive}: entry {entry:?} failed its checksum (archive is corrupt)")]
-    ChecksumMismatch { archive: String, entry: String },
+    ChecksumMismatch {
+        /// The archive.
+        archive: String,
+        /// The file in it whose contents are wrong.
+        entry: String,
+    },
+    /// A path the archive cannot hold: see [`crate::VfsError::BadPath`].
     #[error("{0:?} is not a usable virtual path")]
     BadPath(String),
 }
 
 type Result<T> = std::result::Result<T, ArchiveError>;
 
+/// One file in an archive's directory.
 #[derive(Clone, Debug)]
 pub struct Entry {
+    /// Its virtual path, lower-cased.
     pub path: String,
+    /// CRC-32 of its contents, checked when it is read.
     pub crc: u32,
+    /// Where its contents start, after the directory.
     pub offset: u64,
+    /// How many bytes it is.
     pub size: u64,
 }
 
@@ -235,15 +266,20 @@ impl Archive {
         })
     }
 
+    /// Where the archive came from: a file's path, or a name given to one
+    /// compiled in.
     pub fn source(&self) -> &str {
         &self.source
     }
+    /// Every file in it, sorted by path.
     pub fn entries(&self) -> &[Entry] {
         &self.entries
     }
+    /// How many files it holds.
     pub fn len(&self) -> usize {
         self.entries.len()
     }
+    /// Whether it holds none.
     pub fn is_empty(&self) -> bool {
         self.entries.is_empty()
     }
@@ -259,6 +295,7 @@ impl Archive {
         Some(&self.entries[i])
     }
 
+    /// Whether it has a file at `vpath`, however that is capitalised.
     pub fn contains(&self, vpath: &str) -> bool {
         self.find(vpath).is_some()
     }
@@ -329,6 +366,7 @@ pub struct ArchiveBuilder {
 }
 
 impl ArchiveBuilder {
+    /// A builder with nothing staged.
     pub fn new() -> Self {
         Self::default()
     }
@@ -353,12 +391,15 @@ impl ArchiveBuilder {
         self.add(vpath, data)
     }
 
+    /// How many files are staged.
     pub fn len(&self) -> usize {
         self.files.len()
     }
+    /// Whether none are.
     pub fn is_empty(&self) -> bool {
         self.files.is_empty()
     }
+    /// The staged paths, sorted.
     pub fn paths(&self) -> impl Iterator<Item = &str> {
         self.files.keys().map(|s| s.as_str())
     }

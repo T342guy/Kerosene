@@ -5,11 +5,13 @@ use glam::Vec3;
 /// An axis-aligned bounding box.
 ///
 /// An *empty* box is one whose `min` exceeds its `max` on some axis; that is
-/// the state [`Aabb::EMPTY`] starts in, so that [`Aabb::expand`] over zero
+/// the state [`Aabb::EMPTY`] starts in, so that [`Aabb::add_point`] over zero
 /// points yields empty rather than a box around the origin.
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Aabb {
+    /// The corner with the smallest coordinates.
     pub min: Vec3,
+    /// The corner with the largest coordinates.
     pub max: Vec3,
 }
 
@@ -26,6 +28,7 @@ impl Aabb {
         max: Vec3::splat(MAX_MAP_COORD),
     };
 
+    /// A box between two corners, taken as given: `min` should not exceed `max`.
     #[inline]
     pub const fn new(min: Vec3, max: Vec3) -> Self {
         Self { min, max }
@@ -40,6 +43,7 @@ impl Aabb {
         }
     }
 
+    /// The smallest box around every point; [`Aabb::EMPTY`] for none.
     pub fn from_points(points: &[Vec3]) -> Self {
         let mut b = Self::EMPTY;
         for &p in points {
@@ -48,17 +52,20 @@ impl Aabb {
         b
     }
 
+    /// Whether the box holds nothing: any `min` past its `max`.
     #[inline]
     pub fn is_empty(&self) -> bool {
         self.min.x > self.max.x || self.min.y > self.max.y || self.min.z > self.max.z
     }
 
+    /// Grow the box to take in a point.
     #[inline]
     pub fn add_point(&mut self, p: Vec3) {
         self.min = self.min.min(p);
         self.max = self.max.max(p);
     }
 
+    /// The smallest box around both.
     #[inline]
     pub fn union(&self, other: &Aabb) -> Aabb {
         if self.is_empty() {
@@ -73,16 +80,19 @@ impl Aabb {
         }
     }
 
+    /// The middle of the box.
     #[inline]
     pub fn center(&self) -> Vec3 {
         (self.min + self.max) * 0.5
     }
 
+    /// How big the box is along each axis.
     #[inline]
     pub fn size(&self) -> Vec3 {
         self.max - self.min
     }
 
+    /// Half of [`size`](Aabb::size): the distance from the centre to each face.
     #[inline]
     pub fn half_extents(&self) -> Vec3 {
         self.size() * 0.5
@@ -107,6 +117,7 @@ impl Aabb {
         }
     }
 
+    /// Whether a point is inside or on the box.
     #[inline]
     pub fn contains_point(&self, p: Vec3) -> bool {
         p.x >= self.min.x
@@ -117,6 +128,7 @@ impl Aabb {
             && p.z <= self.max.z
     }
 
+    /// Whether two boxes overlap or touch.
     #[inline]
     pub fn intersects(&self, other: &Aabb) -> bool {
         self.min.x <= other.max.x

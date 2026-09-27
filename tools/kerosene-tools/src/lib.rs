@@ -10,6 +10,7 @@
 //! game ship as just the runtime and an archive; the toolset is a developer's
 //! tool, never a player's.
 
+pub mod doctor;
 pub mod entry;
 pub mod init;
 pub mod new;
@@ -44,6 +45,8 @@ pub const SUBCOMMANDS: &[(&str, &str)] = &[
     ("timbre", "compile sounds into .keroaud"),
     ("kiln", "build a whole project's content"),
     ("play", "build what changed, then run the game"),
+    ("clean", "delete what the content build wrote"),
+    ("doctor", "check this machine can build and run a game"),
     ("vault", "pack and inspect content archives"),
     (
         "workshop",
@@ -65,10 +68,55 @@ pub fn run_subcommand(name: &str, args: Vec<String>) -> anyhow::Result<()> {
         "timbre" => timbre::run(args),
         "kiln" => kiln::run(args),
         "play" => play::run(args, None),
+        "clean" => kiln::run(std::iter::once("--clean".to_string()).chain(args).collect()),
+        "doctor" => doctor::run(args),
         "vault" => vault::run(args),
         "workshop" => workshop::run(args),
-        other => {
-            anyhow::bail!("unknown tool {other:?}; try `kerosene-tools` for the window");
+        other => match did_you_mean(other) {
+            Some(guess) => anyhow::bail!("unknown command {other:?}. Did you mean `{guess}`?"),
+            None => anyhow::bail!("unknown command {other:?}. `kerosene-tools --help` lists them"),
+        },
+    }
+}
+
+/// The command nearest `typed`, if one is close enough to be what was meant:
+/// within two edits, or one for a short name.
+pub fn did_you_mean(typed: &str) -> Option<&'static str> {
+    let names = SUBCOMMANDS.iter().map(|(n, _)| *n).chain(["chisel"]);
+    names
+        .map(|name| (edit_distance(typed, name), name))
+        .filter(|&(d, name)| d <= if name.len() <= 4 { 1 } else { 2 })
+        .min_by_key(|&(d, _)| d)
+        .map(|(_, name)| name)
+}
+
+/// Levenshtein distance, by characters.
+fn edit_distance(a: &str, b: &str) -> usize {
+    let b: Vec<char> = b.chars().collect();
+    let mut row: Vec<usize> = (0..=b.len()).collect();
+    for (i, ca) in a.chars().enumerate() {
+        let mut previous = row[0];
+        row[0] = i + 1;
+        for (j, &cb) in b.iter().enumerate() {
+            let substitute = previous + usize::from(ca != cb);
+            previous = row[j + 1];
+            row[j + 1] = substitute.min(row[j] + 1).min(previous + 1);
         }
+    }
+    row[b.len()]
+}
+
+#[cfg(test)]
+mod suggest_tests {
+    use super::*;
+
+    #[test]
+    fn a_typo_is_answered_with_the_command_it_nearly_was() {
+        assert_eq!(did_you_mean("kilm"), Some("kiln"));
+        assert_eq!(did_you_mean("chisle"), Some("chisel"));
+        assert_eq!(did_you_mean("docter"), Some("doctor"));
+        assert_eq!(did_you_mean("pley"), Some("play"));
+        assert_eq!(did_you_mean("banana"), None);
+        assert_eq!(edit_distance("", "abc"), 3);
     }
 }

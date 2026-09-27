@@ -14,9 +14,8 @@
 
 use crate::engine::{Engine, EngineConfig, report_unhandled, take_console_requests};
 use crate::game::Game;
-use crate::input::InputSystem;
-use crate::physics::{is_physics_prop, is_static_prop};
 use kerosene_console::ConsoleUi;
+use kerosene_entity::ModelRole;
 use kerosene_math::Pose;
 use kerosene_render::decals::DecalSpec;
 use kerosene_render::gpu::{
@@ -113,7 +112,6 @@ impl LoadedMap {
 struct App {
     engine: Engine,
     config: EngineConfig,
-    input: InputSystem,
     gfx: Option<Gfx>,
     map: Option<LoadedMap>,
     last_frame: Instant,
@@ -155,7 +153,6 @@ pub fn run_with(config: EngineConfig, game: Box<dyn Game>) -> anyhow::Result<()>
     let mut app = App {
         engine: Engine::with_game(&config, game),
         config,
-        input: InputSystem::new(),
         gfx: None,
         map: None,
         last_frame: Instant::now(),
@@ -286,7 +283,7 @@ impl ApplicationHandler for App {
                 // Releasing held keys on focus loss stops the player running
                 // forever after an alt-tab.
                 if !focused {
-                    self.input.release_all();
+                    self.engine.input.release_all();
                     self.set_mouse_capture(false);
                 }
             }
@@ -305,7 +302,7 @@ impl ApplicationHandler for App {
                 }
                 if let PhysicalKey::Code(code) = event.physical_key
                     && let Some(name) = key_name(code)
-                    && let Some(command) = self.input.key_event(name, pressed)
+                    && let Some(command) = self.engine.input.key_event(name, pressed)
                 {
                     self.engine.console.execute_user(&command);
                 }
@@ -326,8 +323,33 @@ impl ApplicationHandler for App {
                 }
                 if let Some(name) = mouse_button_name(button) {
                     let pressed = state == ElementState::Pressed;
-                    if let Some(command) = self.input.key_event(name, pressed) {
+                    if let Some(command) = self.engine.input.key_event(name, pressed) {
                         self.engine.console.execute_user(&command);
+                    }
+                }
+            }
+
+            // The wheel is two keys, `mwheelup` and `mwheeldown`, pressed and
+            // let go at once for each notch -- so a `+` binding on one is a tap.
+            WindowEvent::MouseWheel { delta, .. } => {
+                if self.console_ui.open || !self.mouse_captured {
+                    return;
+                }
+                let notches = match delta {
+                    winit::event::MouseScrollDelta::LineDelta(_, y) => y,
+                    // A touchpad's pixels: about one notch per 40.
+                    winit::event::MouseScrollDelta::PixelDelta(p) => (p.y / 40.0) as f32,
+                };
+                let key = if notches > 0.0 {
+                    "mwheelup"
+                } else {
+                    "mwheeldown"
+                };
+                for _ in 0..(notches.abs().round() as usize).clamp(1, 8) {
+                    for pressed in [true, false] {
+                        if let Some(command) = self.engine.input.key_event(key, pressed) {
+                            self.engine.console.execute_user(&command);
+                        }
                     }
                 }
             }
@@ -345,7 +367,9 @@ impl ApplicationHandler for App {
         if let DeviceEvent::MouseMotion { delta } = event
             && self.mouse_captured
         {
-            self.input.mouse_moved(delta.0 as f32, delta.1 as f32);
+            self.engine
+                .input
+                .mouse_moved(delta.0 as f32, delta.1 as f32);
         }
     }
 
@@ -356,11 +380,12 @@ impl ApplicationHandler for App {
     }
 
     fn exiting(&mut self, _event_loop: &ActiveEventLoop) {
+        self.engine.shutdown();
         // Whatever was set this session -- a sensitivity, a field of view,
         // a rebound key -- is written where the next start reads it back.
         // Done here rather than on `quit` alone so that closing the window
         // keeps the settings too.
-        let text = self.engine.config_text(&self.input.to_config());
+        let text = self.engine.config_text(&self.engine.input.to_config());
         match self.engine.vfs.write("cfg/config.cfg", text.as_bytes()) {
             Ok(path) => log::info!("wrote {}", path.display()),
             Err(e) => log::warn!("could not write config.cfg: {e}"),
@@ -402,7 +427,7 @@ impl App {
         self.console_ui.toggle();
         if self.console_ui.open {
             // Whatever was held stays held forever otherwise.
-            self.input.release_all();
+            self.engine.input.release_all();
             self.set_mouse_capture(false);
             self.console_ui.greet(&mut self.engine.console);
         }
@@ -426,7 +451,7 @@ impl App {
         }
         self.menu_open = wants;
         if wants {
-            self.input.release_all();
+            self.engine.input.release_all();
             self.set_mouse_capture(false);
         } else if self.engine.level.is_some() && !self.console_ui.open {
             self.set_mouse_capture(true);
@@ -500,8 +525,8 @@ impl App {
         let real_dt = (now - self.last_frame).as_secs_f32().min(0.25);
         self.last_frame = now;
 
-        self.input.update_view(&self.engine.console);
-        let input_state = self.input.state();
+        self.engine.input.update_view(&self.engine.console);
+        let input_state = self.engine.input.state();
 
         // The world stops while something else has the player: the console,
         // or another window. The pause menu and the store's overlay are the
@@ -520,32 +545,6 @@ impl App {
         for (kind, payload) in unhandled {
             match kind.as_str() {
                 kerosene_console::requests::TOGGLE_CONSOLE => self.toggle_console(),
-                kerosene_console::requests::BIND => {
-                    let mut words = payload.splitn(2, char::is_whitespace);
-                    let key = words.next().unwrap_or("").trim_matches('"');
-                    match words.next().map(|c| c.trim().trim_matches('"')) {
-                        Some(command) if !command.is_empty() => {
-                            self.input.bind(key, command);
-                        }
-                        _ => {
-                            let line = match self.input.binding(key) {
-                                Some(command) => format!("\"{key}\" = \"{command}\""),
-                                None => format!("\"{key}\" is not bound"),
-                            };
-                            self.engine.console.print(line);
-                        }
-                    }
-                }
-                kerosene_console::requests::UNBIND => self.input.unbind(payload.trim()),
-                kerosene_console::requests::UNBIND_ALL => self.input.unbind_all(),
-                kerosene_console::requests::BIND_LIST => {
-                    let listing = self.input.to_config();
-                    if listing.is_empty() {
-                        self.engine.console.print("no keys are bound");
-                    } else {
-                        self.engine.console.print(listing);
-                    }
-                }
                 _ => leftover.push((kind, payload)),
             }
         }
@@ -582,7 +581,7 @@ impl App {
             // The view is the host's -- it comes from the mouse -- so a new
             // map's spawn facing, a saved game's, or the one a level change
             // carried across, is taken here or never seen.
-            self.input.view_angles = self.engine.player.view_angles;
+            self.engine.input.view_angles = self.engine.player.view_angles;
         }
         self.stream_sections();
 
@@ -741,6 +740,18 @@ impl App {
     fn draw(&mut self, real_dt: f32) {
         let Some(gfx) = &mut self.gfx else { return };
 
+        // `r_vsync`, applied the frame it changes: an options menu's switch
+        // takes effect without a restart.
+        let present_mode = if self.engine.console.bool("r_vsync") {
+            wgpu::PresentMode::AutoVsync
+        } else {
+            wgpu::PresentMode::AutoNoVsync
+        };
+        if gfx.config.present_mode != present_mode {
+            gfx.config.present_mode = present_mode;
+            gfx.surface.configure(&gfx.device, &gfx.config);
+        }
+
         let frame = match gfx.surface.get_current_texture() {
             Ok(frame) => frame,
             Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {
@@ -766,10 +777,11 @@ impl App {
         // for the same reason: a mouse is read every frame, and looking
         // around at the tick rate is the stutter people notice first.
         let alpha = self.engine.interpolation_alpha();
+        let (position, angles, fov) = self.engine.view_camera(alpha);
         let camera = Camera {
-            position: self.engine.interpolated_eye(alpha),
-            angles: self.input.state().view_angles.clamped_view(),
-            fov: self.engine.console.float("cl_fov"),
+            position,
+            angles,
+            fov,
             aspect: gfx.config.width as f32 / gfx.config.height.max(1) as f32,
             ..Default::default()
         };
@@ -783,10 +795,11 @@ impl App {
             uniform.set_sky_color(level.sky_color);
         }
         gfx.renderer.update_camera(&gfx.queue, &uniform);
-        gfx.renderer.update_tonemap(
+        gfx.renderer.update_display(
             &gfx.queue,
             self.engine.console.float("mat_exposure"),
             ToneMapOperator::from_index(self.engine.console.int("mat_tonemap")),
+            self.engine.console.float("mat_gamma"),
         );
 
         // Where each brush entity has got to, blended between the last two
@@ -811,7 +824,9 @@ impl App {
         // slot -- 0, the identity, for anything that is not animated.
         let mut props: Vec<(usize, String, usize)> = Vec::new();
         for entity in self.engine.entities.iter() {
-            if !is_physics_prop(&entity.classname) {
+            if self.engine.entities.registry.model_role(&entity.classname)
+                != Some(ModelRole::Physics)
+            {
                 continue;
             }
             let Some(name) = entity.fields.text("model") else {
@@ -847,7 +862,7 @@ impl App {
         let mut palettes = Vec::new();
         let engine = &mut self.engine;
         for entity in engine.entities.iter() {
-            if !crate::animation::is_animated_prop(&entity.classname) {
+            if engine.entities.registry.model_role(&entity.classname) != Some(ModelRole::Animated) {
                 continue;
             }
             let Some(name) = entity.fields.text("model") else {
@@ -904,7 +919,9 @@ impl App {
         let mut static_groups: Vec<(String, Vec<ModelInstance>)> = Vec::new();
         if let Some(level) = &self.engine.level {
             for entity in self.engine.entities.iter() {
-                if !is_static_prop(&entity.classname) {
+                if self.engine.entities.registry.model_role(&entity.classname)
+                    != Some(ModelRole::Static)
+                {
                     continue;
                 }
                 let Some(name) = entity.fields.text("model") else {
@@ -952,7 +969,8 @@ impl App {
 
         // Debug overlays: the prop boxes when `phys_debug` is on, and the
         // acoustic rooms and occlusion traces when `snd_acoustics_debug` is 2.
-        let mut debug_lines = Vec::new();
+        let now = self.engine.time;
+        let mut debug_lines = self.engine.debug_draw.take(now);
         if self.engine.console.int("phys_debug") >= 1 {
             debug_lines.extend(self.engine.physics.debug_lines());
         }
@@ -1155,6 +1173,8 @@ impl App {
                 // Named groups so a RenderDoc capture reads as the frame's
                 // structure rather than a list of anonymous draws.
                 pass.push_debug_group("world");
+                // Kept for the translucent pass, after everything solid.
+                let mut section_visible = Vec::new();
                 for (_, section) in map.loaded() {
                     let visible = if novis {
                         // Every surface, models included: `r_novis` means
@@ -1177,6 +1197,7 @@ impl App {
                     self.stats.surfaces_drawn += drawn.surfaces_drawn;
                     self.stats.surfaces_total += drawn.surfaces_total;
                     self.stats.cluster = drawn.cluster;
+                    section_visible.push(visible);
                 }
                 pass.pop_debug_group();
 
@@ -1248,6 +1269,38 @@ impl App {
                         self.stats.draw_calls += drawn.draw_calls;
                         self.stats.triangles += drawn.triangles;
                     }
+                }
+                pass.pop_debug_group();
+
+                // Glass, water and the rest of `$translucent`, over everything
+                // solid and back to front, so what is behind it shows.
+                pass.push_debug_group("translucent");
+                for ((_, section), visible) in map.loaded().zip(&section_visible) {
+                    let drawn = gfx.renderer.draw_world_translucent(
+                        &mut pass,
+                        &section.frame_bind_group,
+                        &section.resources,
+                        &section.mesh,
+                        visible,
+                        camera.position,
+                    );
+                    self.stats.draw_calls += drawn.draw_calls;
+                    self.stats.triangles += drawn.triangles;
+                }
+                for (model, pose) in &brush_models {
+                    if !novis && !world.mesh.model_is_visible(*model, *pose, &frustum) {
+                        continue;
+                    }
+                    let drawn = gfx.renderer.draw_model_translucent(
+                        &mut pass,
+                        &world.frame_bind_group,
+                        &world.resources,
+                        &world.mesh,
+                        *model,
+                        camera.position,
+                    );
+                    self.stats.draw_calls += drawn.draw_calls;
+                    self.stats.triangles += drawn.triangles;
                 }
                 pass.pop_debug_group();
 
@@ -1532,7 +1585,7 @@ async fn create_gfx(event_loop: &ActiveEventLoop, config: &EngineConfig) -> anyh
         present_mode: if config.vsync {
             wgpu::PresentMode::AutoVsync
         } else {
-            wgpu::PresentMode::Immediate
+            wgpu::PresentMode::AutoNoVsync
         },
         alpha_mode: capabilities.alpha_modes[0],
         view_formats: vec![],
@@ -1683,6 +1736,46 @@ fn key_name(code: KeyCode) -> Option<&'static str> {
         F10 => "f10",
         F11 => "f11",
         F12 => "f12",
+        // Source's names, so a config written for it binds the same keys.
+        ArrowUp => "uparrow",
+        ArrowDown => "downarrow",
+        ArrowLeft => "leftarrow",
+        ArrowRight => "rightarrow",
+        Backspace => "backspace",
+        Delete => "del",
+        Insert => "ins",
+        Home => "home",
+        End => "end",
+        PageUp => "pgup",
+        PageDown => "pgdn",
+        CapsLock => "capslock",
+        Pause => "pause",
+        Minus => "-",
+        Equal => "=",
+        BracketLeft => "[",
+        BracketRight => "]",
+        Backslash => "\\",
+        Semicolon => "semicolon",
+        Quote => "'",
+        Comma => ",",
+        Period => ".",
+        Slash => "/",
+        Numpad0 => "kp_ins",
+        Numpad1 => "kp_end",
+        Numpad2 => "kp_downarrow",
+        Numpad3 => "kp_pgdn",
+        Numpad4 => "kp_leftarrow",
+        Numpad5 => "kp_5",
+        Numpad6 => "kp_rightarrow",
+        Numpad7 => "kp_home",
+        Numpad8 => "kp_uparrow",
+        Numpad9 => "kp_pgup",
+        NumpadEnter => "kp_enter",
+        NumpadAdd => "kp_plus",
+        NumpadSubtract => "kp_minus",
+        NumpadMultiply => "kp_multiply",
+        NumpadDivide => "kp_slash",
+        NumpadDecimal => "kp_del",
         _ => return None,
     })
 }
@@ -1692,6 +1785,8 @@ fn mouse_button_name(button: MouseButton) -> Option<&'static str> {
         MouseButton::Left => "mouse1",
         MouseButton::Right => "mouse2",
         MouseButton::Middle => "mouse3",
+        MouseButton::Back => "mouse4",
+        MouseButton::Forward => "mouse5",
         _ => return None,
     })
 }
@@ -1699,6 +1794,61 @@ fn mouse_button_name(button: MouseButton) -> Option<&'static str> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn keys_have_sources_names_and_no_two_share_one() {
+        use KeyCode::*;
+        assert_eq!(key_name(ArrowUp), Some("uparrow"));
+        assert_eq!(key_name(Numpad8), Some("kp_uparrow"));
+        assert_eq!(key_name(Semicolon), Some("semicolon"));
+        assert_eq!(mouse_button_name(MouseButton::Back), Some("mouse4"));
+        let codes = [
+            KeyA,
+            Digit0,
+            ArrowUp,
+            ArrowDown,
+            ArrowLeft,
+            ArrowRight,
+            Backspace,
+            Delete,
+            Insert,
+            Home,
+            End,
+            PageUp,
+            PageDown,
+            CapsLock,
+            Pause,
+            Minus,
+            Equal,
+            BracketLeft,
+            BracketRight,
+            Backslash,
+            Semicolon,
+            Quote,
+            Comma,
+            Period,
+            Slash,
+            Numpad0,
+            Numpad1,
+            Numpad2,
+            Numpad3,
+            Numpad4,
+            Numpad5,
+            Numpad6,
+            Numpad7,
+            Numpad8,
+            Numpad9,
+            NumpadEnter,
+            NumpadAdd,
+            NumpadSubtract,
+            NumpadMultiply,
+            NumpadDivide,
+            NumpadDecimal,
+        ];
+        let names: std::collections::HashSet<_> =
+            codes.iter().filter_map(|&c| key_name(c)).collect();
+        assert_eq!(names.len(), codes.len());
+    }
 
     #[test]
     fn the_console_key_is_intercepted_whether_the_console_is_open_or_not() {

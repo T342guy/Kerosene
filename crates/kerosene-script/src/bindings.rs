@@ -513,4 +513,49 @@ fn register_world(engine: &mut Engine, shared: &Rc<RefCell<Shared>>) {
     engine.register_fn("entity_count", move || {
         source.borrow().view.entities.len() as i64
     });
+
+    register_random(engine, shared);
+}
+
+// ---- chance ---------------------------------------------------------------
+
+/// Roll with the scripts' generator, seeded from the map's name the first
+/// time a map asks, so a map's script rolls the same way every time it is
+/// played from the start.
+fn roll<T>(shared: &Rc<RefCell<Shared>>, f: impl FnOnce(&mut kerosene_math::Rng) -> T) -> T {
+    let mut shared = shared.borrow_mut();
+    let map = shared.view.map.clone();
+    let fresh = shared.rng.as_ref().is_none_or(|(seeded, _)| *seeded != map);
+    if fresh {
+        let seed = kerosene_math::Rng::seed_from(&map) ^ 0x5c21_97a1;
+        shared.rng = Some((map, kerosene_math::Rng::new(seed)));
+    }
+    let (_, rng) = shared.rng.as_mut().expect("seeded above");
+    f(rng)
+}
+
+fn register_random(engine: &mut Engine, shared: &Rc<RefCell<Shared>>) {
+    // `rand()`: a number from 0 up to (not including) 1.
+    let source = Rc::clone(shared);
+    engine.register_fn("rand", move || roll(&source, |r| r.next_f32() as f64));
+
+    // `rand_range(lo, hi)`: a number from `lo` up to `hi`.
+    let source = Rc::clone(shared);
+    engine.register_fn("rand_range", move |lo: f64, hi: f64| {
+        roll(&source, |r| r.range(lo as f32, hi as f32) as f64)
+    });
+
+    // `rand_int(lo, hi)`: a whole number from `lo` to `hi`, both included.
+    let source = Rc::clone(shared);
+    engine.register_fn("rand_int", move |lo: i64, hi: i64| {
+        roll(&source, |r| r.range_int(lo, hi))
+    });
+
+    // `pick(array)`: one of its items, or `()` when it is empty.
+    let source = Rc::clone(shared);
+    engine.register_fn("pick", move |items: rhai::Array| -> Dynamic {
+        roll(&source, |r| {
+            r.pick(&items).cloned().unwrap_or(Dynamic::UNIT)
+        })
+    });
 }

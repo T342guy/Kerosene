@@ -3,7 +3,7 @@
 //! [box3d-rust](https://crates.io/crates/box3d-rust).
 //!
 //! Kerosene's player movement is a faithful reimplementation of Source's
-//! `gamemovement` in [`kerosene_physics`], and it stays that way: the way a
+//! `gamemovement` in `kerosene_physics`, and it stays that way: the way a
 //! Source game *feels* is that code, and swapping it for a general-purpose
 //! engine would change the game.
 //!

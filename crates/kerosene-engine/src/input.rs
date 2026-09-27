@@ -10,7 +10,7 @@
 
 use kerosene_console::Console;
 use kerosene_math::Angles;
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 
 /// The movement and view state one tick consumes.
 #[derive(Clone, Copy, Debug, Default)]
@@ -88,6 +88,9 @@ pub struct InputSystem {
     pub view_angles: Angles,
     /// Mouse movement not yet applied, in raw counts.
     pending_mouse: (f32, f32),
+    /// A game's own held actions -- `+zoom`, `+lean_left` -- that are down
+    /// now. See [`InputSystem::action_held`].
+    actions: BTreeSet<String>,
 }
 
 impl Default for InputSystem {
@@ -103,6 +106,7 @@ impl InputSystem {
             held: HeldActions::default(),
             view_angles: Angles::ZERO,
             pending_mouse: (0.0, 0.0),
+            actions: BTreeSet::new(),
         };
         system.apply_default_bindings();
         system
@@ -153,6 +157,36 @@ impl InputSystem {
         self.bindings.iter()
     }
 
+    /// Every key bound to `command`, sorted: what a rebinding screen shows
+    /// beside "Jump". `+jump` and `jump` are the same command here.
+    pub fn keys_for(&self, command: &str) -> Vec<String> {
+        let want = command.trim().trim_start_matches('+');
+        let mut keys: Vec<String> = self
+            .bindings
+            .iter()
+            .filter(|(_, bound)| {
+                bound
+                    .trim()
+                    .trim_start_matches('+')
+                    .eq_ignore_ascii_case(want)
+            })
+            .map(|(key, _)| key.clone())
+            .collect();
+        keys.sort();
+        keys
+    }
+
+    /// Whether a game's own held action is down: `action_held("zoom")` is
+    /// true between a key bound to `+zoom` going down and coming up. Read it
+    /// in [`Game::tick`](crate::Game::tick), as the engine reads `+jump`.
+    ///
+    /// The `+zoom` and `-zoom` commands still run as well, for a game that
+    /// would rather register them.
+    pub fn action_held(&self, action: &str) -> bool {
+        self.actions
+            .contains(&action.trim_start_matches('+').to_ascii_lowercase())
+    }
+
     /// Handle a key going down or up.
     ///
     /// Returns the console command to run, if the binding is a one-shot rather
@@ -165,8 +199,15 @@ impl InputSystem {
                 *slot = pressed;
                 return None;
             }
-            // A `+command` with no movement slot still runs as a command, so a
-            // game can add its own held actions.
+            // A `+command` with no movement slot is a game's own held
+            // action: tracked, for `action_held`, and still run as a
+            // command, for a game that registered one.
+            let name = action.to_ascii_lowercase();
+            if pressed {
+                self.actions.insert(name);
+            } else {
+                self.actions.remove(&name);
+            }
             return Some(format!("{}{action}", if pressed { '+' } else { '-' }));
         }
 
@@ -214,6 +255,7 @@ impl InputSystem {
     pub fn release_all(&mut self) {
         self.held = HeldActions::default();
         self.pending_mouse = (0.0, 0.0);
+        self.actions.clear();
     }
 
     /// Serialise bindings as console commands, for `config.cfg`.
@@ -372,5 +414,29 @@ mod tests {
         let mut input = InputSystem::new();
         input.key_event("W", true);
         assert!(input.held.forward);
+    }
+
+    #[test]
+    fn a_games_own_held_action_is_tracked() {
+        let mut input = InputSystem::new();
+        input.bind("mouse2", "+zoom");
+        assert_eq!(input.key_event("mouse2", true).as_deref(), Some("+zoom"));
+        assert!(input.action_held("zoom"));
+        assert!(input.action_held("+ZOOM"), "spelled either way");
+        input.key_event("mouse2", false);
+        assert!(!input.action_held("zoom"));
+
+        input.key_event("mouse2", true);
+        input.release_all();
+        assert!(!input.action_held("zoom"), "losing focus lets go");
+    }
+
+    #[test]
+    fn the_keys_for_a_command_are_listed() {
+        let mut input = InputSystem::new();
+        input.bind("uparrow", "+forward");
+        assert_eq!(input.keys_for("+forward"), vec!["uparrow", "w"]);
+        assert_eq!(input.keys_for("forward"), vec!["uparrow", "w"]);
+        assert!(input.keys_for("nothing").is_empty());
     }
 }

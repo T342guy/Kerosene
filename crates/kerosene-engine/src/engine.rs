@@ -27,6 +27,9 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+mod commands;
+use commands::{register_commands, register_cvars};
+pub use commands::{report_unhandled, take_console_requests};
 /// Server tick rate. 64 is Source's modern default: fine enough that
 /// movement feels continuous, coarse enough to be affordable.
 pub const DEFAULT_TICKRATE: f32 = 64.0;
@@ -91,6 +94,13 @@ pub struct EngineConfig {
     /// On by default; a test that wants only what it put there turns it
     /// off. See [`crate::base`].
     pub base_content: bool,
+    /// Where the player's own files go -- saves and `config.cfg`, and
+    /// anything else the engine or the game writes through the VFS --
+    /// searched before everything else and written to first.
+    /// `None` writes them into the first content directory instead, which
+    /// is what a test and a `--portable` run want. [`crate::launch`] sets it
+    /// to the platform's per-user directory for the game.
+    pub user_dir: Option<PathBuf>,
 }
 
 impl Default for EngineConfig {
@@ -111,6 +121,7 @@ impl Default for EngineConfig {
             app_id: "kerosene".to_string(),
             version: String::new(),
             base_content: true,
+            user_dir: None,
         }
     }
 }
@@ -149,6 +160,13 @@ impl EngineConfig {
     /// Mount the engine's base content beneath the game's, or not.
     pub fn with_base_content(mut self, base: bool) -> Self {
         self.base_content = base;
+        self
+    }
+
+    /// Keep the player's files in `dir`, or with `None`, in the content
+    /// tree. See [`EngineConfig::user_dir`].
+    pub fn with_user_dir(mut self, dir: Option<PathBuf>) -> Self {
+        self.user_dir = dir;
         self
     }
 
@@ -229,6 +247,9 @@ pub struct Level {
     /// map is loaded, and the entity that names it is inert at runtime, so
     /// this is the only moment anything asks.
     pub sky_color: Vec3,
+    /// Where characters may walk, from `maps/<name>.kerowalk`. See
+    /// [`Engine::nav`].
+    pub nav: Option<crate::nav::Nav>,
 }
 
 /// How a brush model is placed, given where its entity has got to.
@@ -319,6 +340,20 @@ pub struct Engine {
     /// Set by the host while its window is in the background, for
     /// `snd_mute_losefocus`.
     background: bool,
+    /// The health the player spawns with. See [`Engine::set_player_max_health`].
+    max_health: f32,
+    /// Set once [`Engine::shutdown`] has told the game.
+    shut_down: bool,
+    /// What the game has drawn with [`Engine::debug_line`] and friends.
+    pub(crate) debug_draw: crate::debug_draw::DebugDraw,
+    /// The game's dice. See [`Engine::rng`].
+    pub(crate) rng: kerosene_math::Rng,
+    /// Key bindings, and which actions are held. The host feeds it keys;
+    /// a game reads it for its own `+actions` and changes it for a key
+    /// rebinding screen.
+    pub input: crate::input::InputSystem,
+    /// Punches, shakes, zoom and the game's camera. See [`crate::view`].
+    pub(crate) view: crate::view::ViewEffects,
     /// The game UI: its store, layers, world panels and decals.
     pub ui: crate::ui::GameUi,
     /// The store the game ships on -- Steam, or nothing. See
@@ -426,12 +461,31 @@ impl Engine {
         if config.base_content {
             crate::base::mount(&mut vfs);
         }
+        // First of all, the player's own: written to before anything else,
+        // and read first, so their config and saves are what is found. The
+        // content tree stays mounted beneath it, so saves an older build left
+        // there are still found.
+        if let Some(dir) = &config.user_dir {
+            match std::fs::create_dir_all(dir) {
+                Ok(()) => {
+                    vfs.add_directory_front(dir, "USER");
+                    log::info!("player files: {}", dir.display());
+                }
+                Err(e) => log::warn!(
+                    "could not make {} ({e}); keeping player files in the content tree",
+                    dir.display()
+                ),
+            }
+        }
         // Loose files win over packed ones, so a developer can drop a file
         // beside a shipped archive and see it immediately.
         let vfs = Arc::new(vfs);
 
         let mut console = Console::new();
         register_cvars(&mut console);
+        // The launch config says first; a saved config.cfg, run later, has
+        // the last word.
+        console.set("r_vsync", if config.vsync { "1" } else { "0" });
         register_commands(&mut console);
         crate::ui::register(&mut console);
         crate::platform::register(&mut console);
@@ -518,6 +572,12 @@ impl Engine {
             paused_by_command: false,
             host_paused: false,
             background: false,
+            max_health: 100.0,
+            shut_down: false,
+            debug_draw: Default::default(),
+            rng: kerosene_math::Rng::default(),
+            input: crate::input::InputSystem::new(),
+            view: Default::default(),
             ui: crate::ui::GameUi::default(),
             platform,
         };
@@ -688,6 +748,12 @@ impl Engine {
                 .warn("this map has no acoustics; run Resonance on it");
         }
 
+        // The game's last look at the old map, now that the new one is known
+        // to load.
+        if self.level.is_some() {
+            self.with_game_mut(|game, engine| game.map_unloading(engine));
+        }
+
         // A fresh entity world per map: nothing from the last one should
         // survive, and a stale handle must not resolve.
         // t3; this part appears to carefully reset and load map data.
@@ -741,11 +807,13 @@ impl Engine {
                     .join(", ")
             ));
         }
+        let nav = self.load_nav(name);
         self.level = Some(Level {
             name: name.to_string(),
             bsp: std::sync::Arc::new(bsp),
             streaming,
             sky_color,
+            nav,
         });
         self.load_generation += 1;
         // Before the entities' spawn requests are taken: an `infodecal`
@@ -757,6 +825,9 @@ impl Engine {
         self.audio.stop_all();
 
         let Some(save) = save else {
+            // Seeded by the map, so a fresh start of a map rolls the same way
+            // each time, which a bug report can then reproduce.
+            self.rng = kerosene_math::Rng::new(kerosene_math::Rng::seed_from(name));
             self.spawn_player();
             self.time = 0.0;
             self.tick_count = 0;
@@ -858,7 +929,7 @@ impl Engine {
             },
             view_angles: angles.clamped_view(),
             previous_origin: origin,
-            health: 100.0,
+            health: self.max_health,
             // Carried across a respawn rather than cleared: a player who died
             // with the use key held should have to let go and press again,
             // not immediately use whatever they spawn facing. The same goes
@@ -868,6 +939,38 @@ impl Engine {
             step_distance: 0.0,
             step_index: self.player.step_index,
         };
+        self.with_game_mut(|game, engine| game.player_spawned(engine));
+    }
+
+    /// Put the player back at the map's start, alive and at full health:
+    /// what the engine does on death unless [`Game::player_died`] took it
+    /// over, for a game that did and has finished its death screen.
+    ///
+    /// [`Game::player_died`]: crate::Game::player_died
+    pub fn respawn_player(&mut self) {
+        if self.level.is_some() {
+            self.spawn_player();
+        }
+    }
+
+    /// Whether the player has health left. A game that handles
+    /// [`Game::player_died`] itself leaves the
+    /// player dead until it calls [`respawn_player`](Engine::respawn_player)
+    /// or loads a save; meanwhile they neither move nor use anything.
+    pub fn player_alive(&self) -> bool {
+        self.player.health > 0.0
+    }
+
+    /// The health the player spawns with; 100 unless the game says.
+    pub fn player_max_health(&self) -> f32 {
+        self.max_health
+    }
+
+    /// Set the health the player spawns with. The player's current health is
+    /// capped to it, and is otherwise left alone.
+    pub fn set_player_max_health(&mut self, max: f32) {
+        self.max_health = max.max(1.0);
+        self.player.health = self.player.health.min(self.max_health);
     }
 
     /// Advance by real elapsed time, running as many fixed ticks as it covers.
@@ -886,6 +989,10 @@ impl Engine {
         }
         self.console.run_buffered();
         self.load_pending_map();
+
+        // Every frame, paused or not: a menu animates and a death screen
+        // counts down while the world is stopped.
+        self.with_game_mut(|game, engine| game.frame(engine, real_dt));
 
         self.update_volume();
 
@@ -916,6 +1023,23 @@ impl Engine {
     /// Fixed ticks simulated since the engine started.
     pub fn tick_count(&self) -> u64 {
         self.tick_count
+    }
+
+    /// The engine's random number generator: what a game rolls its dice
+    /// with. Seeded from the map's name when one loads and kept in saved
+    /// games, so the same start and the same inputs give the same game.
+    pub fn rng(&mut self) -> &mut kerosene_math::Rng {
+        &mut self.rng
+    }
+
+    /// Tell the game the engine is going away, once: the host calls this as
+    /// it exits, windowed or headless. Anything after it is a mistake, so
+    /// the engine should be dropped next.
+    pub fn shutdown(&mut self) {
+        if std::mem::replace(&mut self.shut_down, true) {
+            return;
+        }
+        self.with_game_mut(|game, engine| game.shutdown(engine));
     }
 
     /// Ask the host to exit at the end of this frame: what `quit` does.
@@ -1031,6 +1155,7 @@ impl Engine {
             self.console.float("volume")
         };
         self.audio.set_volume(volume);
+        self.audio.set_world_paused(self.is_paused());
     }
 
     /// One fixed simulation step.
@@ -1038,6 +1163,8 @@ impl Engine {
         self.time += dt;
         self.tick_count += 1;
         self.player.previous_origin = self.player.movement.origin;
+        let player_fov = self.console.float("cl_fov");
+        self.view.tick(self.time, dt, player_fov);
 
         self.player.view_angles = input.view_angles.clamped_view();
         // Read every tick rather than at map load, so `developer 2` typed
@@ -1057,12 +1184,15 @@ impl Engine {
                     .max_speed
                     .min(self.console.float("sv_walkspeed").max(0.0));
             }
+            // The dead do not walk: a game that took over a death has the
+            // player where they fell until it says otherwise.
+            let alive = self.player.health > 0.0;
             let move_input = MoveInput {
-                forward: input.forward,
-                side: input.side,
-                up: input.up,
-                jump: input.jump,
-                duck: input.duck,
+                forward: if alive { input.forward } else { 0.0 },
+                side: if alive { input.side } else { 0.0 },
+                up: if alive { input.up } else { 0.0 },
+                jump: alive && input.jump,
+                duck: alive && input.duck,
                 view_angles: self.player.view_angles,
             };
 
@@ -1102,8 +1232,9 @@ impl Engine {
 
         // An interactive world panel under the crosshair takes the press
         // first: pressing use on a keypad presses its key, not the wall.
-        let use_edge = input.use_key && !self.player.use_held;
-        let attack_edge = input.attack && !self.player.attack_held;
+        let alive = self.player.health > 0.0;
+        let use_edge = alive && input.use_key && !self.player.use_held;
+        let attack_edge = alive && input.attack && !self.player.attack_held;
         let panel_took = self.world_panel_input(input.use_key, input.attack, use_edge, attack_edge);
 
         if use_edge && !panel_took {
@@ -1543,7 +1674,7 @@ impl Engine {
         let vfs = self.vfs.clone();
         let sound = surface.footstep_sound(self.player.step_index);
         self.player.step_index = self.player.step_index.wrapping_add(1);
-        self.audio.play(&vfs, &sound, Some(origin), 0.5);
+        self.audio.play_if_present(&vfs, &sound, Some(origin), 0.5);
     }
 
     /// Resolve the physical surface under a point by tracing down and looking
@@ -1585,8 +1716,22 @@ impl Engine {
     /// at zero" is a rule about the player and not about the thing that hurt
     /// them -- and because a second copy would be the one that forgot to
     /// respawn.
+    ///
+    /// The game hears of it first, through [`Game::player_damaged`], and may
+    /// change the amount -- armour, difficulty, god mode. At zero it hears
+    /// [`Game::player_died`]; unless it takes the death over, the player
+    /// respawns at the map's start.
+    ///
+    /// [`Game::player_damaged`]: crate::Game::player_damaged
+    /// [`Game::player_died`]: crate::Game::player_died
     pub fn hurt_player(&mut self, amount: f32, reason: &str) {
         if amount <= 0.0 || self.player.health <= 0.0 {
+            return;
+        }
+        let amount = self
+            .with_game_mut(|game, engine| game.player_damaged(engine, amount, reason))
+            .unwrap_or(amount);
+        if amount <= 0.0 || !amount.is_finite() {
             return;
         }
         self.player.health -= amount;
@@ -1596,10 +1741,15 @@ impl Engine {
         ));
         self.ui_emit("player_damaged", format!("{amount:.0}"));
         if self.player.health <= 0.0 {
+            self.player.health = 0.0;
             self.ui_emit("player_died", reason);
             self.console.print("you died");
-            self.player.health = 100.0;
-            self.spawn_player();
+            let handled = self
+                .with_game_mut(|game, engine| game.player_died(engine, reason))
+                .unwrap_or(false);
+            if !handled {
+                self.spawn_player();
+            }
         }
     }
 
@@ -1768,6 +1918,21 @@ impl Engine {
         }
     }
 
+    /// Spawn an entity of any class, with keyvalues, as if the map had it:
+    /// `origin`, `angles`, `model`, `targetname` and the rest, read the way
+    /// the map loader reads them, then its spawn handler runs. What a game
+    /// uses to put an NPC, a pickup or a projectile into the world.
+    ///
+    /// ```ignore
+    /// let id = engine.spawn_entity("item_pickup", &[
+    ///     ("origin", "128 0 16"),
+    ///     ("item", "gem"),
+    /// ]);
+    /// ```
+    pub fn spawn_entity(&mut self, classname: &str, keys: &[(&str, &str)]) -> EntityId {
+        self.entities.spawn_with(classname, keys)
+    }
+
     /// Spawn a physics prop at a point, with a named model.
     ///
     /// Used by `phys_spawn` and by a `prop_dynamic_spawner` when it fires. The
@@ -1781,656 +1946,6 @@ impl Engine {
             e.fields.set("model", Value::Text(model.to_string()));
         }
         id
-    }
-}
-
-/// Register the engine's convars.
-fn register_cvars(console: &mut Console) {
-    console.register_cvar_ranged(
-        "sv_tickrate",
-        "64",
-        Some(10.0),
-        Some(256.0),
-        ConVarFlags::NONE,
-        "Server simulation steps per second.",
-    );
-    console.register_cvar(
-        "sv_cheats",
-        "0",
-        ConVarFlags::NOTIFY | ConVarFlags::REPLICATED,
-        "Allow cheat commands and convars.",
-    );
-    console.register_cvar(
-        "sv_gravity",
-        "800",
-        ConVarFlags::REPLICATED,
-        "World gravity, in kerosene units per second squared.",
-    );
-    console.register_cvar(
-        "sv_maxspeed",
-        "320",
-        ConVarFlags::REPLICATED,
-        "Maximum ground speed, in kerosene units per second.",
-    );
-    console.register_cvar(
-        "sv_walkspeed",
-        "150",
-        ConVarFlags::REPLICATED,
-        "Ground speed while the walk key (+speed) is held.",
-    );
-    console.register_cvar(
-        "sv_accelerate",
-        "10",
-        ConVarFlags::REPLICATED,
-        "Ground acceleration.",
-    );
-    console.register_cvar(
-        "sv_airaccelerate",
-        "10",
-        ConVarFlags::REPLICATED,
-        "Air acceleration.",
-    );
-    console.register_cvar(
-        "sv_friction",
-        "4",
-        ConVarFlags::REPLICATED,
-        "Ground friction.",
-    );
-    console.register_cvar(
-        "sv_stopspeed",
-        "100",
-        ConVarFlags::REPLICATED,
-        "Speed below which friction is applied as though at this speed.",
-    );
-    console.register_cvar(
-        "sv_stepsize",
-        "18",
-        ConVarFlags::REPLICATED,
-        "Tallest step walked up without jumping.",
-    );
-    console.register_cvar(
-        "sv_jump_height",
-        "57",
-        ConVarFlags::REPLICATED,
-        "Height a jump reaches, in kerosene units.",
-    );
-    console.register_cvar(
-        "sv_air_max_wishspeed",
-        "30",
-        ConVarFlags::REPLICATED,
-        "Air acceleration speed cap. This is what makes air strafing work.",
-    );
-    console.register_cvar(
-        "sv_falldamage_safe",
-        "580",
-        ConVarFlags::REPLICATED,
-        "Landing speed below which falling is harmless.",
-    );
-    console.register_cvar(
-        "sv_falldamage_scale",
-        "0.25",
-        ConVarFlags::REPLICATED,
-        "Damage per unit/s of landing speed above the safe threshold.",
-    );
-    console.register_cvar("sv_noclip", "0", ConVarFlags::CHEAT, "Fly through walls.");
-    console.register_cvar(
-        "sv_use_range",
-        "80",
-        ConVarFlags::REPLICATED,
-        "How far the use key reaches, in kerosene units.",
-    );
-
-    console.register_cvar(
-        "sv_footstep_stride",
-        "32",
-        ConVarFlags::REPLICATED,
-        "Distance on the ground between footstep sounds, in kerosene units.",
-    );
-    console.register_cvar(
-        "sv_footstep_min_speed",
-        "50",
-        ConVarFlags::REPLICATED,
-        "Horizontal speed below which footsteps are silent.",
-    );
-    console.register_cvar(
-        "sv_footstep_trace",
-        "48",
-        ConVarFlags::REPLICATED,
-        "How far down to trace to resolve the surface underfoot.",
-    );
-
-    console.register_cvar(
-        "cl_fov",
-        "90",
-        ConVarFlags::ARCHIVE,
-        "Horizontal field of view at 4:3.",
-    );
-    console.register_cvar_ranged(
-        "sensitivity",
-        "3",
-        Some(0.01),
-        Some(100.0),
-        ConVarFlags::ARCHIVE,
-        "Mouse sensitivity.",
-    );
-    console.register_cvar(
-        "m_yaw",
-        "0.022",
-        ConVarFlags::ARCHIVE,
-        "Yaw degrees per mouse count.",
-    );
-    console.register_cvar(
-        "m_pitch",
-        "0.022",
-        ConVarFlags::ARCHIVE,
-        "Pitch degrees per mouse count.",
-    );
-    console.register_cvar("m_invert", "0", ConVarFlags::ARCHIVE, "Invert mouse pitch.");
-
-    console.register_cvar(
-        "r_drawworld",
-        "1",
-        ConVarFlags::CHEAT,
-        "Draw world geometry.",
-    );
-    console.register_cvar("r_fullbright", "0", ConVarFlags::CHEAT, "Ignore lightmaps.");
-    console.register_cvar("r_lightmap", "1", ConVarFlags::CHEAT, "Apply lightmaps.");
-    // Scales, not switches: 0 turns the effect off, 1 is as authored, and
-    // anything above exaggerates it. Seeing what a normal map is doing is
-    // most of why you would type this.
-    console.register_cvar(
-        "r_bumpmap",
-        "1",
-        ConVarFlags::CHEAT,
-        "How far normal maps tilt a surface. 0 flattens them.",
-    );
-    console.register_cvar(
-        "r_specular",
-        "1",
-        ConVarFlags::CHEAT,
-        "Specular highlight level. 0 removes highlights.",
-    );
-    console.register_cvar(
-        "r_novis",
-        "0",
-        ConVarFlags::CHEAT,
-        "Ignore the PVS and draw everything.",
-    );
-    console.register_cvar(
-        "r_speeds",
-        "0",
-        ConVarFlags::NONE,
-        "Show per-frame render statistics.",
-    );
-    console.register_cvar_ranged(
-        "mat_exposure",
-        "1.0",
-        Some(0.01),
-        Some(16.0),
-        ConVarFlags::ARCHIVE,
-        "Overall brightness, applied by the tone-map pass.",
-    );
-    console.register_cvar_ranged(
-        "mat_tonemap",
-        "2",
-        Some(0.0),
-        Some(2.0),
-        ConVarFlags::ARCHIVE,
-        "Tone curve: 0 none (clip), 1 Reinhard, 2 ACES filmic.",
-    );
-    console.register_cvar(
-        "r_dynamic",
-        "1",
-        ConVarFlags::NONE,
-        "Draw dynamic lights: light_dynamic entities and the flashlight.",
-    );
-    console.register_cvar(
-        "r_shadows",
-        "1",
-        ConVarFlags::ARCHIVE,
-        "Real-time shadows from dynamic lights.",
-    );
-    console.register_cvar(
-        "cl_flashlight",
-        "0",
-        ConVarFlags::NONE,
-        "Whether the flashlight is on. The flashlight command toggles it.",
-    );
-    // Four samples when on: the one count every backend supports for the
-    // HDR and depth formats. See `Renderer::set_msaa`.
-    console.register_cvar_ranged(
-        "r_msaa",
-        "4",
-        Some(0.0),
-        Some(16.0),
-        ConVarFlags::ARCHIVE,
-        "Multisample anti-aliasing. 0 or 1 off; anything higher is 4x.",
-    );
-    console.register_cvar(
-        "fps_max",
-        "0",
-        ConVarFlags::ARCHIVE,
-        "Frame rate cap; 0 for unlimited.",
-    );
-
-    console.register_cvar(
-        "phys_debug",
-        "0",
-        ConVarFlags::CHEAT,
-        "Draw physics prop collision boxes. 1 boxes, 2 boxes and bodies.",
-    );
-    console.register_cvar(
-        "sv_stream",
-        "1",
-        ConVarFlags::ARCHIVE,
-        "Load and unload streamed sections around the player. 0 keeps every section loaded.",
-    );
-    console.register_cvar(
-        "sv_stream_linger",
-        "3",
-        ConVarFlags::ARCHIVE,
-        "Seconds a section stays loaded after the player can no longer see into it.",
-    );
-    console.register_cvar(
-        "r_stream_debug",
-        "0",
-        ConVarFlags::CHEAT,
-        "Draw each streamed section's bounds: green loaded, yellow loading, red unloaded.",
-    );
-    console.register_cvar_ranged(
-        "phys_hold_distance",
-        "72",
-        Some(32.0),
-        Some(256.0),
-        ConVarFlags::REPLICATED,
-        "How far in front the pick-up tool carries a prop.",
-    );
-    console.register_cvar("phys_hold_speed", "700", ConVarFlags::REPLICATED, "How fast a carried prop is steered toward the hold point. Whatever it meets on the way still stops it.");
-    console.register_cvar("phys_hold_accel", "6000", ConVarFlags::REPLICATED, "Ceiling on how hard a carried prop is accelerated toward the hold point. What it collides with can still refuse it.");
-    console.register_cvar(
-        "phys_hold_spin",
-        "20",
-        ConVarFlags::REPLICATED,
-        "How fast a carried prop is turned toward the hold angle, in radians per second.",
-    );
-    console.register_cvar("phys_hold_spin_accel", "120", ConVarFlags::REPLICATED, "Ceiling on how hard a carried prop is turned toward the hold angle, in radians per second squared. What it is wedged against can still refuse it.");
-    console.register_cvar("phys_player_push_force", "8000", ConVarFlags::REPLICATED, "How hard the player can shove a physics prop. A prop's own mass decides how far that gets it.");
-    console.register_cvar(
-        "phys_launch_speed",
-        "650",
-        ConVarFlags::REPLICATED,
-        "Speed a thrown prop leaves the pick-up tool at, in kerosene units per second.",
-    );
-
-    console.register_cvar(
-        "sv_pause_on_menu",
-        "1",
-        ConVarFlags::ARCHIVE,
-        "Stop the world while the pause menu, the console or the store's overlay is open, or the window is in the background.",
-    );
-    console.register_cvar(
-        "snd_mute_losefocus",
-        "1",
-        ConVarFlags::ARCHIVE,
-        "Silence the game while its window is in the background.",
-    );
-    console.register_cvar_ranged(
-        "volume",
-        "0.7",
-        Some(0.0),
-        Some(1.0),
-        ConVarFlags::ARCHIVE,
-        "Master sound volume.",
-    );
-    console.register_cvar(
-        "snd_reverb",
-        "1",
-        ConVarFlags::ARCHIVE,
-        "Room reverb. 0 is dry everywhere.",
-    );
-    console.register_cvar(
-        "snd_reverb_preset",
-        "",
-        ConVarFlags::ARCHIVE,
-        "Force a room everywhere: room, hall, cave, or outdoor. Empty uses the map's.",
-    );
-    console.register_cvar(
-        "snd_occlusion",
-        "1",
-        ConVarFlags::ARCHIVE,
-        "Muffle sounds behind walls, and silence ones with no way through.",
-    );
-    console.register_cvar(
-        "snd_air",
-        "1",
-        ConVarFlags::ARCHIVE,
-        "Let distance take the highs out of a sound, the way air does.",
-    );
-    console.register_cvar(
-        "snd_acoustics_debug",
-        "0",
-        ConVarFlags::CHEAT,
-        "1 reports the room you are in; 2 also draws rooms and occlusion traces.",
-    );
-}
-
-/// Register the engine's commands.
-///
-/// Commands that need engine state set a request on the console for the host
-/// to act on, rather than reaching into the engine: a `ConCommand` handler
-/// only gets the console, and threading the whole engine through it would make
-/// every command able to do anything.
-/// The `pause` command's request: the engine's own, since pausing is the
-/// simulation's business and a dedicated server has it too.
-const PAUSE: &str = "pause";
-
-fn register_commands(console: &mut Console) {
-    console.register_command(
-        "toggleconsole",
-        ConVarFlags::NONE,
-        "Open or close the developer console.",
-        |con, _| con.request(requests::TOGGLE_CONSOLE, ""),
-    );
-
-    // Bindings are the host's -- it owns the keyboard -- so these hand the
-    // words over. Typing `bind w +forward` and typing `+forward` are the same
-    // thing, which is what makes a binding a binding.
-    console.register_command(
-        "bind",
-        ConVarFlags::NONE,
-        "Bind a key to a command: bind <key> <command>. With only a key, show its binding.",
-        |con, args| {
-            if args.count() < 2 {
-                con.warn("usage: bind <key> [command]");
-                return;
-            }
-            let payload = args.rest.clone();
-            con.request(requests::BIND, &payload);
-        },
-    );
-    console.register_command(
-        "unbind",
-        ConVarFlags::NONE,
-        "Remove a key's binding.",
-        |con, args| match args.get(1) {
-            Some(key) => {
-                let key = key.to_string();
-                con.request(requests::UNBIND, &key)
-            }
-            None => con.warn("usage: unbind <key>"),
-        },
-    );
-    console.register_command(
-        "bindlist",
-        ConVarFlags::NONE,
-        "Print every key binding.",
-        |con, _| con.request(requests::BIND_LIST, ""),
-    );
-    console.register_command(
-        "unbindall",
-        ConVarFlags::NONE,
-        "Remove every key binding. config.cfg starts with this so it sets them all.",
-        |con, _| con.request(requests::UNBIND_ALL, ""),
-    );
-
-    console.register_command(
-        "map",
-        ConVarFlags::NONE,
-        "Load a map: map <name>",
-        |con, args| match args.get(1) {
-            Some(name) => {
-                let name = name.to_string();
-                con.request(requests::MAP, name);
-            }
-            None => con.warn("usage: map <name>"),
-        },
-    );
-
-    console.register_command(
-        "script",
-        ConVarFlags::CHEAT,
-        "Run script source: script <code>",
-        |con, args| {
-            // Everything after the command word, unsplit: script source has
-            // spaces in it and tokenising it would be actively wrong.
-            let source = args.rest.clone();
-            if source.trim().is_empty() {
-                con.warn("usage: script <code>");
-                return;
-            }
-            con.request(requests::SCRIPT, source);
-        },
-    );
-
-    console.register_command(
-        "script_execute",
-        ConVarFlags::CHEAT,
-        "Load and run a script file: script_execute <name>",
-        |con, args| match args.get(1) {
-            Some(name) => {
-                let name = name.to_string();
-                con.request(requests::SCRIPT_FILE, name);
-            }
-            None => con.warn("usage: script_execute <name>"),
-        },
-    );
-
-    console.register_command(
-        "script_reload",
-        ConVarFlags::CHEAT,
-        "Forget every loaded script and load them again.",
-        |con, _| con.request(requests::SCRIPT_RELOAD, ""),
-    );
-
-    console.register_command(
-        "condump",
-        ConVarFlags::NONE,
-        "Write the console scrollback to a file: condump <path>",
-        |con, args| {
-            let path = args.get(1).unwrap_or("condump.txt").to_string();
-            let text: String = con.log().map(|line| format!("{}\n", line.text)).collect();
-            match std::fs::write(&path, text) {
-                Ok(()) => con.print(format!("wrote {} lines to {path}", con.log_len())),
-                Err(e) => con.error(format!("could not write {path}: {e}")),
-            }
-        },
-    );
-
-    console.register_command(
-        "play",
-        ConVarFlags::NONE,
-        "Play a sound, heard flat: play <name>",
-        |con, args| match args.get(1) {
-            Some(name) => {
-                let name = name.to_string();
-                con.request(requests::PLAY_SOUND, name);
-            }
-            None => con.warn("usage: play <name>"),
-        },
-    );
-
-    console.register_command(
-        "stopsound",
-        ConVarFlags::NONE,
-        "Stop every sound.",
-        |con, _| con.request(requests::STOP_SOUND, ""),
-    );
-
-    console.register_command(
-        "snd_restart",
-        ConVarFlags::NONE,
-        "Forget every loaded sound and reopen the audio device.",
-        |con, _| con.request(requests::SOUND_RESTART, ""),
-    );
-
-    console.register_command(
-        "pause",
-        ConVarFlags::NONE,
-        "Stop the world, or start it again.",
-        |con, _| con.request(PAUSE, ""),
-    );
-    console.register_command("quit", ConVarFlags::NONE, "Exit.", |con, _| {
-        con.request(requests::QUIT, "");
-    });
-    console.register_command("exit", ConVarFlags::NONE, "Exit.", |con, _| {
-        con.request(requests::QUIT, "");
-    });
-
-    console.register_command(
-        "flashlight",
-        ConVarFlags::NONE,
-        "Toggle the flashlight.",
-        |con, _| {
-            let on = con.bool("cl_flashlight");
-            con.set_bool("cl_flashlight", !on);
-        },
-    );
-
-    console.register_command(
-        "noclip",
-        ConVarFlags::CHEAT,
-        "Toggle flying through walls.",
-        |con, _| {
-            let on = con.bool("sv_noclip");
-            con.set_bool("sv_noclip", !on);
-            let state = if on { "off" } else { "on" };
-            con.print(format!("noclip {state}"));
-        },
-    );
-
-    console.register_command(
-        "version",
-        ConVarFlags::NONE,
-        "Show the game's version and Kerosene's.",
-        |con, _| {
-            let game = con.string("_game").to_string();
-            match game.is_empty() {
-                true => con.print(format!("Kerosene {}", crate::VERSION)),
-                false => con.print(format!("{game} (Kerosene {})", crate::VERSION)),
-            }
-        },
-    );
-
-    console.register_command(
-        "phys_stats",
-        ConVarFlags::NONE,
-        "Show rigid-body simulation counts.",
-        |con, _| {
-            con.request(requests::PHYS_STATS, "");
-        },
-    );
-
-    console.register_command(
-        "phys_spawn",
-        ConVarFlags::CHEAT,
-        "Spawn a physics cube in front of you: phys_spawn [model]",
-        |con, args| {
-            let model = args.get(1).unwrap_or("props/cube").to_string();
-            con.request(requests::PHYS_SPAWN, model);
-        },
-    );
-}
-
-/// Poll the console for requests engine commands left behind.
-pub fn take_console_requests(engine: &mut Engine) -> Vec<(String, String)> {
-    let mut unhandled = Vec::new();
-    for (kind, payload) in engine.console.take_requests() {
-        match kind.as_str() {
-            requests::MAP => engine.request_map(&payload),
-            requests::QUIT => engine.should_quit = true,
-            PAUSE => {
-                engine.paused_by_command = !engine.paused_by_command;
-                let word = if engine.paused_by_command {
-                    "paused"
-                } else {
-                    "unpaused"
-                };
-                engine.console.print(word);
-            }
-            requests::SCRIPT => match engine.run_script(&payload) {
-                Ok(Some(value)) => engine.console.echo(value),
-                Ok(None) => {}
-                Err(e) => engine.console.error(format!("script: {e}")),
-            },
-            requests::SCRIPT_FILE => {
-                if let Err(e) = engine.load_script(&payload) {
-                    engine.console.error(format!("script_execute: {e}"));
-                }
-            }
-            requests::SCRIPT_RELOAD => engine.reload_scripts(),
-            requests::PLAY_SOUND => {
-                let vfs = engine.vfs.clone();
-                if engine.audio.play(&vfs, &payload, None, 1.0).is_none() {
-                    engine.console.warn(format!("could not play `{payload}`"));
-                }
-            }
-            requests::STOP_SOUND => engine.audio.stop_all(),
-            requests::SOUND_RESTART => {
-                engine.audio = if engine.wants_audio {
-                    crate::audio::AudioSystem::open()
-                } else {
-                    crate::audio::AudioSystem::silent()
-                };
-                let vfs = engine.vfs.clone();
-                engine.audio.load_scripts(&vfs);
-                let status = engine.audio.status.clone();
-                engine.console.print(format!("audio: {status}"));
-            }
-            requests::PHYS_SPAWN => {
-                // A cube a little in front of the player's eye, at chest
-                // height, so the drop is visible immediately.
-                let forward = engine.player.view_angles.forward();
-                let eye = engine.player.movement.eye_position();
-                let origin = eye + forward * 96.0;
-                let model = if payload.is_empty() {
-                    "props/cube".to_string()
-                } else {
-                    payload
-                };
-                engine.spawn_prop(&model, origin);
-                engine
-                    .console
-                    .print(format!("spawned prop_physics ({model}) at {origin:.1}",));
-            }
-            requests::PHYS_STATS => {
-                engine.console.print(format!(
-                    "physics: {} props, {} static hulls, {} movers, {} bodies",
-                    engine.physics.prop_count(),
-                    engine.physics.static_body_count(),
-                    engine.physics.mover_count(),
-                    engine.physics.body_count(),
-                ));
-            }
-            kind if engine.ui_console_request(kind, &payload) => {}
-            kind if engine.platform_console_request(kind, &payload) => {}
-            kind if engine.save_console_request(kind, &payload) => {}
-            // Not ours. The console can ask for things the *host* owns --
-            // opening the console itself, most obviously -- and the engine
-            // has no business knowing a window exists. Handing them back
-            // beats teaching it.
-            _ => unhandled.push((kind, payload)),
-        }
-    }
-    unhandled
-}
-
-/// Report requests nobody claimed.
-///
-/// For a caller with nothing to add -- a headless server has no console to
-/// open -- so that an unrecognised request is still said out loud rather than
-/// dropped on the floor.
-pub fn report_unhandled(engine: &mut Engine, requests: Vec<(String, String)>) {
-    for (kind, payload) in requests {
-        // The game's own commands leave requests of their own; it gets the
-        // first refusal on anything the engine and the host did not know.
-        let claimed = engine
-            .with_game_mut(|game, engine| game.console_request(engine, &kind, &payload))
-            .unwrap_or(false);
-        if !claimed {
-            engine
-                .console
-                .warn(format!("unknown host request `{kind}`"));
-        }
     }
 }
 

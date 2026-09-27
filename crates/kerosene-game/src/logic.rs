@@ -5,6 +5,9 @@ use crate::set_field;
 use kerosene_entity::io::InputEvent;
 use kerosene_entity::{ClassDef, ClassRegistry, EntityId, EntityWorld, Value, host_requests};
 
+/// Register the logic classes: `logic_relay`, `logic_auto`,
+/// `logic_autosave`, `math_counter`, `point_message`, `logic_branch` and
+/// `logic_timer`.
 pub fn register(registry: &mut ClassRegistry) {
     registry.register(
         ClassDef::new("logic_relay")

@@ -20,7 +20,7 @@ use kerosene_vfs::Vfs;
 use std::sync::{Arc, Mutex};
 
 /// Spawnflag 2 on a sound entity: heard flat, wherever the listener is,
-/// rather than placed at the entity. Read by [`Engine::play_entity_sound`]
+/// rather than placed at the entity. Read by [`Engine::play_entity_sound`](crate::Engine::play_entity_sound)
 /// (crate::Engine::play_entity_sound), so it is an engine convention that any
 /// game's sound class can use; the stock `ambient_generic` does.
 pub const SF_EVERYWHERE: u32 = 2;
@@ -189,6 +189,12 @@ impl AudioSystem {
         self.control.set_volume(volume);
     }
 
+    /// Hold the world's sounds while the game is paused; the interface's
+    /// play on.
+    pub fn set_world_paused(&self, paused: bool) {
+        self.control.set_world_paused(paused);
+    }
+
     /// The room the listener is in, for the next block. Handed over only
     /// when it differs from last time; the mixer slides to it from wherever
     /// it is.
@@ -255,7 +261,7 @@ impl AudioSystem {
     ///
     /// `reach` answers, for a source position, how much wall lies between it
     /// and the ear -- `None` for no path at all -- and is asked for at most
-    /// [`OCCLUSION_BUDGET`] voices a tick, the others keeping their last
+    /// `OCCLUSION_BUDGET` voices a tick, the others keeping their last
     /// answer. Traces are the one expensive thing here and the map is the
     /// engine's, which is why the question is a callback.
     pub fn update_voices(
@@ -409,6 +415,34 @@ impl AudioSystem {
         params.position = position;
         params.volume *= volume_scale.max(0.0);
         Some(self.start(sound, params))
+    }
+
+    /// [`play`](AudioSystem::play), for a sound a game may simply not have:
+    /// one that is missing is quietly not played, rather than warned about.
+    /// Footsteps are the case -- the engine asks for them on every surface,
+    /// and a game with no footstep sounds has made a choice, not a mistake.
+    pub fn play_if_present(
+        &mut self,
+        vfs: &Vfs,
+        name: &str,
+        position: Option<Vec3>,
+        volume_scale: f32,
+    ) -> Option<SoundHandle> {
+        if self.bank.get(name).is_none() {
+            if self.bank.already_missing(name) {
+                return None;
+            }
+            if !self
+                .bank
+                .candidates(name)
+                .iter()
+                .any(|path| vfs.exists(path))
+            {
+                self.bank.mark_missing(name);
+                return None;
+            }
+        }
+        self.play(vfs, name, position, volume_scale)
     }
 
     /// Play with parameters worked out by the caller.

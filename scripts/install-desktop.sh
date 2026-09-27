@@ -28,7 +28,13 @@ else
     cp "$here/scripts/kerosene.desktop" "$apps/kerosene.desktop"
     for size in 32 64 128 256 512; do
         mkdir -p "$icons/${size}x${size}/apps"
-        cp "$images/kerosene-icon-$size.png" "$icons/${size}x${size}/apps/kerosene.png"
+        # The 256 lives with the crate that compiles it into the window.
+        if [ "$size" = 256 ]; then
+            src="$here/crates/kerosene-config/assets/kerosene-icon-256.png"
+        else
+            src="$images/kerosene-icon-$size.png"
+        fi
+        cp "$src" "$icons/${size}x${size}/apps/kerosene.png"
     done
     mkdir -p "$icons/scalable/apps"
     cp "$images/kerosene-icon.svg" "$icons/scalable/apps/kerosene.svg"

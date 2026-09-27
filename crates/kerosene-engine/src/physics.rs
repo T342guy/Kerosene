@@ -14,7 +14,7 @@
 //! it.
 
 use kerosene_bsp::{Bsp, contents};
-use kerosene_entity::{EntityId, EntityWorld};
+use kerosene_entity::{EntityId, EntityWorld, ModelRole};
 use kerosene_math::{Aabb, Angles, ON_EPSILON, Quat, Vec3, Winding};
 use kerosene_rigid::{Body, RigidWorld};
 use kerosene_vfs::Vfs;
@@ -285,7 +285,10 @@ impl PhysicsProps {
             .iter()
             // An animated prop does not move either, and blocks the same way.
             .filter(|e| {
-                is_static_prop(&e.classname) || crate::animation::is_animated_prop(&e.classname)
+                matches!(
+                    entities.registry.model_role(&e.classname),
+                    Some(ModelRole::Static | ModelRole::Animated)
+                )
             })
             .filter(|e| !self.statics.contains_key(&e.id))
             .filter_map(|e| {
@@ -372,7 +375,7 @@ impl PhysicsProps {
         let mut new: Vec<(EntityId, Aabb)> = Vec::new();
         for e in entities
             .iter()
-            .filter(|e| is_physics_prop(&e.classname))
+            .filter(|e| entities.registry.model_role(&e.classname) == Some(ModelRole::Physics))
             .filter(|e| !self.props.contains_key(&e.id))
         {
             let Some(name) = e.fields.text("model") else {
@@ -579,6 +582,48 @@ impl PhysicsProps {
             }
         }
         best.map(|(_, id)| (id, self.rigid.body_transform(self.props[&id].body).1))
+    }
+
+    /// The nearest prop body -- physics, static or animated -- a box swept
+    /// from `start` to `end` hits: its entity, the fraction of the way, and
+    /// the face's normal.
+    ///
+    /// Each body is taken as the world box around it, which is exact for
+    /// statics and for a prop at rest square to the world, and a little
+    /// generous for one lying turned. The hull is folded into the box
+    /// (Minkowski), so a point ray and a player-sized sweep are one test.
+    pub fn trace_bodies(
+        &self,
+        start: Vec3,
+        end: Vec3,
+        mins: Vec3,
+        maxs: Vec3,
+    ) -> Option<(f32, EntityId, Vec3)> {
+        let props = self.props.iter().map(|(&id, prop)| {
+            let (position, rotation) = self.rigid.body_transform(prop.body);
+            let h = prop.half_extent;
+            let mut aabb = Aabb::EMPTY;
+            for i in 0..8 {
+                let local = Vec3::new(
+                    if i & 1 == 0 { -h.x } else { h.x },
+                    if i & 2 == 0 { -h.y } else { h.y },
+                    if i & 4 == 0 { -h.z } else { h.z },
+                );
+                aabb.add_point(position + rotation * local);
+            }
+            (id, aabb)
+        });
+        let statics = self.statics.iter().map(|(&id, (_, aabb))| (id, *aabb));
+        let mut best: Option<(f32, EntityId, Vec3)> = None;
+        for (id, aabb) in props.chain(statics) {
+            let (min, max) = (aabb.min - maxs, aabb.max - mins);
+            if let Some((t, normal)) = kerosene_physics::sweep_point_vs_box(start, end, min, max)
+                && best.is_none_or(|(bt, _, _)| t < bt)
+            {
+                best = Some((t, id, normal));
+            }
+        }
+        best
     }
 
     /// The collision box half-extents of one prop, for placing it without
@@ -867,15 +912,18 @@ impl Default for PhysicsProps {
     }
 }
 
-/// Whether a class is a physics prop (a dynamic rigid body).
+/// Whether a class is the stock physics prop (a dynamic rigid body), by
+/// name. The engine itself asks the registry,
+/// [`ClassRegistry::model_role`](kerosene_entity::ClassRegistry::model_role),
+/// so a game's own classes with [`ModelRole::Physics`] count as well.
 pub fn is_physics_prop(classname: &str) -> bool {
-    classname.eq_ignore_ascii_case("prop_physics")
+    ModelRole::of_stock_class(classname) == Some(ModelRole::Physics)
 }
 
-/// Whether an entity is a static prop: a model that is drawn and collided
-/// with and never moves.
+/// Whether a class is the stock static prop -- a model that is drawn and
+/// collided with and never moves -- by name. See [`is_physics_prop`].
 pub fn is_static_prop(classname: &str) -> bool {
-    classname.eq_ignore_ascii_case("prop_static")
+    ModelRole::of_stock_class(classname) == Some(ModelRole::Static)
 }
 
 /// Read the physical material a prop's object properties describe.
@@ -1111,6 +1159,37 @@ mod tests {
         assert_eq!(
             derived.density,
             kerosene_rigid::BodyMaterial::wood().density
+        );
+    }
+
+    #[test]
+    fn a_game_class_with_a_physics_model_gets_a_body() {
+        // Not only `prop_physics`: a game's own class that says it has a
+        // physics model is simulated the same way.
+        let mut registry = kerosene_entity::ClassRegistry::new();
+        registry.register(kerosene_entity::ClassDef::new("item_crate").model(ModelRole::Physics));
+        registry.register(kerosene_entity::ClassDef::new("item_sign"));
+        let mut entities = EntityWorld::new(std::sync::Arc::new(registry));
+        let mut vfs = Vfs::new();
+        crate::base::mount(&mut vfs);
+
+        let mut spawn = |class: &str| {
+            let id = entities.spawn(class);
+            let e = entities.get_mut(id).unwrap();
+            e.fields
+                .set("model", kerosene_entity::Value::Text("props/cube".into()));
+            e.origin = Vec3::new(0.0, 0.0, 64.0);
+            id
+        };
+        let crate_id = spawn("item_crate");
+        let sign_id = spawn("item_sign");
+
+        let mut physics = PhysicsProps::new();
+        physics.adopt_props(&entities, &vfs);
+        assert!(physics.props.contains_key(&crate_id), "the crate is a body");
+        assert!(
+            !physics.props.contains_key(&sign_id),
+            "a class with no role is not"
         );
     }
 

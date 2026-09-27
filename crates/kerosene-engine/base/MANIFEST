@@ -15,7 +15,6 @@ scripts/kerosene.kerosnd
 # The default HUD, pause menu, panels and overlays.
 ui/
 
-# The demo map and its script: what a project with no start map opens on.
-maps/kero_start.kerobsp
-maps/kero_start.kerowalk
-scripts/kero_start.keroscript
+# A plain room: what a project with no start map opens on.
+maps/kerosene_room.kerobsp
+maps/kerosene_room.kerowalk

@@ -2,6 +2,8 @@
 name = "@PACKAGE@"
 version = "0.1.0"
 edition = "2024"
+# The oldest Rust Kerosene builds with.
+rust-version = "@MSRV@"
 publish = false
 
 [dependencies]

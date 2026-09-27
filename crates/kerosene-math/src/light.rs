@@ -18,8 +18,11 @@ pub const ATTN_REFERENCE: f32 = 100.0;
 /// `_linear_attn` and `_quadratic_attn` spell them.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Attenuation {
+    /// Falloff that does not change with distance.
     pub constant: f32,
+    /// Falloff in proportion to distance.
     pub linear: f32,
+    /// Falloff in proportion to distance squared: how light really behaves.
     pub quadratic: f32,
 }
 

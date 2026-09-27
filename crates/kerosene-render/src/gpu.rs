@@ -218,7 +218,11 @@ pub struct ToneMapUniform {
     pub exposure: f32,
     /// A [`ToneMapOperator`] as its discriminant.
     pub curve: u32,
-    pub _pad: [f32; 2],
+    /// The display's gamma adjustment, `mat_gamma`: 1 changes nothing, more
+    /// lifts the mid-tones -- a brightness slider that leaves black black
+    /// and white white.
+    pub gamma: f32,
+    pub _pad: f32,
 }
 
 impl Default for ToneMapUniform {
@@ -226,7 +230,8 @@ impl Default for ToneMapUniform {
         ToneMapUniform {
             exposure: 1.0,
             curve: ToneMapOperator::default() as u32,
-            _pad: [0.0; 2],
+            gamma: 1.0,
+            _pad: 0.0,
         }
     }
 }
@@ -237,6 +242,12 @@ enum Pass {
     World,
     Sky,
     Unlit,
+    /// The world's shading, seen from both sides: `$nocull`.
+    WorldTwoSided,
+    UnlitTwoSided,
+    /// Blended over what is already drawn, writing no depth: `$translucent`.
+    Translucent,
+    TranslucentUnlit,
     /// A studio model, drawn without a lightmap.
     Model,
     /// Many copies of one studio model in one draw: static props.
@@ -345,7 +356,28 @@ pub struct MaterialUniform {
     pub metalness: f32,
     /// `$roughnessfactor`, the same arrangement for roughness.
     pub roughness_factor: f32,
-    pub _pad: [f32; 2],
+    /// [`MATERIAL_ALPHA_TEST`] and [`MATERIAL_TRANSLUCENT`].
+    pub flags: u32,
+    /// The alpha below which an alpha-tested texel is cut out.
+    pub alpha_cutoff: f32,
+}
+
+/// [`MaterialUniform::flags`]: cut out texels below the alpha cutoff.
+pub const MATERIAL_ALPHA_TEST: u32 = 1;
+/// [`MaterialUniform::flags`]: blend with what is behind, by the texture's
+/// alpha. Otherwise a surface is opaque whatever its texture's alpha says.
+pub const MATERIAL_TRANSLUCENT: u32 = 2;
+
+/// How a material's surfaces are drawn, beyond their textures: what picks
+/// the pipeline and the pass.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct MaterialMode {
+    /// `$alphatest`: holes where the texture's alpha is low.
+    pub alpha_test: bool,
+    /// `$translucent`: blended, after everything solid, back to front.
+    pub translucent: bool,
+    /// `$nocull`: seen from both sides.
+    pub two_sided: bool,
 }
 
 impl Default for MaterialUniform {
@@ -357,7 +389,8 @@ impl Default for MaterialUniform {
             specular_strength: 1.0,
             metalness: 0.0,
             roughness_factor: 1.0,
-            _pad: [0.0; 2],
+            flags: 0,
+            alpha_cutoff: 0.5,
         }
     }
 }
@@ -1395,9 +1428,22 @@ impl Renderer {
 
     /// Set the exposure and curve the next [`Renderer::tonemap`] applies.
     pub fn update_tonemap(&self, queue: &wgpu::Queue, exposure: f32, operator: ToneMapOperator) {
+        self.update_display(queue, exposure, operator, 1.0);
+    }
+
+    /// [`update_tonemap`](Renderer::update_tonemap), with a gamma adjustment
+    /// for the display: see [`ToneMapUniform::gamma`].
+    pub fn update_display(
+        &self,
+        queue: &wgpu::Queue,
+        exposure: f32,
+        operator: ToneMapOperator,
+        gamma: f32,
+    ) {
         let uniform = ToneMapUniform {
             exposure: exposure.max(0.0),
             curve: operator as u32,
+            gamma: gamma.clamp(0.1, 4.0),
             ..Default::default()
         };
         queue.write_buffer(&self.tonemap_buffer, 0, bytemuck::bytes_of(&uniform));
@@ -1746,7 +1792,55 @@ impl Renderer {
         visible: &[u32],
     ) -> FrameStats {
         // The world is model 0, which never moves.
-        self.draw_surfaces(pass, frame_bind_group, resources, mesh, visible, 0)
+        self.draw_surfaces(pass, frame_bind_group, resources, mesh, visible, 0, None)
+    }
+
+    /// The world's `$translucent` surfaces among `visible`, back to front
+    /// from `eye`. Call after everything solid -- the world, the brush
+    /// models, the props -- so glass blends over what is behind it.
+    pub fn draw_world_translucent<'a>(
+        &'a self,
+        pass: &mut wgpu::RenderPass<'a>,
+        frame_bind_group: &'a wgpu::BindGroup,
+        resources: &'a MapResources,
+        mesh: &WorldMesh,
+        visible: &[u32],
+        eye: Vec3,
+    ) -> FrameStats {
+        self.draw_surfaces(
+            pass,
+            frame_bind_group,
+            resources,
+            mesh,
+            visible,
+            0,
+            Some(eye),
+        )
+    }
+
+    /// One brush model's `$translucent` surfaces, back to front from `eye`.
+    /// See [`draw_world_translucent`](Renderer::draw_world_translucent).
+    pub fn draw_model_translucent<'a>(
+        &'a self,
+        pass: &mut wgpu::RenderPass<'a>,
+        frame_bind_group: &'a wgpu::BindGroup,
+        resources: &'a MapResources,
+        mesh: &WorldMesh,
+        model: usize,
+        eye: Vec3,
+    ) -> FrameStats {
+        let Some(surfaces) = mesh.model_surfaces.get(model) else {
+            return FrameStats::default();
+        };
+        self.draw_surfaces(
+            pass,
+            frame_bind_group,
+            resources,
+            mesh,
+            surfaces,
+            model,
+            Some(eye),
+        )
     }
 
     /// Draw one brush model's surfaces, wherever it has moved to.
@@ -1766,9 +1860,21 @@ impl Renderer {
         let Some(surfaces) = mesh.model_surfaces.get(model) else {
             return FrameStats::default();
         };
-        self.draw_surfaces(pass, frame_bind_group, resources, mesh, surfaces, model)
+        self.draw_surfaces(
+            pass,
+            frame_bind_group,
+            resources,
+            mesh,
+            surfaces,
+            model,
+            None,
+        )
     }
 
+    /// Draw `visible`'s surfaces of one model. With no `eye` this is the
+    /// solid phase, and translucent surfaces are skipped; with one, it is
+    /// the translucent phase, and only they are drawn, farthest first.
+    #[allow(clippy::too_many_arguments)]
     fn draw_surfaces<'a>(
         &'a self,
         pass: &mut wgpu::RenderPass<'a>,
@@ -1777,10 +1883,37 @@ impl Renderer {
         mesh: &WorldMesh,
         visible: &[u32],
         model: usize,
+        translucent_from: Option<Vec3>,
     ) -> FrameStats {
         let mut stats = FrameStats {
             surfaces_total: mesh.surfaces.len(),
             ..Default::default()
+        };
+        let is_translucent = |index: u32| {
+            resources
+                .material_mode(mesh.surfaces[index as usize].material)
+                .translucent
+        };
+        let sorted: Vec<u32>;
+        let visible: &[u32] = match translucent_from {
+            None => visible,
+            Some(eye) => {
+                // Back to front by each surface's centre. Per surface rather
+                // than per triangle: two panes crossing each other can still
+                // sort wrong, the usual price, and the one Source pays.
+                let mut glass: Vec<(f32, u32)> = visible
+                    .iter()
+                    .copied()
+                    .filter(|&i| is_translucent(i))
+                    .map(|i| {
+                        let centre = mesh.surfaces[i as usize].bounds.center();
+                        ((centre - eye).length_squared(), i)
+                    })
+                    .collect();
+                glass.sort_by(|a, b| b.0.total_cmp(&a.0));
+                sorted = glass.into_iter().map(|(_, i)| i).collect();
+                &sorted
+            }
         };
         if visible.is_empty() {
             return stats;
@@ -1808,12 +1941,21 @@ impl Renderer {
 
         for &index in visible {
             let surface = &mesh.surfaces[index as usize];
+            let mode = resources.material_mode(surface.material);
+            if translucent_from.is_none() && mode.translucent {
+                continue;
+            }
             let wanted_pass = if surface.flags & surf::SKY != 0 {
                 Pass::Sky
-            } else if surface.lit {
-                Pass::World
             } else {
-                Pass::Unlit
+                match (mode.translucent, mode.two_sided, surface.lit) {
+                    (true, _, true) => Pass::Translucent,
+                    (true, _, false) => Pass::TranslucentUnlit,
+                    (false, true, true) => Pass::WorldTwoSided,
+                    (false, true, false) => Pass::UnlitTwoSided,
+                    (false, false, true) => Pass::World,
+                    (false, false, false) => Pass::Unlit,
+                }
             };
 
             if current_pass != Some(wanted_pass) {
@@ -1923,7 +2065,16 @@ fn scene_pipelines(
         (Pass::Sky, "fs_sky"),
         (Pass::Unlit, "fs_unlit"),
         (Pass::Decal, "fs_world"),
+        (Pass::WorldTwoSided, "fs_world"),
+        (Pass::UnlitTwoSided, "fs_unlit"),
+        (Pass::Translucent, "fs_world"),
+        (Pass::TranslucentUnlit, "fs_unlit"),
     ] {
+        let two_sided = matches!(
+            pass,
+            Pass::WorldTwoSided | Pass::UnlitTwoSided | Pass::Translucent | Pass::TranslucentUnlit
+        );
+        let translucent = matches!(pass, Pass::Translucent | Pass::TranslucentUnlit);
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some(entry),
             layout: Some(&scene.layout),
@@ -1945,7 +2096,7 @@ fn scene_pipelines(
                 // The mesh builder emits counter-clockwise triangles; see
                 // its docs for why the source data is the other way round.
                 front_face: wgpu::FrontFace::Ccw,
-                cull_mode: Some(wgpu::Face::Back),
+                cull_mode: (!two_sided).then_some(wgpu::Face::Back),
                 polygon_mode: wgpu::PolygonMode::Fill,
                 unclipped_depth: false,
                 conservative: false,
@@ -1954,8 +2105,9 @@ fn scene_pipelines(
                 format: DEPTH_FORMAT,
                 // The sky is behind everything, so it tests but does not
                 // write, letting geometry drawn later sit in front of it. A
-                // decal lies on a surface that already wrote its depth.
-                depth_write_enabled: !matches!(pass, Pass::Sky | Pass::Decal),
+                // decal lies on a surface that already wrote its depth, and
+                // glass must not hide what is behind it from later glass.
+                depth_write_enabled: !matches!(pass, Pass::Sky | Pass::Decal) && !translucent,
                 depth_compare: wgpu::CompareFunction::LessEqual,
                 stencil: wgpu::StencilState::default(),
                 bias: wgpu::DepthBiasState::default(),
@@ -2214,6 +2366,8 @@ pub struct MapResources {
     pub lightmap_view: wgpu::TextureView,
     /// One bind group per material, indexed the same way `WorldMesh` does.
     material_bind_groups: Vec<Option<wgpu::BindGroup>>,
+    /// How each material is drawn, indexed the same way.
+    material_modes: Vec<MaterialMode>,
     /// Materials that failed to load, so the engine can report them once.
     pub missing_materials: Vec<String>,
     /// Keeps every uploaded texture alive alongside its bind group.
@@ -2225,6 +2379,14 @@ pub struct MapResources {
 impl MapResources {
     pub fn material_bind_group(&self, index: u32) -> Option<&wgpu::BindGroup> {
         self.material_bind_groups.get(index as usize)?.as_ref()
+    }
+
+    /// How a material is drawn: see [`MaterialMode`].
+    pub fn material_mode(&self, index: u32) -> MaterialMode {
+        self.material_modes
+            .get(index as usize)
+            .copied()
+            .unwrap_or_default()
     }
 
     /// Upload a map's geometry, lightmap atlas and materials.
@@ -2272,6 +2434,7 @@ impl MapResources {
         let neutrals = NeutralMaps::new(device, queue);
 
         let mut material_bind_groups = Vec::with_capacity(mesh.materials.len());
+        let mut material_modes = Vec::with_capacity(mesh.materials.len());
         let mut missing_materials = Vec::new();
         let mut textures = vec![lightmap, fallback];
         let mut buffers = Vec::with_capacity(mesh.materials.len());
@@ -2282,6 +2445,7 @@ impl MapResources {
                 missing_materials.push(name.clone());
             }
             let loaded = loaded.unwrap_or_default();
+            material_modes.push(loaded.mode);
 
             let (group, buffer) = loaded.bind_group(
                 device,
@@ -2302,6 +2466,7 @@ impl MapResources {
             indices,
             lightmap_view,
             material_bind_groups,
+            material_modes,
             missing_materials,
             _textures: textures,
             _buffers: buffers,
@@ -2523,6 +2688,10 @@ struct LoadedMaps {
     metalness: f32,
     /// The material's `$roughnessfactor`.
     roughness_factor: f32,
+    /// How it is drawn.
+    mode: MaterialMode,
+    /// `$alphatestreference`.
+    alpha_cutoff: f32,
 }
 
 /// What a material that did not load gets: no maps, not metal, fully rough.
@@ -2535,6 +2704,8 @@ impl Default for LoadedMaps {
             has_base: false,
             metalness: 0.0,
             roughness_factor: 1.0,
+            mode: MaterialMode::default(),
+            alpha_cutoff: 0.5,
         }
     }
 }
@@ -2575,6 +2746,9 @@ impl LoadedMaps {
             present,
             metalness: self.metalness,
             roughness_factor: self.roughness_factor,
+            flags: (self.mode.alpha_test as u32 * MATERIAL_ALPHA_TEST)
+                | (self.mode.translucent as u32 * MATERIAL_TRANSLUCENT),
+            alpha_cutoff: self.alpha_cutoff,
             ..Default::default()
         };
         let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -2631,6 +2805,12 @@ fn load_material_maps(
     let mut loaded = LoadedMaps {
         metalness: material.metalness(),
         roughness_factor: material.roughness_factor(),
+        mode: MaterialMode {
+            alpha_test: material.is_alpha_tested(),
+            translucent: material.is_blended(),
+            two_sided: material.is_two_sided(),
+        },
+        alpha_cutoff: material.alpha_test_reference(),
         ..Default::default()
     };
     for (slot, kind) in MAP_KINDS.into_iter().enumerate() {

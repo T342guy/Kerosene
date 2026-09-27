@@ -49,6 +49,16 @@ const TOOLSET: &str = "kerosene-tools";
 /// [`features_table`].
 const KNOWN_FEATURES: &[&str] = &["default", "audio", "device", "steam", "test-world", "tools"];
 
+/// The file that marks a directory as a bundle, so a rebuild may clear it.
+/// Anything else is not the bundle's to delete: `--out .` must not empty
+/// the repository.
+const MARKER: &str = ".kerosene-bundle";
+
+/// Where the repository is on GitHub, for the links in the README and the
+/// changelog, which crates.io and docs.rs show away from the repository.
+const REPOSITORY: &str = "https://github.com/t342guy/kerosene";
+const BRANCH: &str = "MASTER";
+
 /// Files and directories of a crate that stay behind.
 const LEFT_OUT: &[&str] = &["Cargo.toml", "tests", "examples", "benches", "target"];
 
@@ -193,9 +203,23 @@ pub fn bundle(repo: &Path, out: &Path) -> Result<String> {
     }
 
     if out.exists() {
+        let empty = std::fs::read_dir(out)?.next().is_none();
+        // A bundle made before the marker existed is known by its layout.
+        let bundle = out.join(MARKER).is_file() || out.join("src/__k").is_dir();
+        if !empty && !bundle {
+            bail!(
+                "{} is not empty and is not a bundle; not clearing it. Give --out a new \
+                 directory, or a previous bundle's.",
+                out.display()
+            );
+        }
         std::fs::remove_dir_all(out).with_context(|| format!("clearing {}", out.display()))?;
     }
     std::fs::create_dir_all(out.join("src/__k"))?;
+    std::fs::write(
+        out.join(MARKER),
+        "Written by `cargo xtask bundle`, which clears this directory on the next run.\n",
+    )?;
 
     // The crates, as modules.
     let mut modules = String::from(
@@ -256,15 +280,16 @@ pub fn bundle(repo: &Path, out: &Path) -> Result<String> {
     )?;
 
     // The notices and the texts the licence identifier refers to.
-    for file in [
-        "LICENSE",
-        "LICENSE-EXCEPTION",
-        "NOTICE",
-        "README.md",
-        "CHANGELOG.md",
-    ] {
+    for file in ["LICENSE", "LICENSE-EXCEPTION", "NOTICE"] {
         std::fs::copy(repo.join(file), out.join(file))
             .with_context(|| format!("copying {file}"))?;
+    }
+    // The README and changelog are read on crates.io and docs.rs, where a
+    // link relative to the repository leads nowhere: they point at GitHub.
+    for file in ["README.md", "CHANGELOG.md"] {
+        let text =
+            std::fs::read_to_string(repo.join(file)).with_context(|| format!("reading {file}"))?;
+        std::fs::write(out.join(file), absolute_links(&text))?;
     }
     // The workspace's resolution, so the bundle builds with the versions the
     // workspace was tested with.
@@ -576,4 +601,96 @@ fn manifest(
 
 fn quote(s: &str) -> String {
     format!("\"{}\"", s.replace('\\', "\\\\").replace('"', "\\\""))
+}
+
+/// Point every relative link in a Markdown file at the repository on GitHub:
+/// `[x](src/a.md)` at the file's page, `![x](./img.png)` and `src="img.png"`
+/// at the raw file, so an image still shows. Links that are already absolute,
+/// and anchors within the page, are left alone.
+fn absolute_links(markdown: &str) -> String {
+    let page = format!("{REPOSITORY}/blob/{BRANCH}/");
+    let raw = format!(
+        "{}/{BRANCH}/",
+        REPOSITORY.replace("https://github.com", "https://raw.githubusercontent.com")
+    );
+    let relative = |target: &str| {
+        !(target.is_empty()
+            || target.starts_with('#')
+            || target.contains("://")
+            || target.starts_with("mailto:")
+            || target.starts_with('/'))
+    };
+    let mut out = String::with_capacity(markdown.len());
+    let mut rest = markdown;
+    loop {
+        // The next link target: `](` in Markdown, `src="` in HTML.
+        let md = rest.find("](");
+        let html = rest.find("src=\"");
+        let (at, open, image) = match (md, html) {
+            (Some(m), Some(h)) if h < m => (h, "src=\"".len(), true),
+            (Some(m), _) => (
+                m,
+                2,
+                rest[..m]
+                    .rfind("![")
+                    .is_some_and(|b| !rest[b..m].contains(']')),
+            ),
+            (None, Some(h)) => (h, "src=\"".len(), true),
+            (None, None) => break,
+        };
+        let start = at + open;
+        out.push_str(&rest[..start]);
+        let close = if open == 2 { ')' } else { '"' };
+        let end = rest[start..].find(close).map_or(rest.len(), |e| start + e);
+        let target = &rest[start..end];
+        if relative(target) {
+            let path = target.trim_start_matches("./");
+            out.push_str(if image { &raw } else { &page });
+            out.push_str(path);
+        } else {
+            out.push_str(target);
+        }
+        rest = &rest[end..];
+    }
+    out.push_str(rest);
+    out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn relative_links_point_at_github_and_absolute_ones_stay() {
+        let text = "![banner](./.github/Images/b.png)\n\
+                    See [the guide](src/gamedev/getting-started.md) and [NOTICE](NOTICE).\n\
+                    [site](https://example.com) [here](#layout) <img src=\"logo.png\">";
+        let out = absolute_links(text);
+        assert!(out.contains(
+            "![banner](https://raw.githubusercontent.com/t342guy/kerosene/MASTER/.github/Images/b.png)"
+        ), "{out}");
+        assert!(out.contains(
+            "[the guide](https://github.com/t342guy/kerosene/blob/MASTER/src/gamedev/getting-started.md)"
+        ));
+        assert!(out.contains("[NOTICE](https://github.com/t342guy/kerosene/blob/MASTER/NOTICE)"));
+        assert!(out.contains("[site](https://example.com)"));
+        assert!(out.contains("[here](#layout)"));
+        assert!(out.contains(
+            "src=\"https://raw.githubusercontent.com/t342guy/kerosene/MASTER/logo.png\""
+        ));
+    }
+
+    #[test]
+    fn a_directory_that_is_not_a_bundle_is_not_cleared() {
+        let dir =
+            std::env::temp_dir().join(format!("kerosene-bundle-guard-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("precious.txt"), "keep me").unwrap();
+        let repo = crate::repo_root().unwrap();
+        let err = bundle(&repo, &dir).unwrap_err().to_string();
+        assert!(err.contains("not a bundle"), "{err}");
+        assert!(dir.join("precious.txt").is_file(), "nothing was deleted");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }

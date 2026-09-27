@@ -95,8 +95,12 @@ jobs:
             on { print }
           ' CHANGELOG.md > notes.md
           test -s notes.md || echo "See CHANGELOG.md." > notes.md
+      # A draft: the repository's releases are immutable, and an immutable
+      # release takes no assets once published. Publish the draft by hand
+      # after checking its archives.
       - uses: softprops/action-gh-release@v2
         with:
+          draft: true
           files: dist/*
           body_path: notes.md
           prerelease: ${{ contains(github.ref_name, '-') }}

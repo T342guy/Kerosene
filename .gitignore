@@ -42,3 +42,6 @@ pi-session-*.html
 book
 content/cfg/config.cfg
 /.idea
+
+# Claude Code settings local to one machine.
+/.claude/settings.local.json

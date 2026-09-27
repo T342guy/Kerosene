@@ -14,6 +14,7 @@ use glam::Vec3;
 /// [`Winding::triangulate_ccw`] does exactly that.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Winding {
+    /// The corners, in order around the polygon.
     pub points: Vec<Vec3>,
 }
 
@@ -21,13 +22,16 @@ pub struct Winding {
 const EDGE_LENGTH: f32 = 0.2;
 
 impl Winding {
+    /// A polygon with these corners.
     pub fn new(points: Vec<Vec3>) -> Self {
         Self { points }
     }
 
+    /// How many corners.
     pub fn len(&self) -> usize {
         self.points.len()
     }
+    /// Whether it has no corners at all.
     pub fn is_empty(&self) -> bool {
         self.points.len() < 3
     }
@@ -76,10 +80,12 @@ impl Winding {
         None
     }
 
+    /// The box around every corner.
     pub fn bounds(&self) -> Aabb {
         Aabb::from_points(&self.points)
     }
 
+    /// The average of the corners: inside, for a convex polygon.
     pub fn center(&self) -> Vec3 {
         if self.points.is_empty() {
             return Vec3::ZERO;
@@ -103,6 +109,7 @@ impl Winding {
         self.points.reverse();
     }
 
+    /// The same polygon, facing the other way.
     pub fn reversed(&self) -> Self {
         let mut w = self.clone();
         w.reverse();

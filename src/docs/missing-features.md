@@ -42,8 +42,9 @@ elsewhere in these docs.
   is no separate music or effects volume.
 - ~~**`kerosene-ui` is not a UI toolkit.**~~ Fixed: the tools' egui host is
   now `kerosene-toolui`, and `kerosene-ui` is the game UI (section 8).
-- **Chisel is a quarter of the codebase in one crate.** Eighteen thousand
-  lines; worth splitting before the GPU viewport lands.
+- **Chisel is a fifth of the codebase in one crate.** About twenty-five
+  thousand lines of some hundred and twenty-six thousand; worth splitting
+  before the GPU viewport lands.
 
 ## 2. Already acknowledged
 
@@ -146,10 +147,14 @@ for completeness.
   controller.
 - **Cloth / soft body / fluid simulation.** Water is a volume flag, not
   simulated. Props fall through water rather than floating.
-- **Projectiles / ballistics.** No projectile physics. Traces exist for the
-  player, but there is no weapon system to use them.
-- **Generalized physics queries.** Traces exist, but there is no public
-  sweep/overlap API exposed for gameplay beyond movement.
+- **Projectiles / ballistics.** No projectile physics. The stock weapons are
+  hitscan: they trace, mark walls and shove props.
+- ~~**Generalized physics queries.**~~ Mostly fixed: `Engine::trace`,
+  `trace_ray` and `trace_view` sweep a ray or a box against the world, the
+  moving brushes and every prop's body, and say which entity they hit
+  (`TraceHit::entity`). Still missing: overlap and radius queries ("what is
+  within 200 units"), and traces against a turned prop's real box rather
+  than the world box around it.
 - **Determinism is asserted, not audited.** `rayon` is on the compile side
   today, but nothing guards the simulation path against it, or against a
   `HashMap` iteration order reaching gameplay. The demo replay in section 1
@@ -174,11 +179,12 @@ for completeness.
 
 - **NPC entities.** No `npc_*` classes; `tools/npcclip` exists as a material
   but nothing is an NPC.
-- **Pathfinding.** [`NavGraph`](crate::nav) -- the consumer the walkmap was
-  built for -- builds a connectivity graph of walkable faces sharing edges and
-  A*-searches it for a list of waypoints. There is still no A* smoothing into
-  a funnel, no flow fields, and no NPC entity to steer along the result; the
-  query API exists and is tested, but nothing calls it yet.
+- **Pathfinding.** `NavGraph` links walkable faces that share a stretch of
+  edge (T-junctions included, which a compiled floor is full of) and
+  A*-searches it for waypoints. The engine loads each map's `.kerowalk` with
+  it, and `Engine::find_path` and `Engine::nav` are how a game asks. There is
+  still no smoothing into a funnel, no flow fields, and no NPC entity to
+  steer along the result.
 - **Behavior trees / state machines / perception.** No AI decision-making and
   no sight or hearing queries.
 - **Crowd / group movement.** None.
@@ -203,7 +209,8 @@ for completeness.
   named off it. Impact effects are still not emitted -- neither the player's
   own landings nor a physics prop striking a wall makes a sound, though the
   solver reports every one of those collisions -- and no footstep sound
-  files ship yet, so a surface without assets warns once.
+  files ship, so a game without its own has silent steps (quietly: a game
+  with no footsteps has made a choice).
 - **Procedural audio.** None.
 
 ## 8. UI and HUD
@@ -229,17 +236,22 @@ for completeness.
 
 - **Gamepad / joystick support.** Keyboard and mouse only. `gilrs` is the
   pure-Rust answer; Steam Input replaces it on Steam and adds glyphs.
-- **Input actions.** `bind` maps keys to commands, which is half of an action
-  map; there is no layer that lets a gamepad and a keyboard both drive
-  `+attack`, and no rebinding UI.
+- **Input actions.** `bind` maps keys to commands, and a game's own held
+  `+actions` are per-tick state (`engine.input.action_held("zoom")`); the
+  bindings are on `Engine`, with `keys_for` for a rebinding screen to show.
+  There is still no layer that lets a gamepad and a keyboard both drive
+  `+attack`, and no stock rebinding screen.
+- ~~**Bindable keys.**~~ Fixed: arrows, the numpad, punctuation, the editing
+  keys, mouse 4 and 5, and the wheel (`mwheelup`, `mwheeldown`), under
+  Source's names.
 - **Touch / mobile input.** None.
 
 ## 10. Gameplay systems (beyond the FPS sandbox)
 
 - **Weapons and combat.** A stub exists (`kerosene_game::weapons`): three
-  hitscan weapons with ammo, reload and spread, and a dash on a cooldown,
-  there to feed the HUD. Nothing takes damage, and there are no projectiles,
-  viewmodels or firing sounds.
+  hitscan weapons with ammo, reload, spread and recoil, and a dash on a
+  cooldown. A shot marks walls and shoves props; nothing takes damage, and
+  there are no projectiles, viewmodels or firing sounds.
 - **Damage model.** Only player fall damage. No damage types, armor, enemy
   health, or hit reactions, and no `OnDamaged` output on entities.
 - **Inventory / items / pickups.** None.
@@ -252,7 +264,7 @@ for completeness.
   `Game::save` and `Game::load`) into the next map, lined up by an
   `info_landmark`.
 - **Difficulty / game settings.** None.
-- **Entity classes.** The set is enough for the sample map and thin for a
+- **Entity classes.** The set is enough for the demo level and thin for a
   real one. Missing from Source's glue, roughly in the order a mapper hits
   them: `func_movelinear`, `func_tracktrain` and `path_track`, `logic_case`,
   `logic_compare`, `math_remap`, `filter_activator_name` and `_class`,
@@ -260,7 +272,9 @@ for completeness.
   `env_sprite`, `game_ui`. None of these are hard; each is a class in
   `kerosene-game` and a row in the schema -- or in a game's own crate, since
   a game registers classes through the `Game` trait without touching the
-  engine.
+  engine. A game's class with a `model` is drawn and collided with when it
+  says how (`ClassDef::model(ModelRole::Physics)`); until this audit only the
+  three stock `prop_*` names were.
 
 ## 11. Content and asset pipeline
 
@@ -281,12 +295,14 @@ for completeness.
   streamed is loaded and unloaded around the player by potential
   visibility (see [`architecture.md`](architecture.md#streamed-sections)).
   Still one `.kerobsp` per map, compiled and lit as one; not an open world.
-- **Visibility control for the mapper.** No `func_areaportal`, no hint or
-  skip brushes, no occluders, so there is no way to steer Umbra on a level
-  it gets wrong.
-- **Runtime asset hot-reload.** Chisel reloads textures, but the running
-  engine does not hot-reload materials, `.kerosnd`, scripts or the map.
-  Chisel-to-engine iteration is F9, which is a full restart.
+- **Visibility control for the mapper.** `tools/hint` and `tools/skip` steer
+  Cleave's splits, but there is no `func_areaportal` and no occluder, so a
+  door cannot close off what is behind it.
+- **Runtime asset hot-reload.** Game UI reloads by itself (`ui_hotreload`),
+  and scripts and sound tables on command (`script_reload`, `snd_restart`).
+  Materials, textures, models and the map do not, nothing watches files for
+  the scripts and sounds, and Chisel-to-engine iteration is F9, which is a
+  full restart.
 - ~~**Project templates.**~~ Fixed: `kerosene-tools new` makes a game crate
   (a `Game` with a class of its own, its toolset binary, `cargo play`,
   `cargo tools` and `cargo ship`, a project file and a starter map), or with
@@ -303,8 +319,8 @@ for completeness.
 
 - **Client/server protocol** (acknowledged). No connection, snapshot, RPC, or
   entity replication.
-- **Prediction and interpolation.** None between machines; see section 1 for
-  the one that is missing on a single machine.
+- **Prediction and interpolation.** None between machines. On one machine
+  the view is interpolated between ticks (section 1).
 - **Dedicated-server story.** `--headless` exists, but there is no network
   stack to serve. If the engine goes Steam-first, Steam Datagram Relay is the
   pragmatic transport rather than a hand-written one.
@@ -321,7 +337,7 @@ for completeness.
 - **Installer / auto-updater.** None.
 - ~~**`build-content.sh` is a shell script.**~~ For a game, `cargo play`
   and `cargo ship` are the build, and they run anywhere Cargo does. The
-  script only builds this repository's sample content and the base vault.
+  script only builds this repository's base content and the base vault.
 
 ## 14. Integrations
 
@@ -369,9 +385,10 @@ Chisel:
 - **Instances / prefabs** (section 11) and a prefab library in the browser.
 - ~~**Entity report.**~~ Fixed: filterable, and it marks outputs aimed at
   nothing.
-- **Check for problems.** Leak detection exists and the entity report finds
-  dangling I/O; there is still no one dialog for a missing texture or an
-  entity with no name that something targets.
+- **Check for problems.** Leak detection exists, the entity report finds
+  dangling I/O, and "Check for problems" lists every problem in the output
+  panel. It does not yet look for a missing texture, and its lines do not
+  lead to what they name.
 - ~~**Undo history panel.**~~ Fixed: `Edit → History...`.
 - **Vertex/edge editing.** Maps can hold polygon meshes now, and Chisel draws,
   picks, moves, resizes, duplicates and deletes them, and converts brushes to
@@ -414,8 +431,8 @@ The engine as a tool:
   straight into the console overlay; `tracy-client` is the other answer.
 - **`stat`-style overlays.** `r_speeds` and `phys_stats` exist; fps, memory,
   audio voices and physics bodies should be the same kind of thing.
-- **Hosted docs.** `dev_scripts/docs.sh` builds rustdoc; nothing publishes
-  it. The module docs are unusually good and deserve a site.
+- ~~**Hosted docs.**~~ docs.rs builds the published crate's. Seven of the ten
+  stable crates now refuse an undocumented public item (section 18).
 
 ## 16. Found in the September 2026 audit
 
@@ -455,16 +472,17 @@ The runtime:
 - **Rendering.** The worldspawn docs describe fog, and nothing implements
   it. The sky is one equirectangular texture: no cubemap or 3D skybox.
 - **Audio.** No music system (playlists, crossfades), no `env_soundscape`,
-  no subtitles or closed captions, no per-sound priority, and doors,
-  buttons and animated props make no sound.
+  no subtitles or closed captions, no per-sound priority, and animated props
+  make no sound. ~~Doors and buttons~~ do now: `noise_move`, `noise_stop`
+  and `noise_locked`, `door/move` by default.
 - **Movers and entities.** A door does not push, stop on or crush a
   blocking player and has no `OnBlocked`; a player on a moving platform is
   not carried; no `parentname`; no `func_door_rotating`,
   `point_template`/`env_entity_maker`, `point_teleport`,
   `trigger_look`/`trigger_proximity`, `game_text` or `sky_camera`.
-- **Scripting.** No random numbers, traces, spawning, or entity angles and
-  velocity in the Rhai bindings, though the scripting docs give "pick one of
-  these three at random" as the reason scripting exists.
+- **Scripting.** No traces, spawning, or entity angles and velocity in the
+  Rhai bindings. ~~Random numbers~~ are in: `rand`, `rand_range`, `rand_int`
+  and `pick`, seeded per map.
 - **A map that fails to load** leaves a blank world; the reason is only in
   the console.
 
@@ -482,10 +500,161 @@ The tools:
   do not lead to what they name.
 - **Other tools.** Timbre, Alchemy and Loupe have no undo. Alchemy reads PNG,
   JPEG and TGA only: no EXR or HDR for skies. Radiance has no named quality
-  presets. No `kerosene-tools doctor` to check the toolchain, the ALSA
-  headers and the GPU in one place.
-- **The texture stage** writes the developer textures into every new project's
-  `art/`, although the engine's base content already has them.
+  presets. ~~No `kerosene-tools doctor`~~: there is one now.
+- **The texture stage** writes the developer textures into every project's
+  `art/` and `materials/`, although the engine's base content already has
+  them, because the compilers read tool and sky materials from the project's
+  own tree. A new game's `.gitignore` leaves them out; the fix is for the
+  compilers to read the base content too.
+
+## 18. Found in the second September 2026 audit
+
+A second sweep, from the game's side this time: what a game crate built on
+`kerosene` reaches for and does not find. Struck through is what was fixed
+in the same pass; the rest is open.
+
+The game API:
+
+- ~~**Traces never said what they hit.**~~ `Engine::trace`, `trace_ray` and
+  `trace_view` return a `TraceHit` with the entity it hit -- a door, a prop
+  -- as well as where and which way the surface faced.
+- ~~**Only three class names could have a model.**~~ Drawing, animating and
+  colliding a model were keyed to `prop_static`, `prop_physics` and
+  `prop_dynamic`. A class now says so itself:
+  `ClassDef::model(ModelRole::Physics)`.
+- ~~**No camera control.**~~ `view_punch`, `screen_shake`,
+  `set_fov_override`, `set_view_angles`, and `set_camera` with a
+  `CameraOverride` for a cutscene or a death camera. The stock weapons kick.
+- ~~**A game could not read its own held actions.**~~ `+zoom` ran as a
+  command once a frame; `engine.input.action_held("zoom")` is per-tick
+  state now.
+- ~~**The bindings belonged to the window.**~~ They are `Engine::input`, so
+  a rebinding screen can read and change them, and `bind` works headless.
+- ~~**Death was always an instant respawn.**~~ `Game::player_damaged` decides
+  how much a hit takes and `Game::player_died` can take the death over,
+  leaving the player dead until `Engine::respawn_player`. Maximum health is
+  the game's to set.
+- ~~**Missing lifecycle hooks.**~~ `frame` (every frame, paused or not),
+  `player_spawned`, `can_save`, `map_unloading` and `shutdown`.
+- ~~**No debug drawing for a game.**~~ `debug_line`, `debug_box` and
+  `debug_point`, for a number of seconds, under `r_debugdraw`. Still no text
+  in the world.
+- ~~**No seeded random numbers.**~~ `Engine::rng`, seeded by the map and kept
+  in saves; `rand`, `rand_range`, `rand_int` and `pick` for scripts. The
+  stock weapons' spread still has a generator of its own.
+- ~~**Spawning took a class name and nothing else.**~~
+  `Engine::spawn_entity(class, &[(key, value)])` reads keyvalues the way
+  the map loader does, then runs the spawn handler.
+- ~~**The walkmap was never loaded.**~~ See section 6.
+- **Class handlers are bare `fn` pointers.** They cannot capture settings or
+  reach the game's state; everything goes through a string-keyed
+  `HostRequest`.
+- **No touch, use, damage or collision callbacks on a class.** A pickup that
+  reacts to being walked into, a hazard, an NPC that flinches: each is
+  wiring through triggers today.
+- **Triggers only notice the player.** A thrown prop, or later an NPC, sets
+  nothing off.
+- **Error types differ by crate.** `platform` and `ui` return
+  `Result<_, String>`, the engine mixes that with `anyhow`, the rest use
+  typed errors. Unifying them is a breaking change, so it wants doing before
+  `1.0.0`.
+
+Rendering:
+
+- ~~**`$alphatest`, `$translucent` and `$nocull` were parsed and ignored.**~~
+  On the world, an alpha-tested surface is cut out, a translucent one is
+  blended back to front after everything solid, and `$nocull` draws both
+  sides. On models the alpha test works, but a translucent model blends
+  where it is drawn, among the solid ones and unsorted, and a two-sided
+  model is still culled. Umbra and Radiance still treat a translucent brush
+  as solid -- it blocks visibility and casts a full shadow -- unless it is
+  `func_detail`.
+- **No sprites, billboards or beams.** Particles need them first.
+- **No render-to-texture or second camera.** Security monitors, mirrors,
+  scopes and `sky_camera` all wait on it.
+- **No model attachments or hitboxes.** No muzzle point, no held item, no
+  headshot.
+- ~~**No brightness or vsync at runtime.**~~ `mat_gamma` and `r_vsync`, both
+  in the stock options menu and both applied at once.
+- **No loading screen.** `load_map` runs on the main thread and the window
+  stops until it is done.
+
+Audio:
+
+- ~~**Pausing did not pause the sound.**~~ A paused game holds every sound
+  in the world where it is; the interface's clicks play on.
+- **No random variants or pitch in `.kerosnd`.** One file per sound;
+  footsteps get variety by naming (`footstep/<surface>/n`).
+- **A playing voice cannot be changed.** No volume, pitch or fade on a
+  handle, so no crossfade and no door loop that fades out.
+- **No device choice or hot-plug.** The default output always; a device
+  that goes away needs `snd_restart`.
+
+Platform and saves:
+
+- ~~**Saves and settings went beside the executable.**~~ They go to the
+  player's own directory (`~/.local/share/<game>`, `%APPDATA%\<game>`,
+  `~/Library/Application Support/<game>`), and old saves in the content tree
+  are still found. `--portable` keeps them in the content tree. `crash.log`
+  is still written beside the executable.
+- **No local mods folder or `-game` flag.** Workshop items mount; a folder
+  of loose mods does not.
+- **No save migration.** A newer save is refused and an older one loads as
+  it is; nothing lets a game upgrade its own `Game::save` data. No save
+  thumbnails.
+- **No save or load menu.** The stock pause menu has Resume, Options,
+  Restart and Quit.
+
+Entities:
+
+- **Missing classes.** `func_breakable` (`prop_physics` already has `Break`
+  and `OnBreak` to build on), `func_physbox`, `func_wall_toggle`,
+  `env_spark`, `env_explosion`, `point_hurt`, `item_*` pickups, `game_end`,
+  `player_speedmod`, and fog and water controllers.
+- **Thin common inputs.** Only `Kill`, `AddOutput` and `FireUser1`/`2` work
+  on everything; `SetParent`, `Enable`/`Disable`, `FireUser3`/`4` and
+  `SetHealth` do not.
+
+The tools:
+
+- ~~**`cargo xtask bundle --out` emptied whatever it was given.**~~ It clears
+  only a directory it made.
+- ~~**`cargo xtask help` failed.**~~ It exits 0.
+- ~~**The published README's links were broken.**~~ The bundle points them
+  at GitHub.
+- ~~**`scripts/install-desktop.sh` stopped on a missing icon, and
+  `bump-version.sh`'s changelog step needed GNU sed.**~~ Both fixed; the
+  bump also moves the changelog's comparison links.
+- ~~**No way to clean.**~~ `kerosene-tools clean`, `kiln --clean`.
+- ~~**Mistakes on the command line were guessed at.**~~ An unknown command
+  gets "did you mean", and Chisel refuses a flag it does not know.
+- ~~**`new` could make a game that depends on itself, and made no
+  repository, CI or test.**~~ A game called Kerosene is `kerosene-game`;
+  `new` runs `git init` and writes a CI workflow, `.gitattributes`,
+  `rust-version` and a test of the pickup class.
+- ~~**Four copies of "is this output up to date".**~~ One,
+  `kerosene_vfs::up_to_date`.
+- ~~**"Check for problems" showed one.**~~ It lists them all in the output
+  panel.
+- **Chisel and Kiln each build the compilers' arguments** (`compile.rs` and
+  `kiln/src/lib.rs`): the duplicate still standing.
+- **No shell completions.** The top-level command line is hand-rolled, so
+  clap cannot generate them.
+- **The generated game has no licence.** Choosing one is the author's, but
+  `new` could ask.
+- **No `--watch`.** A content change means running `cargo play` again.
+
+Code health:
+
+- ~~**The stable crates' public items were half undocumented.**~~ `math`,
+  `physics`, `script`, `vfs`, `game`, `console` and `platform` are
+  documented and warn on anything new that is not. `entity` (about 160
+  items), `ui` (about 280) and `engine` (about 150) are not yet, so the lint
+  is off for them.
+- ~~**Broken links in the crates' own docs.**~~ Every crate's rustdoc builds
+  with warnings as errors.
+- **Big files.** `engine.rs`'s console commands are in their own module now;
+  `kerosene-render/src/gpu.rs` is still 3,200 lines.
 
 ## 17. What the mainstream engines have, and whether it matters
 
@@ -495,7 +664,7 @@ explicit about which is which.
 
 Worth borrowing:
 
-- **Project templates** and a `new` command.
+- ~~**Project templates**~~ and a `new` command: done, `kerosene-tools new`.
 - **Play-in-editor**, in the child-process form above.
 - **Input action maps** with a rebinding screen.
 - **Localization** string tables.
@@ -516,11 +685,11 @@ Deliberately not:
 
 ## Three gaps worth calling out
 
-1. **The walkmap has a consumer now.** [`NavGraph`](crate::nav) in
-   `kerosene-walk` links faces by shared edges and A*-searches them into
-   waypoints, so the format is no longer orphaned. The next step is an NPC,
-   or a debug overlay that draws a queried path -- the API is real and
-   tested, but nothing at runtime calls it.
+1. **The walkmap has a consumer now.** The engine loads each map's
+   `.kerowalk`, `NavGraph` links its faces (across T-junctions, which it
+   used to miss, leaving a real floor with no links at all) and
+   `Engine::find_path` answers with waypoints; `Engine::debug_line` can draw
+   them. What is missing is the NPC that walks them.
 2. **The solver already does convex hulls; props do not use them.**
    `kerosene-rigid` exposes `add_dynamic_hull`, and world brushes and
    `func_detail` go in as static hulls, so the hull path is real and running.
@@ -539,19 +708,17 @@ Deliberately not:
 Weighed against `positioning.md`: the shortest path to a shipped movement
 shooter or immersive sim, cheapest first.
 
-1. **Interpolation, MSAA, runtime mipmaps, texdata dimensions.** An afternoon,
-   and the largest visual change available for the money.
-2. **CI.** Three operating systems, `fmt`, `clippy`, the tests. Closes the
-   Windows question as a side effect.
+1. ~~**Interpolation, MSAA, runtime mipmaps, texdata dimensions.**~~ Done.
+2. ~~**CI.**~~ Done: three operating systems, `fmt`, `clippy`, the tests,
+   and a new game made and played on each.
 3. **Demo record and playback.** Proves determinism, becomes the movement
    solver's regression fixture, and is the ghost system for genre 3.
-4. **A game UI layer and save/load.** Menus, an options screen, a HUD,
-   ghosts, state across map transitions -- all wait on these two.
+4. ~~**A game UI layer and save/load.**~~ Done. A main menu before any map
+   is the part still to come.
 5. **Chisel: autosave, instances.** VisGroups are in; these two are what
    remains of making the second real map editable.
 6. **Weapons and damage.** Hitscan, ammo, `OnDamaged`, decals for the holes.
-7. **Steam, Workshop first.** The one thing here no engine of this size can
-   match, and the architecture was built for it.
+7. ~~**Steam, Workshop first.**~~ Done, as the `steam` feature.
 8. **Impact sounds.** The physics sandbox sounding like one; the room it
    happens in already rings.
 

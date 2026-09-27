@@ -438,13 +438,7 @@ pub fn new_texture(
 /// something that did not need it costs a moment; skipping something that did
 /// leaves a texture that does not match its source, and no way to tell.
 fn is_up_to_date(source: &Path, out: &Path) -> bool {
-    let Ok(built) = std::fs::metadata(out).and_then(|m| m.modified()) else {
-        return false;
-    };
-    let Ok(written) = std::fs::metadata(source).and_then(|m| m.modified()) else {
-        return false;
-    };
-    built >= written
+    source.exists() && kerosene_vfs::up_to_date(out, &[source])
 }
 
 // ---- the whole texture build, as one call -----------------------------------

@@ -82,6 +82,11 @@ pub struct SaveGame {
     pub ui: SavedUi,
     #[serde(default)]
     pub game: Json,
+    /// The engine's random number generator, as hex so no JSON reader
+    /// rounds it: a loaded game rolls the same dice the saved one would
+    /// have. Missing in saves from before it was kept.
+    #[serde(default)]
+    pub rng: Option<String>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -237,12 +242,18 @@ impl Engine {
                 "`{name}` is not a save name: letters, digits, `_`, `-` and `.`, up to 64"
             );
         }
-        let Some(level) = &self.level else {
+        if self.level.is_none() {
             anyhow::bail!("nothing to save: no map is loaded");
-        };
+        }
         if self.player.health <= 0.0 {
             anyhow::bail!("cannot save while dead");
         }
+        if let Some(Err(why)) = self.with_game_mut(|game, engine| game.can_save(engine)) {
+            anyhow::bail!("cannot save now: {why}");
+        }
+        let Some(level) = &self.level else {
+            anyhow::bail!("nothing to save: no map is loaded");
+        };
         let map = level.name.clone();
         let map_hash = fingerprint(&level.bsp.entities);
 
@@ -318,6 +329,7 @@ impl Engine {
                     .collect(),
             },
             game,
+            rng: Some(format!("{:016x}", self.rng.state())),
         };
 
         let bytes = serde_json::to_vec_pretty(&save)?;
@@ -520,6 +532,13 @@ impl Engine {
     /// Everything after the entities: the player, the scripts, the props'
     /// motion, the UI, the game. Called by `load_level` for a save.
     pub(crate) fn restore_from(&mut self, save: &SaveGame) {
+        if let Some(state) = save
+            .rng
+            .as_deref()
+            .and_then(|s| u64::from_str_radix(s, 16).ok())
+        {
+            self.rng = kerosene_math::Rng::new(state);
+        }
         // The player.
         self.held_prop_clear();
         let player = match self.entities.player {

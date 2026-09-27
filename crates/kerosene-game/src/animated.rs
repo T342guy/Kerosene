@@ -13,21 +13,29 @@
 //! clips, that notices a clip ending (see `kerosene_engine::animation`).
 
 use kerosene_entity::io::InputEvent;
-use kerosene_entity::{ClassDef, ClassRegistry, EntityId, EntityWorld, Value};
+use kerosene_entity::{ClassDef, ClassRegistry, EntityId, EntityWorld, ModelRole, Value};
 
 // The fields, which the engine reads by the same names.
+/// The clip playing now.
 pub const ANIMATION: &str = "animation";
+/// Game time the clip started.
 pub const STARTED: &str = "anim_start";
+/// Playback speed: 1 as authored.
 pub const RATE: &str = "anim_rate";
+/// The clip being faded out of, while a new one fades in.
 pub const PREVIOUS: &str = "anim_previous";
+/// Game time [`PREVIOUS`] started, so it carries on from where it was.
 pub const PREVIOUS_STARTED: &str = "anim_previous_start";
+/// Game time the fade from [`PREVIOUS`] began.
 pub const FADE_STARTED: &str = "anim_fade_start";
 /// Set once `OnAnimationDone` has fired for the current clip.
 pub const DONE: &str = "anim_done";
 
+/// Register `prop_dynamic`.
 pub fn register(registry: &mut ClassRegistry) {
     registry.register(
         ClassDef::new("prop_dynamic")
+            .model(ModelRole::Animated)
             .on_spawn(spawn)
             .input("SetAnimation", set_animation)
             .input("SetDefaultAnimation", set_default)

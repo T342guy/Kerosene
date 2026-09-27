@@ -31,6 +31,7 @@ pub const SF_START_SILENT: u32 = 1;
 /// is for the schema and for anything in this crate that sets it.
 pub const SF_EVERYWHERE: u32 = 2;
 
+/// Register the sound classes: `ambient_generic` and `point_sound`.
 pub fn register(registry: &mut ClassRegistry) {
     registry.register(
         ClassDef::new("ambient_generic")

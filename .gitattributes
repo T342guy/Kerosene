@@ -1,0 +1,18 @@
+# Text is checked out with LF everywhere. Tests compare hand-written content
+# against what base.vault packed, and maps round-trip byte for byte; a CRLF
+# checkout on Windows would fail both without anything being wrong.
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.wav binary
+*.ogg binary
+*.vault binary
+*.kerobsp binary
+*.keromdl binary
+*.kerotex binary
+*.keroaud binary
+*.kerowalk binary
+*.keroprt binary
+*.ico binary
+*.glb binary

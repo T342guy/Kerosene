@@ -33,6 +33,8 @@ enum Answer {
     },
 }
 
+/// The Steam client, through Steamworks: what a game runs on when it is
+/// built with the `steam` feature and started with a Steam app id.
 pub struct SteamBackend {
     client: Client,
     appid: u32,

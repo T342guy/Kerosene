@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! Computed style: what every property means.
 //!
-//! [`css`](crate::css) turns text into declarations; this turns declarations
+//! [`css`](mod@crate::css) turns text into declarations; this turns declarations
 //! into a [`Style`], one per panel, which is everything layout and drawing
 //! need to know. Unknown properties and unreadable values are ignored and
 //! reported once through [`Style::apply`]'s return value, so a typo shows up in

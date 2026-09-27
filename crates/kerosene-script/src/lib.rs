@@ -36,6 +36,10 @@
 //! assert!(matches!(host.take_actions().as_slice(), [ScriptAction::FireInput { .. }]));
 //! ```
 
+// Everything public is documented: this crate is part of `kerosene`'s
+// stable API. See src/docs/versioning.md.
+#![warn(missing_docs)]
+
 use kerosene_math::Vec3;
 use std::cell::RefCell;
 use std::collections::BTreeMap;
@@ -61,13 +65,17 @@ pub mod hooks {
     pub const PLATFORM_EVENT: &str = "on_platform_event";
 }
 
+/// Why a script could not run.
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum ScriptError {
+    /// It did not parse: a syntax error, with where.
     #[error("{0}")]
     Compile(String),
+    /// It parsed, and failed while running.
     #[error("{0}")]
     Runtime(String),
+    /// A hook was called that the script does not define.
     #[error("no function named `{0}`")]
     NoSuchFunction(String),
 }
@@ -75,8 +83,11 @@ pub enum ScriptError {
 /// Severity a script asked for when it logged something.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum ScriptLevel {
+    /// Ordinary output: `print`.
     Print,
+    /// Something is off: `warn`.
     Warn,
+    /// Something is wrong: `error`.
     Error,
 }
 
@@ -93,40 +104,77 @@ pub enum ScriptAction {
     Command(String),
     /// Fire an entity input, the same path an output takes.
     FireInput {
+        /// The entity or entities, by name, as an output names them.
         target: String,
+        /// The input, `Open`.
         input: String,
+        /// What goes with it; empty for none.
         parameter: String,
+        /// Seconds from now.
         delay: f32,
     },
     /// Set a keyvalue on an entity.
     SetField {
+        /// Which, by [`EntityView::id`].
         entity: u64,
+        /// The keyvalue's name.
         key: String,
+        /// Its new value, as text.
         value: String,
     },
     /// Move an entity.
-    SetOrigin { entity: u64, origin: Vec3 },
+    SetOrigin {
+        /// Which, by [`EntityView::id`].
+        entity: u64,
+        /// Where to.
+        origin: Vec3,
+    },
     /// Remove an entity.
-    Kill { entity: u64 },
+    Kill {
+        /// Which, by [`EntityView::id`].
+        entity: u64,
+    },
     /// Play a sound, at a position or heard flat.
     PlaySound {
+        /// The sound, by its name in the sound table or its path.
         name: String,
+        /// Where it is, or `None` to be heard flat.
         position: Option<Vec3>,
+        /// 0 to 1, on top of the sound's own.
         volume: f32,
     },
     /// Stop every sound.
     StopAllSounds,
     /// Publish a value to the game UI.
-    UiSet { key: String, value: String },
+    UiSet {
+        /// The store key, `objective.text`.
+        key: String,
+        /// Its new value, as text.
+        value: String,
+    },
     /// Send the game UI an event.
-    UiEvent { name: String, data: String },
+    UiEvent {
+        /// The event's name, which a layout listens for.
+        name: String,
+        /// What goes with it.
+        data: String,
+    },
     /// Show a layout on a UI layer, or hide the layer (`path` empty).
-    UiLayer { layer: String, path: String },
+    UiLayer {
+        /// The layer: `hud`, `menu`, or a game's own.
+        layer: String,
+        /// The `.keroui` to show, or empty to hide the layer.
+        path: String,
+    },
     /// Project a decal onto the surface at `origin`, facing along `normal`.
     PlaceDecal {
+        /// The decal's material, `decals/crack`.
         material: String,
+        /// A point on the surface.
         origin: Vec3,
+        /// The surface's normal, facing out.
         normal: Vec3,
+        /// Width and height, in units.
         size: f32,
     },
     /// Something for the store: an achievement, a stat, a score. Made by
@@ -143,6 +191,8 @@ pub enum ScriptAction {
 pub(crate) struct Shared {
     pub view: WorldView,
     pub actions: Vec<ScriptAction>,
+    /// The scripts' dice, and the map they were seeded for.
+    pub rng: Option<(String, kerosene_math::Rng)>,
 }
 
 /// How many actions one script run may queue before it is cut off.
@@ -192,6 +242,7 @@ impl Default for ScriptHost {
 }
 
 impl ScriptHost {
+    /// A sandboxed Rhai engine with Kerosene's API and nothing loaded.
     pub fn new() -> ScriptHost {
         let shared = Rc::new(RefCell::new(Shared::default()));
         let mut engine = sandboxed_engine();

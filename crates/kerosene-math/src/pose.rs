@@ -25,7 +25,9 @@ use crate::{Aabb, Angles, Mat3, Mat4, Vec3};
 /// answer without the extra brush.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Pose {
+    /// Where the body is.
     pub origin: Vec3,
+    /// How it is turned.
     pub angles: Angles,
     /// The point, in the body's own space, that the angles turn about.
     pub pivot: Vec3,

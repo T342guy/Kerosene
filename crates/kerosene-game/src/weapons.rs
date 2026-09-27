@@ -20,24 +20,31 @@
 /// One kind of weapon.
 #[derive(Clone, PartialEq, Debug)]
 pub struct WeaponDef {
+    /// Its name, which the HUD shows and events carry.
     pub name: &'static str,
     /// The key that selects it: `slot1`, `slot2`...
     pub slot: u8,
+    /// Damage per pellet.
     pub damage: f32,
+    /// Rounds a full clip holds.
     pub clip: u32,
     /// Rounds carried when picked up, outside the clip.
     pub reserve: u32,
     /// Seconds between shots.
     pub interval: f32,
+    /// Seconds a reload takes.
     pub reload_time: f32,
     /// Half-angle of the cone shots land in, in degrees.
     pub spread: f32,
     /// Traces per shot.
     pub pellets: u32,
+    /// How far a shot reaches, in units.
     pub range: f32,
     /// Keeps firing while the trigger is held.
     pub automatic: bool,
+    /// The material a hit leaves on a wall.
     pub decal: &'static str,
+    /// How big that mark is, in units.
     pub decal_size: f32,
 }
 
@@ -95,21 +102,27 @@ pub fn stock_weapons() -> Vec<WeaponDef> {
 /// A weapon being carried.
 #[derive(Clone, PartialEq, Debug)]
 pub struct Weapon {
+    /// What kind of weapon it is.
     pub def: WeaponDef,
+    /// Rounds in the clip.
     pub ammo: u32,
+    /// Rounds carried outside the clip.
     pub reserve: u32,
 }
 
 /// A cooldown ability, such as a dash.
 #[derive(Clone, PartialEq, Debug)]
 pub struct Ability {
+    /// Its name, which events carry: `dash`.
     pub name: &'static str,
+    /// Seconds between uses.
     pub cooldown: f32,
     /// Seconds until it can be used again; 0 when ready.
     pub remaining: f32,
 }
 
 impl Ability {
+    /// Whether it can be used now.
     pub fn ready(&self) -> bool {
         self.remaining <= 0.0
     }
@@ -126,33 +139,49 @@ impl Ability {
 /// Something that happened, for the owner to act on and tell the UI about.
 #[derive(Clone, PartialEq, Debug)]
 pub enum WeaponEvent {
+    /// The weapon in hand changed.
     Switched {
+        /// What was in hand.
         from: &'static str,
+        /// What is now.
         to: &'static str,
     },
     /// A shot: trace each direction (yaw and pitch offsets from the view, in
     /// degrees) out to `range`.
     Fired {
+        /// Which weapon fired.
         weapon: &'static str,
+        /// One `(yaw, pitch)` offset per pellet.
         directions: Vec<(f32, f32)>,
+        /// Damage per pellet.
         damage: f32,
+        /// How far each reaches.
         range: f32,
+        /// The mark a hit leaves.
         decal: &'static str,
+        /// How big the mark is.
         decal_size: f32,
     },
     /// The trigger was pulled on an empty clip.
     Empty,
+    /// A reload began.
     ReloadStarted,
+    /// A reload finished and the clip is full.
     Reloaded,
+    /// An ability was used, by name.
     AbilityUsed(&'static str),
+    /// An ability's cooldown ended, by name.
     AbilityReady(&'static str),
 }
 
 /// A value to publish.
 #[derive(Clone, PartialEq, Debug)]
 pub enum StateValue {
+    /// True or false.
     Flag(bool),
+    /// A number.
     Number(f64),
+    /// Text.
     Text(String),
 }
 
@@ -163,7 +192,9 @@ const FLASH: f32 = 0.08;
 /// Everything the player carries.
 #[derive(Clone, Debug)]
 pub struct Arsenal {
+    /// Every weapon carried, in slot order.
     pub weapons: Vec<Weapon>,
+    /// Which of them is in hand, by index.
     pub active: usize,
     previous: usize,
     /// Until the next shot may fire.
@@ -173,6 +204,7 @@ pub struct Arsenal {
     flash: f32,
     trigger_was_down: bool,
     shots: u32,
+    /// The abilities, such as the dash.
     pub abilities: Vec<Ability>,
 }
 
@@ -183,6 +215,8 @@ impl Default for Arsenal {
 }
 
 impl Arsenal {
+    /// An arsenal of these weapons, each with a full clip and its reserve, the
+    /// first in hand, and the dash.
     pub fn new(defs: Vec<WeaponDef>) -> Arsenal {
         Arsenal {
             weapons: defs
@@ -208,6 +242,7 @@ impl Arsenal {
         }
     }
 
+    /// The weapon in hand, if any.
     pub fn current(&self) -> Option<&Weapon> {
         self.weapons.get(self.active)
     }
@@ -282,6 +317,7 @@ impl Arsenal {
         self.flash = 0.0;
     }
 
+    /// Whether a reload is under way.
     pub fn is_reloading(&self) -> bool {
         self.reloading > 0.0
     }
@@ -324,6 +360,8 @@ impl Arsenal {
         self.switch_to((self.active as i32 + dir).rem_euclid(n) as usize)
     }
 
+    /// Start reloading the weapon in hand, if it is not full and has rounds
+    /// to load.
     pub fn reload(&mut self) -> Vec<WeaponEvent> {
         let Some(w) = self.weapons.get(self.active) else {
             return Vec::new();

@@ -155,6 +155,11 @@ pub struct Mixer {
     pub listener: Listener,
     /// Master volume, 0 to 1.
     pub volume: f32,
+    /// While set, every voice with a position -- a sound in the world --
+    /// holds where it is, silent, and carries on from there when it is
+    /// cleared: what a paused game sounds like. Flat voices, the interface's
+    /// clicks and music, play on.
+    pub world_paused: bool,
     /// Where the game thread leaves a new listener and volume for the next
     /// block to pick up. See [`MixerControl`].
     control: Arc<MixerControl>,
@@ -186,6 +191,8 @@ pub struct MixerControl {
     voice_env: std::sync::Mutex<Vec<(SoundHandle, VoiceEnv)>>,
     /// Voices that finished, for the game thread to stop tracking.
     ended: std::sync::Mutex<Vec<SoundHandle>>,
+    /// Whether the world's sounds are held. See [`Mixer::world_paused`].
+    world_paused: std::sync::atomic::AtomicBool,
 }
 
 impl MixerControl {
@@ -196,7 +203,15 @@ impl MixerControl {
             reverb: std::sync::Mutex::new((ReverbParams::default(), false)),
             voice_env: std::sync::Mutex::new(Vec::with_capacity(MAX_VOICES)),
             ended: std::sync::Mutex::new(Vec::with_capacity(MAX_ENDED)),
+            world_paused: std::sync::atomic::AtomicBool::new(false),
         }
+    }
+
+    /// Hold every sound in the world where it is, or let them go on, for
+    /// the next block. See [`Mixer::world_paused`].
+    pub fn set_world_paused(&self, paused: bool) {
+        self.world_paused
+            .store(paused, std::sync::atomic::Ordering::Relaxed);
     }
 
     /// The room to be in, for the next block.
@@ -246,6 +261,7 @@ impl Mixer {
             next_handle: 1,
             listener: Listener::default(),
             volume: 1.0,
+            world_paused: false,
             control: Arc::new(MixerControl::new()),
             reverb: Fdn::new(output_rate.max(1)),
             send: vec![0.0; 4096],
@@ -294,6 +310,10 @@ impl Mixer {
                 .volume
                 .load(std::sync::atomic::Ordering::Relaxed),
         );
+        self.world_paused = self
+            .control
+            .world_paused
+            .load(std::sync::atomic::Ordering::Relaxed);
         if let Ok(mut reverb) = self.control.reverb.try_lock()
             && reverb.1
         {
@@ -391,7 +411,11 @@ impl Mixer {
         let send = &mut self.send[..frames];
         send.fill(0.0);
 
+        let world_paused = self.world_paused;
         for voice in &mut self.voices {
+            if world_paused && voice.params.position.is_some() {
+                continue;
+            }
             let target = gains_for(&voice.params, &listener);
             // Ramp from wherever the last block ended, except on the very
             // first block of a sound, which starts where it belongs.

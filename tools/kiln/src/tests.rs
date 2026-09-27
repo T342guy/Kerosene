@@ -258,3 +258,54 @@ fn an_archive_is_current_until_something_it_packs_is_newer() {
     assert!(!archive_is_current(&dir, &archive));
     let _ = std::fs::remove_dir_all(dir);
 }
+
+#[test]
+fn clean_deletes_what_the_build_wrote_and_nothing_else() {
+    let dir = std::env::temp_dir().join(format!("kiln-clean-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    for (path, compiled) in [
+        ("maps/a.keromap", false),
+        ("maps/a.kerobsp", true),
+        ("maps/a.kerowalk", true),
+        ("maps/a.kerobuild", true),
+        ("art/dev/grid.png", false),
+        ("materials/dev/grid.keromat", false),
+        ("materials/dev/grid.kerotex", true),
+        ("models/props/cube.keromdl", false),
+        ("sound/hum.wav", false),
+        ("sound/hum.keroaud", true),
+        ("content.vault", true),
+    ] {
+        let file = dir.join(path);
+        std::fs::create_dir_all(file.parent().unwrap()).unwrap();
+        std::fs::write(&file, if compiled { "built" } else { "source" }).unwrap();
+    }
+
+    let dry = crate::clean(&dir, None, true).unwrap();
+    assert_eq!(dry.files, 6);
+    assert!(
+        dir.join("maps/a.kerobsp").exists(),
+        "a dry run deletes nothing"
+    );
+
+    let done = crate::clean(&dir, None, false).unwrap();
+    assert_eq!(done, dry);
+    for source in [
+        "maps/a.keromap",
+        "art/dev/grid.png",
+        "materials/dev/grid.keromat",
+        "models/props/cube.keromdl",
+        "sound/hum.wav",
+    ] {
+        assert!(dir.join(source).exists(), "{source} is a source and stays");
+    }
+    for built in [
+        "maps/a.kerobsp",
+        "materials/dev/grid.kerotex",
+        "sound/hum.keroaud",
+        "content.vault",
+    ] {
+        assert!(!dir.join(built).exists(), "{built} was built and goes");
+    }
+    let _ = std::fs::remove_dir_all(&dir);
+}

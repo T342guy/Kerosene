@@ -16,8 +16,9 @@ struct ToneMap {
     exposure: f32,
     // 0: none (clamp), 1: Reinhard, 2: ACES.
     curve: u32,
+    // `mat_gamma`: 1 is as mastered, more lifts the mid-tones.
+    gamma: f32,
     _pad0: f32,
-    _pad1: f32,
 };
 
 @group(0) @binding(0) var scene: texture_2d<f32>;
@@ -76,6 +77,9 @@ fn fs_tonemap(input: VertexOut) -> @location(0) vec4<f32> {
             color = aces(exposed);
         }
     }
-    // No gamma step: the swapchain is sRGB and the hardware encodes on write.
+    // The player's brightness, on the tone-mapped 0..1 value so it bends the
+    // middle and leaves the ends where they are. The sRGB encoding itself is
+    // not done here: the swapchain is sRGB and the hardware encodes on write.
+    color = pow(color, vec3<f32>(1.0 / tonemap.gamma));
     return vec4<f32>(color, 1.0);
 }

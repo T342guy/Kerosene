@@ -17,7 +17,33 @@ been compiled. Click a map to edit it; *new map*, *build everything* and
 The same stages also run headless, as subcommands, so a script or build server
 can drive them without a screen: `kerosene-tools cleave map.keromap`, and so
 on. Each subcommand is the program it used to be, unchanged in argument and
-output.
+output. A mistyped one is answered with the one it nearly was
+(`unknown command "kilm". Did you mean \`kiln\`?`).
+
+---
+
+## doctor — is this machine ready?
+
+```sh
+kerosene-tools doctor
+```
+
+Checks what a first build trips on, and says what to do about each: a Rust
+older than Kerosene's minimum, the ALSA headers on Linux, a GPU the
+renderer can use (and whether it is only a software one), the project here,
+and which of the toolchain's pieces can be found. It changes nothing, and
+exits with an error when something is in the way.
+
+## clean — delete what the build wrote
+
+```sh
+kerosene-tools clean [--content <dir>] [--dry-run]
+```
+
+The same as `kiln --clean`: deletes every compiled texture, sound and map
+file under the content tree, and the project's archive, and nothing else.
+Models are left, since a `.keromdl` may have no source to rebuild it from.
+`--dry-run` says how much it would delete.
 
 ---
 
@@ -498,6 +524,7 @@ comparison on hover.
 
 ```sh
 kerosene-tools cleave map.keromap [-o out.kerobsp] [--ignore-leaks] [--no-fill] [--dry-run] [-v]
+                     [--content <dir>] [--cordon "minx miny minz maxx maxy maxz"] [--no-cordon]
 ```
 
 `.keromap` → `.kerobsp` plus a `.keroprt` portal graph for Umbra, and a
@@ -758,6 +785,8 @@ kerosene-tools kiln --only maps --fast           # just relight, quickly
 kerosene-tools kiln --only textures              # after adding art
 kerosene-tools kiln --dry-run                    # say what would run
 kerosene-tools kiln --tools                      # which pieces can be found
+kerosene-tools kiln --force -j 4                 # rebuild everything, on four threads
+kerosene-tools kiln --clean                      # delete what the build wrote
 kerosene-tools kiln --ship dist                  # build, then assemble a distribution
 ```
 
@@ -788,8 +817,9 @@ over is not a service. The archive is named after the project and written
 inside the content tree, which is where the engine looks for it.
 
 `scripts/build-content.sh` in this repository is a thin wrapper: it builds the
-toolset from source and regenerates the sample map from the code that defines
-it, then calls Kiln. Neither of those two belongs in a shipped tool.
+toolset from source and regenerates the base room from the code that defines
+it, then calls Kiln and packs the engine's base content. None of that
+belongs in a shipped tool.
 
 `--ship <dir>` is the stage after the content: it builds the project's
 `game` package if the `.keroproj` names one (or takes the `kerosene` runtime
@@ -838,10 +868,10 @@ Arguments beginning with `+` are console commands, so any convar is settable
 from the command line with no flag needing to exist for it:
 
 ```sh
-kerosene +map kero_start
-kerosene +map kero_start +sv_gravity 200 +developer 1
-kerosene --headless 640 +map kero_start
-kerosene --content path/to/content --vault extra.vault +map kero_start
+kerosene +map kerosene_room
+kerosene +map kerosene_room +sv_gravity 200 +developer 1
+kerosene --headless 640 +map kerosene_room
+kerosene --content path/to/content --vault extra.vault +map kerosene_room
 ```
 
 `--headless` runs the simulation with no window at all — which is what a

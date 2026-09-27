@@ -9,14 +9,18 @@ use kerosene_math::{Angles, Vec3};
 /// The box a player occupies, and where their eyes sit in it.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct PlayerHull {
+    /// The box's lower corner, relative to the player's origin at their feet.
     pub mins: Vec3,
+    /// The box's upper corner, relative to the origin.
     pub maxs: Vec3,
+    /// How far above the origin the eyes are.
     pub view_height: f32,
 }
 
 /// How deep in water a player is.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub enum WaterLevel {
+    /// Not in water at all.
     #[default]
     Dry,
     /// Feet in water: slower, but still walking.
@@ -33,10 +37,14 @@ pub struct MoveParams {
     /// Units per second squared. 800 is Source's default -- about 20 m/s²,
     /// noticeably heavier than reality, which is what makes jumps feel snappy.
     pub gravity: f32,
+    /// Top ground speed, in units per second.
     pub max_speed: f32,
     /// Ground acceleration, as a multiple of wish speed per second.
     pub accelerate: f32,
+    /// Acceleration in the air, as a multiple of wish speed per second. Low, but
+    /// not zero: it is what air strafing steers with.
     pub air_accelerate: f32,
+    /// How quickly the ground slows a player who stops pushing, per second.
     pub friction: f32,
     /// Below this speed, friction is applied as though you were at this speed,
     /// so a slow walk still comes to a stop promptly instead of drifting.
@@ -99,7 +107,9 @@ pub struct MoveInput {
     pub side: f32,
     /// Up/down, used when swimming or flying.
     pub up: f32,
+    /// The jump key is down.
     pub jump: bool,
+    /// The duck key is down.
     pub duck: bool,
     /// Where the player is looking.
     pub view_angles: Angles,
@@ -108,12 +118,17 @@ pub struct MoveInput {
 /// The player's physical state, carried between ticks.
 #[derive(Clone, Copy, Debug)]
 pub struct MoveState {
+    /// Where the player's feet are: the bottom centre of the hull.
     pub origin: Vec3,
+    /// Units per second.
     pub velocity: Vec3,
+    /// Standing on something walkable, rather than falling or swimming.
     pub on_ground: bool,
     /// Normal of whatever is underfoot, for slope handling.
     pub ground_normal: Vec3,
+    /// Crouched, in the shorter hull.
     pub ducked: bool,
+    /// How deep in water the player is.
     pub water_level: WaterLevel,
     /// Whether the player is inside a ladder volume.
     pub on_ladder: bool,
@@ -122,6 +137,7 @@ pub struct MoveState {
     pub jump_held: bool,
     /// Speed at the moment of landing, for fall damage.
     pub fall_speed: f32,
+    /// Flying through walls, with no gravity: `sv_noclip`.
     pub noclip: bool,
 }
 
@@ -143,6 +159,7 @@ impl Default for MoveState {
 }
 
 impl MoveState {
+    /// The box the player occupies now: shorter while ducked.
     pub fn hull(&self) -> PlayerHull {
         if self.ducked {
             DUCKED_HULL
@@ -167,6 +184,7 @@ impl MoveState {
 pub struct MoveResult {
     /// The player landed this tick, at this speed. For fall damage.
     pub landed_at_speed: Option<f32>,
+    /// The player jumped this tick.
     pub jumped: bool,
     /// Ran into a wall.
     pub hit_wall: bool,

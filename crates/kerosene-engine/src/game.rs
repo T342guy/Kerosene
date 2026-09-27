@@ -120,6 +120,47 @@ pub trait Game: 'static {
     /// changed, a score posted, the overlay opened. Entities wired to it and
     /// the map's `on_platform_event` have already heard.
     fn platform_event(&mut self, engine: &mut Engine, event: &kerosene_platform::PlatformEvent) {}
+
+    /// Every frame the host draws, paused or not, with the real time since
+    /// the last one. Ticks stop while the game is paused and this does not:
+    /// the place for what runs on the player's clock rather than the
+    /// world's -- a menu's animation, a death screen's countdown.
+    fn frame(&mut self, engine: &mut Engine, real_dt: f32) {}
+
+    /// The player took `amount` damage from `reason` (`fall`, a trigger's
+    /// name, a weapon). Return what to actually take: `amount` as it is,
+    /// less for armour or an easy difficulty, `0.0` for god mode.
+    fn player_damaged(&mut self, engine: &mut Engine, amount: f32, reason: &str) -> f32 {
+        amount
+    }
+
+    /// The player's health reached zero. Return `true` to take the death
+    /// over -- a death screen, reloading the last save -- and the player
+    /// stays dead, unable to move or use anything, until the game calls
+    /// [`Engine::respawn_player`] or loads a save. `false`, the default,
+    /// respawns them at the map's start at once.
+    fn player_died(&mut self, engine: &mut Engine, reason: &str) -> bool {
+        false
+    }
+
+    /// The player was placed: on a map's load, and on each respawn.
+    fn player_spawned(&mut self, engine: &mut Engine) {}
+
+    /// Whether the game may be saved now. `Err` with the reason refuses the
+    /// save -- in the middle of a fight, during a cutscene -- and the reason
+    /// is what the console shows. Quicksaves, `save`, and autosaves all ask.
+    fn can_save(&mut self, engine: &mut Engine) -> Result<(), String> {
+        Ok(())
+    }
+
+    /// The current map is about to go: a new one has been read and is
+    /// replacing it. Its entities are still there to look at.
+    fn map_unloading(&mut self, engine: &mut Engine) {}
+
+    /// The engine is exiting, from `quit`, a closed window or the end of a
+    /// headless run. The last hook: flush what the game keeps outside the
+    /// save, say goodbye to a server.
+    fn shutdown(&mut self, engine: &mut Engine) {}
 }
 
 /// No game: no classes, nothing on any hook.
@@ -287,5 +328,126 @@ mod tests {
         engine.with_game_mut(|g, e| g.map_loaded(e));
         assert!(log.borrow().iter().any(|l| l.starts_with("map_loaded")));
         assert!(engine.game().is_some(), "the game was put back");
+    }
+
+    /// A game with opinions about the player's health.
+    #[derive(Default)]
+    struct Mortal {
+        halve_damage: bool,
+        take_over_death: bool,
+        refuse_saves: bool,
+        heard: Rc<RefCell<Vec<String>>>,
+    }
+
+    impl Game for Mortal {
+        fn player_damaged(&mut self, _: &mut Engine, amount: f32, reason: &str) -> f32 {
+            self.heard
+                .borrow_mut()
+                .push(format!("damaged {amount} {reason}"));
+            if self.halve_damage {
+                amount / 2.0
+            } else {
+                amount
+            }
+        }
+        fn player_died(&mut self, _: &mut Engine, reason: &str) -> bool {
+            self.heard.borrow_mut().push(format!("died {reason}"));
+            self.take_over_death
+        }
+        fn player_spawned(&mut self, _: &mut Engine) {
+            self.heard.borrow_mut().push("spawned".into());
+        }
+        fn can_save(&mut self, _: &mut Engine) -> Result<(), String> {
+            match self.refuse_saves {
+                true => Err("enemies nearby".into()),
+                false => Ok(()),
+            }
+        }
+        fn frame(&mut self, _: &mut Engine, _: f32) {
+            self.heard.borrow_mut().push("frame".into());
+        }
+        fn shutdown(&mut self, _: &mut Engine) {
+            self.heard.borrow_mut().push("shutdown".into());
+        }
+    }
+
+    fn mortal(game: Mortal) -> (Engine, Rc<RefCell<Vec<String>>>) {
+        let heard = game.heard.clone();
+        let mut engine = Engine::with_game(&EngineConfig::default(), Box::new(game));
+        engine.player.health = engine.player_max_health();
+        (engine, heard)
+    }
+
+    #[test]
+    fn the_game_decides_how_much_damage_is_taken() {
+        let (mut engine, heard) = mortal(Mortal {
+            halve_damage: true,
+            ..Default::default()
+        });
+        engine.hurt_player(40.0, "fall");
+        assert_eq!(engine.player.health, 80.0);
+        assert_eq!(heard.borrow()[0], "damaged 40 fall");
+    }
+
+    #[test]
+    fn a_death_the_game_takes_over_leaves_the_player_dead_until_it_says() {
+        let (mut engine, heard) = mortal(Mortal {
+            take_over_death: true,
+            ..Default::default()
+        });
+        engine.hurt_player(500.0, "lava");
+        assert!(!engine.player_alive());
+        assert!(heard.borrow().iter().any(|h| h == "died lava"));
+        assert!(!heard.borrow().iter().any(|h| h == "spawned"), "no respawn");
+        // Dead is dead: more damage is not heard of.
+        engine.hurt_player(10.0, "lava");
+        assert_eq!(
+            heard
+                .borrow()
+                .iter()
+                .filter(|h| h.starts_with("damaged"))
+                .count(),
+            1
+        );
+
+        engine.respawn_player(); // no level: nothing to respawn into
+        assert!(!engine.player_alive());
+    }
+
+    #[test]
+    fn a_death_the_game_leaves_alone_respawns_at_full_health() {
+        let (mut engine, heard) = mortal(Mortal::default());
+        engine.set_player_max_health(150.0);
+        engine.hurt_player(500.0, "lava");
+        assert!(engine.player_alive());
+        assert_eq!(engine.player.health, 150.0);
+        assert!(heard.borrow().iter().any(|h| h == "spawned"));
+    }
+
+    #[test]
+    fn frames_reach_the_game_and_shutdown_comes_once() {
+        // Paused or not: the hook runs before the pause check (the pause
+        // itself needs a level, which the save tests cover).
+        let (mut engine, heard) = mortal(Mortal::default());
+        engine.frame(0.1, &InputState::default());
+        assert!(heard.borrow().iter().any(|h| h == "frame"));
+        engine.shutdown();
+        engine.shutdown();
+        assert_eq!(
+            heard.borrow().iter().filter(|h| *h == "shutdown").count(),
+            1
+        );
+    }
+
+    #[test]
+    fn the_game_can_refuse_a_save() {
+        let (mut engine, _) = mortal(Mortal {
+            refuse_saves: true,
+            ..Default::default()
+        });
+        // No level, so it is refused for that first; the order of the checks
+        // is not the point. With a level, the game's reason is what is said.
+        let err = engine.save_game("x").unwrap_err().to_string();
+        assert!(err.contains("no map"), "{err}");
     }
 }

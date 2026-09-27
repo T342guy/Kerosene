@@ -335,12 +335,62 @@ fn say(stage: &str) {
 /// Whether `output` exists and was written no earlier than `source` was
 /// last changed. A missing or unreadable time is "not current": rebuilding
 /// something needlessly is cheap, skipping something stale is not.
-pub fn is_current(source: &Path, output: &Path) -> bool {
-    let modified = |p: &Path| p.metadata().and_then(|m| m.modified()).ok();
-    match (modified(source), modified(output)) {
-        (Some(source), Some(output)) => output >= source,
-        _ => false,
+/// What [`clean`] took away.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Cleaned {
+    pub files: usize,
+    pub bytes: u64,
+}
+
+/// Delete everything the build made and can make again: every file under
+/// `content` with one of [`kerosene_vfs::COMPILED_EXTENSIONS`], and the
+/// project's archive. Sources are never touched. With `dry_run`, only
+/// counts.
+pub fn clean(
+    content: &Path,
+    project: Option<&kerosene_vfs::Project>,
+    dry_run: bool,
+) -> Result<Cleaned> {
+    fn walk(dir: &Path, dry_run: bool, out: &mut Cleaned) -> Result<()> {
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            return Ok(());
+        };
+        for entry in entries {
+            let path = entry?.path();
+            if path.is_dir() {
+                walk(&path, dry_run, out)?;
+                continue;
+            }
+            let compiled = path
+                .extension()
+                .and_then(|e| e.to_str())
+                .is_some_and(|e| kerosene_vfs::COMPILED_EXTENSIONS.contains(&e));
+            if compiled {
+                remove(&path, dry_run, out)?;
+            }
+        }
+        Ok(())
     }
+    fn remove(path: &Path, dry_run: bool, out: &mut Cleaned) -> Result<()> {
+        out.bytes += std::fs::metadata(path).map_or(0, |m| m.len());
+        out.files += 1;
+        if !dry_run {
+            std::fs::remove_file(path).with_context(|| format!("deleting {}", path.display()))?;
+        }
+        Ok(())
+    }
+
+    let mut out = Cleaned::default();
+    walk(content, dry_run, &mut out)?;
+    let archive = archive_path(content, project);
+    if archive.is_file() {
+        remove(&archive, dry_run, &mut out)?;
+    }
+    Ok(out)
+}
+
+pub fn is_current(source: &Path, output: &Path) -> bool {
+    source.exists() && kerosene_vfs::up_to_date(output, &[source])
 }
 
 /// The file beside a compiled map that says how thoroughly it was built:

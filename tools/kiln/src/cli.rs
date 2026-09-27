@@ -8,6 +8,7 @@
 //! kerosene-tools kiln --only maps --fast           # just relight, quickly
 //! kerosene-tools kiln --dry-run                    # say what would run
 //! kerosene-tools kiln --force -j 4                 # rebuild everything, on four threads
+//! kerosene-tools kiln --clean                      # delete what the build wrote
 //! kerosene-tools kiln --tools                      # which pieces are present
 //! kerosene-tools kiln --ship dist                  # build, then assemble
 //! kerosene-tools kiln --ship dist --steam          # ... for Steam, with Valve's library
@@ -48,6 +49,11 @@ struct Args {
     /// Rebuild everything, even what is already newer than its source.
     #[arg(long)]
     force: bool,
+
+    /// Delete everything the build writes -- compiled textures, sounds, maps
+    /// and the archive -- and stop. Sources are left alone.
+    #[arg(long)]
+    clean: bool,
 
     /// How many threads each compiler may use. One per core by default.
     #[arg(long, short = 'j', value_name = "N")]
@@ -126,6 +132,21 @@ pub fn run(args: Vec<String>) -> Result<()> {
     let Some(found) = found else {
         bail!("nothing to build. Run kiln from a project, or pass --content");
     };
+
+    if args.clean {
+        let cleaned = crate::clean(&found.root, found.project.as_ref(), args.dry_run)?;
+        let verb = if args.dry_run {
+            "would delete"
+        } else {
+            "deleted"
+        };
+        println!(
+            "{verb} {} compiled file(s), {:.1} MiB. Sources are untouched; `kiln` builds them again.",
+            cleaned.files,
+            cleaned.bytes as f64 / (1024.0 * 1024.0)
+        );
+        return Ok(());
+    }
 
     let mut stages = Vec::new();
     for name in &args.only {

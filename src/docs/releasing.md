@@ -31,9 +31,12 @@ git push origin 1.0.0-a3
 
 Pushing the tag runs `.github/workflows/release.yml`. It builds
 `kerosene-tools` and the stock `kerosene` runtime for Linux, Windows and
-macOS, and attaches them to a GitHub release. The release's text is the
-changelog's section for the version. A version with a `-` in it is marked
-a pre-release.
+macOS, and attaches them to a **draft** GitHub release. The release's text
+is the changelog's section for the version, and a version with a `-` in it
+is marked a pre-release. It is a draft because the repository's releases
+are immutable: once published, a release takes no more files, so the
+archives go on first and you publish the draft from the Releases page when
+they are all there.
 
 ## crates.io
 
@@ -96,12 +99,12 @@ crate's `Cargo.toml` and every source file's `SPDX-License-Identifier`
 line. `AdditionRef-` is how SPDX (from 2.3) names an addition to a licence
 that is not on its list, which the Kerosene Exception is. `cargo-deny`
 parses it and `cargo package` carries it as written; `deny.toml` allows
-Kerosene's crates under exactly that expression, never the bare GPL. The
-first real publish is where crates.io's own check is seen, so read its
-answer to the first crate before publishing the rest.
+Kerosene's crates under exactly that expression, never the bare GPL.
+crates.io accepted it for `1.0.0-a2`.
 
 ## After
 
-- Check the GitHub release has three archives, and that each one runs:
+- Check the draft release has three archives, publish it, and check each
+  one runs:
   `kerosene-tools new` then `cargo play` against the released version.
 - Start the next Unreleased section of the changelog as changes land.

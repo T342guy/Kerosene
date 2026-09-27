@@ -1187,3 +1187,39 @@ entity { "classname" "light_dynamic" "targetname" "dark" "spawnflags" "1" }
     send(&mut w, "dark", "TurnOn");
     assert!(kerosene_game::lights::is_on(&w, dark));
 }
+
+#[test]
+fn a_door_makes_its_noises_and_a_silenced_one_does_not() {
+    let mut w = world_from(DOOR_MAP);
+    let gate = named(&w, "gate");
+    let _ = requests_of(&mut w);
+    w.accept_input(gate, &InputEvent::new("Open"));
+    let heard = requests_of(&mut w);
+    assert!(
+        heard.contains(&("play_sound".into(), "door/move".into())),
+        "the stock move noise: {heard:?}"
+    );
+    assert!(
+        !w.get(gate).unwrap().fields.bool("looping", true),
+        "and once, not looped"
+    );
+
+    let quiet = DOOR_MAP.replace(
+        r#""wait" "-1""#,
+        "\"wait\" \"-1\"\n    \"noise_move\" \"\"\n    \"noise_locked\" \"door/locked\"",
+    );
+    let mut w = world_from(&quiet);
+    let gate = named(&w, "gate");
+    let _ = requests_of(&mut w);
+    w.accept_input(gate, &InputEvent::new("Open"));
+    assert!(requests_of(&mut w).is_empty(), "an empty noise is silence");
+    w.accept_input(gate, &InputEvent::new("Close"));
+    run(&mut w, 3.0);
+    let _ = requests_of(&mut w);
+    w.accept_input(gate, &InputEvent::new("Lock"));
+    w.accept_input(gate, &InputEvent::new("Open"));
+    assert_eq!(
+        requests_of(&mut w),
+        vec![("play_sound".to_string(), "door/locked".to_string())]
+    );
+}

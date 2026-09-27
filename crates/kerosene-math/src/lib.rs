@@ -18,11 +18,16 @@
 //! engine needs on top: planes, polygon windings with exact clipping, and
 //! axis-aligned bounds.
 
+// Everything public is documented: this crate is part of `kerosene`'s
+// stable API. See src/docs/versioning.md.
+#![warn(missing_docs)]
+
 mod aabb;
 mod angles;
 pub mod light;
 mod plane;
 pub mod pose;
+mod rng;
 pub mod units;
 mod winding;
 
@@ -30,6 +35,7 @@ pub use aabb::Aabb;
 pub use angles::{Angles, Basis, angle_diff, wrap180};
 pub use plane::{Plane, PlaneKind, PlaneSet, PlaneSide};
 pub use pose::Pose;
+pub use rng::Rng;
 pub use winding::Winding;
 
 /// Format a number the way level data is written: no trailing zeroes, and no

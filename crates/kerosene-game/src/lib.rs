@@ -35,6 +35,10 @@
 //! are inert here, which is why a lit map needs
 //! no lights at runtime at all.
 
+// Everything public is documented: this crate is part of `kerosene`'s
+// stable API. See src/docs/versioning.md.
+#![warn(missing_docs)]
+
 pub mod animated;
 pub mod doors;
 pub mod lights;
@@ -48,7 +52,7 @@ pub mod triggers;
 pub mod ui;
 pub mod weapons;
 
-use kerosene_entity::{ClassDef, ClassRegistry, EntityId, EntityWorld, Value};
+use kerosene_entity::{ClassDef, ClassRegistry, EntityId, EntityWorld, ModelRole, Value};
 use std::sync::Arc;
 
 /// Register every class this game provides.
@@ -74,10 +78,10 @@ pub fn register(registry: &mut ClassRegistry) {
         // ladder contents and the movement solver does the rest, so there is
         // nothing here for it to do but be a class a map may legally contain.
         "func_ladder",
-        "prop_static",
     ] {
         registry.register(ClassDef::new(inert));
     }
+    registry.register(ClassDef::new("prop_static").model(ModelRole::Static));
 
     doors::register(registry);
     triggers::register(registry);

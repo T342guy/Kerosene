@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 use super::*;
+use kerosene_map::Map;
 
 fn scratch(name: &str) -> PathBuf {
     let dir = std::env::temp_dir().join(format!(
@@ -21,6 +22,9 @@ fn a_title_becomes_a_package_a_type_and_a_map() {
     assert_eq!(Names::from_title("3 Body").type_name, "Game3Body");
     assert_eq!(Names::from_title("game").type_name, "TheGame");
     assert_eq!(Names::from_title("???").package, "game");
+    // A game cannot be a crate it depends on, or one Rust keeps.
+    assert_eq!(Names::from_title("Kerosene").package, "kerosene-game");
+    assert_eq!(Names::from_title("Test").package, "test-game");
 }
 
 #[test]
@@ -35,15 +39,34 @@ fn a_new_game_is_a_package_a_project_and_a_map_that_all_agree() {
     assert!(cargo.contains(r#"kerosene = { version = "1.2.3", default-features = false }"#));
     assert!(cargo.contains("name = \"orbital-drift-tools\""));
     assert!(!cargo.contains('@'), "every hole filled: {cargo}");
+    assert!(cargo.contains(&format!(
+        "rust-version = \"{}\"",
+        env!("CARGO_PKG_RUST_VERSION")
+    )));
     for file in [
         "src/main.rs",
         "src/tools.rs",
         "src/game.rs",
         ".cargo/config.toml",
         "README.md",
+        ".gitignore",
+        ".gitattributes",
+        ".github/workflows/ci.yml",
     ] {
         let text = std::fs::read_to_string(dir.join(file)).unwrap();
-        assert!(!text.contains('@') || file == "README.md", "{file}: {text}");
+        // A hole is `@NAME@`; `actions/checkout@v4` is not one.
+        let hole = text.split('@').skip(1).step_by(2).any(|between| {
+            !between.is_empty() && between.chars().all(|c| c.is_ascii_uppercase() || c == '_')
+        });
+        assert!(!hole, "{file} has a hole left: {text}");
+    }
+    // What the build writes, the game's repository leaves out.
+    let ignored = std::fs::read_to_string(dir.join(".gitignore")).unwrap();
+    for ext in kerosene_vfs::COMPILED_EXTENSIONS {
+        assert!(
+            ignored.contains(&format!("*.{ext}")),
+            "*.{ext} is not ignored"
+        );
     }
     let aliases = std::fs::read_to_string(dir.join(".cargo/config.toml")).unwrap();
     assert!(aliases.contains("--bin orbital-drift-tools -- play"));

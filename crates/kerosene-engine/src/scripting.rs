@@ -348,7 +348,17 @@ impl Engine {
             return;
         };
         let everywhere = entity.has_spawnflag(crate::audio::SF_EVERYWHERE);
-        let origin = entity.origin;
+        // A brush entity's origin is how far it has moved from where it was
+        // compiled, not where it is: a door's sound comes from the middle of
+        // the door.
+        let origin = match entity.brush_model {
+            Some(_) => {
+                let mins = entity.fields.vec3("model_mins", kerosene_math::Vec3::ZERO);
+                let maxs = entity.fields.vec3("model_maxs", kerosene_math::Vec3::ZERO);
+                entity.origin + (mins + maxs) * 0.5
+            }
+            None => entity.origin,
+        };
         // `volume` is what it is called. `health` is what Source calls it, and
         // is still read so a map that says so is not silently ignored.
         let volume = entity

@@ -162,12 +162,10 @@ fn the_repositorys_own_content_tree_is_found_from_a_map_in_it() {
     // `.kerodef` marker (the class definitions are compiled into the game
     // crate), so discovery falls back to `maps/` + `materials/`.
     let repo = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let map = repo.join("content/maps/kero_start.keromap");
-    if !map.exists() {
-        return;
-    }
+    let map = repo.join("content/maps/kerosene_room.keromap");
+    assert!(map.exists(), "the repository ships {}", map.display());
 
-    let found = find(None, Some(&map)).expect("the sample map's content is findable");
+    let found = find(None, Some(&map)).expect("the room's content is findable");
     assert!(
         found.root.join("maps").is_dir() && found.root.join("materials").is_dir(),
         "{} is not a content root",

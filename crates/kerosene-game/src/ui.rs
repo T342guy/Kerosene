@@ -16,6 +16,7 @@
 use kerosene_entity::io::InputEvent;
 use kerosene_entity::{ClassDef, ClassRegistry, EntityId, EntityWorld, Value, host_requests};
 
+/// Register the UI classes: `logic_ui`, `point_worldpanel` and `infodecal`.
 pub fn register(registry: &mut ClassRegistry) {
     registry.register(
         ClassDef::new("logic_ui")

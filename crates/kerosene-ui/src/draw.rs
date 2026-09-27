@@ -19,7 +19,7 @@ pub enum TextureRef {
     None,
     /// The shared glyph atlas; the texture is coverage, the colour is ink.
     Glyphs,
-    /// An image, by the id [`crate::UiSystem::image_path`] resolves.
+    /// An image, by the id the UI system gave its path.
     Image(u32),
 }
 

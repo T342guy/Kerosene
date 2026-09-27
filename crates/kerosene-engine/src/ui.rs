@@ -275,24 +275,6 @@ impl Engine {
         }
     }
 
-    /// Trace from the eye along the view, offset by `(yaw, pitch)` degrees:
-    /// what a shot or a `decal` command hits.
-    pub fn trace_view(&self, offset: (f32, f32), range: f32) -> Option<(Vec3, Vec3, f32)> {
-        let level = self.level.as_ref()?;
-        let mut angles = self.player.view_angles;
-        angles.yaw += offset.0;
-        angles.pitch += offset.1;
-        let eye = self.player.movement.eye_position();
-        let end = eye + angles.forward() * range;
-        let world = crate::LevelCollision::new(&level.bsp, &self.entities);
-        let t = world.trace(eye, end, Vec3::ZERO, Vec3::ZERO, contents::MASK_SOLID);
-        if t.fraction >= 1.0 {
-            return None;
-        }
-        let normal = t.plane.map_or(-angles.forward(), |p| p.normal);
-        Some((t.endpos, normal, t.fraction * range))
-    }
-
     /// Publish what the engine knows. Every tick, and again each frame.
     pub(crate) fn publish_ui_state(&mut self) {
         let alive = self.player.health > 0.0 && self.player.entity.is_some();
@@ -665,7 +647,7 @@ impl Engine {
                 let material = words.next().unwrap_or("decals/bullet").to_string();
                 let size = words.next().and_then(|s| s.parse().ok()).unwrap_or(16.0);
                 match self.trace_view((0.0, 0.0), 4096.0) {
-                    Some((at, normal, _)) => self.place_decal(&material, at, normal, size),
+                    Some(hit) => self.place_decal(&material, hit.pos, hit.normal, size),
                     None => self.console.warn("decal: nothing in front of you"),
                 }
             }

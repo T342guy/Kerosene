@@ -110,10 +110,12 @@ pub enum Runtime {
     Binary(PathBuf),
     /// A Cargo package, built in `project_dir` with `cargo build -p name`.
     Package {
+        /// The package.
         name: String,
         /// The binary the package produces, when it is not named after
         /// the package.
         bin: Option<String>,
+        /// The directory to run `cargo build` in.
         project_dir: PathBuf,
     },
 }
@@ -122,7 +124,9 @@ pub enum Runtime {
 /// shipped copy.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Profile {
+    /// Unoptimised, with debug info: quick to build.
     Debug,
+    /// Optimised: what players get.
     Release,
 }
 

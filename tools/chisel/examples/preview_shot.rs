@@ -19,7 +19,7 @@ fn main() -> Result<()> {
     let map = args
         .first()
         .map(String::as_str)
-        .unwrap_or("content/maps/kero_start.keromap");
+        .unwrap_or("content/maps/kerosene_room.keromap");
     let out = args.get(1).map(String::as_str).unwrap_or("preview.png");
     let number = |i: usize, fallback: f32| -> f32 {
         args.get(i).and_then(|v| v.parse().ok()).unwrap_or(fallback)

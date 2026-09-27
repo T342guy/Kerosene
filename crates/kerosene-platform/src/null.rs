@@ -10,9 +10,14 @@ use crate::{Backend, PlatformEvent, StatKind};
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
+/// No store: achievements and stats kept in memory for the session, cloud
+/// files in a folder or in memory. What a game runs on off Steam, and what
+/// tests run on.
 #[derive(Default, Debug)]
 pub struct NullBackend {
+    /// Achievements unlocked this session.
     pub achievements: HashSet<String>,
+    /// Stats set this session.
     pub stats: HashMap<String, f64>,
     /// Best score per leaderboard, for simulated ranks.
     pub boards: HashMap<String, i32>,
@@ -20,6 +25,7 @@ pub struct NullBackend {
     pub owned_dlc: HashSet<u32>,
     /// Where cloud files go; `None` keeps them in `memory`.
     pub cloud_dir: Option<PathBuf>,
+    /// "Cloud" files, when there is no `cloud_dir`.
     pub memory: HashMap<String, Vec<u8>>,
     /// What `open_overlay` and friends were asked, newest last.
     pub requests: Vec<String>,
@@ -27,6 +33,7 @@ pub struct NullBackend {
 }
 
 impl NullBackend {
+    /// A null backend keeping cloud files in `cloud_dir`, or in memory.
     pub fn new(cloud_dir: Option<PathBuf>) -> NullBackend {
         NullBackend {
             cloud_dir,

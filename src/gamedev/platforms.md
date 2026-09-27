@@ -9,7 +9,7 @@ storefront has any integration yet.
 
 | Platform | Status | Notes |
 |---|---|---|
-| Linux | Developed and tested here | Audio needs ALSA headers to *build* (`libasound2-dev` / `alsa-lib-devel`); without them build with `--no-default-features` and everything but sound works. Players need nothing extra |
+| Linux | Developed and tested here | Audio needs ALSA headers to *build* (`libasound2-dev` / `alsa-lib-devel`; on an image-based system such as Bazzite or Silverblue, `rpm-ostree install alsa-lib-devel`); without them build with `--no-default-features` and everything but sound works. `kerosene-tools doctor` checks. Players need nothing extra |
 | Windows | Tested in CI; never played by hand | wgpu, winit and cpal all support it. CI runs the tests and makes and plays a new game headless. `kiln --ship` links the C runtime statically, so players need no Visual C++ redistributable |
 | macOS | Tested in CI; never played by hand | Same dependencies, same caveat. wgpu uses Metal |
 | Consoles | No | No SDKs, no plans in the tree |

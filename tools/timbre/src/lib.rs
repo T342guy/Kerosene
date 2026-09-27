@@ -380,15 +380,7 @@ fn colliding(sources: &[PathBuf]) -> Vec<(PathBuf, PathBuf)> {
 /// and rebuilding has to actually rebuild, or the change silently does
 /// nothing and the next person spends an hour on it.
 fn is_up_to_date(source: &Path, output: &Path, script: &Path) -> bool {
-    let Ok(out) = output.metadata().and_then(|m| m.modified()) else {
-        return false;
-    };
-    let newer_than_out = |p: &Path| {
-        p.metadata()
-            .and_then(|m| m.modified())
-            .is_ok_and(|t| t > out)
-    };
-    !newer_than_out(source) && !newer_than_out(script)
+    kerosene_vfs::up_to_date(output, &[source, script])
 }
 
 /// Every source sound under a directory, in a stable order.

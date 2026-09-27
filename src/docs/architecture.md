@@ -124,7 +124,7 @@ runtime binary is a call into it.
 
 Underneath everything is the engine's **base content**,
 `crates/kerosene-engine/base/base.vault`: the developer textures, the stock
-props, sounds and UI, and a demo map, compiled into the engine and mounted
+props, sounds and UI, and a plain room, `kerosene_room`, compiled into the engine and mounted
 as the last layer of the file system. A game with no content of its own
 still has something to show, and a game's own file at the same path always
 wins.
@@ -132,9 +132,11 @@ wins.
 ### The game seam
 
 The engine has no game of its own. `kerosene-engine` defines a `Game` trait
--- `classes`, `schema`, `setup`, `map_loaded`, `pre_tick`, `tick`,
-`entity_request`, `console_request`, `wants_ui`, `ui`, `ui_event`, `save`,
-`load` and `platform_event`, every one with a default -- and runs whatever
+-- `classes`, `schema`, `setup`, `map_loaded`, `player_spawned`,
+`pre_tick`, `tick`, `frame`, `entity_request`, `console_request`,
+`wants_ui`, `ui`, `ui_event`, `save`, `load`, `can_save`,
+`player_damaged`, `player_died`, `platform_event`, `map_unloading` and
+`shutdown`, every one with a default -- and runs whatever
 implements it, with `&mut Engine` in every hook. `kerosene-game` is the stock implementation's
 classes and knows nothing of the engine; the engine tests against it as a
 dev-dependency and `kerosene::game::Stock` is the type that joins the two.
@@ -358,7 +360,9 @@ is sections of one map, not an open world: everything is still one
 `.kerobsp`, compiled and lit as one.
 
 `r_stream_debug 1` draws each section's bounds in the colour of its state.
-`content/maps/two_rooms.keromap` is a small map with two streamed rooms.
+`content/maps/two_rooms.keromap` in
+[Kerosene Demo](https://github.com/t342guy/kerosene-demo) is a small map
+with two streamed rooms.
 
 ### Entities
 

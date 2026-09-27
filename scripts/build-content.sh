@@ -2,8 +2,8 @@
 # Build this repository's content.
 #
 # Two things happen here that the toolset does not do, because neither belongs
-# in a shipped tool: the tools get built from source, and the sample map gets
-# regenerated from the code that defines it. Everything after that is
+# in a shipped tool: the tools get built from source, and the base content's
+# room gets regenerated from the code that defines it. Everything after that is
 # `kerosene-tools kiln`, which is a program rather than a script precisely so
 # that it works from a copy of the toolchain with no repository behind it.
 #
@@ -21,10 +21,11 @@ CARGO_FLAGS=""
 echo "==> building the toolset"
 cargo build --quiet $CARGO_FLAGS -p kerosene-tools
 
-echo "==> regenerating the sample map from its source"
-# The sample level is defined in code so that a change to the map format shows
-# up as a compile error rather than as a level that silently stops loading.
-cargo run --quiet $CARGO_FLAGS -p kerosene-map --example sample_map
+echo "==> regenerating the base room from its source"
+# The room is defined in code (kerosene_map::starter) so that a change to the
+# map format shows up as a compile error rather than as a map that silently
+# stops loading.
+cargo run --quiet $CARGO_FLAGS -p kerosene-map --example starter_room
 
 "$BIN/kerosene-tools" kiln "$@"
 

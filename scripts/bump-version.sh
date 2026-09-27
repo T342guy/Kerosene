@@ -42,11 +42,24 @@ for doc in crates/kerosene/src/lib.rs src/gamedev/making-a-game.md; do
     rm -f "$doc.bak"
 done
 
-# The changelog: what was Unreleased is now this version, today.
+# The changelog: what was Unreleased is now this version, today, and the
+# comparison links at the bottom follow. awk rather than sed, because a
+# newline in a sed replacement is GNU's and not macOS's.
 if grep -q '^## \[Unreleased\]' CHANGELOG.md; then
     today="$(date +%Y-%m-%d)"
-    sed -i.bak "s/^## \[Unreleased\]$/## [Unreleased]\n\n## [$new] - $today/" CHANGELOG.md
-    rm -f CHANGELOG.md.bak
+    awk -v new="$new" -v old="$old" -v today="$today" '
+        $0 == "## [Unreleased]" { print; print ""; print "## [" new "] - " today; next }
+        index($0, "[Unreleased]: ") == 1 {
+            base = $0
+            sub(/^\[Unreleased\]: /, "", base)
+            sub(/\/compare\/.*$/, "", base)
+            print "[Unreleased]: " base "/compare/" new "...HEAD"
+            print "[" new "]: " base "/compare/" old "..." new
+            next
+        }
+        { print }
+    ' CHANGELOG.md > CHANGELOG.md.new
+    mv CHANGELOG.md.new CHANGELOG.md
 fi
 
 cargo update --workspace --quiet

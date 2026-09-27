@@ -10,7 +10,7 @@
 
 use crate::{field_f32, set_field};
 use kerosene_entity::io::InputEvent;
-use kerosene_entity::{ClassDef, ClassRegistry, EntityId, EntityWorld, Value};
+use kerosene_entity::{ClassDef, ClassRegistry, EntityId, EntityWorld, Value, host_requests};
 use kerosene_math::Vec3;
 
 /// How often a moving door updates, in seconds.
@@ -101,6 +101,8 @@ mod state {
     pub const CLOSING: i32 = 3;
 }
 
+/// Register the movers: `func_door`, `func_button`, `func_rotating` and
+/// `func_brush`.
 pub fn register(registry: &mut ClassRegistry) {
     registry.register(
         ClassDef::new("func_door")
@@ -329,6 +331,9 @@ fn spawn_mover(world: &mut EntityWorld, id: EntityId) {
         }),
     );
     set_field(world, id, "locked", Value::Bool(false));
+    // A mover's noises play once each; `looping` is what the engine's
+    // entity sound reads, and it defaults to on for the ambient classes.
+    set_field(world, id, "looping", Value::Bool(false));
 
     if start_open && let Some(e) = world.get_mut(id) {
         e.origin = dir * travel;
@@ -342,6 +347,7 @@ fn start(world: &mut EntityWorld, id: EntityId, event: &InputEvent, opening: boo
         .unwrap_or(false)
     {
         let locked = outputs_of(world, id).locked;
+        noise(world, id, "noise_locked", event.activator);
         world.fire_output(id, locked, event.activator, None);
         return true;
     }
@@ -371,6 +377,7 @@ fn start(world: &mut EntityWorld, id: EntityId, event: &InputEvent, opening: boo
         }),
     );
     set_field(world, id, "last_move", Value::Float(world.time));
+    noise(world, id, "noise_move", event.activator);
     let announce = if opening {
         Some(outputs.start_forward)
     } else {
@@ -433,6 +440,7 @@ fn think_mover(world: &mut EntityWorld, id: EntityId) {
     if next_state != door_state {
         let outputs = outputs_of(world, id);
         set_field(world, id, "door_state", Value::Int(next_state));
+        noise(world, id, "noise_stop", None);
         if next_state == state::OPEN {
             world.fire_output(id, outputs.fully_forward, None, None);
             // A positive `wait` sends it back by itself; -1 leaves it where it
@@ -455,6 +463,24 @@ fn think_mover(world: &mut EntityWorld, id: EntityId) {
     }
 
     world.set_think_delay(id, MOVE_INTERVAL);
+}
+
+/// Play one of a mover's noises -- `noise_move`, `noise_stop`,
+/// `noise_locked` -- if the map gave it one. A door with no `noise_move` key
+/// at all gets the stock `door/move`; an empty one is silent.
+fn noise(world: &mut EntityWorld, id: EntityId, key: &str, activator: Option<EntityId>) {
+    let Some(entity) = world.get(id) else { return };
+    let stock = match (key, entity.classname.to_ascii_lowercase().as_str()) {
+        ("noise_move", "func_door") => "door/move",
+        _ => "",
+    };
+    let name = match entity.fields.get(key) {
+        Some(value) => value.to_string(),
+        None => stock.to_string(),
+    };
+    if !name.trim().is_empty() {
+        world.request(host_requests::PLAY_SOUND, name.trim(), id, activator);
+    }
 }
 
 /// How far along its travel a door is, in `0..1`.

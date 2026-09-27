@@ -23,6 +23,8 @@
 use kerosene_entity::io::InputEvent;
 use kerosene_entity::{ClassDef, ClassRegistry, EntityId, EntityWorld, Value, host_requests};
 
+/// Register the store's classes: `logic_achievement`, `logic_stat`,
+/// `logic_leaderboard`, `logic_richpresence` and `logic_platform`.
 pub fn register(registry: &mut ClassRegistry) {
     registry.register(
         ClassDef::new("logic_achievement")

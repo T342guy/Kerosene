@@ -34,7 +34,7 @@ mod world;
 
 pub use io::{Connection, InputEvent, PendingEvent, Target};
 pub use registry::{
-    ClassDef, ClassRegistry, InputHandler, RestoreHandler, SpawnHandler, ThinkHandler,
+    ClassDef, ClassRegistry, InputHandler, ModelRole, RestoreHandler, SpawnHandler, ThinkHandler,
 };
 pub use schema::{ClassKind, ClassSpec, IoSpec, KeyKind, KeySpec, Schema, SchemaError};
 pub use snapshot::{SavedEntity, SavedEvent, SavedTarget, SavedValue, WorldSnapshot};

@@ -61,20 +61,29 @@ impl ChiselApp {
     /// closed. The toolset draws every job's log in one panel at the bottom;
     /// this is what it reads.
     pub fn output_lines(&self) -> Vec<Line<'_>> {
+        let mut lines = Vec::new();
+        if let Some(problems) = &self.problem_report {
+            lines.push(Line::new(
+                Level::Stage,
+                format!("--- check for problems: {} ---", problems.len()),
+            ));
+            if problems.is_empty() {
+                lines.push(Line::new(Level::Ok, "no problems found".to_string()));
+            }
+            for problem in problems {
+                lines.push(Line::new(Level::Warn, problem.clone()));
+            }
+        }
         let Some(job) = &self.compile else {
-            return Vec::new();
+            return lines;
         };
-        job.log
-            .iter()
-            .map(|message| match message {
-                CompileMessage::Stage(s) => Line::new(Level::Stage, format!("--- {s} ---")),
-                CompileMessage::Line(l) => Line::classified(l),
-                CompileMessage::Failed(e) => Line::new(Level::Error, format!("failed: {e}")),
-                CompileMessage::Finished(p) => {
-                    Line::new(Level::Ok, format!("done: {}", p.display()))
-                }
-            })
-            .collect()
+        lines.extend(job.log.iter().map(|message| match message {
+            CompileMessage::Stage(s) => Line::new(Level::Stage, format!("--- {s} ---")),
+            CompileMessage::Line(l) => Line::classified(l),
+            CompileMessage::Failed(e) => Line::new(Level::Error, format!("failed: {e}")),
+            CompileMessage::Finished(p) => Line::new(Level::Ok, format!("done: {}", p.display())),
+        }));
+        lines
     }
 
     /// Whether a compile is running now.

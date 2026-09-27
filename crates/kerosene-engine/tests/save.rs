@@ -477,3 +477,56 @@ fn a_paused_world_does_not_tick_and_does_not_catch_up_after() {
     assert!((volume(&engine) - 0.5).abs() < 1e-6);
     let _ = std::fs::remove_dir_all(dir);
 }
+
+#[test]
+fn saves_go_to_the_player_directory_and_old_ones_are_still_found() {
+    // The first run wrote into the content tree, as a portable build does.
+    let (mut portable, dir) = setup("userdir");
+    run(&mut portable, 2);
+    portable.save_game("old").unwrap();
+    assert!(dir.join("save/old.kerosave").is_file());
+
+    let user = std::env::temp_dir().join(format!("kerosene-save-user-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&user);
+    let mut engine = Engine::with_game(
+        &EngineConfig::default()
+            .with_content(dir.clone())
+            .with_user_dir(Some(user.clone())),
+        Box::new(Keeper { coins: 0 }),
+    );
+    engine.load_map("keep").unwrap();
+    run(&mut engine, 2);
+    engine.save_game("new").unwrap();
+
+    assert!(
+        user.join("save/new.kerosave").is_file(),
+        "the new save is the player's"
+    );
+    assert!(
+        !dir.join("save/new.kerosave").exists(),
+        "and not in the content tree"
+    );
+    let names: Vec<String> = engine.list_saves().into_iter().map(|s| s.name).collect();
+    assert!(
+        names.contains(&"old".to_string()) && names.contains(&"new".to_string()),
+        "{names:?}"
+    );
+    engine.load_game("old").expect("an old save still loads");
+
+    let _ = std::fs::remove_dir_all(&dir);
+    let _ = std::fs::remove_dir_all(&user);
+}
+
+#[test]
+fn a_loaded_game_rolls_the_same_dice_the_saved_one_would_have() {
+    let (mut engine, dir) = setup("dice");
+    run(&mut engine, 2);
+    engine.rng().next_u64(); // somewhere into the sequence
+    engine.save_game("dice").unwrap();
+    let after_save: Vec<u64> = (0..4).map(|_| engine.rng().next_u64()).collect();
+
+    engine.load_game("dice").unwrap();
+    let after_load: Vec<u64> = (0..4).map(|_| engine.rng().next_u64()).collect();
+    assert_eq!(after_save, after_load);
+    let _ = std::fs::remove_dir_all(&dir);
+}

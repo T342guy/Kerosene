@@ -23,17 +23,23 @@ pub enum PlaneSide {
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 #[repr(u8)]
 pub enum PlaneKind {
+    /// Facing along X: `x = dist`.
     X = 0,
+    /// Facing along Y: `y = dist`.
     Y = 1,
+    /// Facing along Z: `z = dist`.
     Z = 2,
     /// Non-axial. The stored axis is the one the normal leans on most, which
     /// the BSP builder uses to prefer axial splits.
     AnyX = 3,
+    /// Non-axial, leaning most on Y.
     AnyY = 4,
+    /// Non-axial, leaning most on Z.
     AnyZ = 5,
 }
 
 impl PlaneKind {
+    /// Whether the plane faces straight along an axis.
     #[inline]
     pub fn is_axial(self) -> bool {
         (self as u8) < 3
@@ -43,11 +49,15 @@ impl PlaneKind {
 /// An infinite plane: the set of points `p` where `normal . p == dist`.
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Plane {
+    /// Which way the plane faces. Unit length.
     pub normal: Vec3,
+    /// How far the plane is from the origin along its normal: a point `p` is on
+    /// it when `normal.dot(p) == dist`.
     pub dist: f32,
 }
 
 impl Plane {
+    /// A plane facing `normal`, `dist` from the origin.
     #[inline]
     pub const fn new(normal: Vec3, dist: f32) -> Self {
         Self { normal, dist }
@@ -223,20 +233,25 @@ pub struct PlaneSet {
 }
 
 impl PlaneSet {
+    /// An empty set.
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// How many distinct planes it holds.
     pub fn len(&self) -> usize {
         self.planes.len()
     }
+    /// Whether it holds none.
     pub fn is_empty(&self) -> bool {
         self.planes.is_empty()
     }
+    /// Every plane, in the order they were first interned.
     pub fn planes(&self) -> &[Plane] {
         &self.planes
     }
 
+    /// The plane at `index`, as [`insert`](PlaneSet::insert) returned it.
     #[inline]
     pub fn get(&self, index: u32) -> Plane {
         self.planes[index as usize]

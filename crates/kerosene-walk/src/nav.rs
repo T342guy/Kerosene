@@ -86,8 +86,7 @@ impl NavGraph {
         let mut arcs: Vec<Vec<Arc>> = vec![Vec::new(); nodes.len()];
 
         // For each pair of faces (n is small — a level has hundreds, not
-        // millions), add an edge when they share a segment. A shared edge is
-        // found by matching two distinct vertex pairs between the faces.
+        // millions), add an edge when they share a stretch of edge.
         for i in 0..nodes.len() {
             for j in (i + 1)..nodes.len() {
                 let portal = match shared_edge_midpoint(&walk.faces[i], &walk.faces[j]) {
@@ -271,38 +270,51 @@ fn edge_cost(from: Node, to: Node, portal: Vec3) -> f32 {
     cost
 }
 
-/// Whether two convex polygon faces share an edge, and if so the midpoint of
-/// that edge (the safe crossing point).
+/// Where two faces touch: the midpoint of the longest stretch of edge they
+/// have in common.
 ///
-/// Two faces in a compiled walkmap are adjacent when a full edge of one is a
-/// full edge of the other. Because CSG welds coplanar faces and fragments
-/// angled ones consistently, an edge is shared exactly when its two endpoints
-/// each appear in both faces' vertex lists (within a small tolerance, for the
-/// floating-point dust the welds leave). The midpoint of that edge lies on
-/// both polygons, so it is always a valid crossing point.
+/// Not only edges that match end to end. A compiled floor meets itself at
+/// T-junctions all the time -- a room's floor split around a plinth is one
+/// long face beside two short ones -- and there the faces share part of an
+/// edge, not a whole one. Two edges count as shared where they lie on the
+/// same line and overlap by more than [`MATCH_EPSILON`]; the middle of the
+/// overlap is on both faces, so it is still a safe crossing point.
 fn shared_edge_midpoint(a: &WalkFace, b: &WalkFace) -> Option<Vec3> {
-    let mut shared = Vec::new();
-    for &va in &a.vertices {
-        if b.vertices
-            .iter()
-            .any(|&vb| (vb - va).length_squared() < MATCH_EPSILON * MATCH_EPSILON)
-            && !shared
-                .iter()
-                .any(|&s: &Vec3| (s - va).length_squared() < MATCH_EPSILON * MATCH_EPSILON)
-        {
-            shared.push(va);
+    let edges = |f: &WalkFace| {
+        let n = f.vertices.len();
+        (0..n)
+            .map(|i| (f.vertices[i], f.vertices[(i + 1) % n]))
+            .collect::<Vec<_>>()
+    };
+    let (edges_a, edges_b) = (edges(a), edges(b));
+    let mut best: Option<(f32, Vec3)> = None;
+    for &(a0, a1) in &edges_a {
+        let length = (a1 - a0).length();
+        if length < MATCH_EPSILON {
+            continue;
+        }
+        let dir = (a1 - a0) / length;
+        // How far a point is from the line through a0 along dir, and where
+        // along it.
+        let on_line = |p: Vec3| {
+            let t = (p - a0).dot(dir);
+            ((a0 + dir * t - p).length(), t)
+        };
+        for &(b0, b1) in &edges_b {
+            let (d0, t0) = on_line(b0);
+            let (d1, t1) = on_line(b1);
+            if d0 > MATCH_EPSILON || d1 > MATCH_EPSILON {
+                continue;
+            }
+            let lo = t0.min(t1).max(0.0);
+            let hi = t0.max(t1).min(length);
+            let overlap = hi - lo;
+            if overlap > MATCH_EPSILON && best.is_none_or(|(o, _)| overlap > o) {
+                best = Some((overlap, a0 + dir * ((lo + hi) * 0.5)));
+            }
         }
     }
-    if shared.len() < 2 {
-        return None;
-    }
-
-    // Two convex faces sharing two vertices share the edge between them.
-    // The midpoint of that edge lies on both polygons, so it is always a safe
-    // crossing point. If more than two vertices match (two coplanar fragments
-    // of the same surface), the first two are a valid shared edge — the rest
-    // only add crossing points that are already covered.
-    Some((shared[0] + shared[1]) * 0.5)
+    best.map(|(_, midpoint)| midpoint)
 }
 
 /// The centroid (average of vertices) of a convex polygon.
@@ -351,6 +363,23 @@ mod tests {
     fn adjacent_faces_share_an_edge() {
         let walk = two_floors();
         assert!(shared_edge_midpoint(&walk.faces[0], &walk.faces[1]).is_some());
+    }
+
+    #[test]
+    fn faces_meeting_at_a_t_junction_are_linked_through_the_overlap() {
+        // One tall face beside a short one: they share half of an edge, and
+        // no vertex pair. A compiled floor is full of these.
+        let tall = face_z(0.0, (0.0, 0.0), (64.0, 128.0));
+        let short = face_z(0.0, (64.0, 64.0), (128.0, 128.0));
+        let portal = shared_edge_midpoint(&tall, &short).expect("they touch");
+        assert!(
+            (portal - Vec3::new(64.0, 96.0, 0.0)).length() < 0.01,
+            "{portal:?}"
+        );
+
+        // Only touching at a corner is not a way through.
+        let corner = face_z(0.0, (64.0, 128.0), (128.0, 192.0));
+        assert!(shared_edge_midpoint(&tall, &corner).is_none());
     }
 
     #[test]

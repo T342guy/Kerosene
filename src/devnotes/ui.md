@@ -136,7 +136,8 @@ game hold its fire too, and the stock game does.
   on any warning.
 - `crates/kerosene-engine/tests/ui.rs` uses a compiled map to test map scripts
   publishing, damage events, `infodecal`, the `decal` command, the pause menu,
-  and a keypad panel whose `OnUnlock` opens a door.
+  and a keypad panel (a test fixture of its own) whose `OnUnlock` opens a
+  door. The demo's real keypad is tested in kerosene-demo's `tests/keypad.rs`.
 - `crates/kerosene-render/tests/ui_smoke.rs` runs on a real GPU and skips
   without one. Set `KEROSENE_UI_SHOT=<dir>` to get PNGs of the shipped HUD
   and pause menu.

@@ -26,14 +26,24 @@ fn main() -> anyhow::Result<()> {
     match args.first().map(String::as_str) {
         Some("bundle") => bundle::run(&args[1..]),
         Some("publish") => publish::run(&args[1..]),
-        _ => {
-            eprintln!(
-                "usage: cargo xtask bundle [--out <dir>]\n       \
-                 cargo xtask publish [--dry-run] [--yes]\n\n\
-                 bundle   assemble the one `kerosene` crate crates.io gets, from the workspace\n\
-                 publish  check the release, bundle it and publish it to crates.io"
-            );
+        // Asking is not a mistake: the usage, on stdout, and success.
+        Some("help" | "--help" | "-h") => {
+            println!("{USAGE}");
+            Ok(())
+        }
+        Some(other) => {
+            eprintln!("unknown task {other:?}\n\n{USAGE}");
+            std::process::exit(2)
+        }
+        None => {
+            eprintln!("{USAGE}");
             std::process::exit(2)
         }
     }
 }
+
+const USAGE: &str = "usage: cargo xtask bundle [--out <dir>]
+       cargo xtask publish [--dry-run] [--yes]
+
+bundle   assemble the one `kerosene` crate crates.io gets, from the workspace
+publish  check the release, bundle it and publish it to crates.io";

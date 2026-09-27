@@ -1,0 +1,14 @@
+# Text is stored with LF, whatever each machine checks it out as.
+* text=auto
+
+# Art and sound are binary: never merged, never line-ended. For a game with
+# a lot of it, Git LFS (`git lfs track "*.png"`) keeps the repository small.
+*.png binary
+*.jpg binary
+*.tga binary
+*.exr binary
+*.wav binary
+*.ogg binary
+*.flac binary
+*.glb binary
+*.obj -text

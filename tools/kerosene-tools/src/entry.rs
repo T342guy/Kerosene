@@ -150,7 +150,7 @@ pub fn main_with(options: Options) -> Result<()> {
         // they open the toolset on the matching tab rather than a headless
         // stage. The compilers and the build stages stay subcommands.
         "chisel" => {
-            let (content, map) = parse_editor_args(&args[1..]);
+            let (content, map) = parse_editor_args(&args[1..])?;
             run_gui(options.launch(Tab::Editor, content, map))
         }
         "timbre" if opens_sound_window(&args[1..]) => {
@@ -164,7 +164,9 @@ pub fn main_with(options: Options) -> Result<()> {
 }
 
 /// `chisel` accepts an optional map path and an optional `--content <dir>`.
-fn parse_editor_args(args: &[String]) -> (Option<PathBuf>, Option<PathBuf>) {
+/// Anything else is a mistake, and said so: a window opening on the wrong
+/// map because a flag was mistyped is worse than an error.
+fn parse_editor_args(args: &[String]) -> anyhow::Result<(Option<PathBuf>, Option<PathBuf>)> {
     let mut map = None;
     let mut content = None;
     let mut i = 0;
@@ -172,18 +174,28 @@ fn parse_editor_args(args: &[String]) -> (Option<PathBuf>, Option<PathBuf>) {
         match args[i].as_str() {
             "--content" => {
                 i += 1;
-                content = args.get(i).map(PathBuf::from);
+                let dir = args
+                    .get(i)
+                    .ok_or_else(|| anyhow::anyhow!("--content needs a directory"))?;
+                content = Some(PathBuf::from(dir));
             }
             "--no-build" => {
                 // The texture build is done by the editor on the way in; the
                 // flag is accepted for familiarity and has no GUI equivalent.
             }
-            other if !other.starts_with('-') => map = Some(PathBuf::from(other)),
-            _ => {}
+            other if !other.starts_with('-') => {
+                if map.is_some() {
+                    anyhow::bail!("chisel opens one map; {other:?} is a second");
+                }
+                map = Some(PathBuf::from(other));
+            }
+            other => {
+                anyhow::bail!("chisel does not know {other:?}. It takes a map and --content <dir>")
+            }
         }
         i += 1;
     }
-    (content, map)
+    Ok((content, map))
 }
 
 /// Whether a bare `timbre` invocation opens the window rather than running a
@@ -250,9 +262,16 @@ mod tests {
     #[test]
     fn editor_arguments_are_a_map_and_a_content_flag() {
         let (content, map) =
-            parse_editor_args(&args(&["a.keromap", "--content", "c", "--no-build"]));
+            parse_editor_args(&args(&["a.keromap", "--content", "c", "--no-build"])).unwrap();
         assert_eq!(content, Some(PathBuf::from("c")));
         assert_eq!(map, Some(PathBuf::from("a.keromap")));
+    }
+
+    #[test]
+    fn a_mistyped_editor_argument_is_an_error_not_a_guess() {
+        assert!(parse_editor_args(&args(&["--contnet", "c"])).is_err());
+        assert!(parse_editor_args(&args(&["--content"])).is_err());
+        assert!(parse_editor_args(&args(&["a.keromap", "b.keromap"])).is_err());
     }
 
     #[test]

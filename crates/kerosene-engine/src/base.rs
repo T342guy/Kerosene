@@ -5,7 +5,7 @@
 //! and a game crate with no content at all still has to start. Both work
 //! because the engine carries a small archive of its own -- the developer
 //! and tool textures, the stock props, sounds and sound table, the default
-//! HUD and menus, and the demo map `kero_start` -- compiled into the binary
+//! HUD and menus, and a plain room, `kerosene_room` -- compiled into the binary
 //! and mounted beneath everything else.
 //!
 //! Beneath, so it is only ever a fallback: a game that ships
@@ -21,9 +21,12 @@ use kerosene_vfs::Vfs;
 /// The packed base content.
 pub static BASE_VAULT: &[u8] = include_bytes!("../base/base.vault");
 
-/// The demo map in the base content: what the engine opens when nothing
-/// names a map to start on.
-pub const DEMO_MAP: &str = "kero_start";
+/// The map in the base content: a plain lit room, what the engine opens
+/// when nothing names a map to start on. It is
+/// [`kerosene_map::starter::room`], the room `kerosene-tools new` gives a
+/// new game. The demo that used to be here is its own game now:
+/// <https://github.com/t342guy/kerosene-demo>.
+pub const FALLBACK_MAP: &str = "kerosene_room";
 
 /// The search-path id the base content is mounted under.
 pub const BASE_ID: &str = "BASE";

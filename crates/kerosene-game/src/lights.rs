@@ -28,6 +28,8 @@ pub const SF_NO_SHADOWS: u32 = 2;
 /// The field the engine reads to know whether to draw it.
 pub const ON_FIELD: &str = "on";
 
+/// Register `light_dynamic`, the one light that shines at run time: the
+/// others are baked by Radiance and need no class here.
 pub fn register(registry: &mut ClassRegistry) {
     registry.register(
         ClassDef::new("light_dynamic")

@@ -313,6 +313,67 @@ impl EntityWorld {
         Ok(created.len())
     }
 
+    /// Set one key on an entity the way a map sets it: `origin`, `angles`,
+    /// `model` and `targetname` go where the engine reads them, and anything
+    /// else becomes a field.
+    pub fn apply_keyvalue(&mut self, id: EntityId, key: &str, value: &str) {
+        match key.to_lowercase().as_str() {
+            "classname" => {}
+            "origin" => {
+                if let Some(v) = Value::from_keyvalue(value).as_vec3()
+                    && let Some(e) = self.get_mut(id)
+                {
+                    e.origin = v;
+                }
+            }
+            "angles" => {
+                if let Some(v) = Value::from_keyvalue(value).as_vec3()
+                    && let Some(e) = self.get_mut(id)
+                {
+                    e.angles = Angles::new(v.x, v.y, v.z);
+                }
+            }
+            "model" => {
+                // `"*3"` names brush model 3; anything else is a
+                // studio model path, which stays a plain field.
+                if let Some(rest) = value.strip_prefix('*')
+                    && let Ok(index) = rest.parse::<usize>()
+                    && let Some(e) = self.get_mut(id)
+                {
+                    e.brush_model = Some(index);
+                }
+                if let Some(e) = self.get_mut(id) {
+                    e.fields.set("model", Value::Text(value.to_string()));
+                }
+            }
+            "targetname" => self.set_targetname(id, value),
+            other => {
+                if let Some(e) = self.get_mut(id) {
+                    e.fields.set(other, Value::from_keyvalue(value));
+                }
+            }
+        }
+    }
+
+    /// Create one entity from keyvalues, as if it had been in the map, and
+    /// run its spawn handler: what a game spawns at run time.
+    ///
+    /// An unregistered class still makes an entity -- the map loader does
+    /// the same -- and says so, since it will do nothing.
+    pub fn spawn_with(&mut self, classname: &str, keys: &[(&str, &str)]) -> EntityId {
+        if !self.registry.is_registered(classname) {
+            log::warn!("spawning `{classname}`, which no class is registered for");
+        }
+        let id = self.spawn(classname);
+        for (key, value) in keys {
+            if !key.eq_ignore_ascii_case("classname") {
+                self.apply_keyvalue(id, key, value);
+            }
+        }
+        self.run_spawn_handlers(&[id]);
+        id
+    }
+
     /// Create entities without spawning them, so callers can fill in anything
     /// a spawn handler will need first.
     fn create_entities(&mut self, kv: &KeyValues) -> Vec<EntityId> {
@@ -327,42 +388,7 @@ impl EntityWorld {
             let id = self.spawn(&classname);
 
             for (key, value) in block.pairs() {
-                match key.to_lowercase().as_str() {
-                    "classname" => {}
-                    "origin" => {
-                        if let Some(v) = Value::from_keyvalue(value).as_vec3()
-                            && let Some(e) = self.get_mut(id)
-                        {
-                            e.origin = v;
-                        }
-                    }
-                    "angles" => {
-                        if let Some(v) = Value::from_keyvalue(value).as_vec3()
-                            && let Some(e) = self.get_mut(id)
-                        {
-                            e.angles = Angles::new(v.x, v.y, v.z);
-                        }
-                    }
-                    "model" => {
-                        // `"*3"` names brush model 3; anything else is a
-                        // studio model path, which stays a plain field.
-                        if let Some(rest) = value.strip_prefix('*')
-                            && let Ok(index) = rest.parse::<usize>()
-                            && let Some(e) = self.get_mut(id)
-                        {
-                            e.brush_model = Some(index);
-                        }
-                        if let Some(e) = self.get_mut(id) {
-                            e.fields.set("model", Value::Text(value.to_string()));
-                        }
-                    }
-                    "targetname" => self.set_targetname(id, value),
-                    other => {
-                        if let Some(e) = self.get_mut(id) {
-                            e.fields.set(other, Value::from_keyvalue(value));
-                        }
-                    }
-                }
+                self.apply_keyvalue(id, key, value);
             }
 
             if let Some(conn) = block.block("connections") {

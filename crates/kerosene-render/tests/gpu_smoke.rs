@@ -725,3 +725,64 @@ fn a_bone_palette_moves_the_vertices_bound_to_it() {
     );
     assert!(at(&moved, left) > 0, "and put it 30 units along +Y");
 }
+
+/// A 4x4 white texture that is fully transparent, as a compiled file.
+fn clear_texture() -> Vec<u8> {
+    use kerosene_asset::texture::{Mip, PixelFormat, Texture, TextureFlags};
+    Texture {
+        format: PixelFormat::Rgba8,
+        flags: TextureFlags::TRANSLUCENT,
+        reflectivity: Vec3::ONE,
+        mips: vec![Mip {
+            width: 4,
+            height: 4,
+            pixels: [255, 255, 255, 0].repeat(16),
+        }],
+    }
+    .to_bytes()
+}
+
+#[test]
+fn an_alpha_tested_surface_is_cut_out_and_an_opaque_one_is_not() {
+    let Some((device, queue)) = device() else {
+        eprintln!("no GPU adapter; skipping");
+        return;
+    };
+    // The same see-through texture twice: once on a material that says
+    // `$alphatest`, which cuts it away, and once on one that says nothing,
+    // which draws it solid whatever the texture's alpha.
+    let dir = std::env::temp_dir().join(format!("kerosene-alpha-smoke-{}", std::process::id()));
+    std::fs::create_dir_all(dir.join("materials/test")).unwrap();
+    std::fs::write(dir.join("materials/test/clear.kerotex"), clear_texture()).unwrap();
+    for (name, keys) in [("fence", r#""$alphatest" "1""#), ("wall", "")] {
+        std::fs::write(
+            dir.join(format!("materials/test/{name}.keromat")),
+            format!("unlit {{ \"$basetexture\" \"test/clear\" {keys} }}\n"),
+        )
+        .unwrap();
+    }
+    let mut vfs = kerosene_vfs::Vfs::new();
+    vfs.add_directory(&dir, "test");
+
+    let mut renderer = Renderer::new(&device, OUTPUT_FORMAT);
+    let no_probes = GpuProbes::upload(&device, &queue, None);
+    let mut centre = |material: &str| {
+        let bsp = lit_quad(255, material);
+        let atlas = LightmapAtlas::build(&bsp, 1.0);
+        let mesh = WorldMesh::build(&bsp, &atlas);
+        let resources = MapResources::upload(&device, &queue, &renderer, &mesh, &atlas, &vfs);
+        assert!(resources.missing_materials.is_empty());
+        let frame = renderer.create_frame_bind_group(&device, &resources.lightmap_view, &no_probes);
+        render_centre(&device, &queue, &mut renderer, &resources, &mesh, &frame)
+    };
+    let fence = centre("test/fence");
+    let wall = centre("test/wall");
+    let _ = std::fs::remove_dir_all(&dir);
+
+    assert_eq!(
+        brightness(fence),
+        0,
+        "cut out, so the black clear shows: {fence:?}"
+    );
+    assert!(brightness(wall) > 300, "drawn solid white: {wall:?}");
+}

@@ -24,6 +24,7 @@ const PAGE: usize = 10;
 /// The console overlay's state.
 #[derive(Debug, Default)]
 pub struct ConsoleUi {
+    /// Whether the console is showing.
     pub open: bool,
     /// The line being typed.
     pub input: String,
@@ -45,6 +46,7 @@ pub struct ConsoleUi {
 }
 
 impl ConsoleUi {
+    /// A closed console with nothing typed.
     pub fn new() -> ConsoleUi {
         ConsoleUi::default()
     }
@@ -69,6 +71,7 @@ impl ConsoleUi {
         ));
     }
 
+    /// Open it if closed, close it if open.
     pub fn toggle(&mut self) {
         self.open = !self.open;
         if self.open {
@@ -76,6 +79,7 @@ impl ConsoleUi {
         }
     }
 
+    /// Close it.
     pub fn close(&mut self) {
         self.open = false;
     }
@@ -187,10 +191,12 @@ impl ConsoleUi {
         Some(line)
     }
 
+    /// Scroll back a page, stopping at the oldest line.
     pub fn scroll_up(&mut self, log_len: usize) {
         self.scroll_by(PAGE as i32, log_len);
     }
 
+    /// Scroll forward a page, towards the newest line.
     pub fn scroll_down(&mut self) {
         self.scroll = self.scroll.saturating_sub(PAGE);
     }

@@ -49,6 +49,7 @@ kerosene-audio.workspace = true
 rhai.workspace = true
 kerosene-kv.workspace = true
 kerosene-map.workspace = true
+kerosene-walk.workspace = true
 egui.workspace = true
 egui-wgpu.workspace = true
 egui-winit.workspace = true

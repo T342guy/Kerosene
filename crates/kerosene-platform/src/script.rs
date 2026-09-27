@@ -70,6 +70,10 @@ pub fn register(
     let sink: Sink = Rc::new(sink);
 
     engine.register_type_with_name::<ScriptPlatform>("Platform");
+    // Rhai marks `on_var` deprecated as a "volatile" API -- one that may
+    // change -- not as one going away. If an upgrade does drop it, pushing
+    // `platform` and `steam` into each script's scope as constants does the
+    // same job.
     #[allow(deprecated)]
     engine.on_var(|name, _, _| Ok(NAMES.contains(&name).then(|| Dynamic::from(ScriptPlatform))));
 

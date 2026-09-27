@@ -20,6 +20,10 @@
 //! once per frame, so a `.cfg` that sets twenty convars applies as one atomic
 //! batch rather than bleeding across frames.
 
+// Everything public is documented: this crate is part of `kerosene`'s
+// stable API. See src/docs/versioning.md.
+#![warn(missing_docs)]
+
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 
@@ -36,6 +40,7 @@ pub use tokenize::{split_commands, tokenize};
 pub struct ConVarFlags(pub u32);
 
 impl ConVarFlags {
+    /// No flags: an ordinary convar.
     pub const NONE: ConVarFlags = ConVarFlags(0);
     /// Written to `config.cfg` on shutdown and restored on start.
     pub const ARCHIVE: ConVarFlags = ConVarFlags(1 << 0);
@@ -54,11 +59,13 @@ impl ConVarFlags {
     /// The server is allowed to run this on a client.
     pub const SERVER_CAN_EXECUTE: ConVarFlags = ConVarFlags(1 << 7);
 
+    /// Whether every flag in `other` is set.
     #[inline]
     pub fn contains(self, other: ConVarFlags) -> bool {
         self.0 & other.0 == other.0
     }
 
+    /// The flags set, by name, comma separated: what `help` shows.
     pub fn describe(self) -> String {
         let mut parts = Vec::new();
         for (flag, name) in [
@@ -93,30 +100,41 @@ impl std::ops::BitOr for ConVarFlags {
 /// every frame) and `str::parse` in those loops is not free.
 #[derive(Clone)]
 pub struct ConVar {
+    /// What it is called: `sv_gravity`.
     pub name: String,
+    /// One line saying what it does.
     pub help: String,
+    /// How it behaves: archived, a cheat, hidden.
     pub flags: ConVarFlags,
+    /// The value it starts with, and `revert` goes back to.
     pub default: String,
     value: String,
     float: f32,
     int: i32,
+    /// The lowest value it takes, if it is clamped.
     pub min: Option<f32>,
+    /// The highest value it takes, if it is clamped.
     pub max: Option<f32>,
 }
 
 impl ConVar {
+    /// Its value as written.
     pub fn string(&self) -> &str {
         &self.value
     }
+    /// Its value as a number; 0 for text that is not one.
     pub fn float(&self) -> f32 {
         self.float
     }
+    /// Its value as a whole number, truncated.
     pub fn int(&self) -> i32 {
         self.int
     }
+    /// Whether it is non-zero.
     pub fn bool(&self) -> bool {
         self.int != 0
     }
+    /// Whether it holds its default.
     pub fn is_default(&self) -> bool {
         self.value == self.default
     }
@@ -149,24 +167,31 @@ impl ConVar {
 /// Arguments to a concommand. `argv[0]` is the command name itself.
 #[derive(Clone, Debug)]
 pub struct Args {
+    /// The words, split the way the console splits them: quotes keep a
+    /// phrase together.
     pub argv: Vec<String>,
     /// Everything after the command name, verbatim -- what `say` wants.
     pub rest: String,
 }
 
 impl Args {
+    /// How many words, the command's own name included.
     pub fn count(&self) -> usize {
         self.argv.len()
     }
+    /// Word `i`; `get(0)` is the command's name, `get(1)` its first argument.
     pub fn get(&self, i: usize) -> Option<&str> {
         self.argv.get(i).map(|s| s.as_str())
     }
+    /// The command's name.
     pub fn name(&self) -> &str {
         self.argv.first().map(|s| s.as_str()).unwrap_or("")
     }
+    /// Word `i` as a number, if it is one.
     pub fn float(&self, i: usize) -> Option<f32> {
         self.get(i)?.parse().ok()
     }
+    /// Word `i` as a whole number, if it is a number; a fraction is truncated.
     pub fn int(&self, i: usize) -> Option<i32> {
         self.get(i)?
             .parse()
@@ -182,27 +207,40 @@ pub type CommandFn = Arc<dyn Fn(&mut Console, &Args) + Send + Sync>;
 /// Called after a convar's value changes.
 pub type ChangeFn = Arc<dyn Fn(&mut Console, &str, &str) + Send + Sync>;
 
+/// A console command: a name, and what runs when it is typed.
 #[derive(Clone)]
 pub struct ConCommand {
+    /// What is typed to run it.
     pub name: String,
+    /// One line saying what it does.
     pub help: String,
+    /// How it behaves: a cheat, hidden.
     pub flags: ConVarFlags,
+    /// What runs.
     pub func: CommandFn,
 }
 
 /// Severity of a console line.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum LogLevel {
+    /// What was typed, repeated back.
     Echo,
+    /// Ordinary output.
     Info,
+    /// Something worth noticing.
     Warning,
+    /// Something went wrong.
     Error,
+    /// Shown only while `developer` is on.
     Developer,
 }
 
+/// One line of scrollback.
 #[derive(Clone, Debug)]
 pub struct LogLine {
+    /// How it is shown.
     pub level: LogLevel,
+    /// What it says.
     pub text: String,
 }
 
@@ -289,6 +327,8 @@ impl Default for Console {
 }
 
 impl Console {
+    /// A console with the built-in commands (`echo`, `exec`, `alias`,
+    /// `help`...) and nothing else.
     pub fn new() -> Self {
         let mut con = Console {
             cvars: HashMap::new(),
@@ -309,6 +349,8 @@ impl Console {
 
     // ---- registration ----------------------------------------------------
 
+    /// Register a convar with a default, flags and a line of help. Registering
+    /// a name again replaces it.
     pub fn register_cvar(
         &mut self,
         name: &str,
@@ -352,6 +394,7 @@ impl Console {
         self
     }
 
+    /// Register a command: `func` runs with the console and the words typed.
     pub fn register_command(
         &mut self,
         name: &str,
@@ -371,6 +414,8 @@ impl Console {
         self
     }
 
+    /// Run `f` with the console, the convar's name and its old value, after
+    /// the convar changes.
     pub fn on_change(
         &mut self,
         name: &str,
@@ -382,18 +427,23 @@ impl Console {
             .push(Arc::new(f));
     }
 
+    /// What `exec <file>` reads: `f` is given the file's name and returns its
+    /// text, or `None` when there is no such file.
     pub fn set_exec_handler(&mut self, f: impl Fn(&str) -> Option<String> + Send + Sync + 'static) {
         self.exec_handler = Some(Arc::new(f));
     }
 
     // ---- reading ---------------------------------------------------------
 
+    /// A convar by name.
     pub fn cvar(&self, name: &str) -> Option<&ConVar> {
         self.cvars.get(name)
     }
+    /// Whether a convar of this name is registered.
     pub fn has_cvar(&self, name: &str) -> bool {
         self.cvars.contains_key(name)
     }
+    /// Whether a command of this name is registered.
     pub fn has_command(&self, name: &str) -> bool {
         self.commands.contains_key(name)
     }
@@ -405,19 +455,24 @@ impl Console {
     pub fn float(&self, name: &str) -> f32 {
         self.cvars.get(name).map_or(0.0, |c| c.float)
     }
+    /// Convar value as a whole number, or `0` if it does not exist.
     pub fn int(&self, name: &str) -> i32 {
         self.cvars.get(name).map_or(0, |c| c.int)
     }
+    /// Whether a convar is non-zero; `false` if it does not exist.
     pub fn bool(&self, name: &str) -> bool {
         self.cvars.get(name).is_some_and(|c| c.int != 0)
     }
+    /// Convar value as written, or empty if it does not exist.
     pub fn string(&self, name: &str) -> &str {
         self.cvars.get(name).map_or("", |c| c.value.as_str())
     }
 
+    /// Every convar, in no order.
     pub fn cvars(&self) -> impl Iterator<Item = &ConVar> {
         self.cvars.values()
     }
+    /// Every command, in no order.
     pub fn commands(&self) -> impl Iterator<Item = &ConCommand> {
         self.commands.values()
     }
@@ -490,24 +545,30 @@ impl Console {
         }
     }
 
+    /// Set a convar to a number.
     pub fn set_float(&mut self, name: &str, v: f32) {
         self.set(name, &v.to_string());
     }
+    /// Set a convar to `1` or `0`.
     pub fn set_bool(&mut self, name: &str, v: bool) {
         self.set(name, if v { "1" } else { "0" });
     }
 
     // ---- logging ---------------------------------------------------------
 
+    /// Print a line of ordinary output.
     pub fn print(&mut self, text: impl Into<String>) {
         self.log_line(LogLevel::Info, text.into());
     }
+    /// Print a line as typed input, repeated back.
     pub fn echo(&mut self, text: impl Into<String>) {
         self.log_line(LogLevel::Echo, text.into());
     }
+    /// Print a warning.
     pub fn warn(&mut self, text: impl Into<String>) {
         self.log_line(LogLevel::Warning, text.into());
     }
+    /// Print an error.
     pub fn error(&mut self, text: impl Into<String>) {
         self.log_line(LogLevel::Error, text.into());
     }
@@ -571,19 +632,24 @@ impl Console {
         self.requests.drain(..).collect()
     }
 
+    /// How many requests are waiting to be taken.
     pub fn pending_requests(&self) -> usize {
         self.requests.len()
     }
 
+    /// The scrollback, oldest first.
     pub fn log(&self) -> impl Iterator<Item = &LogLine> {
         self.log.iter()
     }
+    /// How many lines of scrollback there are.
     pub fn log_len(&self) -> usize {
         self.log.len()
     }
+    /// Empty the scrollback: `clear`.
     pub fn clear_log(&mut self) {
         self.log.clear();
     }
+    /// Every line typed this session, oldest first.
     pub fn history(&self) -> &[String] {
         &self.history
     }

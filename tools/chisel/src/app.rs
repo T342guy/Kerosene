@@ -238,6 +238,9 @@ pub struct ChiselApp {
     pub content_note: String,
     /// The route out of a leaking map, from the last compile.
     pub leak: crate::leak::LeakTrace,
+    /// What the last "Check for problems" found, shown in the output panel
+    /// until the next check.
+    pub problem_report: Option<Vec<String>>,
     /// Where the four panes divide, as fractions of the area. Dragged.
     pub split: egui::Vec2,
     /// How fast the 3D camera flies, in kerosene units per second.
@@ -526,6 +529,7 @@ impl ChiselApp {
             pointer_world: None,
             content_note: String::new(),
             leak: crate::leak::LeakTrace::default(),
+            problem_report: None,
             split: egui::vec2(0.5, 0.5),
             fly_speed: DEFAULT_FLY_SPEED,
             previews: [const { None }; 4],

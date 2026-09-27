@@ -8,7 +8,7 @@
 //!   error rather than a panic.
 //! * [`mixer`] turns voices into a stereo buffer. Pure arithmetic, no device,
 //!   which is what makes panning and falloff testable rather than something
-//!   you notice by ear on the third playthrough. [`reverb`] and [`env`] are
+//!   you notice by ear on the third playthrough. [`reverb`] and [`env`](mod@env) are
 //!   the room and the air it applies on the way, built from [`dsp`].
 //! * [`device`] hands that buffer to the sound card, behind a feature flag,
 //!   because it is the only part that needs a C library on Linux and the only

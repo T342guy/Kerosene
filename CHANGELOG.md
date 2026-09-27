@@ -11,11 +11,120 @@ with what to do about them.
 
 ## [Unreleased]
 
+## [1.0.0-a3] - 2026-09-26
+
 ### Added
 - `cargo xtask publish`, from the repository root: refuses a version already
   on crates.io, warns about uncommitted or unpushed work, a forgotten version
   bump or a missing changelog section, then bundles, publishes and offers to
   tag the release. `--dry-run` does everything but the upload.
+- Traces for games: `Engine::trace`, `trace_ray` and `trace_view` return a
+  `TraceHit` that says which entity was hit -- a door, a prop -- as well as
+  where and the surface's normal.
+- `ClassDef::model(ModelRole)`: any class can have a model the engine draws,
+  animates and collides with, not only `prop_static`, `prop_physics` and
+  `prop_dynamic`. `ClassRegistry::model_role` answers for a class.
+- `Game` hooks, all with defaults: `frame` (every frame, paused or not),
+  `player_damaged` (how much a hit takes), `player_died` (take a death
+  over), `player_spawned`, `can_save` (refuse a save), `map_unloading` and
+  `shutdown`. `Engine::respawn_player`, `player_alive`,
+  `player_max_health` and `set_player_max_health`.
+- Camera control: `Engine::view_punch`, `screen_shake`, `set_fov_override`,
+  `set_view_angles`, and `set_camera` with a `CameraOverride` for a cutscene
+  or a death camera; `Engine::view_camera` is what gets drawn. The stock
+  weapons kick, and push the props they hit.
+- `Engine::spawn_entity(class, &[(key, value)])` and
+  `EntityWorld::spawn_with`: an entity with keyvalues, read as a map's are,
+  and spawned. `EntityWorld::apply_keyvalue`.
+- `Engine::debug_line`, `debug_box` and `debug_point`, drawn for a number of
+  seconds while `r_debugdraw` is on.
+- A seeded random number generator, `kerosene::math::Rng`: `Engine::rng()`
+  is seeded by the map and kept in saved games. Scripts get `rand()`,
+  `rand_range(lo, hi)`, `rand_int(lo, hi)` and `pick(array)`.
+- Navigation at run time: the engine loads each map's `.kerowalk`;
+  `Engine::nav` and `Engine::find_path` answer with waypoints.
+- Saves and `config.cfg` go to the player's own directory
+  (`~/.local/share/<game>`, `%APPDATA%\<game>`,
+  `~/Library/Application Support/<game>`); `--portable` keeps them in the
+  content tree. Saves already in the content tree are still found.
+  `EngineConfig::user_dir` and `with_user_dir`,
+  `kerosene::vfs::user_data_dir`.
+- Pausing holds every sound in the world where it is; the interface's play
+  on.
+- Doors and buttons make noises: `noise_move`, `noise_stop` and
+  `noise_locked`, with `door/move` for a door by default. An entity sound on
+  a brush entity comes from the middle of the brush.
+- More keys can be bound: arrows, the numpad, punctuation, the editing keys,
+  `mouse4`, `mouse5`, and the wheel as `mwheelup` and `mwheeldown` (the
+  stock game puts `invprev` and `invnext` there).
+- The bindings are `Engine::input`, so a game can read and change them;
+  `InputSystem::keys_for` for a rebinding screen, and
+  `InputSystem::action_held` for a game's own `+action`. `bind` works in a
+  headless run.
+- Materials: `$alphatest` cuts a surface out (`$alphatestreference`, 0.5 by
+  default), `$translucent` blends it back to front after everything solid,
+  and `$nocull` draws both sides. `Material::is_blended`,
+  `is_alpha_tested` and `alpha_test_reference`.
+- `mat_gamma` and `r_vsync`, applied at once, and both in the stock options
+  menu as Brightness and Vertical sync.
+- `kerosene-tools doctor` checks the machine: Rust, the Linux sound
+  headers, the GPU, the project and the toolchain.
+- `kerosene-tools clean` and `kiln --clean` delete what the content build
+  wrote, and nothing else. `kerosene::vfs::COMPILED_EXTENSIONS` says what
+  that is, and `kerosene::vfs::up_to_date` is the build's freshness check.
+- `kerosene-tools new` runs `git init` (not with `--no-git`) and writes a CI
+  workflow that tests and plays the game on three platforms,
+  `.gitattributes`, `rust-version`, and a test of the game's class.
+- An unknown `kerosene-tools` command is answered with the one it nearly
+  was.
+- "Check for problems" in Chisel lists every problem in the output panel.
+- `kerosene_map::starter::room`, the room a new game starts with and the
+  engine falls back to.
+
+### Changed
+- **Breaking:** the demo level has moved to its own repository,
+  [kerosene-demo](https://github.com/t342guy/kerosene-demo), as a game crate
+  on the published `kerosene`. The base content's map is now a plain room:
+  `kerosene::engine::base::DEMO_MAP` is `FALLBACK_MAP`, `"kerosene_room"`.
+  A game that opened `kero_start` by name should ship its own map.
+- **Breaking:** `Engine::trace_view` returns `Option<TraceHit>` instead of
+  a tuple: `hit.pos`, `hit.normal` and `hit.distance` for what were its
+  three parts.
+- **Breaking:** `ClassDef` is `#[non_exhaustive]`: build it with
+  `ClassDef::new` and its methods, as every example does.
+- **Breaking:** where saves and `config.cfg` are written; see Added. Nothing
+  is lost -- old saves are still read -- but a game's player will find new
+  saves in a new place.
+- `point_worldpanel`'s default layout is `ui/panels/status.keroui`.
+- Footstep sounds a game does not have are skipped quietly rather than
+  warned about.
+- A game called "Kerosene" (or "test", "core"...) gets a package name that
+  does not collide: `kerosene-game`.
+- The engine's console commands are registered in their own module; the
+  seven smaller stable crates (`math`, `physics`, `script`, `vfs`, `game`,
+  `console`, `platform`) are fully documented and warn on anything new that
+  is not.
+
+### Fixed
+- `Angles::slerp` returns its endpoints exactly, so an interpolated door on
+  a tick boundary is where it is on every platform (it was a hair off on
+  macOS).
+- The base vault's freshness test passes on a Windows checkout with CRLF
+  line endings, and `.gitattributes` keeps text LF everywhere.
+- Pathfinding linked only faces that shared a whole edge; a compiled floor
+  meets itself at T-junctions, so real maps had no links at all. Faces that
+  share part of an edge are linked through the middle of it.
+- CI's new-game job read the log from stdout; the engine logs to stderr.
+- The release workflow makes a draft release, since the repository's
+  releases are immutable and cannot take assets once published.
+- `cargo xtask bundle --out <dir>` refuses to empty a directory that is not
+  a bundle; `cargo xtask help` exits 0; the bundle's README and changelog
+  link to GitHub rather than to files that are not in the package.
+- `scripts/install-desktop.sh` finds the 256px icon;
+  `scripts/bump-version.sh` works with macOS's sed and moves the
+  changelog's comparison links.
+- Chisel refuses a flag it does not know rather than ignoring it.
+- Broken links in the crates' own docs, and in the book.
 
 ## [1.0.0-a2] - 2026-09-26
 
@@ -117,6 +226,7 @@ The first version numbered by the `kerosene` crate's API.
   shading and shadow maps, HDR, MSAA, GGX/metalness shading and cubemap
   probes.
 
-[Unreleased]: https://github.com/t342guy/kerosene/compare/1.0.0-a2...HEAD
+[Unreleased]: https://github.com/t342guy/kerosene/compare/1.0.0-a3...HEAD
+[1.0.0-a3]: https://github.com/t342guy/kerosene/compare/1.0.0-a2...1.0.0-a3
 [1.0.0-a2]: https://github.com/t342guy/kerosene/compare/1.0.0-a1...1.0.0-a2
 [1.0.0-a1]: https://github.com/t342guy/kerosene/releases/tag/1.0.0-a1

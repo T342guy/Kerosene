@@ -1,0 +1,29 @@
+# Build, test and play @NAME@ on every platform it ships to.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  play:
+    name: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Sound headers
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev
+      - uses: Swatinem/rust-cache@v2
+      - name: Test
+        run: cargo test
+      # Builds the content and plays two seconds with no window: the map
+      # compiles, loads and runs. The engine logs to stderr.
+      - name: Play
+        shell: bash
+        run: cargo play -- --headless 120 2>&1 | tee play.log

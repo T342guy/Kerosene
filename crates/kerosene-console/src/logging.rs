@@ -103,6 +103,7 @@ impl LogRelay {
         Ok(())
     }
 
+    /// Flush and stop writing the log file.
     pub fn close_file(&self) {
         let mut shared = self.shared.lock().unwrap_or_else(|e| e.into_inner());
         if let Some(mut file) = shared.file.take() {
@@ -110,6 +111,7 @@ impl LogRelay {
         }
     }
 
+    /// Whether a log file is being written.
     pub fn has_file(&self) -> bool {
         self.shared
             .lock()
@@ -118,10 +120,6 @@ impl LogRelay {
             .is_some()
     }
 
-    /// Take everything logged since the last call.
-    ///
-    /// The second element is how many records were dropped because the queue
-    /// was full, so a flood is reported rather than silently truncated.
     /// The last few lines logged, oldest first.
     pub fn recent(&self) -> Vec<String> {
         self.shared
@@ -133,12 +131,17 @@ impl LogRelay {
             .collect()
     }
 
+    /// Take everything logged since the last call.
+    ///
+    /// The second element is how many records were dropped because the queue
+    /// was full, so a flood is reported rather than silently truncated.
     pub fn take(&self) -> (Vec<LogLine>, usize) {
         let mut shared = self.shared.lock().unwrap_or_else(|e| e.into_inner());
         let dropped = std::mem::take(&mut shared.dropped);
         (std::mem::take(&mut shared.pending), dropped)
     }
 
+    /// How many records are waiting to be taken.
     pub fn pending_len(&self) -> usize {
         self.shared
             .lock()
@@ -288,6 +291,10 @@ pub fn crash_dialog(game: &str) {
     let _ = CRASH_DIALOG.set(game.to_string());
 }
 
+/// On a panic, write a crash report -- the panic, where, a backtrace and
+/// the last lines logged -- to `crash.log` beside the executable (or in the
+/// working directory, when that one cannot be written), and show it in a
+/// dialog when [`crash_dialog`] asked for one.
 pub fn install_crash_handler(relay: Option<Arc<LogRelay>>) {
     use std::fmt::Write as _;
     let previous = std::panic::take_hook();

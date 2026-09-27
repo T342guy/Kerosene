@@ -20,10 +20,12 @@ pub trait CollisionWorld {
 
 /// The world as a compiled map.
 pub struct BspWorld<'a> {
+    /// The compiled map traced against.
     pub bsp: &'a Bsp,
 }
 
 impl<'a> BspWorld<'a> {
+    /// The world of a compiled map.
     pub fn new(bsp: &'a Bsp) -> Self {
         BspWorld { bsp }
     }
@@ -53,6 +55,7 @@ pub struct BoxWorld {
 
 #[cfg(any(test, feature = "test-world"))]
 impl BoxWorld {
+    /// An empty world: nothing to stand on.
     pub fn new() -> Self {
         Self::default()
     }

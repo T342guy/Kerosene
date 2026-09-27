@@ -24,12 +24,11 @@ cd orbital-drift
 cargo play
 ```
 
-> [!NOTE]
-> Until the first crates.io release, install the toolset from the
-> repository instead:
-> `cargo install --git https://github.com/t342guy/kerosene kerosene-tools`.
-> A game made by that toolset depends on the matching release tag, so it
-> builds the same Kerosene the toolset is.
+The toolset can also come straight from the repository,
+`cargo install --git https://github.com/t342guy/kerosene kerosene-tools`,
+and a game made by that toolset depends on the matching release tag, so it
+builds the same Kerosene the toolset is. `kerosene-tools doctor` checks the
+machine first: Rust, the Linux sound headers, the GPU.
 
 `new` makes this:
 
@@ -38,14 +37,21 @@ orbital-drift/
   Cargo.toml              the package: kerosene, and two binaries
   .cargo/config.toml      cargo play, cargo tools, cargo ship
   orbital-drift.keroproj  the project: its name, content, start map, game
+  README.md               the commands, and what is where
+  .gitignore              the build's outputs, and the player's own files
+  .gitattributes          art and sound are binary
+  .github/workflows/ci.yml  test and play it on Linux, Windows and macOS
   src/
     main.rs               the game binary: launch(game, options)
-    game.rs               the game: a Game, and a class of its own
+    game.rs               the game: a Game, a class of its own, and a test
     tools.rs              the game's own editor and compilers
   content/
     maps/orbital_drift_start.keromap
     art/ materials/ models/ sound/ scripts/ textures/
 ```
+
+It is also a git repository, unless it was made inside one already or
+with `--no-git`.
 
 The first `cargo play` builds the engine and its tools, which takes a few
 minutes. Then it compiles the starter map and opens the game on it. Walk
@@ -67,6 +73,8 @@ changed, the game starts at once.
 | `cargo tools chisel content/maps/x.keromap` | The editor, on a map. F9 in it compiles the map and plays it. |
 | `cargo ship` | Build everything properly and assemble `dist/`, ready to hand out |
 | `cargo run` | The game on its own, with the content as it is |
+| `cargo test` | The game's own tests: `game.rs` starts with one |
+| `cargo tools clean` | Delete what the build wrote, to build it all again |
 
 `cargo play` skimps the maps' visibility and lighting, because a layout
 you are still moving walls around in does not need them. `cargo ship`
@@ -84,7 +92,7 @@ FLAC or MP3. `cargo play` compiles each into what the engine reads, beside
 its source.
 
 **The engine's base content** is under all of it. Kerosene carries the
-developer textures, the stock props, sounds and UI, and a demo map, compiled
+developer textures, the stock props, sounds and UI, and a plain room, compiled
 into the engine, so a game has something to show before it has anything of
 its own. Put a file at the same path in `content/` and yours is used
 instead: `content/ui/hud.keroui` replaces the stock HUD.

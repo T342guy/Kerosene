@@ -44,7 +44,10 @@ pub fn is_content_root(dir: &Path) -> bool {
 /// Where a content root was found, so the choice can be explained.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Found {
+    /// The content directory.
     pub root: PathBuf,
+    /// How it was found, in words: "named by the project", "beside the
+    /// executable".
     pub why: &'static str,
     /// The project file that named it, when one did.
     ///
@@ -210,7 +213,7 @@ pub const CONTENT_DIRS: &[&str] = &[
 /// making a project appear out of nowhere.
 ///
 /// Never fails the caller: a read-only install is a warning, not a reason to
-/// refuse to start, for the same reason [`kerosene_config::EngineConf`]'s
+/// refuse to start, for the same reason `kerosene_config::EngineConf`'s
 /// loader writes its defaults and shrugs when it cannot. The engine has to
 /// work on a fresh clone and on a locked-down one alike.
 ///

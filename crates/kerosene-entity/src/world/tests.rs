@@ -447,3 +447,36 @@ fn an_unhandled_input_is_reported_rather_than_panicking() {
     let a = w.spawn("logic_relay");
     assert!(!w.accept_input(a, &InputEvent::new("NoSuchInput")));
 }
+
+fn mark_spawned(world: &mut EntityWorld, id: EntityId) {
+    if let Some(e) = world.get_mut(id) {
+        e.fields.set("spawned", Value::Bool(true));
+    }
+}
+
+#[test]
+fn an_entity_spawned_with_keyvalues_reads_them_like_a_map_and_spawns() {
+    let mut registry = ClassRegistry::new();
+    registry.register(ClassDef::new("npc_guard").on_spawn(mark_spawned));
+    let mut world = EntityWorld::new(std::sync::Arc::new(registry));
+
+    let id = world.spawn_with(
+        "npc_guard",
+        &[
+            ("origin", "10 20 30"),
+            ("angles", "0 90 0"),
+            ("targetname", "bob"),
+            ("model", "props/cube"),
+            ("health", "40"),
+            ("classname", "ignored"),
+        ],
+    );
+    let e = world.get(id).unwrap();
+    assert_eq!(e.classname, "npc_guard");
+    assert_eq!(e.origin, Vec3::new(10.0, 20.0, 30.0));
+    assert_eq!(e.angles, Angles::new(0.0, 90.0, 0.0));
+    assert_eq!(e.fields.text("model").as_deref(), Some("props/cube"));
+    assert_eq!(e.fields.i32("health", 0), 40);
+    assert!(e.fields.bool("spawned", false), "the spawn handler ran");
+    assert_eq!(world.find_by_name("bob"), vec![id]);
+}

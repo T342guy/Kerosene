@@ -179,12 +179,19 @@ impl ChiselApp {
             ui.close();
         }
         if menu_item(ui, "Check for problems", None).clicked() {
-            let problems = self.document.problems();
-            self.status = if problems.is_empty() {
-                "no problems found".into()
-            } else {
-                format!("{} problems: {}", problems.len(), problems[0])
+            // Every one, in the output panel: the status bar had room for
+            // the first, and a map with five problems showed one at a time.
+            let problems: Vec<String> = self
+                .document
+                .problems()
+                .iter()
+                .map(ToString::to_string)
+                .collect();
+            self.status = match problems.len() {
+                0 => "no problems found".into(),
+                n => format!("{n} problem(s): see the output panel"),
             };
+            self.problem_report = Some(problems);
             ui.close();
         }
         if menu_item(ui, "Check tools are installed", None).clicked() {

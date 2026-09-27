@@ -19,11 +19,16 @@
 //! let bytes = vfs.read("materials/dev/grid.keromat").unwrap();
 //! ```
 
+// Everything public is documented: this crate is part of `kerosene`'s
+// stable API. See src/docs/versioning.md.
+#![warn(missing_docs)]
+
 pub mod archive;
 pub mod path;
 pub mod project;
 pub mod root;
 pub mod toolchain;
+mod user;
 
 pub use archive::{Archive, ArchiveBuilder, ArchiveError, crc32};
 
@@ -63,30 +68,77 @@ pub fn write_atomic(path: &Path, data: &[u8]) -> std::io::Result<()> {
 pub use path::{extension, normalize, parent, with_extension};
 pub use project::Project;
 pub use root::Found;
+pub use user::user_data_dir;
+
+/// Whether `output` exists and was written no earlier than any of `sources`
+/// last changed: the one question every incremental build step asks.
+///
+/// A missing or unreadable output is "not up to date" -- rebuilding
+/// something needlessly is cheap, skipping something stale is not. A missing
+/// source is no reason to rebuild (a sound with no script entry, say), so it
+/// is passed over.
+pub fn up_to_date(output: &Path, sources: &[&Path]) -> bool {
+    let modified = |p: &Path| p.metadata().and_then(|m| m.modified()).ok();
+    let Some(built) = modified(output) else {
+        return false;
+    };
+    sources
+        .iter()
+        .filter_map(|s| modified(s))
+        .all(|changed| changed <= built)
+}
+
+/// The extensions of files the content build writes and can write again
+/// from sources beside them: textures, sounds, and everything a map compile
+/// leaves. What `kiln --clean` deletes, and what a project's `.gitignore`
+/// leaves out. Models are not here: a `.keromdl` may have come from
+/// somewhere with no source to rebuild it from.
+pub const COMPILED_EXTENSIONS: &[&str] = &[
+    "kerotex",
+    "keroaud",
+    "kerobsp",
+    "keroprt",
+    "kerowalk",
+    "keroleak",
+    "kerobuild",
+];
 
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 
+/// Why a file could not be read or written through the [`Vfs`].
 #[derive(Debug, Error)]
 #[non_exhaustive]
 pub enum VfsError {
+    /// The path is not one the VFS accepts: empty, absolute, or climbing out
+    /// with `..`.
     #[error("{0:?} is not a usable virtual path")]
     BadPath(String),
+    /// No search path has the file.
     #[error("{0:?} was not found in any search path")]
     NotFound(String),
+    /// Every search path is an archive, so there is nowhere to write.
     #[error("no writable search path is mounted (every path is an archive)")]
     NoWritablePath,
+    /// An archive would not read.
     #[error(transparent)]
     Archive(#[from] ArchiveError),
+    /// The operating system refused.
     #[error("io error on {path}: {source}")]
     Io {
+        /// The file, on disk.
         path: String,
+        /// What the operating system said.
         #[source]
         source: std::io::Error,
     },
+    /// A file asked for as text is not UTF-8.
     #[error("{path} is not valid UTF-8")]
-    NotUtf8 { path: String },
+    NotUtf8 {
+        /// The virtual path asked for.
+        path: String,
+    },
 }
 
 type Result<T> = std::result::Result<T, VfsError>;
@@ -110,6 +162,7 @@ pub struct Vfs {
 }
 
 impl Vfs {
+    /// A VFS with nothing mounted.
     pub fn new() -> Self {
         Self::default()
     }
@@ -187,6 +240,7 @@ impl Vfs {
         Ok(n)
     }
 
+    /// How many search paths are mounted, archives and directories alike.
     pub fn path_count(&self) -> usize {
         self.paths.len()
     }
@@ -284,6 +338,7 @@ impl Vfs {
         }
     }
 
+    /// Whether any search path has the file.
     pub fn exists(&self, vpath: &str) -> bool {
         let Some(key) = normalize(vpath) else {
             return false;
