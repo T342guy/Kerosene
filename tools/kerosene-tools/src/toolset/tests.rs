@@ -237,7 +237,10 @@ fn an_unsaved_map_holds_a_switch_until_it_is_answered() {
     toolset.editor.document.apply("touch", |_| ());
     assert!(toolset.editor.document.is_modified());
     toolset.act(Action::SwitchProject(second.clone()));
-    assert_eq!(toolset.pending_switch.as_deref(), Some(second.as_path()));
+    assert_eq!(
+        toolset.pending_close,
+        Some(AfterClose::Switch(second.clone()))
+    );
     assert_eq!(
         toolset.info.content, first,
         "nothing is thrown away unasked"
@@ -264,4 +267,28 @@ fn the_start_page_can_be_shown_and_left() {
     assert!(!toolset.showing_start);
     assert_eq!(toolset.tab, Tab::Build);
     let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
+fn new_or_open_on_an_unsaved_map_asks_rather_than_doing_nothing() {
+    let (mut toolset, dir) = toolset_in("new-unsaved");
+    toolset.editor.document = chisel::app::starter_document();
+    toolset.editor.document.apply("touch", |_| ());
+    toolset.act(Action::NewMap);
+    assert_eq!(toolset.pending_close, Some(AfterClose::NewMap));
+    assert!(toolset.editor.document.is_modified(), "kept until answered");
+    toolset.act(Action::OpenMap(dir.join("maps/other.kmap")));
+    assert!(matches!(
+        toolset.pending_close,
+        Some(AfterClose::OpenMap(_))
+    ));
+    assert!(toolset.editor.document.is_modified());
+
+    // With nothing unsaved, both simply happen.
+    toolset.pending_close = None;
+    toolset.editor.document = chisel::app::starter_document();
+    toolset.act(Action::NewMap);
+    assert_eq!(toolset.pending_close, None);
+    assert_eq!(toolset.tab, Tab::Editor);
+    let _ = std::fs::remove_dir_all(&dir);
 }

@@ -66,7 +66,63 @@ with what to do about them.
 - Chisel examples `gpu_shot` and `ui_shot`: the GPU 3D view, and the whole
   editor window, rendered off screen to a PNG.
 
+- `kiln --watch` builds again whenever a source changes, and
+  `play --watch` does it while the game runs. The engine's new
+  `map_autoreload` convar, which `play --watch` turns on, reloads a rebuilt
+  map with the player where they stood.
+- `kerosene::vfs::toolchain::MapStages`: the compilers a map goes through
+  and what each is told, shared by Chisel's compile and Kiln so the two
+  cannot build a map two ways.
+- `Engine::teleport_player`, and `Vfs::disk_path` for the loose file behind
+  a virtual path.
+- Developer commands: `god`, `buddha`, `notarget`, `kill`, `give`,
+  `getpos`, `setpos`, `setang`, `ent_fire` (by name, class or `!picker`),
+  `ent_create`, `ent_remove`, `ent_info`, `restart`, `maps`, `revert`,
+  `host_writeconfig`, `host_timescale` and `screenshot`. See the new
+  [console](src/docs/console.md) page.
+- Tab completes arguments as well as commands: maps, saves, sounds, classes
+  and convars. `Console::register_completer` gives a game's commands the
+  same, and `Console::complete_line` is what the overlay asks.
+- The console's history is kept between sessions, in
+  `cfg/console_history.txt`.
+- `r_fullscreen` (window, borderless, exclusive), in the options menu too,
+  and the launch flags `-w`, `-h`, `-fullscreen` and `-windowed`.
+- `Engine::kill_player`, `Engine::aimed_entity`, `Engine::write_config`,
+  `Engine::save_console_history`, and `god`, `buddha` and `notarget` for a
+  game to read.
+- A front end. A windowed game opens on a main menu (`ui/menus/main.kui`,
+  named by `ui_mainmenu`) with New Game, Load, Options and Quit, behind a
+  two-second "Made with Kerosene" splash (`ui_splash`, `-nosplash`). New
+  Game loads the project's start map. A `+map`, `-nomenu`, a headless run and
+  `kerosene-tools play` go straight in as before.
+- The pause menu has Save and Load pages listing the saves, and Quit to
+  menu. The options page is `ui/menus/options.kui` and the save list
+  `ui/menus/saves.kui`, each included by both menus.
+- A loading screen (`ui/menus/loading.kui`, `ui_loading`), drawn for the
+  frame before a map or save loads so the window does not freeze on the last
+  picture.
+- A map that fails to load says why on the main menu (`error.message`), not
+  only in the console.
+- `newgame` and `disconnect`; `Engine::new_game`, `new_game_map`,
+  `unload_map`, `end_game`, `show_splash`, `set_loading_screen` and
+  `publish_saves`; `EngineConfig::new_game_map`.
+- Gameplay classes: `func_breakable`, `func_wall_toggle`, `point_hurt`,
+  `point_teleport`, `item_healthkit`, `item_generic`, `player_speedmod` and
+  `game_end`, with their schema for Chisel. `FireUser3`/`FireUser4` and
+  `OnUser3`/`OnUser4` on every entity.
+- Damage and touch for classes: `ClassDef::on_damage` and
+  `ClassDef::on_touch`, with `Engine::damage_entity`, which also fires
+  `OnDamaged` on anything it hits. The stock weapons damage what they shoot,
+  so glass breaks.
+- A trigger with spawnflag 8 notices physics props as well as the player.
+
 ### Changed
+- A windowed game with no `+map` opens on the main menu rather than on the
+  project's start map. `-nomenu` restores the old behaviour.
+- `game.title` is published to the UI, and the pause menu shows it rather
+  than "Kerosene".
+- `cl_fov` takes 50 to 130.
+- Turning `sv_cheats` off puts every cheat convar back to its default.
 - **Breaking:** `kerosene::tools::Tab::Project` is `Tab::Home`, and the tabs'
   `ctrl` digits follow their new order. `ProjectAction` is replaced by
   `kerosene::tools::Action`.
@@ -106,6 +162,70 @@ with what to do about them.
   version control.
 - Chisel matched output targets to entity names case-sensitively when
   offering inputs; the engine does not, and neither does the editor now.
+- `condump` wrote to any path it was given, and scripts can run console
+  commands, so a map could overwrite a file of the player's. It takes a name
+  and writes into the player's directory through the VFS.
+- `math_counter` crashed on `min` above `max`, or a limit that is not a
+  number. Such limits are swapped or ignored.
+- A spawn's, a loaded save's or a level change's facing was lost on the
+  frame it happened, overwritten by the view the host had read before it.
+- A screen shake or view punch begun late in one map lasted into the next,
+  for as long as the old map's clock had run.
+- Entities' sound handles were saved with them, so a loaded save stopped
+  the wrong sounds. The engine keeps them, and forgets them on a load.
+- A door reopened by hand before its `wait` ran out was shut early by the
+  return its first opening had queued.
+- An entity killed mid-tick still took inputs and ran its think until the
+  end of the tick.
+- A save written by `logic_autosave` recorded the clock one tick ahead of
+  the physics it held; it is made at the end of the tick now.
+- A save listing a free slot twice was loaded, and handed that slot to two
+  entities.
+- A clamped convar took `inf` and `nan`. It keeps its value instead.
+- An alias defined as `alias hi echo "one; two"` lost its quotes and ran as
+  two commands. A single quoted body (`alias go "a; b"`) still runs as two.
+- `rand_int` panicked on a range wider than `i64` holds.
+- A layout's inline script or style with a non-ASCII character in it could
+  crash the UI parser.
+- One sound placed at a position that was not a number silenced every other
+  sound until it stopped.
+- A Steam stat store that failed was never tried again.
+- A map with more than 42 `env_cubemap`s crashed the renderer. The first 42
+  are used, and Radiance warns about the rest.
+- A texture claiming more mip levels than its size allows was accepted and
+  then refused by the GPU; it is refused on load.
+- Kiln:
+  - Editing a material or texture now rebuilds the maps; it used to leave
+    them "up to date" with the old face sizes and acoustics.
+  - A leak trace left by an earlier build made any later failure look like
+    a leak and hid its error.
+  - `--ignore-leaks` always ended in a failed build.
+  - `--ship` could refuse an archive `pack` had just called up to date.
+  - A pack cut short left a truncated archive that the next build called up
+    to date. Archives are now written to a scratch file and renamed into
+    place, and an archive counts as current only if it holds exactly what
+    the tree would pack, so deleted files leave it too.
+  - A map rebuild that stopped part way kept the last build's stamp and was
+    skipped next time.
+  - `--clean` missed compiled files with capitalised extensions, and
+    followed symlinked directories out of the project.
+- An archive whose header claimed more entries than its directory holds
+  could make a tool try to allocate hundreds of gigabytes.
+- `Vfs::list` found nothing in archives for a directory or extension typed
+  with capitals.
+- `vault pack --list` passed a list line whose only match was excluded,
+  leaving a hole in the archive with no error.
+- The Assets tab looked for meshes under `models/`; Kiln builds them from
+  `art/` into `models/`, and the tab says so now.
+- `toggle` and `incrementvar` changed cheat convars with `sv_cheats 0`.
+- A disabled `func_brush` stopped being solid but was still drawn.
+- A style binding that read something not yet published applied a broken
+  value and warned (the base HUD's dash ring did this in any game without a
+  dash). It is left alone until there is a value, and the dash panel is
+  hidden when there is no dash.
+- In the toolset, New map did nothing when the open map had unsaved changes,
+  and opening a map from the palette or Assets threw them away. Both ask
+  first, as switching projects already did.
 
 ## [1.0.0-a3] - 2026-09-26
 

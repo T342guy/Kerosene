@@ -97,6 +97,20 @@ pub(super) fn register_cvars(console: &mut Console) {
         "Damage per unit/s of landing speed above the safe threshold.",
     );
     console.register_cvar("sv_noclip", "0", ConVarFlags::CHEAT, "Fly through walls.");
+    console.register_cvar_ranged(
+        "r_fullscreen",
+        "0",
+        Some(0.0),
+        Some(2.0),
+        ConVarFlags::ARCHIVE,
+        "0 in a window, 1 fullscreen (borderless), 2 fullscreen at the monitor's own mode.",
+    );
+    console.register_cvar(
+        "map_autoreload",
+        "0",
+        ConVarFlags::NONE,
+        "Reload the map, keeping your place, when it is rebuilt on disk. `play --watch` turns it on.",
+    );
     console.register_cvar(
         "sv_use_range",
         "80",
@@ -123,9 +137,11 @@ pub(super) fn register_cvars(console: &mut Console) {
         "How far down to trace to resolve the surface underfoot.",
     );
 
-    console.register_cvar(
+    console.register_cvar_ranged(
         "cl_fov",
         "90",
+        Some(50.0),
+        Some(130.0),
         ConVarFlags::ARCHIVE,
         "Horizontal field of view at 4:3.",
     );
@@ -367,6 +383,12 @@ pub(super) fn register_cvars(console: &mut Console) {
 /// The `pause` command's request: the engine's own, since pausing is the
 /// simulation's business and a dedicated server has it too.
 const PAUSE: &str = "pause";
+/// The host's: it has the frame.
+pub const SCREENSHOT: &str = "screenshot";
+/// Written through the VFS, not to whatever path was typed: scripts can run
+/// console commands, and a map's must not be able to overwrite a file of the
+/// player's.
+const CONDUMP: &str = "condump";
 
 pub(super) fn register_commands(console: &mut Console) {
     console.register_command(
@@ -469,14 +491,10 @@ pub(super) fn register_commands(console: &mut Console) {
     console.register_command(
         "condump",
         ConVarFlags::NONE,
-        "Write the console scrollback to a file: condump <path>",
+        "Write the console scrollback to a file in the player's directory: condump [name]",
         |con, args| {
-            let path = args.get(1).unwrap_or("condump.txt").to_string();
-            let text: String = con.log().map(|line| format!("{}\n", line.text)).collect();
-            match std::fs::write(&path, text) {
-                Ok(()) => con.print(format!("wrote {} lines to {path}", con.log_len())),
-                Err(e) => con.error(format!("could not write {path}: {e}")),
-            }
+            let name = args.get(1).unwrap_or("condump.txt").to_string();
+            con.request(CONDUMP, name);
         },
     );
 
@@ -528,6 +546,13 @@ pub(super) fn register_commands(console: &mut Console) {
             let on = con.bool("cl_flashlight");
             con.set_bool("cl_flashlight", !on);
         },
+    );
+
+    console.register_command(
+        "screenshot",
+        ConVarFlags::NONE,
+        "Save the next frame as a PNG under screenshots/ in the player's directory.",
+        |con, _| con.request(SCREENSHOT, ""),
     );
 
     console.register_command(
@@ -626,6 +651,20 @@ pub fn take_console_requests(engine: &mut Engine) -> Vec<(String, String)> {
                 }
             }
             requests::SCRIPT_RELOAD => engine.reload_scripts(),
+            CONDUMP => {
+                let text: String = engine
+                    .console
+                    .log()
+                    .map(|line| format!("{}\n", line.text))
+                    .collect();
+                let lines = engine.console.log_len();
+                match engine.vfs.write(&payload, text.as_bytes()) {
+                    Ok(full) => engine
+                        .console
+                        .print(format!("wrote {lines} lines to {}", full.display())),
+                    Err(e) => engine.console.error(format!("condump: {e}")),
+                }
+            }
             requests::PLAY_SOUND => {
                 let vfs = engine.vfs.clone();
                 if engine.audio.play(&vfs, &payload, None, 1.0).is_none() {
@@ -639,6 +678,7 @@ pub fn take_console_requests(engine: &mut Engine) -> Vec<(String, String)> {
                 } else {
                     crate::audio::AudioSystem::silent()
                 };
+                engine.entity_voices.clear();
                 let vfs = engine.vfs.clone();
                 engine.audio.load_scripts(&vfs);
                 let status = engine.audio.status.clone();
@@ -669,6 +709,8 @@ pub fn take_console_requests(engine: &mut Engine) -> Vec<(String, String)> {
                     engine.physics.body_count(),
                 ));
             }
+            kind if engine.debug_console_request(kind, &payload) => {}
+            kind if engine.frontend_console_request(kind) => {}
             kind if engine.ui_console_request(kind, &payload) => {}
             kind if engine.platform_console_request(kind, &payload) => {}
             kind if engine.save_console_request(kind, &payload) => {}

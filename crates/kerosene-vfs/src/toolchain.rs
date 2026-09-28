@@ -53,6 +53,98 @@ pub const ALL: &[&str] = &[
     "kerosene",
 ];
 
+/// How to take one map through the compilers.
+///
+/// Chisel's compile and Kiln's build both run Cleave, Umbra, Resonance and
+/// Radiance on a map; this is the one place that decides what each is told,
+/// so the editor and a build server cannot build a map two ways.
+#[derive(Clone, Debug, PartialEq)]
+pub struct MapStages {
+    /// The `.kmap` source.
+    pub map: PathBuf,
+    /// The content tree its materials come from.
+    pub content: PathBuf,
+    /// Skimp on visibility, acoustics and lighting.
+    pub fast: bool,
+    /// Build the map even if it leaks.
+    pub ignore_leaks: bool,
+    /// Run Umbra.
+    pub vis: bool,
+    /// Run Resonance.
+    pub acoustics: bool,
+    /// Run Radiance.
+    pub lighting: bool,
+    /// Radiance's samples per luxel per axis, and light bounces: chosen by
+    /// hand, and so taking precedence over `fast` for lighting. `None` for
+    /// Radiance's own, or its fast ones.
+    pub quality: Option<(u32, u32)>,
+}
+
+impl MapStages {
+    /// Every stage, at full quality, with the compilers' own defaults.
+    pub fn new(map: impl Into<PathBuf>, content: impl Into<PathBuf>) -> MapStages {
+        MapStages {
+            map: map.into(),
+            content: content.into(),
+            fast: false,
+            ignore_leaks: false,
+            vis: true,
+            acoustics: true,
+            lighting: true,
+            quality: None,
+        }
+    }
+
+    /// The compiled map the stages after Cleave work on.
+    pub fn compiled(&self) -> PathBuf {
+        self.map.with_extension(crate::ext::BSP)
+    }
+
+    /// Each stage to run, in order: the subcommand and its arguments.
+    pub fn commands(&self) -> Vec<(&'static str, Vec<String>)> {
+        let map = self.map.display().to_string();
+        let compiled = self.compiled().display().to_string();
+        let content = self.content.display().to_string();
+        let fast = || self.fast.then(|| "--fast".to_string());
+
+        // Cleave sizes every face by the compiled texture it wears, and
+        // Resonance reads every material: both are told which tree.
+        let mut cleave = vec![map, "--content".into(), content.clone()];
+        if self.ignore_leaks {
+            cleave.push("--ignore-leaks".into());
+        }
+        let mut stages = vec![("cleave", cleave)];
+        if self.vis {
+            stages.push((
+                "umbra",
+                [compiled.clone()].into_iter().chain(fast()).collect(),
+            ));
+        }
+        if self.acoustics {
+            let args = [compiled.clone(), "--content".into(), content]
+                .into_iter()
+                .chain(fast())
+                .collect();
+            stages.push(("resonance", args));
+        }
+        if self.lighting {
+            let mut args = vec![compiled];
+            match (self.quality, self.fast) {
+                (Some((samples, bounces)), _) => args.extend([
+                    "--samples".into(),
+                    samples.to_string(),
+                    "--bounces".into(),
+                    bounces.to_string(),
+                ]),
+                (None, true) => args.push("--fast".into()),
+                (None, false) => {}
+            }
+            stages.push(("radiance", args));
+        }
+        stages
+    }
+}
+
 /// A command that runs one of the toolset's subcommands.
 ///
 /// This is the executable re-invoking itself, so the subcommand is always
@@ -541,5 +633,38 @@ mod tests {
     fn the_names_are_listed_in_a_fixed_order() {
         let names: Vec<&str> = available().iter().map(|(n, _)| *n).collect();
         assert_eq!(names, ALL);
+    }
+
+    #[test]
+    fn a_map_goes_through_every_compiler_told_the_same_things() {
+        let stages = MapStages::new("c/maps/a.kmap", "c");
+        let names: Vec<&str> = stages.commands().iter().map(|(n, _)| *n).collect();
+        assert_eq!(names, ["cleave", "umbra", "resonance", "radiance"]);
+        assert_eq!(stages.commands()[0].1, ["c/maps/a.kmap", "--content", "c"]);
+
+        let fast = MapStages {
+            fast: true,
+            ignore_leaks: true,
+            ..stages.clone()
+        };
+        for (name, args) in fast.commands() {
+            match name {
+                "cleave" => assert!(args.contains(&"--ignore-leaks".to_string())),
+                _ => assert!(args.contains(&"--fast".to_string()), "{name}: {args:?}"),
+            }
+        }
+
+        let tuned = MapStages {
+            vis: false,
+            acoustics: false,
+            quality: Some((4, 2)),
+            ..stages
+        };
+        let commands = tuned.commands();
+        assert_eq!(commands.len(), 2);
+        assert_eq!(
+            commands[1].1,
+            ["c/maps/a.kbsp", "--samples", "4", "--bounces", "2"]
+        );
     }
 }

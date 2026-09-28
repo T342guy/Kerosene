@@ -146,7 +146,7 @@ pub fn launch(game: impl Game, options: LaunchOptions) -> Result<()> {
         .args
         .clone()
         .unwrap_or_else(|| std::env::args().skip(1).collect());
-    if args.iter().any(|a| a == "--help" || a == "-h") {
+    if wants_help(&args) {
         print!("{}", help_text(&options));
         return Ok(());
     }
@@ -204,6 +204,40 @@ pub struct ParsedArgs {
     /// `--portable`: keep saves and settings in the content tree rather
     /// than the per-user directory.
     pub portable: bool,
+    /// `-w`/`--width` and `-h`/`--height`: the window's size, over what
+    /// `engine.kcfg` says.
+    pub width: Option<u32>,
+    pub height: Option<u32>,
+    /// `-fullscreen` or `-windowed`: over `r_fullscreen` as saved.
+    pub fullscreen: Option<bool>,
+    /// `-nomenu`: start on the start map rather than the main menu, as a
+    /// headless run and a `+map` do. What `play` passes.
+    pub no_menu: bool,
+}
+
+/// The single-dash flags, Source's spelling, which a `+command`'s
+/// arguments stop at like they stop at a `--` one.
+const SHORT_FLAGS: &[&str] = &[
+    "-w",
+    "-h",
+    "-fullscreen",
+    "-windowed",
+    "-nomenu",
+    "-nosplash",
+];
+
+/// `--help`, or a `-h` with no size after it: `-h 720` is a height.
+fn wants_help(args: &[String]) -> bool {
+    args.iter().enumerate().any(|(i, a)| {
+        a == "--help" || (a == "-h" && args.get(i + 1).is_none_or(|n| n.parse::<u32>().is_err()))
+    })
+}
+
+fn size(value: &str, flag: &str) -> Result<u32> {
+    match value.parse::<u32>() {
+        Ok(n) if (64..=16384).contains(&n) => Ok(n),
+        _ => anyhow::bail!("{flag} takes a size in pixels, 64 to 16384, not {value:?}"),
+    }
 }
 
 /// Take a command line apart: `--content`, `--vault`, `--headless`, and
@@ -225,6 +259,18 @@ pub fn parse_args(args: &[String]) -> Result<ParsedArgs> {
                 parsed.archives.push(PathBuf::from(value));
             }
             "--no-steam" => parsed.no_steam = true,
+            "-w" | "--width" => {
+                let value = next(args, &mut i, arg)?;
+                parsed.width = Some(size(value, arg)?);
+            }
+            "-h" | "--height" => {
+                let value = next(args, &mut i, arg)?;
+                parsed.height = Some(size(value, arg)?);
+            }
+            "-fullscreen" | "--fullscreen" => parsed.fullscreen = Some(true),
+            "-windowed" | "--windowed" => parsed.fullscreen = Some(false),
+            "-nomenu" | "--no-menu" => parsed.no_menu = true,
+            "-nosplash" | "--no-splash" => parsed.commands.insert(0, "ui_splash \"\"".into()),
             "--portable" => parsed.portable = true,
             "--headless" => {
                 let value = next(args, &mut i, "--headless")?;
@@ -236,6 +282,7 @@ pub fn parse_args(args: &[String]) -> Result<ParsedArgs> {
                 while i + 1 < args.len()
                     && !args[i + 1].starts_with('+')
                     && !args[i + 1].starts_with("--")
+                    && !SHORT_FLAGS.contains(&args[i + 1].as_str())
                 {
                     i += 1;
                     parts.push(args[i].clone());
@@ -264,7 +311,17 @@ pub fn config_from(
     // A headless run is a server or a test: it has no player signed in to a
     // store, and no business asking the Steam client for one.
     let wants_store = parsed.headless_ticks.is_none() && !parsed.no_steam;
+    // Nobody to press New Game: a server, a test, or a launch that said so.
+    let straight_in = parsed.headless_ticks.is_some() || parsed.no_menu;
+    let mut start_map = None;
     let explicit_content = parsed.content_paths.first().cloned();
+    let (width, height, fullscreen) = (parsed.width, parsed.height, parsed.fullscreen);
+    let mut commands = parsed.commands;
+    // After config.cfg, which runs first, so a flag beats the saved setting
+    // for this run -- and is saved in its turn, as if chosen in the menu.
+    if let Some(on) = fullscreen {
+        commands.insert(0, format!("r_fullscreen {}", if on { 1 } else { 0 }));
+    }
     let mut config = EngineConfig {
         // Headless has no listener, so opening a sound card would be work
         // nobody can hear.
@@ -273,7 +330,7 @@ pub fn config_from(
         content_paths: parsed.content_paths,
         archives: parsed.archives,
         map: parsed.map,
-        startup_commands: parsed.commands,
+        startup_commands: commands,
         ..Default::default()
     };
     if config.content_paths.is_empty() {
@@ -300,8 +357,7 @@ pub fn config_from(
                     && let Some(project) = &found.project
                     && let Some(start) = &project.start_map
                 {
-                    log::info!("{}: starting on {start}", project.name);
-                    config.map = Some(start.clone());
+                    start_map = Some(start.clone());
                 }
                 config.content_paths.push(found.root);
             }
@@ -317,11 +373,24 @@ pub fn config_from(
             }
         }
     }
-    // With nothing saying which map, the base content's room rather than an
-    // empty window.
-    if config.map.is_none() && config.base_content {
-        log::info!("no start map: opening {}", crate::base::FALLBACK_MAP);
-        config.map = Some(crate::base::FALLBACK_MAP.to_string());
+    // New Game's map: the project's start map, or with none, the base
+    // content's room. A window opens on the main menu with it waiting; a
+    // run nobody is at the keyboard for starts on it.
+    let start_map = start_map.or_else(|| {
+        config
+            .base_content
+            .then(|| crate::base::FALLBACK_MAP.to_string())
+    });
+    config.new_game_map = start_map.clone();
+    if config.map.is_none() {
+        match &start_map {
+            Some(start) if straight_in => {
+                log::info!("starting on {start}");
+                config.map = Some(start.clone());
+            }
+            Some(start) => log::info!("opening the main menu; New Game starts on {start}"),
+            None => {}
+        }
     }
 
     // What the project declares for the store: the Steam app id, its
@@ -346,6 +415,8 @@ pub fn config_from(
         config.window_height = conf.height;
         config.vsync = conf.vsync;
     }
+    config.window_width = width.unwrap_or(config.window_width);
+    config.window_height = height.unwrap_or(config.window_height);
 
     // A vault sitting in the content tree is mounted without being asked for.
     // That is what shipping looks like: the game a player installs has its
@@ -380,7 +451,7 @@ pub fn platform_config(project: &kerosene_vfs::Project) -> kerosene_platform::Pl
 /// bindings; saying so for each would bury every warning that matters.
 fn host_only(kind: &str) -> bool {
     use kerosene_console::requests::*;
-    [TOGGLE_CONSOLE].contains(&kind)
+    [TOGGLE_CONSOLE, crate::engine::SCREENSHOT].contains(&kind)
 }
 
 /// Run the simulation with no display for `ticks` ticks, then report.
@@ -526,9 +597,16 @@ options:
   --portable          Keep saves and settings in the content directory, not
                       the per-user one (~/.local/share/<game>, %APPDATA%,
                       ~/Library/Application Support).
-  --help              Show this.
+  -w, --width <px>    The window's width, over engine.kcfg's.
+  -h, --height <px>   The window's height.
+  -fullscreen         Start fullscreen (borderless); -windowed, in a window.
+  -nomenu             Start on the start map, not the main menu.
+  -nosplash           Open on the main menu without the splash in front of it.
+  --help, -h          Show this.
 
-With no +map, the project's `startmap` is loaded if it names one.
+With no +map, the game opens on its main menu, where New Game loads the
+project's `startmap` (or the base content's room). -nomenu, and a headless
+run, go straight to it.
 
 Anything starting with + is a console command, so any convar can be set:
   {bin} +map kerosene_room
@@ -580,6 +658,23 @@ mod tests {
         assert_eq!(parsed.map, None);
         assert_eq!(parsed.commands, vec!["map"]);
         assert!(parse_args(&args(&["--nope"])).is_err());
+
+        let parsed = parse_args(&args(&[
+            "+map",
+            "x",
+            "-w",
+            "1280",
+            "-h",
+            "720",
+            "-fullscreen",
+        ]))
+        .unwrap();
+        assert_eq!(parsed.map.as_deref(), Some("x"));
+        assert_eq!((parsed.width, parsed.height), (Some(1280), Some(720)));
+        assert_eq!(parsed.fullscreen, Some(true));
+        assert!(parse_args(&args(&["-w", "huge"])).is_err());
+        assert!(wants_help(&args(&["-h"])) && wants_help(&args(&["--help"])));
+        assert!(!wants_help(&args(&["-h", "720"])));
         assert!(parse_args(&args(&["--content"])).is_err());
     }
 
@@ -619,6 +714,31 @@ mod tests {
             config.archives,
             vec![dir.join("pak01.vault"), dir.join("pak02.vault")]
         );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_window_opens_on_the_menu_and_nobody_at_the_keyboard_goes_straight_in() {
+        let dir = std::env::temp_dir().join(format!("kerosene-launch-menu-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let with = |edit: fn(&mut ParsedArgs)| {
+            let mut parsed = ParsedArgs {
+                content_paths: vec![dir.clone()],
+                ..Default::default()
+            };
+            edit(&mut parsed);
+            config_from(parsed, None)
+        };
+        let fallback = Some(crate::base::FALLBACK_MAP.to_string());
+
+        let windowed = with(|_| {});
+        assert_eq!(windowed.map, None, "the main menu first");
+        assert_eq!(windowed.new_game_map, fallback);
+
+        assert_eq!(with(|p| p.no_menu = true).map, fallback);
+        assert_eq!(with(|p| p.headless_ticks = Some(1)).map, fallback);
+        let named = with(|p| p.map = Some("arena".into()));
+        assert_eq!(named.map.as_deref(), Some("arena"), "a +map is obeyed");
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

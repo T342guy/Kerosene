@@ -133,3 +133,15 @@ fn a_damaged_snapshot_is_refused_and_the_world_left_alone() {
     snap.free.push(0);
     assert!(level().restore(&snap).unwrap_err().contains("free"));
 }
+
+#[test]
+fn a_slot_listed_free_twice_is_refused() {
+    let mut w = level();
+    let first = w.iter().next().unwrap().id;
+    w.remove(first);
+    w.run(0.0);
+    let mut snap = w.snapshot();
+    assert_eq!(snap.free.len(), 1, "the removed slot is free");
+    snap.free.push(snap.free[0]);
+    assert!(level().restore(&snap).unwrap_err().contains("twice"));
+}

@@ -50,3 +50,52 @@
 .setting .name { width: 180px; color: rgba(242, 237, 228, 0.8); }
 .setting .value { width: 60px; text-align: right; color: #ffa830; }
 .setting Slider { flex-grow: 1; }
+
+/* The main menu stands on its own, with nothing behind it to see through. */
+#backdrop.title-screen {
+    background: linear-gradient(to right, rgba(6, 8, 12, 1.0), rgba(22, 18, 14, 1.0));
+}
+
+.error {
+    padding: 12px 18px;
+    border-radius: 6px;
+    background-color: rgba(255, 70, 50, 0.25);
+    color: #ffd2c8;
+    font-size: 18px;
+}
+
+.hint, .empty { color: rgba(242, 237, 228, 0.6); font-size: 18px; }
+
+.save-list { gap: 8px; }
+.page Button.save { flex-direction: column; align-items: flex-start; gap: 2px; padding: 10px 22px; }
+.save-name { font-size: 24px; }
+.save-detail { font-size: 16px; color: rgba(242, 237, 228, 0.6); }
+
+/* The loading screen. */
+#loading {
+    position: absolute;
+    left: 0px; top: 0px; right: 0px; bottom: 0px;
+    background-color: #06080c;
+    justify-content: center;
+    align-items: center;
+    gap: 24px;
+}
+#loading-logo { width: 96px; height: 96px; }
+.loading-text { font-size: 28px; letter-spacing: 2px; color: rgba(242, 237, 228, 0.85); }
+
+/* The splash. The whole screen is one button, so any click skips it. */
+#splash {
+    position: absolute;
+    left: 0px; top: 0px; right: 0px; bottom: 0px;
+    background-color: #06080c;
+    justify-content: center;
+    align-items: center;
+    gap: 20px;
+    animation: fade-in 0.4s ease-out;
+}
+@keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+#splash-logo { width: 128px; height: 128px; }
+.splash-text { font-size: 22px; letter-spacing: 6px; text-transform: uppercase; color: rgba(242, 237, 228, 0.7); }

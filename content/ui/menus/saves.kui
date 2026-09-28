@@ -1,0 +1,17 @@
+<!--
+    The list of saved games, newest first, for a Load or Save page. The engine
+    publishes `saves.count` and, for each, `saves.<i>.name`, `.map` and
+    `.when` as a menu opens. What pressing one does is the page's: it calls
+    `pick_save(name)`, which the including layout's script defines.
+-->
+<root>
+    <Label class="empty" visible="{saves.count == 0}" text="No saved games yet."/>
+    <Panel class="save-list">
+        <Repeat count="{saves.count}">
+            <Button class="save" onactivate="pick_save(saves[index.to_string()].name)" sound="ui/click">
+                <Label class="save-name" text="{saves[index.to_string()].name}"/>
+                <Label class="save-detail" text="{saves[index.to_string()].map} - {saves[index.to_string()].when}"/>
+            </Button>
+        </Repeat>
+    </Panel>
+</root>

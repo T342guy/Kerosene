@@ -29,6 +29,7 @@
 //! | `logic_ui` | Sends the game UI events and values |
 //! | `point_worldpanel` | A UI layout on a surface in the level |
 //! | `infodecal` | A decal placed by the mapper |
+//! | `func_breakable`, `func_wall_toggle`, `point_hurt`, `point_teleport`, `item_healthkit`, `item_generic`, `player_speedmod`, `game_end` | See [`gameplay`] |
 //!
 //! Lighting entities (`light`, `light_spot`, `light_environment`) and
 //! reflection probes (`env_cubemap`) are read by Radiance at compile time and
@@ -41,6 +42,7 @@
 
 pub mod animated;
 pub mod doors;
+pub mod gameplay;
 pub mod lights;
 pub mod logic;
 pub mod platform;
@@ -93,14 +95,21 @@ pub fn register(registry: &mut ClassRegistry) {
     animated::register(registry);
     ui::register(registry);
     platform::register(registry);
+    gameplay::register(registry);
 
     // Inputs every entity understands, as Source makes them.
     registry.register_common_input("Kill", input_kill);
     registry.register_common_input("AddOutput", input_add_output);
     registry.register_common_input("FireUser1", |w, id, _| fire_user(w, id, 1));
     registry.register_common_input("FireUser2", |w, id, _| fire_user(w, id, 2));
-    registry.register_common_output("OnUser1");
-    registry.register_common_output("OnUser2");
+    registry.register_common_input("FireUser3", |w, id, _| fire_user(w, id, 3));
+    registry.register_common_input("FireUser4", |w, id, _| fire_user(w, id, 4));
+    for output in ["OnUser1", "OnUser2", "OnUser3", "OnUser4"] {
+        registry.register_common_output(output);
+    }
+    // The engine fires it on anything `Engine::damage_entity` hits, with the
+    // amount as its parameter.
+    registry.register_common_output("OnDamaged");
 }
 
 /// A registry with this game's classes already in it.
@@ -142,7 +151,7 @@ fn input_add_output(
     }
 }
 
-/// `FireUser1`/`FireUser2` fire `OnUser1`/`OnUser2`.
+/// `FireUser1` to `FireUser4` fire `OnUser1` to `OnUser4`.
 ///
 /// A general-purpose signal with no meaning of its own, which is exactly why
 /// it is useful: a designer wires whatever they like to it.

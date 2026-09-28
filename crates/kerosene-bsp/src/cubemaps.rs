@@ -24,6 +24,11 @@ pub const VERSION: u32 = 1;
 /// Faces per probe, in [`face_basis`] order.
 pub const FACES: usize = 6;
 
+/// The most probes a map can use: six layers each, in a texture array no
+/// deeper than the 256 layers every GPU wgpu runs on allows. The renderer
+/// drops any past it, and Radiance says so when it bakes them.
+pub const MAX_PROBES: usize = 256 / FACES;
+
 /// Header: magic, version, face size, probe count.
 const HEADER: usize = 16;
 

@@ -53,6 +53,148 @@ struct Gfx {
     /// The game UI: HUD, menus, overlays and world panels.
     ui_renderer: UiRenderer,
     decals: GpuDecals,
+    /// The `r_fullscreen` mode the window is in; `None` before the first
+    /// frame sets it.
+    fullscreen: Option<i32>,
+}
+
+/// The window mode for an `r_fullscreen` value: 0 a window, 1 borderless
+/// over the whole screen, 2 exclusive at the monitor's largest mode.
+fn fullscreen_mode(window: &Window, mode: i32) -> Option<winit::window::Fullscreen> {
+    use winit::window::Fullscreen;
+    match mode {
+        0 => None,
+        1 => Some(Fullscreen::Borderless(None)),
+        _ => window
+            .current_monitor()
+            .and_then(|m| {
+                m.video_modes().max_by_key(|v| {
+                    let size = v.size();
+                    (size.width * size.height, v.refresh_rate_millihertz())
+                })
+            })
+            .map(Fullscreen::Exclusive)
+            // Some platforms have no modes to offer (Wayland); borderless
+            // is the nearest thing.
+            .or(Some(Fullscreen::Borderless(None))),
+    }
+}
+
+/// A frame on its way out of the GPU for `screenshot`.
+struct Screenshot {
+    buffer: wgpu::Buffer,
+    width: u32,
+    height: u32,
+    row: u32,
+    /// Whether the surface stores blue first, as most do.
+    bgra: bool,
+}
+
+impl Screenshot {
+    /// Copy the frame into a buffer the CPU can read. `None`, with a
+    /// warning, where the surface cannot be copied from.
+    fn copy(
+        gfx: &Gfx,
+        encoder: &mut wgpu::CommandEncoder,
+        texture: &wgpu::Texture,
+    ) -> Option<Screenshot> {
+        use wgpu::TextureFormat as F;
+        let bgra = match gfx.config.format {
+            F::Bgra8Unorm | F::Bgra8UnormSrgb => true,
+            F::Rgba8Unorm | F::Rgba8UnormSrgb => false,
+            other => {
+                log::warn!("screenshot: cannot read a {other:?} surface");
+                return None;
+            }
+        };
+        if !gfx.config.usage.contains(wgpu::TextureUsages::COPY_SRC) {
+            log::warn!("screenshot: this surface cannot be copied from");
+            return None;
+        }
+        let (width, height) = (gfx.config.width, gfx.config.height);
+        let row = (width * 4).div_ceil(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT)
+            * wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
+        let buffer = gfx.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("screenshot"),
+            size: u64::from(row) * u64::from(height),
+            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+            mapped_at_creation: false,
+        });
+        encoder.copy_texture_to_buffer(
+            texture.as_image_copy(),
+            wgpu::TexelCopyBufferInfo {
+                buffer: &buffer,
+                layout: wgpu::TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(row),
+                    rows_per_image: Some(height),
+                },
+            },
+            wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+        );
+        Some(Screenshot {
+            buffer,
+            width,
+            height,
+            row,
+            bgra,
+        })
+    }
+
+    /// Wait for the copy, and write it as a PNG under `screenshots/` in the
+    /// player's directory, named after the map and the time.
+    fn save(self, gfx: &Gfx, engine: &Engine) -> anyhow::Result<std::path::PathBuf> {
+        let slice = self.buffer.slice(..);
+        let (send, receive) = std::sync::mpsc::channel();
+        slice.map_async(wgpu::MapMode::Read, move |r| {
+            let _ = send.send(r);
+        });
+        gfx.device
+            .poll(wgpu::PollType::Wait)
+            .map_err(|e| anyhow::anyhow!("{e}"))?;
+        receive.recv()??;
+        let mut rgba = Vec::with_capacity((self.width * self.height * 4) as usize);
+        {
+            let bytes = slice.get_mapped_range();
+            for y in 0..self.height {
+                let start = (y * self.row) as usize;
+                let (pixels, _) = bytes[start..start + self.width as usize * 4].as_chunks::<4>();
+                for &[a, b, c, _] in pixels {
+                    // Opaque, whatever the surface's alpha holds.
+                    rgba.extend_from_slice(&if self.bgra {
+                        [c, b, a, 255]
+                    } else {
+                        [a, b, c, 255]
+                    });
+                }
+            }
+        }
+        self.buffer.unmap();
+
+        let mut png = Vec::new();
+        {
+            let mut encoder = png::Encoder::new(&mut png, self.width, self.height);
+            encoder.set_color(png::ColorType::Rgba);
+            encoder.set_depth(png::BitDepth::Eight);
+            encoder.write_header()?.write_image_data(&rgba)?;
+        }
+        let stem = engine.map_name().unwrap_or("screenshot").to_string();
+        let seconds = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_secs());
+        let name = (0..)
+            .map(|n| match n {
+                0 => format!("screenshots/{stem}_{seconds}.png"),
+                n => format!("screenshots/{stem}_{seconds}_{n}.png"),
+            })
+            .find(|name| !engine.vfs().exists(name))
+            .expect("some name is free");
+        Ok(engine.vfs().write(&name, &png)?)
+    }
 }
 
 /// Decals cut out of the loaded sections' geometry, by decal id: each is
@@ -137,6 +279,8 @@ struct App {
     /// Nothing is drawn then, since nobody is looking.
     occluded: bool,
     shift_held: bool,
+    /// `screenshot` asked for the next frame.
+    screenshot: bool,
 }
 
 /// Start the engine with a window and no game.
@@ -167,7 +311,15 @@ pub fn run_with(config: EngineConfig, game: Box<dyn Game>) -> anyhow::Result<()>
         focused: true,
         occluded: false,
         shift_held: false,
+        screenshot: false,
     };
+    // A window has a frame to draw while a map loads; say which.
+    app.engine.set_loading_screen(true);
+    // Opening on the main menu, which the splash sits in front of for a
+    // moment; a game started on a map skips both.
+    if app.config.map.is_none() {
+        app.engine.show_splash();
+    }
 
     event_loop.run_app(&mut app)?;
     Ok(())
@@ -385,10 +537,12 @@ impl ApplicationHandler for App {
         // a rebound key -- is written where the next start reads it back.
         // Done here rather than on `quit` alone so that closing the window
         // keeps the settings too.
-        let text = self.engine.config_text(&self.engine.input.to_config());
-        match self.engine.vfs.write("cfg/config.cfg", text.as_bytes()) {
+        match self.engine.write_config() {
             Ok(path) => log::info!("wrote {}", path.display()),
             Err(e) => log::warn!("could not write config.cfg: {e}"),
+        }
+        if let Err(e) = self.engine.save_console_history() {
+            log::warn!("could not keep the console's history: {e}");
         }
     }
 }
@@ -545,6 +699,7 @@ impl App {
         for (kind, payload) in unhandled {
             match kind.as_str() {
                 kerosene_console::requests::TOGGLE_CONSOLE => self.toggle_console(),
+                crate::engine::SCREENSHOT => self.screenshot = true,
                 _ => leftover.push((kind, payload)),
             }
         }
@@ -739,6 +894,14 @@ impl App {
 
     fn draw(&mut self, real_dt: f32) {
         let Some(gfx) = &mut self.gfx else { return };
+
+        // `r_fullscreen`, the same way.
+        let fullscreen = self.engine.console.int("r_fullscreen").clamp(0, 2);
+        if gfx.fullscreen != Some(fullscreen) {
+            gfx.fullscreen = Some(fullscreen);
+            gfx.window
+                .set_fullscreen(fullscreen_mode(&gfx.window, fullscreen));
+        }
 
         // `r_vsync`, applied the frame it changes: an options menu's switch
         // takes effect without a restart.
@@ -1351,7 +1514,21 @@ impl App {
             );
         }
 
+        // What `screenshot` sees is this frame, console and all, copied out
+        // before it is handed to the display.
+        let shot = std::mem::take(&mut self.screenshot)
+            .then(|| Screenshot::copy(gfx, &mut encoder, &frame.texture))
+            .flatten();
         gfx.queue.submit(std::iter::once(encoder.finish()));
+        if let Some(shot) = shot {
+            match shot.save(gfx, &self.engine) {
+                Ok(path) => self
+                    .engine
+                    .console
+                    .print(format!("wrote {}", path.display())),
+                Err(e) => self.engine.console.error(format!("screenshot: {e}")),
+            }
+        }
         frame.present();
 
         self.report_speeds(real_dt);
@@ -1577,8 +1754,11 @@ async fn create_gfx(event_loop: &ActiveEventLoop, config: &EngineConfig) -> anyh
         .find(|f| f.is_srgb())
         .unwrap_or(capabilities.formats[0]);
 
+    // Copyable where the platform allows it, for `screenshot`.
+    let usage = wgpu::TextureUsages::RENDER_ATTACHMENT
+        | (capabilities.usages & wgpu::TextureUsages::COPY_SRC);
     let config = wgpu::SurfaceConfiguration {
-        usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+        usage,
         format,
         width: size.width.max(1),
         height: size.height.max(1),
@@ -1623,6 +1803,7 @@ async fn create_gfx(event_loop: &ActiveEventLoop, config: &EngineConfig) -> anyh
         egui_renderer,
         ui_renderer,
         decals,
+        fullscreen: None,
     })
 }
 

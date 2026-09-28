@@ -282,6 +282,11 @@ impl EntityWorld {
         {
             return Err(format!("slot {bad} is listed free but is not"));
         }
+        // Listed twice, a slot would be handed to two entities at once.
+        let mut seen = std::collections::HashSet::new();
+        if let Some(twice) = snapshot.free.iter().find(|&&i| !seen.insert(i)) {
+            return Err(format!("slot {twice} is listed free twice"));
+        }
 
         self.slots = restored;
         self.generations = snapshot.generations.clone();

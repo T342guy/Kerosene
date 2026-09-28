@@ -1604,6 +1604,7 @@ dependencies = [
  "kerosene-vfs",
  "kerosene-walk",
  "log",
+ "png",
  "pollster",
  "rhai",
  "serde",

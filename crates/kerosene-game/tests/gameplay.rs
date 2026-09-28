@@ -1223,3 +1223,49 @@ fn a_door_makes_its_noises_and_a_silenced_one_does_not() {
         vec![("play_sound".to_string(), "door/locked".to_string())]
     );
 }
+
+#[test]
+fn a_counter_with_its_limits_reversed_does_not_panic() {
+    let mut w = world_from(
+        "entity { \"classname\" \"math_counter\" \"targetname\" \"c\" \"min\" \"10\" \"max\" \"5\" }\n\
+         entity { \"classname\" \"math_counter\" \"targetname\" \"n\" \"min\" \"nan\" \"max\" \"3\" }",
+    );
+    let c = named(&w, "c");
+    w.accept_input(c, &InputEvent::new("SetValue").with_parameter("20"));
+    run(&mut w, 0.1);
+    assert_eq!(
+        field(&w, c, "value"),
+        10.0,
+        "limits are swapped, not refused"
+    );
+
+    let n = named(&w, "n");
+    w.accept_input(n, &InputEvent::new("Add").with_parameter("7"));
+    run(&mut w, 0.1);
+    assert_eq!(field(&w, n, "value"), 3.0, "a NaN limit is no limit");
+}
+
+#[test]
+fn a_door_reopened_by_hand_waits_its_full_wait() {
+    let src = DOOR_MAP.replace("\"wait\" \"-1\"", "\"wait\" \"2\"");
+    let mut w = world_from(&src);
+    let gate = named(&w, "gate");
+    // Open (1.2s), so a return is due at about 3.2s.
+    w.accept_input(gate, &InputEvent::new("Open"));
+    run(&mut w, 1.5);
+    // Closed and opened again by hand: back up by about 1.9s, so its own
+    // return is due at about 3.9s.
+    w.accept_input(gate, &InputEvent::new("Close"));
+    run(&mut w, 0.2);
+    w.accept_input(gate, &InputEvent::new("Open"));
+    run(&mut w, 2.0);
+    // 3.7s: the first move's return must not have fired.
+    assert_eq!(
+        w.get(gate).unwrap().origin.z,
+        120.0,
+        "the stale return closed the door early"
+    );
+    // Its own return, 2s after it reopened, still does.
+    run(&mut w, 3.0);
+    assert_eq!(w.get(gate).unwrap().origin.z, 0.0);
+}

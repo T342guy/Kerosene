@@ -28,8 +28,9 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 mod commands;
+mod debug;
+pub use commands::{SCREENSHOT, report_unhandled, take_console_requests};
 use commands::{register_commands, register_cvars};
-pub use commands::{report_unhandled, take_console_requests};
 /// Server tick rate. 64 is Source's modern default: fine enough that
 /// movement feels continuous, coarse enough to be affordable.
 pub const DEFAULT_TICKRATE: f32 = 64.0;
@@ -101,6 +102,10 @@ pub struct EngineConfig {
     /// is what a test and a `--portable` run want. [`crate::launch`] sets it
     /// to the platform's per-user directory for the game.
     pub user_dir: Option<PathBuf>,
+    /// The map New Game starts on, from the main menu. `None` takes
+    /// [`map`](EngineConfig::map), and failing that the base content's
+    /// room. [`crate::launch`] sets it to the project's start map.
+    pub new_game_map: Option<String>,
 }
 
 impl Default for EngineConfig {
@@ -122,6 +127,7 @@ impl Default for EngineConfig {
             version: String::new(),
             base_content: true,
             user_dir: None,
+            new_game_map: None,
         }
     }
 }
@@ -295,7 +301,7 @@ pub struct Engine {
     pub entities: EntityWorld,
     /// The classes every entity world is built with: the game's, asked for
     /// once, so a map load never needs the game object itself.
-    registry: Arc<ClassRegistry>,
+    pub(crate) registry: Arc<ClassRegistry>,
     /// The game. `None` only while one of its hooks is running -- see
     /// [`crate::game`] for why.
     pub(crate) game: Option<Box<dyn Game>>,
@@ -312,10 +318,10 @@ pub struct Engine {
     /// Each moving brush model's pose as of the end of the previous tick, by
     /// BSP model index, so rendering can interpolate a door or rotating
     /// brush's motion instead of snapping it to a new pose every tick.
-    previous_brush_poses: HashMap<usize, (Vec3, Angles)>,
+    pub(crate) previous_brush_poses: HashMap<usize, (Vec3, Angles)>,
     /// Bumped by every successful `load_map`, so a host can tell "the same
     /// map, loaded again" from "nothing happened" -- a name cannot.
-    load_generation: u64,
+    pub(crate) load_generation: u64,
     /// Whether this engine was asked to open an audio device, so that
     /// `snd_restart` reopens what was opened and not a device a headless
     /// run never wanted.
@@ -324,7 +330,7 @@ pub struct Engine {
     pub(crate) time: f32,
     pub(crate) tick_count: u64,
     /// Set when the console asks for a different map.
-    pending_map: Option<String>,
+    pub(crate) pending_map: Option<String>,
     /// A saved game to load, or a level change to make, at the start of the
     /// next frame. See [`crate::save`].
     pub(crate) pending_change: Option<crate::save::PendingChange>,
@@ -341,7 +347,7 @@ pub struct Engine {
     /// `snd_mute_losefocus`.
     background: bool,
     /// The health the player spawns with. See [`Engine::set_player_max_health`].
-    max_health: f32,
+    pub(crate) max_health: f32,
     /// Set once [`Engine::shutdown`] has told the game.
     shut_down: bool,
     /// What the game has drawn with [`Engine::debug_line`] and friends.
@@ -354,6 +360,30 @@ pub struct Engine {
     pub input: crate::input::InputSystem,
     /// Punches, shakes, zoom and the game's camera. See [`crate::view`].
     pub(crate) view: crate::view::ViewEffects,
+    /// Set when the engine points the player itself -- a spawn, a loaded
+    /// save, a level change, [`Engine::set_view_angles`] -- so the rest of
+    /// this frame's ticks use that facing rather than the input the host read
+    /// before it happened.
+    pub(crate) view_forced: bool,
+    /// A save an entity asked for, made at the end of the tick.
+    pub(crate) pending_save: Option<String>,
+    /// The loaded map's file, watched under `map_autoreload`.
+    pub(crate) map_watch: crate::hotload::MapWatch,
+    /// Where New Game goes. See [`EngineConfig::new_game_map`].
+    pub(crate) new_game_map: String,
+    /// The game's name, for the main menu to show.
+    pub(crate) title: String,
+    /// Whether a load waits a frame for the loading screen to be drawn: a
+    /// window's host turns it on. See [`crate::frontend`].
+    pub(crate) loading_screen: bool,
+    /// Whether the loading screen is up for the load about to happen.
+    pub(crate) loading_shown: bool,
+    /// Whether the game was started because there was no main menu to show.
+    pub(crate) started_without_menu: bool,
+    /// The sound each entity last started, so it can be stopped. Kept here
+    /// rather than in the entity's fields: a handle means nothing to another
+    /// process's mixer, and a saved one would stop some other sound.
+    pub(crate) entity_voices: std::collections::HashMap<EntityId, kerosene_audio::SoundHandle>,
     /// The game UI: its store, layers, world panels and decals.
     pub ui: crate::ui::GameUi,
     /// The store the game ships on -- Steam, or nothing. See
@@ -487,6 +517,8 @@ impl Engine {
         // the last word.
         console.set("r_vsync", if config.vsync { "1" } else { "0" });
         register_commands(&mut console);
+        debug::register(&mut console);
+        crate::frontend::register(&mut console);
         crate::ui::register(&mut console);
         crate::platform::register(&mut console);
         crate::save::register(&mut console);
@@ -578,6 +610,19 @@ impl Engine {
             rng: kerosene_math::Rng::default(),
             input: crate::input::InputSystem::new(),
             view: Default::default(),
+            view_forced: false,
+            pending_save: None,
+            map_watch: Default::default(),
+            new_game_map: config
+                .new_game_map
+                .clone()
+                .or_else(|| config.map.clone())
+                .unwrap_or_else(|| crate::base::FALLBACK_MAP.to_string()),
+            loading_screen: false,
+            loading_shown: false,
+            started_without_menu: false,
+            title: config.title.clone(),
+            entity_voices: Default::default(),
             ui: crate::ui::GameUi::default(),
             platform,
         };
@@ -587,6 +632,10 @@ impl Engine {
 
         game.setup(&mut engine);
         engine.game = Some(game);
+        debug::register_completers(&mut engine);
+        engine.load_console_history();
+        let title = engine.title.clone();
+        engine.ui_set("game.title", title);
 
         // Saved settings first, then the person's own autoexec, then the
         // command line -- so each later one can overrule the one before it.
@@ -664,7 +713,9 @@ impl Engine {
             .iter()
             .filter_map(|e| {
                 let model = e.brush_model?;
-                if model == 0 {
+                // A disabled `func_brush` or `func_wall_toggle` is not
+                // there to see, as it is not there to walk into.
+                if model == 0 || e.fields.bool("disabled", false) {
                     return None;
                 }
                 Some((
@@ -690,7 +741,7 @@ impl Engine {
             .iter()
             .filter_map(|e| {
                 let model = e.brush_model?;
-                if model == 0 {
+                if model == 0 || e.fields.bool("disabled", false) {
                     return None;
                 }
                 let (prev_origin, prev_angles) = self
@@ -783,6 +834,11 @@ impl Engine {
         // Models may have been recompiled since the last map.
         self.animations = crate::animation::Animations::new();
         self.previous_brush_poses.clear(); // t3; Now they get cleared. Fixes a bug.
+        // Shakes and punches are timed by the game clock, which the new map
+        // (or the save) sets back: left alone, a shake started late in the
+        // last map would last until this one caught up with it.
+        self.view = Default::default();
+        self.entity_voices.clear();
 
         // Only the world section's hulls now; the streamed sections' come
         // and go with them.
@@ -939,6 +995,7 @@ impl Engine {
             step_distance: 0.0,
             step_index: self.player.step_index,
         };
+        self.view_forced = true;
         self.with_game_mut(|game, engine| game.player_spawned(engine));
     }
 
@@ -950,6 +1007,22 @@ impl Engine {
     pub fn respawn_player(&mut self) {
         if self.level.is_some() {
             self.spawn_player();
+        }
+    }
+
+    /// Move the player to `origin`, standing still, and face them along
+    /// `angles` if given: `setpos`, `point_teleport`, a reloaded map. The
+    /// move is not traced; somewhere solid is the caller's mistake to make.
+    pub fn teleport_player(&mut self, origin: Vec3, angles: Option<Angles>) {
+        self.player.movement.origin = origin;
+        self.player.previous_origin = origin;
+        self.player.movement.velocity = Vec3::ZERO;
+        self.player.movement.on_ground = false;
+        if let Some(e) = self.player.entity.and_then(|id| self.entities.get_mut(id)) {
+            e.origin = origin;
+        }
+        if let Some(angles) = angles {
+            self.set_view_angles(angles);
         }
     }
 
@@ -988,7 +1061,10 @@ impl Engine {
             self.console.drain_log_relay(&relay);
         }
         self.console.run_buffered();
-        self.load_pending_map();
+        if !self.hold_for_loading_screen() {
+            self.load_pending_map();
+        }
+        self.watch_map(real_dt);
 
         // Every frame, paused or not: a menu animates and a death screen
         // counts down while the world is stopped.
@@ -1004,12 +1080,19 @@ impl Engine {
         }
 
         let interval = self.tick_interval();
-        self.accumulator = (self.accumulator + real_dt).min(interval * 8.0);
+        // `host_timescale` stretches real time, not the tick: each tick is
+        // the same length, and more or fewer of them run.
+        let scaled = real_dt * self.console.float("host_timescale").clamp(0.01, 10.0);
+        self.accumulator = (self.accumulator + scaled).min(interval * 8.0);
 
+        let mut input = *input;
         let mut ticks = 0;
         while self.accumulator >= interval {
             self.accumulator -= interval;
-            self.tick(interval, input);
+            if std::mem::take(&mut self.view_forced) {
+                input.view_angles = self.player.view_angles;
+            }
+            self.tick(interval, &input);
             ticks += 1;
         }
         ticks
@@ -1261,6 +1344,7 @@ impl Engine {
             .collect();
 
         self.update_triggers(dt);
+        self.update_touchers();
         self.entities.run(dt);
         self.take_entity_requests();
         self.with_game_mut(|game, engine| game.tick(engine, input, dt));
@@ -1353,6 +1437,14 @@ impl Engine {
 
         self.dispatch_platform_events();
         self.publish_ui_state();
+
+        // Last, once the tick is whole: saved mid-tick, the clock would have
+        // moved on while the props were still where the last step left them.
+        if let Some(name) = self.pending_save.take()
+            && let Err(e) = self.save_game(&name)
+        {
+            self.console.warn(format!("autosave: {e}"));
+        }
     }
 
     /// Which way the player is leaning, on the floor plane.
@@ -1390,6 +1482,15 @@ impl Engine {
         // Derived rather than a convar of its own, so changing gravity keeps
         // jump height where the designer put it.
         params.jump_impulse = params.jump_for_height(self.console.float("sv_jump_height"));
+        // `player_speedmod`'s, kept on the player's entity so a save keeps it.
+        let scale = self
+            .player
+            .entity
+            .and_then(|id| self.entities.get(id))
+            .map_or(1.0, |e| e.fields.f32("speed_scale", 1.0));
+        if scale.is_finite() && scale >= 0.0 {
+            params.max_speed *= scale;
+        }
         params
     }
 
@@ -1534,6 +1635,8 @@ impl Engine {
         let player_entity = self.player.entity;
         let mut hurt = 0.0;
         let mut entered: Vec<EntityId> = Vec::new();
+        // Asked for once, and only if some trigger wants them.
+        let mut prop_boxes: Option<Vec<(EntityId, Aabb)>> = None;
         for (id, model_index, origin, angles) in triggers {
             let Some(model) = level.bsp.models.get(model_index) else {
                 continue;
@@ -1553,17 +1656,52 @@ impl Engine {
                 .entities
                 .get(id)
                 .is_some_and(|e| e.fields.bool("disabled", false));
+            // The player's own arrival, kept apart from `occupied`, which a
+            // prop may have set first: a teleporter a crate is sitting in
+            // still takes the player who walks in.
+            let was = self
+                .entities
+                .get(id)
+                .is_some_and(|e| e.fields.bool("player_inside", false));
             if inside && live {
                 hurt += crate::triggers::hurt_per_second(&self.entities, id) * dt;
-                let was = self
-                    .entities
-                    .get(id)
-                    .is_some_and(|e| e.fields.bool("occupied", false));
                 if !was {
                     entered.push(id)
                 }
             }
-            crate::triggers::update_touch(&mut self.entities, id, inside, player_entity);
+            // Left alone while disabled, as `occupied` is, so enabling a
+            // trigger around the player sets it off.
+            if live
+                && inside != was
+                && let Some(e) = self.entities.get_mut(id)
+            {
+                e.fields.set("player_inside", Value::Bool(inside));
+            }
+            // A trigger flagged for physics objects (spawnflag 8, as Source
+            // numbers it) notices a prop too: its outputs fire as the first
+            // thing enters and the last leaves, with the prop as the
+            // activator when the player is not the one inside. What it does
+            // to the player -- hurt, push, teleport -- stays the player's.
+            let wants_props = self
+                .entities
+                .get(id)
+                .is_some_and(|e| e.has_spawnflag(crate::triggers::SF_PHYSICS_OBJECTS));
+            let prop = if wants_props && !inside {
+                prop_boxes
+                    .get_or_insert_with(|| self.physics.prop_boxes())
+                    .iter()
+                    .find(|(_, b)| b.intersects(&moved))
+                    .map(|(prop, _)| *prop)
+            } else {
+                None
+            };
+            let activator = if inside { player_entity } else { prop };
+            crate::triggers::update_touch(
+                &mut self.entities,
+                id,
+                inside || prop.is_some(),
+                activator,
+            );
         }
 
         // Volumes that act on the player when they arrive rather than while
@@ -1725,7 +1863,7 @@ impl Engine {
     /// [`Game::player_damaged`]: crate::Game::player_damaged
     /// [`Game::player_died`]: crate::Game::player_died
     pub fn hurt_player(&mut self, amount: f32, reason: &str) {
-        if amount <= 0.0 || self.player.health <= 0.0 {
+        if amount <= 0.0 || self.player.health <= 0.0 || self.god() {
             return;
         }
         let amount = self
@@ -1735,21 +1873,34 @@ impl Engine {
             return;
         }
         self.player.health -= amount;
+        if self.buddha() {
+            self.player.health = self.player.health.max(1.0);
+        }
         self.console.developer(format!(
             "{reason}: -{amount:.0} hp ({:.0} left)",
             self.player.health.max(0.0)
         ));
         self.ui_emit("player_damaged", format!("{amount:.0}"));
         if self.player.health <= 0.0 {
-            self.player.health = 0.0;
-            self.ui_emit("player_died", reason);
-            self.console.print("you died");
-            let handled = self
-                .with_game_mut(|game, engine| game.player_died(engine, reason))
-                .unwrap_or(false);
-            if !handled {
-                self.spawn_player();
-            }
+            self.kill_player(reason);
+        }
+    }
+
+    /// Kill the player outright, god mode or not: `kill`, and the end of
+    /// [`hurt_player`](Engine::hurt_player). The game hears of it through
+    /// [`Game::player_died`] and may take the death over; otherwise the
+    /// player respawns at the start.
+    ///
+    /// [`Game::player_died`]: crate::Game::player_died
+    pub fn kill_player(&mut self, reason: &str) {
+        self.player.health = 0.0;
+        self.ui_emit("player_died", reason);
+        self.console.print("you died");
+        let handled = self
+            .with_game_mut(|game, engine| game.player_died(engine, reason))
+            .unwrap_or(false);
+        if !handled {
+            self.spawn_player();
         }
     }
 
@@ -1890,11 +2041,12 @@ impl Engine {
         if let Some(map) = self.pending_map.take()
             && let Err(e) = self.load_map(&map)
         {
-            self.console.error(format!("{e}"));
+            self.load_failed(format!("{e}"));
         }
         if let Some(change) = self.pending_change.take() {
             self.make_change(change);
         }
+        self.loading_done();
     }
 
     /// Forget the carried prop without throwing it: its physics world is

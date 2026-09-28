@@ -226,7 +226,7 @@ fn check_archive(settings: &Settings, archive: &Path) -> Result<()> {
             archive.display()
         );
     }
-    let stale = newer_than(&settings.content, archive);
+    let stale = crate::stale_packed(&settings.content, archive);
     if !stale.is_empty() {
         let listed: Vec<String> = stale
             .iter()

@@ -274,7 +274,10 @@ impl Texture {
         // a count past that is a corrupt header -- and one worth rejecting
         // before it sizes an allocation. Reserving for the header's own
         // number would let a 48-byte file ask for gigabytes.
-        if header.mip_count as usize > MAX_MIP_COUNT {
+        // And past the image's own chain -- a 4x4 with fourteen levels -- the
+        // GPU refuses the texture outright.
+        let full_chain = 32 - header.width.max(header.height).leading_zeros();
+        if header.mip_count as usize > MAX_MIP_COUNT || header.mip_count > full_chain {
             return Err(TextureError::BadMipCount(header.mip_count));
         }
         let mut mips = Vec::with_capacity(header.mip_count as usize);
@@ -654,6 +657,21 @@ mod tests {
         assert!(matches!(
             Texture::from_bytes(&bytes),
             Err(TextureError::BadMipCount(_))
+        ));
+    }
+
+    #[test]
+    fn a_chain_longer_than_the_image_is_rejected() {
+        let tex =
+            Texture::build(4, 4, PixelFormat::Rgba8, TextureFlags::NONE, vec![0; 64]).unwrap();
+        let mut bytes = tex.to_bytes();
+        // 4x4 halves to 2x2 and 1x1: three levels, not four. Padded, so it
+        // is the count that is refused and not the length.
+        bytes[4 * 6..4 * 6 + 4].copy_from_slice(&4u32.to_le_bytes());
+        bytes.extend([0; 64]);
+        assert!(matches!(
+            Texture::from_bytes(&bytes),
+            Err(TextureError::BadMipCount(4))
         ));
     }
 

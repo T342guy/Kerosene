@@ -69,10 +69,11 @@ changed, the game starts at once.
 | `cargo play` | Build changed content, build the game, run it on the start map |
 | `cargo play +map other` | ...on another map. Anything after `play` goes to the game. |
 | `cargo play --full` | Build maps with full visibility and lighting first |
+| `cargo play --watch` | Keep building while the game runs: save a map in the editor and the game reloads it where you stand |
 | `cargo tools` | The toolset window: project, editor, sound editor, build, archive |
 | `cargo tools chisel content/maps/x.kmap` | The editor, on a map. F9 in it compiles the map and plays it. |
 | `cargo ship` | Build everything properly and assemble `dist/`, ready to hand out |
-| `cargo run` | The game on its own, with the content as it is |
+| `cargo run` | The game on its own, as a player gets it: the main menu first, with the content as it is |
 | `cargo test` | The game's own tests: `game.rs` starts with one |
 | `cargo tools clean` | Delete what the build wrote, to build it all again |
 

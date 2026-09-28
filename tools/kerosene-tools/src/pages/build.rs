@@ -47,7 +47,7 @@ const STAGES: [Stage; 5] = [
         title: "Models",
         glyph: icons::PACKAGE,
         tools: "Forge",
-        help: "every mesh under models/ into .kmdl",
+        help: "every mesh under art/ into models/ as .kmdl",
     },
     Stage {
         name: "maps",

@@ -766,8 +766,11 @@ impl Platform {
         if !self.dirty {
             return Ok(());
         }
-        self.dirty = false;
-        self.backend.store_stats()
+        // Still dirty if the store refused, so the next interval tries again
+        // rather than the change waiting for another one to carry it.
+        let stored = self.backend.store_stats();
+        self.dirty = stored.is_err();
+        stored
     }
 
     /// Once a frame: pump the store, send batched stats, and note the

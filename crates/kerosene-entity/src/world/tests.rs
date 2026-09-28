@@ -480,3 +480,44 @@ fn an_entity_spawned_with_keyvalues_reads_them_like_a_map_and_spawns() {
     assert!(e.fields.bool("spawned", false), "the spawn handler ran");
     assert_eq!(world.find_by_name("bob"), vec![id]);
 }
+
+#[test]
+fn an_entity_killed_this_tick_takes_no_more_inputs() {
+    let mut w = world();
+    let relay = w.spawn("logic_relay");
+    w.set_targetname(relay, "relay");
+    let witness = w.spawn("logic_relay");
+    w.set_targetname(witness, "witness");
+    w.get_mut(relay)
+        .unwrap()
+        .connections
+        .push(Connection::new("OnTrigger", "witness", "SetValue").with_parameter("1"));
+
+    // Killed, then triggered, in the same tick.
+    w.queue_input(Target::Named("relay".into()), "Kill", "", 0.0, None, None);
+    w.queue_input(
+        Target::Named("relay".into()),
+        "Trigger",
+        "",
+        0.0,
+        None,
+        None,
+    );
+    w.run(0.0);
+    w.run(0.0);
+    assert!(!w.exists(relay));
+    assert_eq!(w.get(witness).unwrap().fields.f32("value", 0.0), 0.0);
+}
+
+#[test]
+fn an_entity_killed_this_tick_does_not_think() {
+    let mut w = world();
+    let ticker = w.spawn("ticker");
+    w.set_think_delay(ticker, 0.0);
+    w.remove(ticker);
+    // Its think is due this tick, but it is already on its way out. Stepped
+    // by hand, since `run` reclaims the slot before anything could look.
+    w.dispatch_due();
+    w.run_thinks();
+    assert_eq!(w.get(ticker).unwrap().fields.i32("ticks", 0), 0);
+}

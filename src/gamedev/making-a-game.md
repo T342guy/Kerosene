@@ -55,7 +55,7 @@ project
 |---|---|---|
 | `name` | What the title bar and the shipped `README.txt` call it | The file's own name |
 | `content` | The content tree, relative to the project file | `content/` beside the file, then the file's directory |
-| `startmap` | The map `kerosene` loads with no `+map` | Nothing loads until something says `+map` |
+| `startmap` | The map New Game loads from the main menu, and that `-nomenu`, `play` and a headless run start on | The base content's room |
 | `game` | The Cargo package whose binary *is* the game: built and launched by F9, built and copied by `kiln --ship` | The stock `kerosene` runtime runs and ships instead |
 | `bin` | That package's binary, when it is not named after the package | The package name |
 | `dir` | Repeatable: the directories the content tree is made of, when the standard set is not wanted | The standard set below |
@@ -182,7 +182,7 @@ would link everything the tools do.
 
 A game is a type that implements `Game`. Every method has a do-nothing
 default, so a game that only adds a class implements one method. This one
-adds an `item_pickup` class, an inventory, a `give` command and a HUD line:
+adds an `item_pickup` class, an inventory, an `additem` command and a HUD line:
 
 ```rust
 // src/game.rs
@@ -227,8 +227,8 @@ impl Game for MyGame {
     // The console is up, nothing has run yet: register commands here and
     // they work from autoexec.cfg and the command line.
     fn setup(&mut self, engine: &mut Engine) {
-        engine.console.register_command("give", ConVarFlags::NONE, "Put an item in the inventory.", |con, args| {
-            con.request("mygame.give", args.get(1).unwrap_or("thing"));
+        engine.console.register_command("additem", ConVarFlags::NONE, "Put an item in the inventory.", |con, args| {
+            con.request("mygame.additem", args.get(1).unwrap_or("thing"));
         });
     }
 
@@ -242,7 +242,7 @@ impl Game for MyGame {
     }
 
     fn console_request(&mut self, _: &mut Engine, kind: &str, payload: &str) -> bool {
-        if kind == "mygame.give" {
+        if kind == "mygame.additem" {
             self.inventory.push(payload.to_string());
             return true;
         }
@@ -323,9 +323,20 @@ What a game most often reaches for:
 | `engine.set_view_angles(..)`, `set_camera(Some(..))` | Where the player looks; a cutscene or death camera |
 | `engine.debug_line(a, b, color, seconds)`, `debug_box`, `debug_point` | Seeing what your code is doing, while `r_debugdraw` is on |
 | `engine.set_player_max_health(..)` | What the player spawns with |
+| `engine.damage_entity(id, amount, attacker)` | Hurt an entity: its class's `on_damage` decides what that means, and it fires `OnDamaged` |
+| `engine.teleport_player(origin, angles)`, `kill_player(reason)` | Move the player; kill them, god mode or not |
+| `engine.new_game()`, `end_game()` | Start on the start map; back to the main menu |
 
 A class of the game's own with a model is drawn and collided with when it
 says how: `ClassDef::new("npc_guard").model(ModelRole::Animated)`.
+
+A class can react to the player walking into it, and to being damaged,
+without any wiring: `ClassDef::new("item_ammo").on_touch(give_ammo)` runs
+`give_ammo(world, id, player)` on the tick the player's box meets it (its
+brush, or for a point entity a cube `touch_size` across), and
+`.on_damage(f)` runs `f(world, id, amount, attacker)` whenever
+`engine.damage_entity` hits it. The stock weapons call `damage_entity` on
+what they shoot, which is how `func_breakable` glass breaks.
 
 Input reaches a game the way it reaches the engine: as console commands,
 bound to keys. A game's own held action needs no command of its own: bind a

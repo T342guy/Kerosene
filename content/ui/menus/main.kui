@@ -1,0 +1,47 @@
+<!--
+    The main menu: what the game opens on when no map is running, and what
+    `game_end` and Quit to menu come back to. `ui_mainmenu` names it; a game
+    replaces it by shipping its own `ui/menus/main.kui`.
+
+    New Game loads the project's start map. A map that would not load leaves
+    its reason in `error.message`, shown at the top.
+-->
+<root interactive="true" z="100">
+    <styles>
+        <include src="ui/menus/menu.kcss"/>
+    </styles>
+    <scripts>
+        <include src="ui/menus/main.kscr"/>
+    </scripts>
+
+    <Panel id="backdrop" class="title-screen">
+        <Panel id="menu">
+            <Panel id="brand">
+                <Image id="logo" src="ui/logo"/>
+                <Panel>
+                    <Label class="title" text="{game.title}"/>
+                    <Label class="subtitle" text="Made with Kerosene"/>
+                </Panel>
+            </Panel>
+
+            <Label class="error" visible="{error.message != () &amp;&amp; error.message != ''}" text="{error.message}"/>
+
+            <Panel id="main-page" class="page" visible="{ui.page == 'main'}">
+                <Button id="new-game" text="New game" onactivate="command('newgame')" sound="ui/click"/>
+                <Button text="Load game" visible="{saves.count > 0}" onactivate="set_store('ui.page', 'load')" sound="ui/click"/>
+                <Button text="Options" onactivate="set_store('ui.page', 'options')" sound="ui/click"/>
+                <Button class="danger" text="Quit" onactivate="command('quit')"/>
+            </Panel>
+
+            <Panel id="load-page" class="page" visible="{ui.page == 'load'}">
+                <Include src="ui/menus/saves.kui"/>
+                <Button text="Back" onactivate="set_store('ui.page', 'main')" sound="ui/click"/>
+            </Panel>
+
+            <Panel id="options-page" class="page" visible="{ui.page == 'options'}">
+                <Include src="ui/menus/options.kui"/>
+                <Button text="Back" onactivate="set_store('ui.page', 'main')" sound="ui/click"/>
+            </Panel>
+        </Panel>
+    </Panel>
+</root>

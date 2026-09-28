@@ -52,6 +52,15 @@ fn store() -> UiStore {
     s.set("cvar.sensitivity", 3);
     s.set("cvar.m_invert", 0);
     s.set("cvar.ui_debug", 0);
+    s.set("cvar.r_fullscreen", 0);
+    s.set("game.title", "Kerosene");
+    s.set("loading.map", "kero_start");
+    s.set("saves.count", 2);
+    for (i, name) in ["quick", "auto"].iter().enumerate() {
+        s.set(&format!("saves.{i}.name"), *name);
+        s.set(&format!("saves.{i}.map"), "kero_start");
+        s.set(&format!("saves.{i}.when"), "5 min ago");
+    }
     s
 }
 
@@ -116,9 +125,12 @@ fn the_pause_menu_runs_clean_and_its_controls_work() {
     ui.update(0.016, (1920, 1080), &mut s, &files);
     assert!(ui.wants_input());
 
-    // Down to Options and in.
-    ui.input(UiInput::Key(UiKey::Down));
-    ui.input(UiInput::Key(UiKey::Down));
+    // Down to Options, past Resume, Save and Load, and in: a frame for each
+    // key, the first of which only puts focus on the menu.
+    for _ in 0..5 {
+        ui.input(UiInput::Key(UiKey::Down));
+        ui.update(0.016, (1920, 1080), &mut s, &files);
+    }
     ui.input(UiInput::Key(UiKey::Enter));
     ui.update(0.016, (1920, 1080), &mut s, &files);
     ui.update(0.016, (1920, 1080), &mut s, &files);
@@ -147,6 +159,43 @@ fn the_pause_menu_runs_clean_and_its_controls_work() {
     for _ in 0..10 {
         ui.update(0.05, (1920, 1080), &mut s, &files);
     }
+    assert_eq!(problems(&mut ui), Vec::<String>::new());
+}
+
+#[test]
+fn the_main_menu_and_the_loading_screen_run_clean() {
+    let files = content();
+    let mut ui = UiSystem::new();
+    let mut s = store();
+    s.set("error.message", "maps/gone.kbsp is not there");
+    ui.show("menu", "ui/menus/main.kui", &files).unwrap();
+    for page in ["main", "load", "options", "main"] {
+        s.set("ui.page", page);
+        ui.update(0.016, (1920, 1080), &mut s, &files);
+        ui.update(0.016, (1920, 1080), &mut s, &files);
+    }
+    assert!(ui.wants_input());
+
+    // New Game is the first thing, and it asks for a new game.
+    ui.input(UiInput::Key(UiKey::Down));
+    ui.input(UiInput::Key(UiKey::Enter));
+    let actions = ui.update(0.016, (1920, 1080), &mut s, &files);
+    assert!(
+        actions
+            .iter()
+            .any(|a| matches!(a, UiAction::Command(c) if c == "newgame")),
+        "{actions:?}"
+    );
+
+    ui.show("splash", "ui/menus/splash.kui", &files).unwrap();
+    for _ in 0..50 {
+        ui.update(0.05, (1920, 1080), &mut s, &files);
+    }
+    assert!(!ui.is_visible("splash"), "the splash takes itself down");
+
+    ui.show("loading", "ui/menus/loading.kui", &files).unwrap();
+    ui.update(0.016, (1920, 1080), &mut s, &files);
+    assert!(!ui.display_list().is_empty());
     assert_eq!(problems(&mut ui), Vec::<String>::new());
 }
 

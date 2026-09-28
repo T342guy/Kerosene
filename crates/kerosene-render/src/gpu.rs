@@ -2354,7 +2354,7 @@ impl GpuProbes {
         GpuProbes {
             _texture: texture,
             view,
-            count: cubemaps.map_or(0, |c| c.probes.len()),
+            count: cubemaps.map_or(0, |c| c.probes.len().min(crate::probes::MAX_PROBES)),
         }
     }
 }

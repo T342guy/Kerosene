@@ -146,14 +146,19 @@ pub mod game {
                             let Some(hit) = engine.trace_view(offset, range) else {
                                 continue;
                             };
-                            // A shot pushes the prop it hits, and marks
-                            // anything else: a decal on a prop would hang in
-                            // the air the moment it moved.
+                            // A shot damages what it hits -- glass breaks --
+                            // pushes a prop, and marks anything else: a decal
+                            // on a prop would hang in the air the moment it
+                            // moved, and on glass, after it broke.
+                            let player = engine.player.entity;
+                            let took = hit
+                                .entity
+                                .is_some_and(|id| engine.damage_entity(id, damage, player));
                             let pushed = hit.entity.is_some_and(|id| {
                                 let push = (hit.pos - eye).normalize_or_zero() * damage * 8.0;
                                 engine.physics_mut().apply_impulse(id, push)
                             });
-                            if !pushed {
+                            if !pushed && !took {
                                 engine.place_decal(decal, hit.pos, hit.normal, decal_size);
                             }
                         }

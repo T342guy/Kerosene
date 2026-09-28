@@ -459,16 +459,18 @@ Fixed in the same pass:
 
 The runtime:
 
-- **Console.** History is lost on exit; Tab completes command names but not
-  their arguments (maps, sounds, saves, cvar values); no `maps`, no
-  `revert <cvar>`, no `host_writeconfig`, and `config.cfg` is only written
-  on a clean quit.
-- **Debug commands.** No `god`, `buddha`, `notarget`, `give`, console
-  `kill` or `ent_fire`, `ent_create`, `ent_remove`, `ent_text`, `setpos`,
-  `getpos`, `restart`, `r_wireframe`, `host_timescale` or `host_framerate`.
-- **Video.** No fullscreen or borderless mode and no `-w`/`-h`/`-fullscreen`
-  flags; `cl_fov` is unclamped and there is no zoom; no render scale,
-  texture-quality or anisotropy settings; no `screenshot`; no UI text scale.
+- ~~**Console.**~~ History is kept, Tab completes maps, saves, sounds,
+  classes and convars, and there are `maps`, `revert` and
+  `host_writeconfig`. `config.cfg` is still written only on a clean quit
+  unless asked.
+- ~~**Debug commands.**~~ `god`, `buddha`, `notarget`, `give`, `kill`,
+  `ent_fire`, `ent_create`, `ent_remove`, `ent_info`, `setpos`, `getpos`,
+  `setang`, `restart` and `host_timescale` are in; see
+  [the console](console.md). Still no `r_wireframe`, `host_framerate`, or
+  `ent_text` drawn in the world (`ent_info` prints to the console).
+- **Video.** ~~Fullscreen, `-w`/`-h`/`-fullscreen`, a clamped `cl_fov`,
+  `screenshot`~~ are in. Still no render scale, texture-quality or
+  anisotropy settings, and no UI text scale.
 - **Feel.** Ducking snaps the view; no head bob, view roll, landing punch
   or step smoothing; crouch-jumping does not tuck the feet; no underwater
   tint, fog or muffling; no drowning, though `WaterLevel::Eyes` is there to
@@ -487,8 +489,8 @@ The runtime:
 - **Scripting.** No traces, spawning, or entity angles and velocity in the
   Rhai bindings. ~~Random numbers~~ are in: `rand`, `rand_range`, `rand_int`
   and `pick`, seeded per map.
-- **A map that fails to load** leaves a blank world; the reason is only in
-  the console.
+- ~~**A map that fails to load** leaves a blank world.~~ Its reason is on
+  the main menu.
 
 The tools:
 
@@ -556,11 +558,11 @@ The game API:
 - **Class handlers are bare `fn` pointers.** They cannot capture settings or
   reach the game's state; everything goes through a string-keyed
   `HostRequest`.
-- **No touch, use, damage or collision callbacks on a class.** A pickup that
-  reacts to being walked into, a hazard, an NPC that flinches: each is
-  wiring through triggers today.
-- **Triggers only notice the player.** A thrown prop, or later an NPC, sets
-  nothing off.
+- ~~**No touch or damage callbacks on a class.**~~ `ClassDef::on_touch` and
+  `on_damage`, with `Engine::damage_entity`. Still no use or collision
+  callback.
+- ~~**Triggers only notice the player.**~~ Spawnflag 8 adds physics props.
+  An NPC, when there is one, is still to come.
 - **Error types differ by crate.** `platform` and `ui` return
   `Result<_, String>`, the engine mixes that with `anyhow`, the rest use
   typed errors. Unifying them is a breaking change, so it wants doing before
@@ -583,8 +585,9 @@ Rendering:
   headshot.
 - ~~**No brightness or vsync at runtime.**~~ `mat_gamma` and `r_vsync`, both
   in the stock options menu and both applied at once.
-- **No loading screen.** `load_map` runs on the main thread and the window
-  stops until it is done.
+- ~~**No loading screen.**~~ One is drawn for the frame before a load. The
+  load itself still runs on the main thread, so a very long one still holds
+  the window on that picture.
 
 Audio:
 
@@ -609,18 +612,18 @@ Platform and saves:
 - **No save migration.** A newer save is refused and an older one loads as
   it is; nothing lets a game upgrade its own `Game::save` data. No save
   thumbnails.
-- **No save or load menu.** The stock pause menu has Resume, Options,
-  Restart and Quit.
+- ~~**No save or load menu.**~~ The pause menu saves and loads, and the main
+  menu loads.
 
 Entities:
 
-- **Missing classes.** `func_breakable` (`prop_physics` already has `Break`
-  and `OnBreak` to build on), `func_physbox`, `func_wall_toggle`,
-  `env_spark`, `env_explosion`, `point_hurt`, `item_*` pickups, `game_end`,
-  `player_speedmod`, and fog and water controllers.
-- **Thin common inputs.** Only `Kill`, `AddOutput` and `FireUser1`/`2` work
-  on everything; `SetParent`, `Enable`/`Disable`, `FireUser3`/`4` and
-  `SetHealth` do not.
+- **Missing classes.** ~~`func_breakable`, `func_wall_toggle`,
+  `point_hurt`, `item_*` pickups, `game_end`, `player_speedmod`~~ are in,
+  with `point_teleport`. Still missing: `func_physbox`, `env_spark`,
+  `env_explosion`, and fog and water controllers.
+- **Thin common inputs.** `Kill`, `AddOutput` and `FireUser1` to `4` work on
+  everything; `SetParent` does not, and `Enable`/`Disable` are each class's
+  own rather than universal.
 
 The tools:
 
@@ -643,13 +646,14 @@ The tools:
   `kerosene_vfs::up_to_date`.
 - ~~**"Check for problems" showed one.**~~ It lists them all in the output
   panel.
-- **Chisel and Kiln each build the compilers' arguments** (`compile.rs` and
-  `kiln/src/lib.rs`): the duplicate still standing.
+- ~~**Chisel and Kiln each build the compilers' arguments.**~~ One list,
+  `kerosene_vfs::toolchain::MapStages`.
 - **No shell completions.** The top-level command line is hand-rolled, so
   clap cannot generate them.
 - **The generated game has no licence.** Choosing one is the author's, but
   `new` could ask.
-- **No `--watch`.** A content change means running `cargo play` again.
+- ~~**No `--watch`.**~~ `kiln --watch` and `play --watch`; the game reloads
+  a rebuilt map under `map_autoreload`.
 
 Code health:
 
@@ -746,8 +750,8 @@ shooter or immersive sim, cheapest first.
    and a new game made and played on each.
 3. **Demo record and playback.** Proves determinism, becomes the movement
    solver's regression fixture, and is the ghost system for genre 3.
-4. ~~**A game UI layer and save/load.**~~ Done. A main menu before any map
-   is the part still to come.
+4. ~~**A game UI layer and save/load.**~~ Done, with a main menu, a loading
+   screen and save and load pages.
 5. **Chisel: autosave, instances.** VisGroups are in; these two are what
    remains of making the second real map editable.
 6. **Weapons and damage.** Hitscan, ammo, `OnDamaged`, decals for the holes.

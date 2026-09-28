@@ -162,6 +162,13 @@ fn pack(
                 continue;
             }
         }
+        // Before the list is consulted, so a line whose only match was
+        // excluded goes unmatched -- and is reported -- rather than counting
+        // as packed when nothing was.
+        if excludes.iter().any(|e| virtual_path.contains(e.as_str())) {
+            skipped += 1;
+            continue;
+        }
         if let Some(list) = list {
             let folded = virtual_path.to_lowercase();
             match list.iter().position(|entry| listed(entry, &folded)) {
@@ -171,10 +178,6 @@ fn pack(
                     continue;
                 }
             }
-        }
-        if excludes.iter().any(|e| virtual_path.contains(e.as_str())) {
-            skipped += 1;
-            continue;
         }
         total += std::fs::metadata(&disk).map(|m| m.len()).unwrap_or(0);
         builder
@@ -356,6 +359,15 @@ mod tests {
         let list = parse_list("ui/\nmaps/gone.kbsp\n");
         let err = pack(&dir, &out, &[], &[], Some(&list)).unwrap_err();
         assert!(err.to_string().contains("maps/gone.kbsp"), "{err}");
+
+        // Named by the list and then excluded: nothing packed, so an error,
+        // not a silent hole.
+        let list = parse_list(
+            "ui/
+",
+        );
+        let err = pack(&dir, &out, &[], &["hud".to_string()], Some(&list)).unwrap_err();
+        assert!(err.to_string().contains("ui/"), "{err}");
         let _ = std::fs::remove_dir_all(dir);
     }
 }

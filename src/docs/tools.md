@@ -911,6 +911,7 @@ kerosene-tools kiln --dry-run                    # say what would run
 kerosene-tools kiln --tools                      # which pieces can be found
 kerosene-tools kiln --force -j 4                 # rebuild everything, on four threads
 kerosene-tools kiln --clean                      # delete what the build wrote
+kerosene-tools kiln --watch --fast               # build again on every save
 kerosene-tools kiln --ship dist                  # build, then assemble a distribution
 ```
 
@@ -935,9 +936,22 @@ Sources decide what gets built: every `.obj` under `art/` becomes a
 `.kmdl` at the matching path under `models/`, and every `.kmap` under
 `maps/` becomes a `.kbsp`. Nothing has a list to keep up to date.
 
+A map is rebuilt when its source is newer than its `.kbsp`, when it was
+built fast and this build is not, and when any material or texture changed
+since: Cleave sizes every face by its texture and Resonance reads every
+material. The compilers are told the same things Chisel's F9 tells them --
+one list, `kerosene_vfs::toolchain::MapStages`, decides both.
+
+`--watch` stays running after the build and builds again whenever a source
+changes, polling the tree twice a second and waiting out a burst of saves.
+What the build writes is not watched. `kerosene-tools play --watch` does the
+same while the game runs, and starts the game with `map_autoreload 1`, so a
+rebuilt map is loaded again with the player where they stood.
+
 A map that leaks still compiles, and is reported at the end rather than
 stopping the build — finding out on the first of forty maps that the run is
-over is not a service. The archive is named after the project and written
+over is not a service. With `--ignore-leaks` it is built in full and the
+leak is a warning. The archive is named after the project and written
 inside the content tree, which is where the engine looks for it.
 
 `scripts/build-content.sh` in this repository is a thin wrapper: it builds the

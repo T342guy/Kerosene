@@ -984,12 +984,21 @@ impl Document {
         // Applied after every evaluation: a `<Repeat>` rebuilding itself
         // changes the binding list, so nothing may index it from here on.
         for (node, target, value, error) in results {
-            if let Some(e) = error {
-                // An unpublished key is the normal state of a HUD before the
-                // game has said anything; only real errors are worth a line.
-                if !e.contains("not found") && !e.contains("Unknown property") {
-                    self.warn(e);
-                }
+            // An unpublished key is the normal state of a HUD before the game
+            // has said anything; only real errors are worth a line.
+            let unpublished = error
+                .as_ref()
+                .is_some_and(|e| e.contains("not found") || e.contains("Unknown property"));
+            if let Some(e) = error
+                && !unpublished
+            {
+                self.warn(e);
+            }
+            // Nor is a style built from one worth applying: `radial({x})`
+            // with nothing in `x` is `radial()`, which no property reads. The
+            // style stays as the sheet has it until there is a value.
+            if unpublished && matches!(target, Target::Style(_) | Target::InlineStyle) {
+                continue;
             }
             if self.nodes[node].alive {
                 self.apply_binding(node, &target, &value, ctx.loader);

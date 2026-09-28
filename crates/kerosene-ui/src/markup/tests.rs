@@ -59,3 +59,15 @@ fn comments_may_say_anything() {
     .unwrap();
     assert_eq!(m.body.len(), 1);
 }
+
+#[test]
+fn text_that_is_not_ascii_in_a_script_is_not_a_panic() {
+    // Every offset in front of the accent and the dash, so one of them puts
+    // the end of `</script` inside a character.
+    for pad in 0..8 {
+        let body = format!("{}// café — naïve", " ".repeat(pad));
+        let src = format!("<root><script>{body}</script></root>");
+        let m = parse("t", &src).unwrap();
+        assert_eq!(m.inline_scripts, vec![body]);
+    }
+}

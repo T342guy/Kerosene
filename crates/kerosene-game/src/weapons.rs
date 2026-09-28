@@ -4,9 +4,9 @@
 //! The engine had no weapons at all, and a HUD with nothing to show is not a
 //! test of a HUD. This is the smallest thing that gives it real state to bind
 //! to: three hitscan weapons in slots, a clip and a reserve each, reloading,
-//! and one ability on a cooldown. Firing traces from the eye and leaves a
-//! bullet hole; nothing takes damage, because nothing in the engine has health
-//! but the player.
+//! and one ability on a cooldown. Firing traces from the eye, damages what
+//! it hits (`Engine::damage_entity`: a `func_breakable` breaks), pushes a
+//! prop and leaves a bullet hole on anything else.
 //!
 //! It is pure logic, like everything in this crate: [`Arsenal::tick`] takes
 //! what the player is pressing and returns [`WeaponEvent`]s, and whoever owns

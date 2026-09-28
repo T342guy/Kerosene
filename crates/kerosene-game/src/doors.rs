@@ -340,7 +340,21 @@ fn spawn_mover(world: &mut EntityWorld, id: EntityId) {
     }
 }
 
+/// The parameter a mover's own `wait` return carries: which move it belongs
+/// to. A return queued by a move that has since been undone -- closed by
+/// hand and opened again -- must not cut the new one's wait short.
+const AUTO_RETURN: &str = "auto_return:";
+
 fn start(world: &mut EntityWorld, id: EntityId, event: &InputEvent, opening: bool) -> bool {
+    if let Some(serial) = event.parameter.strip_prefix(AUTO_RETURN) {
+        let current = world
+            .get(id)
+            .map(|e| e.fields.i32("move_serial", 0))
+            .unwrap_or(0);
+        if serial.parse::<i32>().ok() != Some(current) {
+            return true;
+        }
+    }
     if world
         .get(id)
         .map(|e| e.fields.bool("locked", false))
@@ -366,6 +380,11 @@ fn start(world: &mut EntityWorld, id: EntityId, event: &InputEvent, opening: boo
     }
 
     let outputs = outputs_of(world, id);
+    let serial = world
+        .get(id)
+        .map(|e| e.fields.i32("move_serial", 0))
+        .unwrap_or(0);
+    set_field(world, id, "move_serial", Value::Int(serial.wrapping_add(1)));
     set_field(
         world,
         id,
@@ -447,10 +466,14 @@ fn think_mover(world: &mut EntityWorld, id: EntityId) {
             // is until something tells it otherwise.
             let wait = field_f32(world, id, "wait", 4.0);
             if wait > 0.0 {
+                let serial = world
+                    .get(id)
+                    .map(|e| e.fields.i32("move_serial", 0))
+                    .unwrap_or(0);
                 world.queue_input(
                     kerosene_entity::Target::Myself,
                     outputs.ret,
-                    "",
+                    &format!("{AUTO_RETURN}{serial}"),
                     wait,
                     None,
                     Some(id),

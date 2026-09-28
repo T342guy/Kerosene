@@ -170,6 +170,16 @@ fn read_directory<R: Read>(reader: &mut R, file_len: u64, name: &str) -> Result<
             detail: "directory is truncated".into(),
         })?;
 
+    // Every record is at least its fixed fields long, so the tree bounds how
+    // many there can be -- and a count past that is sizing an allocation on
+    // nothing but the file's say-so.
+    const MIN_RECORD: usize = 2 + 4 + 8 + 8;
+    if entry_count > tree_size / MIN_RECORD {
+        return Err(ArchiveError::Malformed {
+            path: name.to_string(),
+            detail: format!("directory claims {entry_count} entries in {tree_size} bytes of tree"),
+        });
+    }
     let mut entries = Vec::with_capacity(entry_count);
     let mut cur = 0usize;
     let need = |cur: usize, n: usize, len: usize| -> Result<()> {
@@ -337,12 +347,17 @@ impl Archive {
     }
 
     /// Entries under `dir`, optionally filtered by extension.
+    ///
+    /// Entries are stored folded, so `dir` and `ext` are folded to match:
+    /// `list("Materials", Some("KMAT"))` finds what `read` would.
     pub fn list(&self, dir: &str, ext: Option<&str>) -> Vec<String> {
         let prefix = if dir.is_empty() {
             String::new()
         } else {
-            format!("{dir}/")
+            format!("{}/", dir.to_lowercase())
         };
+        let ext = ext.map(str::to_lowercase);
+        let ext = ext.as_deref();
         self.entries
             .iter()
             .filter(|e| e.path.starts_with(&prefix))
@@ -405,13 +420,41 @@ impl ArchiveBuilder {
     }
 
     /// Write the archive out.
+    ///
+    /// To a scratch file beside it first, renamed over it only once it is
+    /// whole: a pack cancelled half way would otherwise leave a truncated
+    /// archive newer than everything in it, which a build would take for up
+    /// to date.
     pub fn write(&self, out: &Path) -> Result<u64> {
+        let file_name = out
+            .file_name()
+            .map_or_else(|| "archive".into(), |n| n.to_string_lossy().into_owned());
+        let tmp = out.with_file_name(format!(".{file_name}.{}.tmp", std::process::id()));
+        let written = self.write_to(&tmp, out);
+        match written {
+            Ok(size) => std::fs::rename(&tmp, out)
+                .map(|()| size)
+                .map_err(|source| ArchiveError::Io {
+                    path: out.display().to_string(),
+                    source,
+                })
+                .inspect_err(|_| {
+                    let _ = std::fs::remove_file(&tmp);
+                }),
+            Err(e) => {
+                let _ = std::fs::remove_file(&tmp);
+                Err(e)
+            }
+        }
+    }
+
+    fn write_to(&self, path: &Path, out: &Path) -> Result<u64> {
         let name = out.display().to_string();
         let io = |source| ArchiveError::Io {
             path: name.clone(),
             source,
         };
-        let file = File::create(out).map_err(io)?;
+        let file = File::create(path).map_err(io)?;
         let mut w = BufWriter::new(file);
 
         // Lay out the data blob first so the directory can record real offsets.
@@ -451,6 +494,7 @@ impl ArchiveBuilder {
             w.write_all(data).map_err(io)?;
         }
         w.flush().map_err(io)?;
+        w.get_ref().sync_all().map_err(io)?;
         Ok(data_offset + data_size)
     }
 }
@@ -688,6 +732,60 @@ mod tests {
             Archive::open(&out),
             Err(ArchiveError::Malformed { .. })
         ));
+        let _ = std::fs::remove_file(&out);
+    }
+
+    #[test]
+    fn a_header_claiming_more_entries_than_its_tree_holds_is_refused() {
+        let out = tmp("count.vault");
+        let mut b = ArchiveBuilder::new();
+        b.add("a.kmat", b"x".to_vec()).unwrap();
+        b.write(&out).unwrap();
+        let mut bytes = std::fs::read(&out).unwrap();
+        // entry_count: after magic, version and flags.
+        bytes[12..16].copy_from_slice(&u32::MAX.to_le_bytes());
+        let bytes: &'static [u8] = Box::leak(bytes.into_boxed_slice());
+        let Err(err) = Archive::from_static(bytes, "count") else {
+            panic!("an impossible entry count was accepted");
+        };
+        assert!(err.to_string().contains("entries"), "{err}");
+        let _ = std::fs::remove_file(&out);
+    }
+
+    #[test]
+    fn writing_leaves_no_scratch_file_behind() {
+        let out = tmp("atomic.vault");
+        let mut b = ArchiveBuilder::new();
+        b.add("a.kmat", b"x".to_vec()).unwrap();
+        b.write(&out).unwrap();
+        b.write(&out).unwrap();
+        let dir = out.parent().unwrap();
+        let name = out.file_name().unwrap().to_string_lossy().into_owned();
+        let leftovers = std::fs::read_dir(dir)
+            .unwrap()
+            .flatten()
+            .filter(|e| {
+                e.file_name()
+                    .to_string_lossy()
+                    .starts_with(&format!(".{name}"))
+            })
+            .count();
+        assert_eq!(leftovers, 0);
+        assert_eq!(Archive::open(&out).unwrap().len(), 1);
+        let _ = std::fs::remove_file(&out);
+    }
+
+    #[test]
+    fn listing_ignores_case_like_reading_does() {
+        let out = tmp("case.vault");
+        let mut b = ArchiveBuilder::new();
+        b.add("materials/dev/grid.kmat", b"x".to_vec()).unwrap();
+        b.write(&out).unwrap();
+        let a = Archive::open(&out).unwrap();
+        assert_eq!(
+            a.list("Materials", Some("KMAT")),
+            vec!["materials/dev/grid.kmat"]
+        );
         let _ = std::fs::remove_file(&out);
     }
 }

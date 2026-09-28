@@ -343,7 +343,25 @@ impl Engine {
         self.ui_set("save.last", name);
         self.ui_emit("game_saved", name);
         self.console.print(format!("saved {name}"));
+        self.publish_saves();
         Ok(written)
+    }
+
+    /// Tell the UI what saves there are, newest first, for a Load or Save
+    /// page to list: `saves.count`, and for each `saves.<i>.name`, `.map`
+    /// and `.when` ("5 min ago"). The menus call it as they open.
+    pub fn publish_saves(&mut self) {
+        let saves = self.list_saves();
+        let now = now();
+        self.ui_set("saves.count", saves.len() as i64);
+        for (i, save) in saves.into_iter().enumerate() {
+            self.ui_set(&format!("saves.{i}.name"), save.name);
+            self.ui_set(&format!("saves.{i}.map"), save.map);
+            self.ui_set(
+                &format!("saves.{i}.when"),
+                age(now.saturating_sub(save.saved_at)),
+            );
+        }
     }
 
     /// Read a save without loading it: the local file or the cloud's copy,
@@ -497,6 +515,7 @@ impl Engine {
                     self.player.movement.ducked = ducked;
                     self.player.previous_origin = origin;
                     self.player.view_angles = carry.view;
+                    self.view_forced = true;
                     if let Some(e) = self.player.entity.and_then(|id| self.entities.get_mut(id)) {
                         e.origin = origin;
                     }
@@ -572,6 +591,7 @@ impl Engine {
             step_distance: 0.0,
             step_index: self.player.step_index,
         };
+        self.view_forced = true;
 
         // The scripts: the same files, run for their functions, with what
         // their top level asked for dropped -- it asked the first time --

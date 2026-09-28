@@ -218,6 +218,18 @@ const SOURCE_BUILD: usize = 1;
 const SOURCE_ARCHIVE: usize = 2;
 const SOURCE_PLAY: usize = 3;
 
+/// What closes the editor's map, held while the author is asked whether to
+/// save it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum AfterClose {
+    /// Open another project.
+    Switch(PathBuf),
+    /// Open another map.
+    OpenMap(PathBuf),
+    /// Start a new map from the starter room.
+    NewMap,
+}
+
 /// The whole toolset in one window.
 pub struct Toolset {
     tab: Tab,
@@ -242,8 +254,8 @@ pub struct Toolset {
     output: OutputPanel,
     palette: Palette,
     recent: Recent,
-    /// A project to switch to once the editor's unsaved map is dealt with.
-    pending_switch: Option<PathBuf>,
+    /// What to do once the editor's unsaved map is dealt with.
+    pending_close: Option<AfterClose>,
     /// Whether each output source was running last frame, so the panel can
     /// come up the moment one starts rather than being asked for.
     was_running: [bool; 4],
@@ -325,7 +337,7 @@ impl Toolset {
             output: OutputPanel::default(),
             palette: Palette::default(),
             recent: Recent::default(),
-            pending_switch: None,
+            pending_close: None,
             was_running: [false; 4],
             schema: launch.schema,
             runtime: launch.runtime,
@@ -481,16 +493,8 @@ impl Toolset {
     pub fn act(&mut self, action: Action) {
         match action {
             Action::Goto(tab) => self.goto(tab),
-            Action::OpenMap(path) => {
-                self.editor.open(path);
-                self.goto(Tab::Editor);
-            }
-            Action::NewMap => {
-                if !self.editor.document.is_modified() {
-                    self.editor.document = chisel::app::starter_document();
-                }
-                self.goto(Tab::Editor);
-            }
+            Action::OpenMap(path) => self.close_map_then(AfterClose::OpenMap(path)),
+            Action::NewMap => self.close_map_then(AfterClose::NewMap),
             Action::OpenModel(name) => {
                 self.models.show_model(&name);
                 self.goto(Tab::Models);
@@ -542,13 +546,7 @@ impl Toolset {
                     job.cancel();
                 }
             }
-            Action::SwitchProject(content) => {
-                if self.editor.document.is_modified() {
-                    self.pending_switch = Some(content);
-                } else {
-                    self.switch_to(content);
-                }
-            }
+            Action::SwitchProject(content) => self.close_map_then(AfterClose::Switch(content)),
             Action::ForgetProject(content) => self.recent.remove(&content),
             Action::ShowStart => self.showing_start = true,
             Action::HideStart => self.showing_start = !self.found,
@@ -603,51 +601,81 @@ impl Toolset {
         *self = next;
     }
 
-    /// The question asked before switching away from an unsaved map.
-    fn switch_dialog(&mut self, ctx: &egui::Context) {
-        let Some(content) = self.pending_switch.clone() else {
+    /// Do `next`, which closes the editor's map, once the map is safe to
+    /// close: now if it has no unsaved changes, after asking if it has.
+    fn close_map_then(&mut self, next: AfterClose) {
+        if self.editor.document.is_modified() {
+            self.goto(Tab::Editor);
+            self.pending_close = Some(next);
+        } else {
+            self.finish_close(next);
+        }
+    }
+
+    fn finish_close(&mut self, next: AfterClose) {
+        match next {
+            AfterClose::Switch(content) => self.switch_to(content),
+            AfterClose::OpenMap(path) => {
+                self.editor.open(path);
+                self.goto(Tab::Editor);
+            }
+            AfterClose::NewMap => {
+                self.editor.document = chisel::app::starter_document();
+                self.goto(Tab::Editor);
+            }
+        }
+    }
+
+    /// The question asked before closing an unsaved map.
+    fn close_dialog(&mut self, ctx: &egui::Context) {
+        let Some(next) = self.pending_close.clone() else {
             return;
         };
         let title = self.editor.document.title();
         let can_save = self.editor.document.path.is_some();
+        let (what, verb) = match &next {
+            AfterClose::Switch(_) => ("Opening another project", "switch"),
+            AfterClose::OpenMap(_) => ("Opening another map", "open"),
+            AfterClose::NewMap => ("Starting a new map", "start"),
+        };
         let mut choice = None;
         let modal = widgets::dialog(
             ctx,
-            "switch-project",
+            "close-map",
             "Save the map first?",
             380.0,
             |ui| {
                 ui.label(format!(
-                    "{title} has changes that are not saved. Opening another project closes it."
+                    "{title} has changes that are not saved. {what} closes it."
                 ));
             },
             |ui| {
                 if ui
-                    .add_enabled(can_save, egui::Button::new("Save and switch"))
+                    .add_enabled(can_save, egui::Button::new(format!("Save and {verb}")))
                     .clicked()
                 {
                     choice = Some(true);
                 }
-                if ui.button("Discard and switch").clicked() {
+                if ui.button(format!("Discard and {verb}")).clicked() {
                     choice = Some(false);
                 }
                 if ui.button("Cancel").clicked() {
-                    self.pending_switch = None;
+                    self.pending_close = None;
                 }
             },
         );
         if modal.should_close() {
-            self.pending_switch = None;
+            self.pending_close = None;
         }
         match choice {
             Some(true) if self.editor.save(None) => {
-                self.pending_switch = None;
-                self.switch_to(content);
+                self.pending_close = None;
+                self.finish_close(next);
             }
             Some(true) => {}
             Some(false) => {
-                self.pending_switch = None;
-                self.switch_to(content);
+                self.pending_close = None;
+                self.finish_close(next);
             }
             None => {}
         }
@@ -735,7 +763,7 @@ impl kerosene_toolui::App for Toolset {
         if let Some(id) = self.palette.ui(ctx, &commands) {
             actions.extend(commands::action_for(&id));
         }
-        self.switch_dialog(ctx);
+        self.close_dialog(ctx);
 
         for action in actions {
             self.act(action);

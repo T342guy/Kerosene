@@ -9,6 +9,7 @@
 //! kerosene-tools kiln --dry-run                    # say what would run
 //! kerosene-tools kiln --force -j 4                 # rebuild everything, on four threads
 //! kerosene-tools kiln --clean                      # delete what the build wrote
+//! kerosene-tools kiln --watch --fast               # build again on every save
 //! kerosene-tools kiln --tools                      # which pieces are present
 //! kerosene-tools kiln --ship dist                  # build, then assemble
 //! kerosene-tools kiln --ship dist --steam          # ... for Steam, with Valve's library
@@ -66,6 +67,11 @@ struct Args {
     /// Treat `.obj` sources as kerosene units rather than metres.
     #[arg(long)]
     model_units: bool,
+
+    /// Stay running after the build, and build again whenever a source
+    /// changes. Ctrl-C stops it.
+    #[arg(long)]
+    watch: bool,
 
     /// List the pieces that can be found, and stop.
     #[arg(long)]
@@ -194,8 +200,31 @@ pub fn run(args: Vec<String>) -> Result<()> {
         bail!("--steam is a way of shipping; say where with --ship <dir>");
     }
 
-    let report = crate::build(&settings)?;
+    if args.watch {
+        if settings.runs(Stage::Ship) || settings.dry_run {
+            bail!("--watch builds content; it does not ship, and a dry run has nothing to watch");
+        }
+        let report_failure = |result: Result<crate::Report>| {
+            if let Err(e) = result.and_then(|report| summarize(&report)) {
+                eprintln!("error: {e:#}");
+            }
+        };
+        report_failure(crate::build(&settings));
+        println!();
+        println!(
+            "watching {} for changes; ctrl-C stops",
+            settings.content.display()
+        );
+        crate::watch::watch(&settings, || true, report_failure);
+        return Ok(());
+    }
 
+    let report = crate::build(&settings)?;
+    summarize(&report)
+}
+
+/// Say what a build did; an error if a map leaked.
+fn summarize(report: &crate::Report) -> Result<()> {
     println!();
     println!(
         "built {} textures ({} up to date), {} sounds ({} up to date), \

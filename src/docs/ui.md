@@ -266,11 +266,38 @@ keeps the one already loaded along with its state. Hiding a layer keeps the
 document, so showing it again is instant.
 
 - `hud` is managed by the engine. It shows `ui_hud` whenever a map is running.
-- `menu` is Escape's. It toggles `ui_pausemenu`. While a layer marked
+- `menu` is Escape's while a map runs: it toggles `ui_pausemenu`. With no map
+  running it holds the main menu, `ui_mainmenu`. While a layer marked
   `interactive` is visible, the mouse is released and every key and click
   goes to it. When the menu closes, the mouse goes back to the game, whether
   it closed by Escape, a Resume button or a script.
+- `loading` holds `ui_loading` for the frame before a map or a save loads.
+- `splash` holds `ui_splash` for a moment as a window opens on the main menu.
 - Any other name is yours.
+
+## The front end
+
+A game started from its shortcut opens on the main menu, not in a map. The
+base content's menus are a starting point; a game replaces any of them by
+shipping a file at the same path.
+
+| File | What it is |
+|---|---|
+| `ui/menus/main.kui` | New Game, Load, Options, Quit. New Game runs `newgame`, which loads the project's start map |
+| `ui/menus/pause.kui` | Resume, Save, Load, Options, Restart, Quit to menu (`disconnect`), Quit |
+| `ui/menus/options.kui` | The settings both menus include |
+| `ui/menus/saves.kui` | The list of saves both menus include; pressing one calls the including layout's `pick_save(name)` |
+| `ui/menus/loading.kui` | The loading screen: `loading.map` is what is loading |
+| `ui/menus/splash.kui` | "Made with Kerosene"; it hides itself after two seconds or a click |
+
+What the menus read: `game.title`; `saves.count` and, for each save,
+`saves.<i>.name`, `.map` and `.when`, newest first, published as a menu
+opens; and `error.message`, why the last map would not load.
+
+A `+map` on the command line, `-nomenu`, a headless run and
+`kerosene-tools play` skip the menu and the splash, and go straight to the
+map. `-nosplash` skips only the splash. `game_end` in a map, and
+`disconnect`, come back to the main menu.
 
 The developer console always comes first. It opens over a menu, and its
 keys close it.

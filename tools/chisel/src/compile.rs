@@ -204,13 +204,28 @@ impl CompileJob {
     }
 }
 
+/// The compilers a map goes through, told what Kiln would tell them: the one
+/// list of arguments lives in the toolchain, so an F9 compile and a build
+/// server cannot build a map two ways.
+fn map_stages(map: &Path, settings: &CompileSettings) -> kerosene_vfs::toolchain::MapStages {
+    kerosene_vfs::toolchain::MapStages {
+        fast: settings.fast_vis,
+        ignore_leaks: settings.ignore_leaks,
+        vis: settings.run_vis,
+        acoustics: settings.run_acoustics,
+        lighting: settings.run_lighting,
+        quality: Some((settings.samples, settings.bounces)),
+        ..kerosene_vfs::toolchain::MapStages::new(map, &settings.content_root)
+    }
+}
+
 fn run_compile(
     map: &Path,
     settings: &CompileSettings,
     sender: &Sender<CompileMessage>,
     cancel: &std::sync::atomic::AtomicBool,
 ) -> Result<(), ()> {
-    let compiled = map.with_extension("kbsp");
+    let compiled = map.with_extension(kerosene_vfs::ext::BSP);
     let cancelled = || cancel.load(std::sync::atomic::Ordering::Relaxed);
 
     // Alchemy first, and in-process rather than as a stage. The compilers run
@@ -233,57 +248,8 @@ fn run_compile(
         }
     }
 
-    // Cleave. The content tree is handed over for the same reason the
-    // engine gets it below: it sizes every face by the compiled texture it
-    // wears, and the editor knows which tree that is.
-    let mut args = vec![
-        map.display().to_string(),
-        "--content".into(),
-        settings.content_root.display().to_string(),
-    ];
-    if settings.ignore_leaks {
-        args.push("--ignore-leaks".into());
-    }
-    stage("cleave", &args, sender)?;
-    if cancelled() {
-        return Err(());
-    }
-
-    if settings.run_vis {
-        let mut args = vec![compiled.display().to_string()];
-        if settings.fast_vis {
-            args.push("--fast".into());
-        }
-        stage("umbra", &args, sender)?;
-        if cancelled() {
-            return Err(());
-        }
-    }
-
-    if settings.run_acoustics {
-        let mut args = vec![
-            compiled.display().to_string(),
-            "--content".into(),
-            settings.content_root.display().to_string(),
-        ];
-        if settings.fast_vis {
-            args.push("--fast".into());
-        }
-        stage("resonance", &args, sender)?;
-        if cancelled() {
-            return Err(());
-        }
-    }
-
-    if settings.run_lighting {
-        let args = vec![
-            compiled.display().to_string(),
-            "--samples".into(),
-            settings.samples.to_string(),
-            "--bounces".into(),
-            settings.bounces.to_string(),
-        ];
-        stage("radiance", &args, sender)?;
+    for (tool, args) in map_stages(map, settings).commands() {
+        stage(tool, &args, sender)?;
         if cancelled() {
             return Err(());
         }
@@ -488,15 +454,26 @@ mod tests {
     #[test]
     fn ignoring_leaks_reaches_the_command_line() {
         // The checkbox is only meaningful if the flag arrives at cleave.
-        let mut args = vec!["map.kmap".to_string()];
         let settings = CompileSettings {
             ignore_leaks: true,
             ..Default::default()
         };
-        if settings.ignore_leaks {
-            args.push("--ignore-leaks".into());
-        }
+        let commands = map_stages(Path::new("map.kmap"), &settings).commands();
+        let (tool, args) = &commands[0];
+        assert_eq!(*tool, "cleave");
         assert!(args.iter().any(|a| a == "--ignore-leaks"));
+    }
+
+    #[test]
+    fn unticked_stages_are_not_run() {
+        let settings = CompileSettings {
+            run_vis: false,
+            run_acoustics: false,
+            ..Default::default()
+        };
+        let commands = map_stages(Path::new("map.kmap"), &settings).commands();
+        let tools: Vec<&str> = commands.iter().map(|(t, _)| *t).collect();
+        assert_eq!(tools, ["cleave", "radiance"]);
     }
 
     #[test]

@@ -1,0 +1,11 @@
+// The main menu's behaviour.
+
+fn on_load() {
+    set_store("ui.page", "main");
+}
+
+// A save picked from the load page.
+fn pick_save(name) {
+    set_store("error.message", "");
+    command("load " + name);
+}

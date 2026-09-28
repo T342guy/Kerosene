@@ -1,0 +1,15 @@
+<!--
+    The loading screen: drawn for the frame before a map or a saved game
+    loads, so the window says what it is doing instead of freezing on the
+    last picture. `ui_loading` names it; `loading.map` is what is loading.
+-->
+<root z="200">
+    <styles>
+        <include src="ui/menus/menu.kcss"/>
+    </styles>
+
+    <Panel id="loading">
+        <Image id="loading-logo" src="ui/logo"/>
+        <Label class="loading-text" text="Loading {loading.map}"/>
+    </Panel>
+</root>

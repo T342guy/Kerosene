@@ -220,23 +220,55 @@ fn a_fast_map_is_current_for_a_fast_build_and_never_for_a_full_one() {
     age(&map, 60);
     touch(&map.with_extension("kbsp"));
     assert!(
-        !map_is_current(&map, true),
+        !map_is_current(&map, true, None),
         "no stamp, no telling how it was built"
     );
 
     std::fs::write(build_stamp(&map), "fast\n").unwrap();
-    assert!(map_is_current(&map, true));
+    assert!(map_is_current(&map, true, None));
     assert!(
-        !map_is_current(&map, false),
+        !map_is_current(&map, false, None),
         "a full build lights it properly"
     );
 
     std::fs::write(build_stamp(&map), "full\n").unwrap();
-    assert!(map_is_current(&map, true));
-    assert!(map_is_current(&map, false));
+    assert!(map_is_current(&map, true, None));
+    assert!(map_is_current(&map, false, None));
+
+    let stamped = build_stamp(&map).metadata().unwrap().modified().unwrap();
+    let before = stamped - std::time::Duration::from_secs(10);
+    let after = stamped + std::time::Duration::from_secs(10);
+    assert!(map_is_current(&map, false, Some(before)));
+    assert!(
+        !map_is_current(&map, false, Some(after)),
+        "a material changed since it was compiled"
+    );
 
     age(&map.with_extension("kbsp"), 120);
-    assert!(!map_is_current(&map, true), "edited since it was compiled");
+    assert!(
+        !map_is_current(&map, true, None),
+        "edited since it was compiled"
+    );
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn the_newest_material_is_found_anywhere_under_the_tree() {
+    let dir = scratch("newest");
+    assert_eq!(newest(&dir, &[ext::MATERIAL]), None);
+    touch(&dir.join("materials/a.kmat"));
+    touch(&dir.join("materials/deep/B.KMAT"));
+    touch(&dir.join("art/c.png"));
+    age(&dir.join("materials/a.kmat"), 600);
+    age(&dir.join("art/c.png"), 0);
+    let found = newest(&dir, &[ext::MATERIAL]).unwrap();
+    let b = dir
+        .join("materials/deep/B.KMAT")
+        .metadata()
+        .unwrap()
+        .modified()
+        .unwrap();
+    assert_eq!(found, b);
     let _ = std::fs::remove_dir_all(dir);
 }
 
@@ -248,13 +280,32 @@ fn an_archive_is_current_until_something_it_packs_is_newer() {
     touch(&dir.join("art/a.png"));
     age(&dir.join("materials/a.kmat"), 60);
     assert!(!archive_is_current(&dir, &archive), "no archive yet");
-    touch(&archive);
+    let write = |paths: &[&str]| {
+        let mut b = kerosene_vfs::ArchiveBuilder::new();
+        for p in paths {
+            b.add(p, Vec::new()).unwrap();
+        }
+        b.write(&archive).unwrap();
+    };
+    write(&["materials/a.kmat"]);
     assert!(
         archive_is_current(&dir, &archive),
         "a newer source that is never packed does not matter"
     );
     touch(&dir.join("materials/b.kmat"));
     age(&archive, 30);
+    assert!(!archive_is_current(&dir, &archive));
+
+    // Newer than everything, but not holding everything.
+    write(&["materials/a.kmat"]);
+    assert!(!archive_is_current(&dir, &archive), "b.kmat is not in it");
+    write(&["materials/a.kmat", "materials/b.kmat"]);
+    assert!(archive_is_current(&dir, &archive));
+    std::fs::remove_file(dir.join("materials/b.kmat")).unwrap();
+    assert!(!archive_is_current(&dir, &archive), "b.kmat was deleted");
+
+    // A pack cut short: newest of all, and not an archive.
+    std::fs::write(&archive, b"KVLT").unwrap();
     assert!(!archive_is_current(&dir, &archive));
     let _ = std::fs::remove_dir_all(dir);
 }
@@ -274,6 +325,7 @@ fn clean_deletes_what_the_build_wrote_and_nothing_else() {
         ("models/props/cube.kmdl", false),
         ("sound/hum.wav", false),
         ("sound/hum.kaud", true),
+        ("maps/ARENA.KBSP", true),
         ("content.vault", true),
     ] {
         let file = dir.join(path);
@@ -281,8 +333,17 @@ fn clean_deletes_what_the_build_wrote_and_nothing_else() {
         std::fs::write(&file, if compiled { "built" } else { "source" }).unwrap();
     }
 
+    // Compiled output somewhere else, reached through a link: not the
+    // project's to delete.
+    let shared = std::env::temp_dir().join(format!("kiln-clean-shared-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&shared);
+    std::fs::create_dir_all(&shared).unwrap();
+    std::fs::write(shared.join("elsewhere.kbsp"), "built").unwrap();
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(&shared, dir.join("linked")).unwrap();
+
     let dry = crate::clean(&dir, None, true).unwrap();
-    assert_eq!(dry.files, 6);
+    assert_eq!(dry.files, 7);
     assert!(
         dir.join("maps/a.kbsp").exists(),
         "a dry run deletes nothing"
@@ -303,9 +364,15 @@ fn clean_deletes_what_the_build_wrote_and_nothing_else() {
         "maps/a.kbsp",
         "materials/dev/grid.ktex",
         "sound/hum.kaud",
+        "maps/ARENA.KBSP",
         "content.vault",
     ] {
         assert!(!dir.join(built).exists(), "{built} was built and goes");
     }
+    assert!(
+        shared.join("elsewhere.kbsp").exists(),
+        "a linked tree is left alone"
+    );
     let _ = std::fs::remove_dir_all(&dir);
+    let _ = std::fs::remove_dir_all(&shared);
 }

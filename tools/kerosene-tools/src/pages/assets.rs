@@ -249,7 +249,9 @@ impl Entry {
 fn output_of(root: &Path, relative: &str, path: &Path, kind: Kind) -> Option<PathBuf> {
     match kind {
         Kind::Map => Some(path.with_extension(ext::BSP)),
-        Kind::Mesh if relative.starts_with("models/") => Some(path.with_extension(ext::MODEL)),
+        // Forge compiles `art/<name>.obj` to `models/<name>.kmdl`, as Kiln
+        // runs it; a mesh anywhere else is not built by anything.
+        Kind::Mesh => kiln::model_output(root, path),
         Kind::AudioSource if relative.starts_with("sound/") => Some(timbre::output_for(path)),
         Kind::Image => {
             // Alchemy compiles `art/<name>.png` to `materials/<name>.ktex`.

@@ -25,4 +25,5 @@ content/engine.kcfg
 
 # Written by the game as it runs.
 content/cfg/config.cfg
+content/cfg/console_history.txt
 content/save/

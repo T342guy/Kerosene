@@ -151,6 +151,11 @@ impl ConVar {
             }
             v
         };
+        // `inf` and `nan` parse as numbers, and no range holds them: a
+        // clamped convar refuses them and keeps what it had.
+        if !f.is_finite() && (self.min.is_some() || self.max.is_some()) {
+            return;
+        }
         // Only rewrite the string when clamping actually moved the value, so
         // that a non-numeric convar (a map name, a player name) keeps its text.
         if clamped != f && f.is_finite() {
@@ -200,9 +205,28 @@ impl Args {
     }
 }
 
+/// `text` less its first word, which may be quoted, and the space after it.
+fn after_first_word(text: &str) -> &str {
+    let text = text.trim_start();
+    let end = match text.strip_prefix('"') {
+        Some(quoted) => quoted.find('"').map_or(text.len(), |i| i + 2),
+        None => text.find(char::is_whitespace).unwrap_or(text.len()),
+    };
+    text[end..].trim()
+}
+
 /// A concommand handler. Takes the console so commands can read convars,
 /// print, and enqueue further commands.
 pub type CommandFn = Arc<dyn Fn(&mut Console, &Args) + Send + Sync>;
+
+/// Offers what a command's argument could be, given what has been typed of
+/// it: map names for `map`, convar names for `revert`. See
+/// [`Console::register_completer`].
+pub type CompleteFn = Arc<dyn Fn(&Console, &str) -> Vec<String> + Send + Sync>;
+
+/// How many lines of history are kept, here and in the file a host keeps
+/// them in between sessions.
+pub const MAX_HISTORY: usize = 200;
 
 /// Called after a convar's value changes.
 pub type ChangeFn = Arc<dyn Fn(&mut Console, &str, &str) + Send + Sync>;
@@ -280,6 +304,8 @@ pub struct Console {
     /// picks it up once a frame. A queue rather than a slot because two
     /// requests in one config file must both survive.
     requests: VecDeque<(String, String)>,
+    /// What each command's arguments can be, for tab completion.
+    completers: HashMap<String, CompleteFn>,
 }
 
 /// A request a command left for the host.
@@ -342,6 +368,7 @@ impl Console {
             exec_handler: None,
             exec_depth: 0,
             requests: VecDeque::new(),
+            completers: HashMap::new(),
         };
         con.register_builtins();
         con
@@ -517,6 +544,60 @@ impl Console {
         out
     }
 
+    /// Say what `command`'s argument can be, for tab completion: the
+    /// function is given what has been typed of the argument and returns
+    /// every value it could become. Only the first argument completes.
+    pub fn register_completer(
+        &mut self,
+        command: &str,
+        f: impl Fn(&Console, &str) -> Vec<String> + Send + Sync + 'static,
+    ) -> &mut Self {
+        self.completers.insert(command.to_string(), Arc::new(f));
+        self
+    }
+
+    /// Whole lines a partly typed line could become: the command's name
+    /// while it is the only word, and then its argument, where the command
+    /// has a completer. Sorted, each a line to put back in the input.
+    pub fn complete_line(&self, line: &str) -> Vec<String> {
+        let line = line.trim_start();
+        let Some((command, argument)) = line.split_once(char::is_whitespace) else {
+            return self.complete(line);
+        };
+        let argument = argument.trim_start();
+        if argument.contains(char::is_whitespace) {
+            return Vec::new();
+        }
+        let Some(completer) = self.completers.get(command) else {
+            return Vec::new();
+        };
+        let mut out: Vec<String> = completer(self, argument)
+            .into_iter()
+            .filter(|v| v.starts_with(argument))
+            .map(|v| format!("{command} {v}"))
+            .collect();
+        out.sort();
+        out.dedup();
+        out
+    }
+
+    /// Every convar's name, hidden ones left out: a completer for commands
+    /// that take one.
+    pub fn convar_names(&self) -> Vec<String> {
+        self.cvars
+            .values()
+            .filter(|c| !c.flags.contains(ConVarFlags::HIDDEN))
+            .map(|c| c.name.clone())
+            .collect()
+    }
+
+    /// Replace the history, oldest first: what a host read back from the
+    /// last session. Only the newest [`MAX_HISTORY`] lines are kept.
+    pub fn set_history(&mut self, lines: Vec<String>) {
+        let skip = lines.len().saturating_sub(MAX_HISTORY);
+        self.history = lines.into_iter().skip(skip).collect();
+    }
+
     // ---- writing ---------------------------------------------------------
 
     /// Set a convar, running its change callbacks. Bypasses cheat protection;
@@ -536,6 +617,19 @@ impl Console {
                 return;
             }
         };
+        // Turning cheats off takes back what they did, as Source does: a
+        // noclip left on would otherwise outlive the permission for it.
+        if name == "sv_cheats" && !self.bool("sv_cheats") {
+            let cheats: Vec<(String, String)> = self
+                .cvars
+                .values()
+                .filter(|c| c.flags.contains(ConVarFlags::CHEAT) && !c.is_default())
+                .map(|c| (c.name.clone(), c.default.clone()))
+                .collect();
+            for (cheat, default) in cheats {
+                self.set(&cheat, &default);
+            }
+        }
         // Callbacks are cloned out first: they take `&mut Console`, and the
         // map they live in belongs to that same Console.
         if let Some(cbs) = self.change_callbacks.get(name).cloned() {
@@ -699,6 +793,9 @@ impl Console {
         }
         if self.history.last().map(String::as_str) != Some(trimmed) {
             self.history.push(trimmed.to_string());
+            if self.history.len() > MAX_HISTORY {
+                self.history.remove(0);
+            }
         }
         self.echo(format!("] {trimmed}"));
         self.execute(trimmed);
@@ -782,6 +879,24 @@ impl Console {
         !self.has_cvar("sv_cheats") || self.bool("sv_cheats")
     }
 
+    /// Set a convar on a player's say-so -- `toggle`, `revert` -- with cheat
+    /// protection held, as typing `name value` has it. Returns whether it
+    /// was set.
+    fn set_as_user(&mut self, name: &str, value: &str) -> bool {
+        let Some(cv) = self.cvars.get(name) else {
+            self.warn(format!("unknown convar '{name}'"));
+            return false;
+        };
+        if cv.flags.contains(ConVarFlags::CHEAT) && !self.cheats_enabled() {
+            self.warn(format!(
+                "{name} is cheat-protected; set sv_cheats 1 to change it"
+            ));
+            return false;
+        }
+        self.set(name, value);
+        true
+    }
+
     fn register_builtins(&mut self) {
         self.register_cvar(
             "developer",
@@ -839,7 +954,15 @@ impl Console {
                     con.aliases.remove(&name);
                     return;
                 }
-                let body = args.argv[2..].join(" ");
+                // `alias go "a; b"` -- one quoted body -- is the usual form,
+                // and its quotes come off so it runs as two commands. Written
+                // unquoted, the body is kept as typed, so a quoted argument
+                // inside it (`alias hi echo "one; two"`) stays one.
+                let body = if args.count() == 3 {
+                    args.argv[2].clone()
+                } else {
+                    after_first_word(&args.rest).to_string()
+                };
                 con.aliases.insert(name, body);
             },
         );
@@ -854,9 +977,30 @@ impl Console {
                     return;
                 };
                 let v = con.bool(&name);
-                con.set_bool(&name, !v);
+                con.set_as_user(&name, if v { "0" } else { "1" });
             },
         );
+        self.register_completer("toggle", |con, _| con.convar_names());
+
+        self.register_command(
+            "revert",
+            ConVarFlags::NONE,
+            "Put a convar back to its default: revert <convar>",
+            |con, args| {
+                let Some(name) = args.get(1).map(str::to_string) else {
+                    con.warn("usage: revert <convar>");
+                    return;
+                };
+                let Some(default) = con.cvars.get(&name).map(|c| c.default.clone()) else {
+                    con.warn(format!("unknown convar '{name}'"));
+                    return;
+                };
+                if con.set_as_user(&name, &default) {
+                    con.print(format!("\"{name}\" = \"{default}\""));
+                }
+            },
+        );
+        self.register_completer("revert", |con, _| con.convar_names());
 
         self.register_command(
             "incrementvar",
@@ -880,9 +1024,10 @@ impl Console {
                 if v < min {
                     v = max;
                 }
-                con.set_float(&name, v);
+                con.set_as_user(&name, &v.to_string());
             },
         );
+        self.register_completer("incrementvar", |con, _| con.convar_names());
 
         self.register_command(
             "exec",
@@ -1114,6 +1259,36 @@ mod tests {
     }
 
     #[test]
+    fn a_ranged_convar_refuses_what_is_not_a_finite_number() {
+        let mut c = Console::new();
+        c.register_cvar_ranged(
+            "volume",
+            "0.5",
+            Some(0.0),
+            Some(1.0),
+            ConVarFlags::ARCHIVE,
+            "",
+        );
+        for bad in ["nan", "inf", "-infinity"] {
+            c.execute(&format!("volume {bad}"));
+            assert_eq!(c.float("volume"), 0.5, "{bad}");
+        }
+    }
+
+    #[test]
+    fn an_alias_keeps_the_quotes_inside_its_body() {
+        let mut c = con();
+        c.execute(r#"alias hi echo "one; two""#);
+        c.execute("hi");
+        assert!(c.log().any(|l| l.text == "one; two"));
+        assert!(!c.log().any(|l| l.text.contains("unknown")));
+        // The usual form: one quoted body, run as two commands.
+        c.execute(r#"alias both "sv_gravity 1; sv_gravity 2""#);
+        c.execute("both");
+        assert_eq!(c.float("sv_gravity"), 2.0);
+    }
+
+    #[test]
     fn non_numeric_convars_keep_their_text() {
         let mut c = Console::new();
         c.register_cvar("map", "kero_start", ConVarFlags::NONE, "");
@@ -1160,6 +1335,58 @@ mod tests {
         });
         c.execute("sv_gravity 600");
         assert_eq!(&*seen.lock().unwrap(), "800");
+    }
+
+    #[test]
+    fn toggling_a_cheat_is_still_cheating() {
+        let mut c = con();
+        c.register_cvar("sv_noclip", "0", ConVarFlags::CHEAT, "");
+        c.execute("toggle sv_noclip; incrementvar sv_noclip 0 1 1");
+        assert!(!c.bool("sv_noclip"));
+        c.execute("sv_cheats 1; toggle sv_noclip");
+        assert!(c.bool("sv_noclip"));
+        // And turning cheats off takes it back.
+        c.execute("sv_cheats 0");
+        assert!(!c.bool("sv_noclip"));
+    }
+
+    #[test]
+    fn revert_puts_a_convar_back() {
+        let mut c = con();
+        c.execute("sv_gravity 100");
+        c.execute("revert sv_gravity");
+        assert_eq!(c.float("sv_gravity"), 800.0);
+        c.execute("revert nothing_here");
+        assert!(c.log().any(|l| l.text.contains("unknown convar")));
+    }
+
+    #[test]
+    fn arguments_complete_where_a_command_says_how() {
+        let mut c = con();
+        c.register_command("map", ConVarFlags::NONE, "", |_, _| {});
+        c.register_completer("map", |_, _| {
+            vec!["arena".into(), "atrium".into(), "bunker".into()]
+        });
+        assert_eq!(c.complete_line("ma"), ["map"]);
+        assert_eq!(c.complete_line("map a"), ["map arena", "map atrium"]);
+        assert_eq!(c.complete_line("map b"), ["map bunker"]);
+        assert!(c.complete_line("map arena extra").is_empty());
+        assert_eq!(c.complete_line("revert sv_g"), ["revert sv_gravity"]);
+        assert!(
+            c.complete_line("echo x").is_empty(),
+            "no completer, no guess"
+        );
+    }
+
+    #[test]
+    fn history_is_capped_and_can_be_restored() {
+        let mut c = con();
+        c.set_history((0..MAX_HISTORY + 10).map(|i| format!("echo {i}")).collect());
+        assert_eq!(c.history().len(), MAX_HISTORY);
+        assert_eq!(c.history()[0], "echo 10", "the oldest go");
+        c.execute_user("echo new");
+        assert_eq!(c.history().len(), MAX_HISTORY);
+        assert_eq!(c.history().last().unwrap(), "echo new");
     }
 
     #[test]

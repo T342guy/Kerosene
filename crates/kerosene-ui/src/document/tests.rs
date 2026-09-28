@@ -368,6 +368,24 @@ fn radial_fill_reaches_the_display_list() {
 }
 
 #[test]
+fn a_style_bound_to_nothing_yet_is_left_alone_and_not_complained_about() {
+    let (mut ui, mut store, f) = setup(
+        r#"<root><Panel id="cd" style="width: 64px; height: 64px; background-color: white" style:kero-fill="radial({ability.dash.cooldown})"/></root>"#,
+        &[],
+    );
+    frame(&mut ui, &mut store, &f);
+    assert!(
+        ui.take_messages().is_empty(),
+        "nothing is published yet, and that is normal"
+    );
+    let q = ui.display_list().quads().next().unwrap();
+    assert_eq!(q.fill.0, 0, "no fill until there is a value");
+    store.set("ability.dash.cooldown", 0.5);
+    frame(&mut ui, &mut store, &f);
+    assert_eq!(ui.display_list().quads().next().unwrap().fill, (1, 0.5));
+}
+
+#[test]
 fn includes_pull_in_other_layouts() {
     let (mut ui, mut store, f) = setup(
         r#"<root><Include src="ui/part.kui"/></root>"#,

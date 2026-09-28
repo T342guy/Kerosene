@@ -25,6 +25,22 @@ pub type RestoreHandler = fn(&mut EntityWorld, EntityId);
 /// an unhandled input can be reported rather than silently swallowed.
 pub type InputHandler = fn(&mut EntityWorld, EntityId, &crate::io::InputEvent) -> bool;
 
+/// Called on the tick the player starts touching the entity: walking into a
+/// pickup, brushing a hazard. The last argument is the player's entity.
+///
+/// Where a trigger fires outputs for a designer to wire, this is the
+/// class's own reaction, for behaviour that belongs to the thing itself.
+/// The engine tests the player's box against the entity's brush model, or
+/// for a point entity against a cube `touch_size` units across (32 unless
+/// the entity says).
+pub type TouchHandler = fn(&mut EntityWorld, EntityId, EntityId);
+
+/// Called when something damages the entity: a shot, an explosion, a
+/// `point_hurt`. The amount is positive; the attacker, when there is one, is
+/// who did it. Returns whether the entity took it, so a game can tell a hit
+/// that mattered from one that did not.
+pub type DamageHandler = fn(&mut EntityWorld, EntityId, f32, Option<EntityId>) -> bool;
+
 /// What the engine does with an entity's `model` key.
 ///
 /// The engine draws, animates and collides models, and the game decides
@@ -82,6 +98,10 @@ pub struct ClassDef {
     /// What the engine does with the entity's `model` key. See
     /// [`ClassDef::model`].
     pub model: Option<ModelRole>,
+    /// What it does when the player walks into it. See [`TouchHandler`].
+    pub touch: Option<TouchHandler>,
+    /// What it does when it is damaged. See [`DamageHandler`].
+    pub damage: Option<DamageHandler>,
 }
 
 impl ClassDef {
@@ -94,7 +114,21 @@ impl ClassDef {
             inputs: Vec::new(),
             outputs: Vec::new(),
             model: None,
+            touch: None,
+            damage: None,
         }
+    }
+
+    /// React to the player walking into it. See [`TouchHandler`].
+    pub fn on_touch(mut self, f: TouchHandler) -> Self {
+        self.touch = Some(f);
+        self
+    }
+
+    /// React to being damaged. See [`DamageHandler`].
+    pub fn on_damage(mut self, f: DamageHandler) -> Self {
+        self.damage = Some(f);
+        self
     }
 
     /// Give the class a model the engine draws and collides with, in the
@@ -230,5 +264,13 @@ impl ClassRegistry {
 
     pub fn restore_handler(&self, classname: &str) -> Option<RestoreHandler> {
         self.get(classname).and_then(|c| c.restore)
+    }
+
+    pub fn touch_handler(&self, classname: &str) -> Option<TouchHandler> {
+        self.get(classname).and_then(|c| c.touch)
+    }
+
+    pub fn damage_handler(&self, classname: &str) -> Option<DamageHandler> {
+        self.get(classname).and_then(|c| c.damage)
     }
 }

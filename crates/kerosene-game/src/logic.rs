@@ -247,14 +247,25 @@ fn input_get_value(world: &mut EntityWorld, id: EntityId, _e: &InputEvent) -> bo
     true
 }
 
+/// A counter's limits, made usable: a limit that is not a number is no
+/// limit, and a pair typed the wrong way round is swapped.
+fn limits(min: f32, max: f32) -> (f32, f32) {
+    let min = if min.is_nan() { f32::NEG_INFINITY } else { min };
+    let max = if max.is_nan() { f32::INFINITY } else { max };
+    if min > max { (max, min) } else { (min, max) }
+}
+
 /// Set a counter, clamping to its limits and firing when it reaches one.
 fn set_value(world: &mut EntityWorld, id: EntityId, raw: f32) {
     let Some(entity) = world.get(id) else { return };
-    let min = entity.fields.f32("min", f32::NEG_INFINITY);
-    let max = entity.fields.f32("max", f32::INFINITY);
+    let (min, max) = limits(
+        entity.fields.f32("min", f32::NEG_INFINITY),
+        entity.fields.f32("max", f32::INFINITY),
+    );
     let previous = entity.fields.f32("value", 0.0);
 
-    let value = raw.clamp(min, max);
+    // Not `clamp`: that panics on limits a mapper typed the wrong way round.
+    let value = raw.max(min).min(max);
     set_field(world, id, "value", Value::Float(value));
     world.fire_output(id, "OutValue", None, Some(&value.to_string()));
 

@@ -314,10 +314,9 @@ impl Engine {
                     } else {
                         name
                     };
-                    if let Err(e) = self.save_game(name) {
-                        self.console.warn(format!("autosave: {e}"));
-                    }
+                    self.pending_save = Some(name.to_string());
                 }
+                kind if self.gameplay_entity_request(kind, &request.payload, request.caller) => {}
                 kind if self.ui_entity_request(kind, &request.payload, request.caller) => {}
                 kind if self.platform_entity_request(kind, &request.payload, request.caller) => {}
                 _ => {
@@ -402,24 +401,13 @@ impl Engine {
         }
 
         let handle = self.audio.start(sound, params);
-        if let Some(e) = self.entities.get_mut(id) {
-            e.fields
-                .set("__voice", kerosene_entity::Value::Int(handle.0 as i32));
-        }
+        self.entity_voices.insert(id, handle);
     }
 
     /// Stop whatever an entity started.
     pub fn stop_entity_sound(&mut self, id: kerosene_entity::EntityId) {
-        let handle = self
-            .entities
-            .get(id)
-            .map(|e| e.fields.i32("__voice", 0))
-            .unwrap_or(0);
-        if handle > 0 {
-            self.audio.stop(kerosene_audio::SoundHandle(handle as u64));
-        }
-        if let Some(e) = self.entities.get_mut(id) {
-            e.fields.set("__voice", kerosene_entity::Value::Int(0));
+        if let Some(handle) = self.entity_voices.remove(&id) {
+            self.audio.stop(handle);
         }
     }
 }

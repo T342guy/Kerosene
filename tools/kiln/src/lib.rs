@@ -22,13 +22,16 @@
 
 use anyhow::{Context, Result, bail};
 use kerosene_vfs::project::Project;
-use kerosene_vfs::toolchain;
+use kerosene_vfs::{ext, toolchain};
+use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
+use std::time::SystemTime;
 
 mod cli;
 pub mod ship;
 pub mod steam;
+pub mod watch;
 
 pub use cli::run;
 
@@ -151,7 +154,7 @@ impl Default for Settings {
 }
 
 impl Settings {
-    fn runs(&self, stage: Stage) -> bool {
+    pub(crate) fn runs(&self, stage: Stage) -> bool {
         self.stages.contains(&stage)
     }
 
@@ -292,8 +295,11 @@ pub fn build(settings: &Settings) -> Result<Report> {
         if maps.is_empty() {
             println!("  no .kmap sources under maps/")
         }
+        // Cleave sizes every face by its texture and Resonance reads every
+        // material, so a map is only as current as the newest of those too.
+        let materials = newest(&settings.content, &[ext::MATERIAL, ext::TEXTURE]);
         for map in &maps {
-            if !settings.force && map_is_current(map, settings.fast) {
+            if !settings.force && map_is_current(map, settings.fast, materials) {
                 report.maps_skipped += 1;
                 continue;
             }
@@ -332,9 +338,6 @@ fn say(stage: &str) {
     println!("==> {stage}");
 }
 
-/// Whether `output` exists and was written no earlier than `source` was
-/// last changed. A missing or unreadable time is "not current": rebuilding
-/// something needlessly is cheap, skipping something stale is not.
 /// What [`clean`] took away.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Cleaned {
@@ -356,16 +359,21 @@ pub fn clean(
             return Ok(());
         };
         for entry in entries {
-            let path = entry?.path();
-            if path.is_dir() {
+            let entry = entry?;
+            let path = entry.path();
+            // The entry's own type, as Vault does: a symlinked directory is
+            // not followed, so a link to shared content outside the project
+            // cannot have its files deleted, and a link back up the tree
+            // cannot recurse forever.
+            let kind = entry.file_type()?;
+            if kind.is_dir() {
                 walk(&path, dry_run, out)?;
                 continue;
             }
-            let compiled = path
-                .extension()
-                .and_then(|e| e.to_str())
-                .is_some_and(|e| kerosene_vfs::COMPILED_EXTENSIONS.contains(&e));
-            if compiled {
+            let compiled = kerosene_vfs::COMPILED_EXTENSIONS
+                .iter()
+                .any(|e| ext::is(&path, e));
+            if kind.is_file() && compiled {
                 remove(&path, dry_run, out)?;
             }
         }
@@ -389,6 +397,9 @@ pub fn clean(
     Ok(out)
 }
 
+/// Whether `output` exists and was written no earlier than `source` was
+/// last changed. A missing or unreadable time is "not current": rebuilding
+/// something needlessly is cheap, skipping something stale is not.
 pub fn is_current(source: &Path, output: &Path) -> bool {
     source.exists() && kerosene_vfs::up_to_date(output, &[source])
 }
@@ -402,9 +413,15 @@ fn build_stamp(map: &Path) -> PathBuf {
 /// Whether a map's compiled form is newer than its source and was built at
 /// least as thoroughly as this build wants: a fast build is current for
 /// another fast build, never for a full one.
-fn map_is_current(map: &Path, fast: bool) -> bool {
-    let compiled = map.with_extension("kbsp");
+fn map_is_current(map: &Path, fast: bool, materials: Option<SystemTime>) -> bool {
+    let compiled = map.with_extension(ext::BSP);
     if !is_current(map, &compiled) || !is_current(map, &build_stamp(map)) {
+        return false;
+    }
+    let stamped = build_stamp(map).metadata().and_then(|m| m.modified()).ok();
+    if let (Some(stamped), Some(materials)) = (stamped, materials)
+        && materials > stamped
+    {
         return false;
     }
     let stamp = std::fs::read_to_string(build_stamp(map)).unwrap_or_default();
@@ -415,14 +432,96 @@ fn map_is_current(map: &Path, fast: bool) -> bool {
     }
 }
 
-/// Whether an archive is newer than every file it would pack.
+/// Whether an archive holds exactly what packing would put in it now, and is
+/// newer than all of it. Newer alone is not enough: a deleted file would stay
+/// packed, and a pack cut short would leave an archive that is newest of all.
 fn archive_is_current(content: &Path, archive: &Path) -> bool {
     archive.is_file()
-        && ship::newer_than(content, archive).iter().all(|p| {
-            !p.extension()
-                .and_then(|e| e.to_str())
-                .is_some_and(|e| PACKED.contains(&e.to_ascii_lowercase().as_str()))
-        })
+        && stale_packed(content, archive).is_empty()
+        && archive_matches(content, archive)
+}
+
+/// Whether a file is one of the kinds an archive holds.
+fn is_packed(path: &Path) -> bool {
+    PACKED.iter().any(|e| ext::is(path, e))
+}
+
+/// The files an archive would hold that changed after it was written. The
+/// check a pack and a ship make alike, so the one cannot call an archive
+/// up to date that the other then refuses.
+pub(crate) fn stale_packed(content: &Path, archive: &Path) -> Vec<PathBuf> {
+    ship::newer_than(content, archive)
+        .into_iter()
+        .filter(|p| is_packed(p))
+        .collect()
+}
+
+/// Whether the archive opens and lists the same files the tree has to pack.
+fn archive_matches(content: &Path, archive: &Path) -> bool {
+    fn walk(root: &Path, dir: &Path, out: &mut BTreeSet<String>) {
+        for entry in std::fs::read_dir(dir).into_iter().flatten().flatten() {
+            let path = entry.path();
+            let Ok(kind) = entry.file_type() else {
+                continue;
+            };
+            if kind.is_dir() {
+                walk(root, &path, out);
+            } else if kind.is_file() && is_packed(&path) {
+                let relative = path.strip_prefix(root).unwrap_or(&path);
+                if let Some(key) = kerosene_vfs::path::key(&relative.to_string_lossy()) {
+                    out.insert(key);
+                }
+            }
+        }
+    }
+    let Ok(packed) = kerosene_vfs::Archive::open(archive) else {
+        return false;
+    };
+    let packed: BTreeSet<String> = packed
+        .entries()
+        .iter()
+        .map(|e| e.path.to_lowercase())
+        .collect();
+    let mut tree = BTreeSet::new();
+    walk(content, content, &mut tree);
+    packed == tree
+}
+
+/// When the newest file under `dir` with one of `extensions` was written.
+fn newest(dir: &Path, extensions: &[&str]) -> Option<SystemTime> {
+    let mut latest = None;
+    for entry in std::fs::read_dir(dir).into_iter().flatten().flatten() {
+        let path = entry.path();
+        let Ok(kind) = entry.file_type() else {
+            continue;
+        };
+        let found = if kind.is_dir() {
+            newest(&path, extensions)
+        } else if extensions.iter().any(|e| ext::is(&path, e)) {
+            entry.metadata().and_then(|m| m.modified()).ok()
+        } else {
+            None
+        };
+        latest = latest.max(found);
+    }
+    latest
+}
+
+/// The model a mesh source under `<content>/art` compiles to, or `None` for
+/// one outside it.
+///
+/// `art/props/crate.obj` becomes `models/props/crate.kmdl`: the path under
+/// `art` is the path under `models`, so a model's name is decided by where
+/// its source is rather than by a list somebody has to remember to update.
+/// Public so the toolset's asset browser tells the same story as the build.
+pub fn model_output(content: &Path, source: &Path) -> Option<PathBuf> {
+    let relative = source.strip_prefix(content.join("art")).ok()?;
+    Some(
+        content
+            .join("models")
+            .join(relative)
+            .with_extension(ext::MODEL),
+    )
 }
 
 /// Compile every `.obj`, `.gltf` and `.glb` under the art tree that is newer
@@ -437,15 +536,8 @@ fn build_models(settings: &Settings) -> Result<(usize, usize)> {
     let mut current = 0;
 
     for source in &sources {
-        // `art/props/crate.obj` becomes `models/props/crate.kmdl`: the
-        // path under `art` is the path under `models`, so a model's name is
-        // decided by where its source is rather than by a list somebody has
-        // to remember to update.
-        let relative = source
-            .strip_prefix(&art)
-            .unwrap_or(source)
-            .with_extension("kmdl");
-        let out = settings.content.join("models").join(&relative);
+        let out = model_output(&settings.content, source)
+            .unwrap_or_else(|| source.with_extension(ext::MODEL));
         if !settings.force && is_current(source, &out) {
             current += 1;
             continue;
@@ -479,52 +571,51 @@ fn build_map(settings: &Settings, map: &Path, report: &mut Report) -> Result<()>
         .into_owned();
     println!("--- {name}");
 
-    let compiled = map.with_extension("kbsp");
-    let mut args = vec![map.display().to_string()];
-    if settings.ignore_leaks {
-        args.push("--ignore-leaks".into())
+    let leak = map.with_extension(ext::LEAK);
+    if !settings.dry_run {
+        // Neither may outlive the compile they described. A stamp left from
+        // the last build would call this one done if it stops part way; a
+        // leak trace left from it would make a map that fails for another
+        // reason look as if it leaked.
+        for stale in [build_stamp(map), leak.clone()] {
+            if stale.is_file() {
+                std::fs::remove_file(&stale)
+                    .with_context(|| format!("removing {}", stale.display()))?;
+            }
+        }
     }
-    let sealed = run_tool("cleave", &args, settings);
+    let stages = toolchain::MapStages {
+        fast: settings.fast,
+        ignore_leaks: settings.ignore_leaks,
+        ..toolchain::MapStages::new(map, &settings.content)
+    };
+    let mut commands = stages.commands().into_iter();
+    let (cleave, args) = commands.next().expect("cleave is always the first stage");
+    let sealed = run_tool(cleave, &args, settings);
+    let leaked = !settings.dry_run && leak.is_file();
 
     // A leak is reported rather than fatal to the *build*: Cleave writes the
     // trace and refuses the map, and finding out at the end of a build of
     // forty maps beats finding out on the first one. The other stages are
     // skipped -- there is no BSP to light or cull -- unless the leak was
-    // waved through with --ignore-leaks, in which case there is.
-    if !settings.dry_run && map.with_extension("kleak").is_file() {
-        report.leaking.push(name.clone());
-    }
-    if let Err(e) = sealed {
-        if report.leaking.last() == Some(&name) {
+    // waved through with --ignore-leaks, in which case the map is built and
+    // the leak is only worth a line.
+    match sealed {
+        Err(_) if leaked => {
+            report.leaking.push(name.clone());
             println!("  {name} leaks; skipping vis, acoustics and lighting");
             return Ok(());
         }
-        return Err(e);
+        Err(e) => return Err(e),
+        Ok(()) if leaked => {
+            println!("  warning: {name} leaks; built anyway (--ignore-leaks)");
+        }
+        Ok(()) => {}
     }
 
-    let mut args = vec![compiled.display().to_string()];
-    if settings.fast {
-        args.push("--fast".into())
+    for (tool, args) in commands {
+        run_tool(tool, &args, settings)?;
     }
-    run_tool("umbra", &args, settings)?;
-
-    // Acoustics read the materials, so they are told where the content is
-    // rather than left to find it.
-    let mut args = vec![
-        compiled.display().to_string(),
-        "--content".into(),
-        settings.content.display().to_string(),
-    ];
-    if settings.fast {
-        args.push("--fast".into())
-    }
-    run_tool("resonance", &args, settings)?;
-
-    let mut args = vec![compiled.display().to_string()];
-    if settings.fast {
-        args.push("--fast".into())
-    }
-    run_tool("radiance", &args, settings)?;
     // Written last, so a build that stopped part way leaves no stamp and is
     // done again next time.
     if !settings.dry_run {

@@ -1,0 +1,9 @@
+// The splash takes itself down.
+
+fn on_load() {
+    schedule(2.0, "done");
+}
+
+fn done() {
+    hide_layer("splash");
+}

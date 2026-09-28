@@ -342,6 +342,29 @@ impl Vfs {
         })
     }
 
+    /// The file on disk that would serve this path, when a directory serves
+    /// it rather than an archive: for watching a loose file for changes.
+    pub fn disk_path(&self, vpath: &str) -> Option<PathBuf> {
+        let key = normalize(vpath)?;
+        let folded = key.to_lowercase();
+        for sp in &self.paths {
+            match &sp.layer {
+                Layer::Directory(dir) => {
+                    let exact = dir.join(&key);
+                    if exact.is_file() {
+                        return Some(exact);
+                    }
+                    if let Some(found) = path::find_ignoring_case(dir, &key) {
+                        return Some(found);
+                    }
+                }
+                Layer::Archive(a) if a.contains(&folded) => return None,
+                Layer::Archive(_) => {}
+            }
+        }
+        None
+    }
+
     /// Which layer would serve this path -- what a `whereis` command reports.
     pub fn locate(&self, vpath: &str) -> Option<String> {
         let key = normalize(vpath)?;

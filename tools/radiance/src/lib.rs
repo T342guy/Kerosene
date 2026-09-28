@@ -152,6 +152,14 @@ pub fn run(args: Vec<String>) -> Result<()> {
             "  {} cubemap probe(s) at {}x{} a face",
             probe_stats.probes, args.cubemap_size, args.cubemap_size
         );
+        if origins.len() > kerosene_bsp::cubemaps::MAX_PROBES {
+            println!(
+                "  warning: {} env_cubemaps, but only the first {} are used in game; \
+                 remove some, or the rest reflect a probe somewhere else",
+                origins.len(),
+                kerosene_bsp::cubemaps::MAX_PROBES
+            );
+        }
         if probe_stats.buried > 0 {
             println!(
                 "  warning: {} env_cubemap(s) inside a wall see nothing; move them into the room",

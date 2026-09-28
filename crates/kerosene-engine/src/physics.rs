@@ -532,6 +532,15 @@ impl PhysicsProps {
         out
     }
 
+    /// World-space boxes of the moving props, with whose each is: what a
+    /// trigger that notices physics objects tests against.
+    pub fn prop_boxes(&self) -> Vec<(EntityId, Aabb)> {
+        self.props
+            .iter()
+            .map(|(&id, prop)| (id, prop_aabb(&self.rigid, prop)))
+            .collect()
+    }
+
     /// Number of `prop_static` bodies.
     pub fn static_prop_count(&self) -> usize {
         self.statics.len()

@@ -161,6 +161,7 @@ impl Engine {
         let angles = angles.clamped_view();
         self.player.view_angles = angles;
         self.input.view_angles = angles;
+        self.view_forced = true;
     }
 
     /// Take the camera away from the player's eye -- a cutscene, a death
@@ -275,5 +276,33 @@ mod tests {
             Angles::ZERO,
             "gone after its time"
         );
+    }
+
+    #[test]
+    fn a_new_map_ends_the_last_ones_shakes() {
+        let mut engine = Engine::new(&EngineConfig::default());
+        engine.load_map(crate::base::FALLBACK_MAP).unwrap();
+        ticks(&mut engine, 64);
+        engine.screen_shake(5.0, 10.0, 2.0);
+        engine.view_punch(Angles::new(-4.0, 0.0, 0.0));
+        // The clock goes back to the start with the new map.
+        engine.load_map(crate::base::FALLBACK_MAP).unwrap();
+        ticks(&mut engine, 1);
+        assert_eq!(
+            engine.view_camera(0.0).1.pitch,
+            engine.player.view_angles.pitch
+        );
+        assert!(engine.view.shakes.is_empty() && engine.view.punch == Angles::ZERO);
+    }
+
+    #[test]
+    fn a_frame_keeps_a_facing_the_engine_set_mid_frame() {
+        let mut engine = Engine::new(&EngineConfig::default());
+        // What the host read before the frame: looking along +x.
+        let stale = InputState::default();
+        engine.set_view_angles(Angles::new(0.0, 90.0, 0.0));
+        // A frame long enough for several ticks, all fed the stale input.
+        engine.frame(0.1, &stale);
+        assert_eq!(engine.player.view_angles.yaw, 90.0);
     }
 }

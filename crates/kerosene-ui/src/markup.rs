@@ -216,8 +216,12 @@ fn escape_code(source: &str) -> String {
             }
             State::Raw(name) => {
                 let close = format!("</{name}");
-                if source[i..].len() >= close.len()
-                    && source[i..i + close.len()].eq_ignore_ascii_case(&close)
+                // `get`, not an index: the slice can end inside a character
+                // -- an accented letter in a script's comment -- and that is
+                // only a place the close tag is not.
+                if source
+                    .get(i..i + close.len())
+                    .is_some_and(|s| s.eq_ignore_ascii_case(&close))
                 {
                     state = State::Tag;
                     tag.clear();

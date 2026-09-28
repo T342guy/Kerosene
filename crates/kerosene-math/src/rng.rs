@@ -60,8 +60,15 @@ impl Rng {
         if hi <= lo {
             return lo;
         }
-        let span = (hi - lo) as u64 + 1;
-        lo + (self.next_u64() % span) as i64
+        // In wrapping arithmetic, so a range wider than `i64` can hold --
+        // a script's `rand_int(-5e18, 5e18)` -- is still a range. The only
+        // span that wraps to nothing is every `i64` there is.
+        let span = hi.wrapping_sub(lo) as u64;
+        let offset = match span.checked_add(1) {
+            Some(span) => self.next_u64() % span,
+            None => self.next_u64(),
+        };
+        lo.wrapping_add(offset as i64)
     }
 
     /// `true` with probability `p` (0 to 1).
@@ -128,5 +135,15 @@ mod tests {
     fn a_text_seed_is_stable() {
         assert_eq!(Rng::seed_from("kero"), Rng::seed_from("kero"));
         assert_ne!(Rng::seed_from("kero"), Rng::seed_from("kerp"));
+    }
+
+    #[test]
+    fn the_widest_ranges_neither_overflow_nor_divide_by_zero() {
+        let mut r = Rng::new(7);
+        for _ in 0..1000 {
+            let i = r.range_int(-5_000_000_000_000_000_000, 5_000_000_000_000_000_000);
+            assert!((-5_000_000_000_000_000_000..=5_000_000_000_000_000_000).contains(&i));
+            r.range_int(i64::MIN, i64::MAX);
+        }
     }
 }

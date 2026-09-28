@@ -4,7 +4,10 @@ In the order you will do them. Each item links to the page that explains it.
 
 ## Before the build
 
-- [ ] `startmap` in `.kproj` names the map the game should open on.
+- [ ] `startmap` in `.kproj` names the map New Game starts on.
+- [ ] The main menu, splash and loading screen are the game's own, or the base
+      ones are what you want: ship `ui/menus/main.kui`, `splash.kui`,
+      `loading.kui` to replace them.
 - [ ] `game` in `.kproj` names your Cargo package — or is deliberately
       absent, because you are shipping a content-only project on the stock
       runtime. ([Making a game](making-a-game.md#the-project-file))

@@ -20,6 +20,7 @@
 //! levels, where there is no detail to see a seam in.
 
 use kerosene_bsp::cubemaps::FACES;
+pub use kerosene_bsp::cubemaps::MAX_PROBES;
 use kerosene_bsp::{Cubemaps, decode_rgb9e5, encode_rgb9e5};
 use kerosene_math::Vec3;
 
@@ -49,9 +50,17 @@ impl ProbeChain {
         };
 
         let size = cubemaps.face_size;
-        let layers = (cubemaps.probes.len() * FACES) as u32;
+        let probes = &cubemaps.probes[..cubemaps.probes.len().min(MAX_PROBES)];
+        if probes.len() < cubemaps.probes.len() {
+            log::warn!(
+                "this map has {} cubemap probes; only the first {MAX_PROBES} fit on the GPU, \
+                 and surfaces nearer the others reflect the last of those",
+                cubemaps.probes.len()
+            );
+        }
+        let layers = (probes.len() * FACES) as u32;
         let mut level: Vec<u32> = Vec::with_capacity(layers as usize * (size * size) as usize);
-        for probe in &cubemaps.probes {
+        for probe in probes {
             level.extend_from_slice(&probe.texels);
         }
 
@@ -152,5 +161,12 @@ mod tests {
         assert!((level1.x - 4.0).abs() < 0.05, "a quarter of it: {level1}");
         // And it stays on its own face: the second layer is untouched.
         assert_eq!(decode_rgb9e5(chain.levels[1][4]), Vec3::ZERO);
+    }
+
+    #[test]
+    fn more_probes_than_fit_are_dropped_not_uploaded() {
+        let chain = ProbeChain::build(Some(&uniform(1, MAX_PROBES + 5, Vec3::ONE)));
+        assert_eq!(chain.layers as usize, MAX_PROBES * FACES);
+        assert!(chain.layers <= 256);
     }
 }

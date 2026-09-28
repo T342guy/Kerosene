@@ -13,6 +13,26 @@ fn resume() {
 }
 
 fn restart() {
-    command("map " + store("map.name"));
+    command("restart");
+    resume();
+}
+
+// A save picked from the list: overwritten on the save page, loaded on the
+// load page.
+fn pick_save(name) {
+    if store("ui.page") == "save" {
+        command("save " + name);
+        resume();
+    } else {
+        command("load " + name);
+        resume();
+    }
+}
+
+// A save of its own, named after the map and numbered past the last.
+fn new_save() {
+    let count = store("saves.count");
+    if count == () { count = 0; }
+    command("save " + store("map.name") + "_" + (count + 1));
     resume();
 }

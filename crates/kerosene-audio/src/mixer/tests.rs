@@ -704,3 +704,23 @@ fn a_paused_world_holds_its_sounds_and_the_interface_plays_on() {
     let (l, r) = peaks(&mut m, 480);
     assert!(l > 0.0 && r > 0.0, "and carries on when unpaused");
 }
+
+#[test]
+fn a_sound_placed_nowhere_does_not_silence_the_rest() {
+    let mut mixer = mixer();
+    mixer.play(steady(100_000, 1), SoundParams::default());
+    let lost = mixer.play(
+        steady(100_000, 1),
+        SoundParams {
+            position: Some(Vec3::new(f32::NAN, 0.0, 0.0)),
+            looping: true,
+            ..Default::default()
+        },
+    );
+    let (l, r) = peaks(&mut mixer, 256);
+    assert!(l > 0.9 && r > 0.9, "the other sound went quiet: {l} {r}");
+    // Put back somewhere real, it is heard again.
+    mixer.set_position(lost, Vec3::ZERO);
+    let (l, _) = peaks(&mut mixer, 4096);
+    assert!(l.is_finite() && l >= 0.99, "{l}");
+}

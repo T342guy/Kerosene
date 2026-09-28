@@ -23,6 +23,10 @@
 use kerosene_entity::{EntityId, EntityWorld, Value};
 use kerosene_math::Vec3;
 
+/// A trigger's spawnflag for noticing physics props as well as the player,
+/// as Source numbers it.
+pub const SF_PHYSICS_OBJECTS: u32 = 8;
+
 fn set_field(world: &mut EntityWorld, id: EntityId, key: &str, value: Value) {
     if let Some(e) = world.get_mut(id) {
         e.fields.set(key, value);

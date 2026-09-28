@@ -148,18 +148,25 @@ impl ConsoleUi {
             return;
         }
 
-        // Only the command word completes; arguments are values, and guessing
-        // at those would fight the person typing.
-        let prefix = self.input.trim_start();
-        if prefix.contains(char::is_whitespace) || prefix.is_empty() {
+        // The command word, and then its argument where the command says
+        // what that can be: map names for `map`, convars for `revert`.
+        let prefix = self.input.trim_start().to_string();
+        if prefix.is_empty() {
             return;
         }
+        let is_command = !prefix.contains(char::is_whitespace);
 
-        let candidates = console.complete(prefix);
+        let candidates = console.complete_line(&prefix);
         match candidates.len() {
             0 => {}
             1 => {
-                self.input = format!("{} ", candidates[0]);
+                // A space after a command, ready for its argument; none
+                // after the argument, which may be the end of the line.
+                self.input = if is_command {
+                    format!("{} ", candidates[0])
+                } else {
+                    candidates[0].clone()
+                };
                 self.completions.clear();
             }
             _ => {

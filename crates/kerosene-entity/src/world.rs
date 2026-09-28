@@ -149,6 +149,18 @@ pub mod host_requests {
     pub const CHANGE_LEVEL: &str = "changelevel";
     /// Save the game. The payload is the save's name.
     pub const SAVE: &str = "save";
+    /// Move the player to the caller, facing the way it faces.
+    pub const TELEPORT_PLAYER: &str = "teleport_player";
+    /// Hurt the player. The payload is `damage [radius]`: with a radius,
+    /// only if the player is that close to the caller, and less the further
+    /// away they are.
+    pub const HURT_PLAYER: &str = "hurt_player";
+    /// Heal the player, up to their maximum. The payload is the amount. The
+    /// engine fires `OnPlayerHealed` on the caller and removes it if any
+    /// health was given, and `OnHealthFull` if none was needed.
+    pub const HEAL_PLAYER: &str = "heal_player";
+    /// End the game: back to the main menu. The payload is ignored.
+    pub const END_GAME: &str = "end_game";
 }
 
 impl EntityWorld {
@@ -512,7 +524,13 @@ impl EntityWorld {
 
     /// Deliver an input to one entity immediately.
     pub fn accept_input(&mut self, target: EntityId, event: &InputEvent) -> bool {
-        let Some(classname) = self.get(target).map(|e| e.classname.clone()) else {
+        // One killed earlier in the tick is gone as far as anyone wiring to
+        // it can tell, although its slot is not reclaimed until the end.
+        let Some(classname) = self
+            .get(target)
+            .filter(|e| !e.pending_removal)
+            .map(|e| e.classname.clone())
+        else {
             return false;
         };
         let registry = self.registry.clone();
@@ -641,8 +659,10 @@ impl EntityWorld {
         for (id, classname) in due {
             // Clear it first so a handler that does not reschedule stops,
             // rather than being called every tick forever.
-            if let Some(e) = self.get_mut(id) {
-                e.next_think = None;
+            match self.get_mut(id) {
+                Some(e) if !e.pending_removal => e.next_think = None,
+                // Killed earlier in the tick, perhaps by the think before.
+                _ => continue,
             }
             if let Some(think) = registry.think_handler(&classname) {
                 think(self, id);

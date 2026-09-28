@@ -534,8 +534,14 @@ impl Mixer {
 
         // Clipping rather than wrapping: a sum over 1.0 has to become loud,
         // not become a different waveform.
+        // And a sample that is not a number becomes silence, here, rather
+        // than whatever the device makes of it.
         for sample in out.iter_mut() {
-            *sample = sample.clamp(-1.0, 1.0);
+            *sample = if sample.is_nan() {
+                0.0
+            } else {
+                sample.clamp(-1.0, 1.0)
+            };
         }
     }
 
@@ -579,7 +585,9 @@ pub fn gains_for(params: &SoundParams, listener: &Listener) -> [f32; 2] {
 
     let to_sound = position - listener.position;
     let distance = to_sound.length();
-    if distance >= params.max_distance {
+    // Written so a position that is not a number is out of range too: a
+    // NaN gain would never ramp back, and would take the whole mix with it.
+    if distance.is_nan() || params.max_distance.is_nan() || distance >= params.max_distance {
         return [0.0, 0.0];
     }
 

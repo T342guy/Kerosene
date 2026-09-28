@@ -5,6 +5,7 @@
 //! kerosene-tools play                     # the project's start map
 //! kerosene-tools play +map mg_intro       # anything after is the game's
 //! kerosene-tools play --full              # light the maps properly first
+//! kerosene-tools play --watch             # rebuild on every save, reload the map
 //! kerosene-tools play --release -- --headless 600
 //! ```
 //!
@@ -30,6 +31,7 @@ struct Args {
     full: bool,
     release: bool,
     quiet: bool,
+    watch: bool,
     /// Passed to the game untouched.
     game: Vec<String>,
 }
@@ -42,6 +44,7 @@ fn parse(args: &[String]) -> Result<Args> {
             "--full" => parsed.full = true,
             "--release" => parsed.release = true,
             "-q" | "--quiet" => parsed.quiet = true,
+            "-w" | "--watch" => parsed.watch = true,
             "--content" => {
                 i += 1;
                 let dir = args.get(i).context("--content needs a directory")?;
@@ -64,13 +67,15 @@ fn parse(args: &[String]) -> Result<Args> {
 }
 
 pub const HELP: &str = "\
-usage: play [--full] [--release] [--quiet] [--content <dir>] [--] [game arguments...]
+usage: play [--full] [--release] [--quiet] [--watch] [--content <dir>] [--] [game arguments...]
 
 Build whatever changed since the last build, then run the game.
 
   --full            Build maps with full visibility and lighting (slower).
   --release         Build and run the game optimised.
   --quiet, -q       Keep the compilers' output to errors.
+  --watch, -w       While the game runs, build again whenever a source changes;
+                    the game reloads a rebuilt map where you stand.
   --content <dir>   The content tree, when it cannot be found from here.
 
 Everything else goes to the game: play +map mg_intro +sv_cheats 1
@@ -91,6 +96,7 @@ pub fn run(args: Vec<String>, runtime: Option<Runtime>) -> Result<()> {
 
     // No tree is not a failure: a game crate with no content of its own
     // yet runs on the engine's base content.
+    let mut watching = None;
     if let Some(found) = &found {
         let settings = kiln::Settings {
             content: found.root.clone(),
@@ -106,11 +112,13 @@ pub fn run(args: Vec<String>, runtime: Option<Runtime>) -> Result<()> {
             ..Default::default()
         };
         let report = kiln::build(&settings)?;
-        // A leaking map still has last build's BSP, or none; either way the
-        // game says what it could not load, and the leak is worth a line.
-        for map in &report.leaking {
-            println!("warning: {map} leaks and was not rebuilt; open it in Chisel to see where");
+        warn_leaks(&report);
+        if args.watch {
+            watching = Some(settings);
         }
+    }
+    if args.watch && watching.is_none() {
+        bail!("--watch needs a content tree to watch; run from a project, or pass --content");
     }
 
     let runtime = runtime.unwrap_or_else(|| Runtime::for_project(project.as_ref()));
@@ -128,14 +136,46 @@ pub fn run(args: Vec<String>, runtime: Option<Runtime>) -> Result<()> {
     if let Some(content) = args.content.as_ref().and_then(|c| c.canonicalize().ok()) {
         command.arg("--content").arg(content);
     }
-    let status = command
+    // Straight into the start map: `play` is for trying the game, and the
+    // main menu is a click in the way every time.
+    command.arg("-nomenu");
+    if watching.is_some() {
+        // Before the game's own, so its `+map` still comes after.
+        command.args(["+map_autoreload", "1"]);
+    }
+    let mut child = command
         .args(&args.game)
-        .status()
+        .spawn()
         .with_context(|| format!("starting {}", runtime.describe()))?;
+    if let Some(settings) = &watching {
+        println!(
+            "==> watching {} while the game runs",
+            settings.content.display()
+        );
+        kiln::watch::watch(
+            settings,
+            || matches!(child.try_wait(), Ok(None)),
+            |built| match built {
+                Ok(report) => warn_leaks(&report),
+                Err(e) => eprintln!("error: {e:#}"),
+            },
+        );
+    }
+    let status = child
+        .wait()
+        .with_context(|| format!("waiting for {}", runtime.describe()))?;
     if !status.success() {
         bail!("the game exited with {status}");
     }
     Ok(())
+}
+
+/// A leaking map still has last build's BSP, or none; either way the game
+/// says what it could not load, and the leak is worth a line.
+fn warn_leaks(report: &kiln::Report) {
+    for map in &report.leaking {
+        println!("warning: {map} leaks and was not rebuilt; open it in Chisel to see where");
+    }
 }
 
 #[cfg(test)]
@@ -149,7 +189,8 @@ mod tests {
     #[test]
     fn plays_own_flags_come_first_and_the_rest_is_the_games() {
         let parsed = parse(&args(&["--full", "-q", "+map", "x", "--full"])).unwrap();
-        assert!(parsed.full && parsed.quiet && !parsed.release);
+        assert!(parsed.full && parsed.quiet && !parsed.release && !parsed.watch);
+        assert!(parse(&args(&["--watch"])).unwrap().watch);
         assert_eq!(parsed.game, args(&["+map", "x", "--full"]));
 
         let parsed = parse(&args(&["--release", "--", "--headless", "60"])).unwrap();

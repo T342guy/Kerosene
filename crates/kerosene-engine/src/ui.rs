@@ -144,6 +144,8 @@ pub struct GameUi {
     pub images_stale: bool,
     /// World panels whose layout would not load, as `name layout`.
     failed_panels: std::collections::BTreeSet<String>,
+    /// A main menu that would not load, so it is not tried every frame.
+    pub(crate) main_menu_failed: Option<String>,
 }
 
 impl Default for GameUi {
@@ -157,6 +159,7 @@ impl Default for GameUi {
             host_actions: Vec::new(),
             images_stale: false,
             failed_panels: Default::default(),
+            main_menu_failed: None,
         }
     }
 }
@@ -212,6 +215,7 @@ impl Engine {
         if path.is_empty() {
             return false;
         }
+        self.publish_saves();
         self.ui_show(MENU_LAYER, &path)
     }
 
@@ -323,7 +327,7 @@ impl Engine {
             self.ensure_hud();
         } else {
             self.ui.system.hide(HUD_LAYER);
-            self.ui.system.hide(MENU_LAYER);
+            self.ensure_main_menu();
         }
         self.sync_world_panels();
         self.publish_ui_state();
@@ -579,6 +583,7 @@ impl Engine {
         match kind {
             requests::RELOAD => {
                 let vfs = self.vfs.clone();
+                self.ui.main_menu_failed = None;
                 self.ui.system.reload_all(vfs.as_ref());
                 self.ui.images_stale = true;
                 self.ui.failed_panels.clear();

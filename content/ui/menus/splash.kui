@@ -1,0 +1,19 @@
+<!--
+    The splash: a moment of "Made with Kerosene" in front of the main menu as
+    the game opens. It goes by itself after two seconds, or at a click.
+    `ui_splash` names it; a game ships its own `ui/menus/splash.kui` to
+    show its studio's, and `-nosplash` or `ui_splash ""` skips it.
+-->
+<root interactive="true" z="300">
+    <styles>
+        <include src="ui/menus/menu.kcss"/>
+    </styles>
+    <scripts>
+        <include src="ui/menus/splash.kscr"/>
+    </scripts>
+
+    <Button id="splash" onactivate="done()">
+        <Image id="splash-logo" src="ui/logo"/>
+        <Label class="splash-text" text="Made with Kerosene"/>
+    </Button>
+</root>

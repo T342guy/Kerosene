@@ -50,8 +50,13 @@ base
     }
     input  { "name" "FireUser1" "help" "Fire OnUser1. Means whatever you wire it to." }
     input  { "name" "FireUser2" "help" "Fire OnUser2." }
+    input  { "name" "FireUser3" "help" "Fire OnUser3." }
+    input  { "name" "FireUser4" "help" "Fire OnUser4." }
     output { "name" "OnUser1" "help" "Fired by the FireUser1 input." }
     output { "name" "OnUser2" "help" "Fired by the FireUser2 input." }
+    output { "name" "OnUser3" "help" "Fired by the FireUser3 input." }
+    output { "name" "OnUser4" "help" "Fired by the FireUser4 input." }
+    output { "name" "OnDamaged" "help" "Something damaged it: a shot, a point_hurt. The parameter is how much." }
 }
 
 base
@@ -788,6 +793,119 @@ class
     input  { "name" "SetStatus" "parameter" "<text>" }
     input  { "name" "SetKey" "parameter" "<key> <value>" "help" "Any rich presence key, e.g. steam_display #Status_Atrium." }
     input  { "name" "Clear" "help" "Clear every key." }
+}
+
+// ------------------------------------------------------------ gameplay ----
+
+class
+{
+    "name" "func_breakable"
+    "kind" "brush"
+    "base" "Entity"
+    "help" "A brush with health: glass, a crate, a boarded window. Shoot it, or fire Break, and it is gone."
+    key { "name" "health" "label" "Health" "type" "float" "default" "1"
+          "help" "How much damage it takes to break. 0 breaks only when told." }
+    key { "name" "breaksound" "label" "Break sound" "type" "string" "default" ""
+          "help" "A sound to play as it breaks." }
+    key {
+        "name" "spawnflags" "label" "Flags" "type" "flags" "default" "0"
+        choice { "value" "1" "label" "Break on trigger only" }
+    }
+    input  { "name" "Break" "help" "Break it now." }
+    input  { "name" "SetHealth" "parameter" "<health>" "help" "0 or less breaks it." }
+    input  { "name" "AddHealth" "parameter" "<amount>" }
+    input  { "name" "RemoveHealth" "parameter" "<amount>" }
+    output { "name" "OnBreak" "help" "It broke. The activator is what broke it." }
+    output { "name" "OnHealthChanged" "help" "The parameter is its health now." }
+}
+
+class
+{
+    "name" "func_wall_toggle"
+    "kind" "brush"
+    "base" "Entity"
+    "help" "A wall that is there or is not: seen and solid, or neither."
+    key {
+        "name" "spawnflags" "label" "Flags" "type" "flags" "default" "0"
+        choice { "value" "1" "label" "Start invisible" }
+    }
+    input { "name" "Toggle" }
+    input { "name" "Show" }
+    input { "name" "Hide" }
+}
+
+class
+{
+    "name" "point_hurt"
+    "base" "Entity" "base" "Point"
+    "help" "Hurts the player near it: once when told, or every so often while on. Less the further away they are."
+    key { "name" "damage" "label" "Damage" "type" "float" "default" "10" }
+    key { "name" "damageradius" "label" "Radius" "type" "float" "default" "256"
+          "help" "Full damage at the centre, none at the edge. 0 reaches everywhere." }
+    key { "name" "damagedelay" "label" "Interval" "type" "float" "default" "0.5"
+          "help" "Seconds between hurts while on." }
+    key {
+        "name" "spawnflags" "label" "Flags" "type" "flags" "default" "0"
+        choice { "value" "1" "label" "Start on" }
+    }
+    input  { "name" "Hurt" "help" "Hurt once, now." }
+    input  { "name" "TurnOn" }
+    input  { "name" "TurnOff" }
+    input  { "name" "Toggle" }
+    output { "name" "OnHurtPlayer" "help" "Fired each time it hurts." }
+    helper { "type" "sphere" "radius" "damageradius" "color" "255 90 60" }
+}
+
+class
+{
+    "name" "point_teleport"
+    "base" "Entity" "base" "Point" "base" "Angles"
+    "help" "Moves the player here, facing the way it faces, when told to."
+    input  { "name" "Teleport" }
+    output { "name" "OnTeleport" }
+}
+
+class
+{
+    "name" "item_healthkit"
+    "base" "Entity" "base" "Point"
+    "help" "Heals the player who walks into it, and goes. A player at full health leaves it where it is."
+    key { "name" "health" "label" "Health given" "type" "float" "default" "25" }
+    key { "name" "touch_size" "label" "Touch size" "type" "float" "default" "32"
+          "help" "How big a cube around it the player has to walk into." }
+    output { "name" "OnPlayerHealed" "help" "The parameter is how much." }
+    output { "name" "OnHealthFull" "help" "Walked into at full health." }
+}
+
+class
+{
+    "name" "item_generic"
+    "base" "Entity" "base" "Point"
+    "help" "Anything else a player picks up -- a key, a note, ammunition for a game's own weapons: fires OnPlayerTouch when walked into, and goes."
+    key { "name" "touch_size" "label" "Touch size" "type" "float" "default" "32"
+          "help" "How big a cube around it the player has to walk into." }
+    key {
+        "name" "spawnflags" "label" "Flags" "type" "flags" "default" "0"
+        choice { "value" "1" "label" "Stay after pickup" }
+    }
+    output { "name" "OnPlayerTouch" }
+}
+
+class
+{
+    "name" "player_speedmod"
+    "base" "Entity" "base" "Point"
+    "help" "Makes the player faster or slower: a limp, a sprint zone, mud."
+    input  { "name" "ModifySpeed" "parameter" "<multiplier>" "help" "1 is normal speed, 0.5 half." }
+    output { "name" "OnModified" "help" "The parameter is the multiplier." }
+}
+
+class
+{
+    "name" "game_end"
+    "base" "Entity" "base" "Point"
+    "help" "Ends the game: back to the main menu."
+    input { "name" "EndGame" }
 }
 
 class

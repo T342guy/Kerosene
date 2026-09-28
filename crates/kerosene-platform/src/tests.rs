@@ -241,6 +241,7 @@ fn stats_are_stored_in_batches() {
     struct Counting {
         inner: NullBackend,
         stores: Rc<RefCell<u32>>,
+        refuse: Rc<RefCell<bool>>,
     }
     impl Backend for Counting {
         fn name(&self) -> &'static str {
@@ -277,6 +278,9 @@ fn stats_are_stored_in_batches() {
             self.inner.set_stat(n, k, v)
         }
         fn store_stats(&mut self) -> Result<(), String> {
+            if *self.refuse.borrow() {
+                return Err("refused".into());
+            }
             *self.stores.borrow_mut() += 1;
             Ok(())
         }
@@ -304,8 +308,10 @@ fn stats_are_stored_in_batches() {
     }
 
     let stores = Rc::new(RefCell::new(0));
+    let refuse = Rc::new(RefCell::new(false));
     let backend = Counting {
         stores: stores.clone(),
+        refuse: refuse.clone(),
         ..Default::default()
     };
     let mut p = Platform::with_backend(config(), Box::new(backend));
@@ -319,6 +325,30 @@ fn stats_are_stored_in_batches() {
     }
     // Three seconds of changes every frame: about three stores, not thirty.
     assert!((2..=4).contains(&*stores.borrow()), "{}", stores.borrow());
+
+    // A store the backend refuses is tried again, without another change.
+    for _ in 0..20 {
+        p.frame(0.1);
+    }
+    let before = *stores.borrow();
+    *refuse.borrow_mut() = true;
+    p.apply(&PlatformAction::AddStat {
+        name: "doors".into(),
+        delta: 1.0,
+    })
+    .unwrap();
+    for _ in 0..20 {
+        p.frame(0.1);
+    }
+    *refuse.borrow_mut() = false;
+    for _ in 0..20 {
+        p.frame(0.1);
+    }
+    assert_eq!(
+        *stores.borrow(),
+        before + 1,
+        "the refused store was retried"
+    );
     drop(p);
 }
 

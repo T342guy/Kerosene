@@ -39,8 +39,9 @@
     </Panel>
 
     <!-- A cooldown sweep: `-kero-fill` clips the ring to the fraction
-         charged, clockwise from twelve. -->
-    <Panel id="ability" class:ready="{ability.dash.ready}">
+         charged, clockwise from twelve. Only for a game with a dash: until
+         one publishes `ability.dash`, there is nothing to show. -->
+    <Panel id="ability" visible="{ability.dash.charge != ()}" class:ready="{ability.dash.ready}">
         <Panel class="ability-ring"/>
         <Panel class="ability-charge" style:kero-fill="radial({ability.dash.charge})"/>
         <Label class="ability-name" text="Dash"/>

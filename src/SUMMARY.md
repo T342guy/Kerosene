@@ -17,6 +17,7 @@
 
 - [Architecture](./docs/architecture.md)
 - [Audio](./docs/audio.md)
+- [The console](./docs/console.md)
 - [Configuration](./docs/configuration.md)
 - [Formats](./docs/formats.md)
 - [Licensing](./docs/licensing.md)

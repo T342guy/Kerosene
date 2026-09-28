@@ -3,9 +3,9 @@
     it modal -- while it is up the mouse is free and every key and click is
     the menu's -- and z keeps it above the HUD and the overlays.
 
-    The options page writes convars directly: `cvar="volume"` on a slider both
-    shows the convar and sets it, through the console, so it is saved to
-    config.cfg like one typed there.
+    The pages are one layout, switched by `ui.page`. The options and the list
+    of saves are included from files of their own, which the main menu
+    includes too.
 -->
 <root interactive="true" z="100">
     <styles>
@@ -20,48 +20,35 @@
             <Panel id="brand">
                 <Image id="logo" src="ui/logo"/>
                 <Panel>
-                    <Label class="title" text="Kerosene"/>
+                    <Label class="title" text="{game.title}"/>
                     <Label class="subtitle" text="Paused - {map.name}"/>
                 </Panel>
             </Panel>
 
-            <Panel id="main-page" class="page" visible="{ui.page != 'options'}">
+            <Panel id="main-page" class="page" visible="{ui.page == 'main'}">
                 <Button id="resume" text="Resume" onactivate="resume()" sound="ui/click"/>
+                <Button text="Save game" onactivate="set_store('ui.page', 'save')" sound="ui/click"/>
+                <Button text="Load game" onactivate="set_store('ui.page', 'load')" sound="ui/click"/>
                 <Button text="Options" onactivate="set_store('ui.page', 'options')" sound="ui/click"/>
                 <Button text="Restart map" onactivate="restart()" sound="ui/click"/>
+                <Button text="Quit to menu" onactivate="command('disconnect')" sound="ui/click"/>
                 <Button class="danger" text="Quit" onactivate="command('quit')"/>
             </Panel>
 
+            <Panel id="save-page" class="page" visible="{ui.page == 'save'}">
+                <Button text="New save" onactivate="new_save()" sound="ui/click"/>
+                <Label class="hint" text="Or save over one of these:"/>
+                <Include src="ui/menus/saves.kui"/>
+                <Button text="Back" onactivate="set_store('ui.page', 'main')" sound="ui/click"/>
+            </Panel>
+
+            <Panel id="load-page" class="page" visible="{ui.page == 'load'}">
+                <Include src="ui/menus/saves.kui"/>
+                <Button text="Back" onactivate="set_store('ui.page', 'main')" sound="ui/click"/>
+            </Panel>
+
             <Panel id="options-page" class="page" visible="{ui.page == 'options'}">
-                <Panel class="setting">
-                    <Label class="name" text="Volume"/>
-                    <Slider cvar="volume" min="0" max="1" step="0.05"/>
-                    <Label class="value" text="{(cvar.volume * 100.0).round()}%"/>
-                </Panel>
-                <Panel class="setting">
-                    <Label class="name" text="Field of view"/>
-                    <Slider cvar="cl_fov" min="70" max="120" step="1"/>
-                    <Label class="value" text="{cvar.cl_fov}"/>
-                </Panel>
-                <Panel class="setting">
-                    <Label class="name" text="Sensitivity"/>
-                    <Slider cvar="sensitivity" min="0.5" max="10" step="0.1"/>
-                    <Label class="value" text="{cvar.sensitivity}"/>
-                </Panel>
-                <Panel class="setting">
-                    <Label class="name" text="Brightness"/>
-                    <Slider cvar="mat_gamma" min="0.5" max="2" step="0.05"/>
-                    <Label class="value" text="{(cvar.mat_gamma * 100.0).round()}%"/>
-                </Panel>
-                <Panel class="setting">
-                    <Toggle cvar="m_invert" text="Invert mouse"/>
-                </Panel>
-                <Panel class="setting">
-                    <Toggle cvar="r_vsync" text="Vertical sync"/>
-                </Panel>
-                <Panel class="setting">
-                    <Toggle cvar="ui_debug" text="Outline UI panels"/>
-                </Panel>
+                <Include src="ui/menus/options.kui"/>
                 <Button text="Back" onactivate="set_store('ui.page', 'main')" sound="ui/click"/>
             </Panel>
         </Panel>
