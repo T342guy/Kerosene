@@ -561,10 +561,7 @@ impl PhysicsProps {
         for (&id, prop) in &self.props {
             // A prop marked unpickable is not a candidate, whatever is behind
             // it stays reachable because the ray simply continues past it.
-            if entities
-                .get(id)
-                .is_some_and(|e| !e.fields.bool("pickable", true))
-            {
+            if !entities.keyvalue_bool(id, "pickable", true) {
                 continue;
             }
             let (position, rotation) = self.rigid.body_transform(prop.body);
@@ -1125,9 +1122,8 @@ mod tests {
     fn object_properties_become_the_body_material() {
         // A designer writes `mass`, `friction` and `elasticity`; the engine
         // turns them into the rigid body's material.
-        let mut entities = EntityWorld::new(std::sync::Arc::new(
-            kerosene_entity::ClassRegistry::new(),
-        ));
+        let mut entities =
+            EntityWorld::new(std::sync::Arc::new(kerosene_entity::ClassRegistry::new()));
         let e = entities.spawn_with("prop_physics", &[]);
         let half = Vec3::new(8.0, 8.0, 8.0);
         let volume = half.x * half.y * half.z * 8.0;

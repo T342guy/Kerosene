@@ -642,10 +642,7 @@ fn an_unpickable_prop_cannot_be_scooped_up() {
     let prop = engine.spawn_prop("props/cube", Vec3::new(80.0, 64.0, 72.0));
     engine
         .entities
-        .get_mut(prop)
-        .expect("just spawned")
-        .fields
-        .set("pickable", Value::Bool(false));
+        .set_keyvalue(prop, "pickable", Value::Bool(false));
     let idle = InputState::default();
     for _ in 0..(2.0 / TICK) as usize {
         engine.tick(TICK, &idle);
@@ -810,9 +807,9 @@ fn light_prop_at(
 ) -> kerosene_entity::EntityId {
     use kerosene_entity::Value;
     let id = engine.spawn_prop("props/cube", origin);
-    if let Some(e) = engine.entities.get_mut(id) {
-        e.fields.set("mass", Value::Text("8".into()));
-    }
+    engine
+        .entities
+        .set_keyvalue(id, "mass", Value::Text("8".into()));
     id
 }
 
@@ -1079,9 +1076,9 @@ fn a_carried_prop_shoves_another_one_instead_of_passing_into_it() {
     let carried = engine.spawn_prop("props/cube", Vec3::new(80.0, 64.0, 72.0));
     let target = engine.spawn_prop("props/cube", Vec3::new(150.0, 64.0, 56.0));
     for id in [carried, target] {
-        if let Some(e) = engine.entities.get_mut(id) {
-            e.fields.set("mass", Value::Text("8".into()));
-        }
+        engine
+            .entities
+            .set_keyvalue(id, "mass", Value::Text("8".into()));
     }
 
     let idle = InputState::default();
@@ -1179,14 +1176,14 @@ fn a_carried_prop_gives_way_when_it_meets_something_it_cannot_move() {
         .expect("the engine should load it");
 
     let carried = engine.spawn_prop("props/cube", Vec3::new(80.0, 64.0, 72.0));
-    if let Some(e) = engine.entities.get_mut(carried) {
-        e.fields.set("mass", Value::Text("8".into()));
-    }
+    engine
+        .entities
+        .set_keyvalue(carried, "mass", Value::Text("8".into()));
     let obstacle_origin = Vec3::new(140.0, 64.0, 56.0);
     let obstacle = engine.spawn_prop("props/cube", obstacle_origin);
-    if let Some(e) = engine.entities.get_mut(obstacle) {
-        e.fields.set("mass", Value::Text("100000".into()));
-    }
+    engine
+        .entities
+        .set_keyvalue(obstacle, "mass", Value::Text("100000".into()));
 
     let idle = InputState::default();
     for _ in 0..(2.0 / TICK) as usize {
@@ -1339,9 +1336,9 @@ fn engine_with_a_carried_prop(
         .expect("the engine should load it");
 
     let prop = engine.spawn_prop("props/cube", Vec3::new(316.0, 112.0, 72.0));
-    if let Some(e) = engine.entities.get_mut(prop) {
-        e.fields.set("mass", Value::Text("8".into()));
-    }
+    engine
+        .entities
+        .set_keyvalue(prop, "mass", Value::Text("8".into()));
     engine.player.movement.origin = Vec3::new(280.0, 112.0, 1.0);
 
     let idle = InputState::default();
@@ -1898,18 +1895,14 @@ fn a_script_can_open_a_door_through_the_same_path_a_wire_would() {
         .first()
         .copied()
         .expect("the map has a door");
-    let before = engine
-        .entities
-        .keyvalue_f32(door, "door_state", -1.0);
+    let before = engine.entities.keyvalue_f32(door, "door_state", -1.0);
 
     engine.run_script(r#" ent_fire("gate", "Open"); "#).unwrap();
     for _ in 0..8 {
         engine.tick(TICK, &InputState::default());
     }
 
-    let after = engine
-        .entities
-        .keyvalue_f32(door, "door_state", -1.0);
+    let after = engine.entities.keyvalue_f32(door, "door_state", -1.0);
     assert_ne!(before, after, "the door never moved");
     let _ = std::fs::remove_dir_all(&dir);
 }
@@ -1954,10 +1947,7 @@ fn a_script_setting_a_keyvalue_changes_the_entity() {
         .unwrap();
 
     let door = engine.entities.find_by_name("gate")[0];
-    assert_eq!(
-        engine.entities.get(door).unwrap().fields.f32("speed", 0.0),
-        999.0
-    );
+    assert_eq!(engine.entities.keyvalue_f32(door, "speed", 0.0), 999.0);
     let _ = std::fs::remove_dir_all(&dir);
 }
 
@@ -2058,12 +2048,11 @@ fn a_logic_script_entity_calls_a_function_when_its_input_fires() {
 
     let id = engine.entities.spawn("logic_script");
     engine.entities.set_targetname(id, "brain");
-    engine
-        .entities
-        .get_mut(id)
-        .unwrap()
-        .fields
-        .set("function", kerosene_entity::Value::Text("on_used".into()));
+    engine.entities.set_keyvalue(
+        id,
+        "function",
+        kerosene_entity::Value::Text("on_used".into()),
+    );
 
     engine
         .entities
@@ -2101,7 +2090,8 @@ fn a_logic_script_can_carry_its_code_inline() {
     engine.load_map("testmap").unwrap();
 
     let id = engine.entities.spawn("logic_script");
-    engine.entities.get_mut(id).unwrap().fields.set(
+    engine.entities.set_keyvalue(
+        id,
         "code",
         kerosene_entity::Value::Text(r#" print("inline"); "#.into()),
     );
@@ -3604,11 +3594,8 @@ fn a_prop_dynamic_plays_a_one_shot_reports_it_and_goes_back_to_its_default() {
         .find_by_name("done_counter")
         .first()
         .unwrap();
-    let field = |e: &kerosene_engine::engine::Engine, key: &str| {
-        e.entities
-            .get(turret)
-            .and_then(|t| t.fields.text(key).map(|s| s.into_owned()))
-    };
+    let field =
+        |e: &kerosene_engine::engine::Engine, key: &str| e.entities.keyvalue_text(turret, key);
 
     for _ in 0..16 {
         engine.tick(TICK, &idle);
@@ -3618,22 +3605,12 @@ fn a_prop_dynamic_plays_a_one_shot_reports_it_and_goes_back_to_its_default() {
     for _ in 0..(3.0 / TICK) as usize {
         engine.tick(TICK, &idle);
     }
-    let count = |e: &kerosene_engine::engine::Engine| {
-        e.entities
-            .get(counter)
-            .map(|c| c.fields.f32("value", -1.0))
-            .unwrap()
-    };
+    let count =
+        |e: &kerosene_engine::engine::Engine| e.entities.keyvalue_f32(counter, "startvalue", -1.0);
     assert_eq!(count(&engine), 0.0);
 
     // The pose moves while it plays: the arm's matrix is not the rest one.
-    let now = engine.entities.time;
-    let entity = engine.entities.get(turret).unwrap().clone();
-    let vfs = engine.vfs().clone();
-    let palette = engine
-        .animations_mut()
-        .palette(&vfs, &entity, now)
-        .expect("the model loads");
+    let palette = engine.animated_palette(turret).expect("the model loads");
     assert_eq!(palette.len(), 2);
 
     engine.entities.queue_input(

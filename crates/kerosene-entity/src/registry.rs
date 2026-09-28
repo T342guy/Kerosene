@@ -106,6 +106,12 @@ pub trait ClassComponent: Component<Mutability = Mutable> + Struct + Typed + Def
 
 impl<T: Component<Mutability = Mutable> + Struct + Typed + Default> ClassComponent for T {}
 
+/// Gives an entity a component's starting value.
+type Inserter = std::sync::Arc<dyn Fn(&mut World, Handle) + Send + Sync>;
+
+/// Reads a field of a component's starting value, by name.
+type DefaultField = std::sync::Arc<dyn Fn(&str) -> Option<kerosene_reflect::Value> + Send + Sync>;
+
 /// A component a class's entities carry: the type, erased, with what the
 /// entity world needs to make one and reach its fields.
 #[derive(Clone)]
@@ -117,9 +123,9 @@ pub struct ComponentDecl {
     pub fields: std::sync::Arc<[kerosene_reflect::Field]>,
     /// Give an entity the class's starting value: `T::default()`, or what
     /// [`ClassDef::component_with`] was given.
-    insert: std::sync::Arc<dyn Fn(&mut World, Handle) + Send + Sync>,
+    insert: Inserter,
     /// A field of that starting value.
-    default_field: std::sync::Arc<dyn Fn(&str) -> Option<kerosene_reflect::Value> + Send + Sync>,
+    default_field: DefaultField,
     pub(crate) reflect: fn(&World, Handle) -> Option<&dyn Struct>,
     pub(crate) reflect_mut: fn(&mut World, Handle) -> Option<&mut dyn Struct>,
 }
@@ -165,7 +171,9 @@ impl ComponentDecl {
 
     /// The field with this Rust name, matched without regard to case.
     pub fn field_named(&self, name: &str) -> Option<&kerosene_reflect::Field> {
-        self.fields.iter().find(|f| f.name.eq_ignore_ascii_case(name))
+        self.fields
+            .iter()
+            .find(|f| f.name.eq_ignore_ascii_case(name))
     }
 }
 

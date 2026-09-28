@@ -498,7 +498,8 @@ pub fn component_keys(decl: &crate::ComponentDecl) -> Vec<KeySpec> {
                 name: key.to_string(),
                 label: f.label.unwrap_or(key).to_string(),
                 kind,
-                default: decl.default_value(f.name)
+                default: decl
+                    .default_value(f.name)
                     .map(|v| v.to_string())
                     .unwrap_or_default(),
                 help: f.help.unwrap_or("").to_string(),

@@ -7,8 +7,8 @@
 //!
 //! This is Source's datadesc idea with the boilerplate removed.
 
-pub use kerosene_reflect::Value;
 use kerosene_math::Vec3;
+pub use kerosene_reflect::Value;
 use std::collections::HashMap;
 
 /// A named bag of entity fields.

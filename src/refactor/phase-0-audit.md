@@ -295,3 +295,51 @@ to 2, which reads the same.
   can rebuild GPU data from a handle's `generation`.
 - Found on the way: `kiln --force` does not reach the texture pass, so it
   does not recompile textures or materials.
+
+## Phase 3 and 4 results — reflect and ecs
+
+Done for the stock game. The workspace build, all 2,333 tests, clippy with
+`-D warnings` (with and without `steam`), fmt and `xtask layers` are green.
+
+**New crates.** `kerosene-reflect` (attributes `Key`, `Label`, `Help`,
+`Widget`, `Hidden`, `Transient`, `Networked`, on top of a pinned
+`bevy_reflect`, and the `Value` type keyvalues travel as) and `kerosene-ecs`
+(a pinned `bevy_ecs` and `bevy_reflect` behind one prelude). Game code
+imports neither Bevy crate.
+
+**What changed in the entity world.** An entity is a slot with an ECS
+handle. A class lists the components it carries (`ClassDef::component`);
+the map loader fills their keyed fields, saves keep every field not marked
+`Transient`, and the editor's keys come from the same declaration
+(`Schema::with_component_keys`). `EntityWorld::keyvalue`, `set_keyvalue`
+and `keyvalues` read and write a key wherever it lives, so the engine, the
+console and scripts never need the game's types. `kerosene_entity::schema::check`
+holds the hand-written schema text to the components: a key the component
+reads but the text does not offer, or a default the two disagree on, fails
+the test.
+
+**Every class with keys is ported**: doors and buttons, triggers, logic,
+gameplay classes, physics props and the spawner, `light_dynamic`,
+`prop_dynamic`, `logic_script`, sounds, the five store classes, the world
+panel and `infodecal`. Shared pieces are components several classes carry:
+`Switchable` (the schema's `startdisabled` base) and `PhysicsBody`.
+
+**Engine side.** The engine reads and writes entity keys through
+`keyvalue_*` / `set_keyvalue`. Three things that used to be loose fields the
+engine and game agreed on by name were wrong after the port and are fixed:
+`is_disabled` (brushes, triggers and panels ask one question), the script
+`set` action (it wrote a loose field that a component ignored), and script
+and `ent_info` views (they showed only loose fields).
+
+**Left, on purpose.**
+
+- The schema text still owns help text, inputs and outputs. Only keys, types
+  and defaults come from components.
+- Loose fields remain for what the engine owns and a game does not declare:
+  `model`, `model_mins`/`model_maxs`, `occupied`, `player_inside`,
+  `speed_scale`, and a `light_environment`'s `_light`.
+- `networked` is recorded but nothing reads it: there is no network layer.
+- Saves from before the port still load (fields are handed to the component
+  that claims them). No migration tool: the project is alpha.
+- Phase 5, splitting `render` into `rhi` / `material` / `scene` and putting
+  `physics` and `rigid` behind one `PhysicsWorld`, has not started.

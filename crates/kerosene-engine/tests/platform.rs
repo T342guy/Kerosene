@@ -284,12 +284,7 @@ fn leaderboard_results_come_back_as_outputs() {
     assert!(!got(&engine, "got.best"));
     let counter = engine.entities.find_by_name("counter")[0];
     assert_eq!(
-        engine
-            .entities
-            .get(counter)
-            .unwrap()
-            .fields
-            .f32("value", -1.0),
+        engine.entities.keyvalue_f32(counter, "startvalue", -1.0),
         2.0,
         "OnSubmitted fired for both"
     );

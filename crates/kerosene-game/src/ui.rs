@@ -13,8 +13,71 @@
 //! calls `emit("OnUnlock", code)` and whatever the mapper wired to `OnUnlock`
 //! fires.
 
+use crate::components::{Switchable, is_disabled, set_disabled};
+use kerosene_ecs::prelude::*;
 use kerosene_entity::io::InputEvent;
-use kerosene_entity::{ClassDef, ClassRegistry, EntityId, EntityWorld, Value, host_requests};
+use kerosene_entity::{ClassDef, ClassRegistry, EntityId, EntityWorld, host_requests};
+
+/// A `point_worldpanel`: which layout, how big, and how it looks.
+///
+/// The engine reads these by key when it draws the panel (see
+/// `kerosene_engine::ui`).
+#[derive(Component, Reflect, Clone, Debug, PartialEq)]
+#[reflect(Component, Default)]
+pub struct WorldPanel {
+    /// The `.kui` file to show.
+    #[reflect(@Key("layout"), @Label("Layout"), @Help("The .kui file to show."))]
+    pub layout: String,
+    /// In units.
+    #[reflect(@Key("width"), @Label("Width (units)"))]
+    pub width: f32,
+    /// In units.
+    #[reflect(@Key("height"), @Label("Height (units)"))]
+    pub height: f32,
+    /// The texture's height in pixels; its width follows the panel's shape.
+    #[reflect(@Key("resolution"), @Label("Pixels tall"))]
+    pub resolution: i32,
+    /// How brightly the screen glows.
+    #[reflect(@Key("brightness"), @Label("Brightness"))]
+    pub brightness: f32,
+    /// Whether the player can point at it and press use to click.
+    #[reflect(@Key("interactive"), @Label("Interactive"))]
+    pub interactive: bool,
+}
+
+impl Default for WorldPanel {
+    fn default() -> Self {
+        WorldPanel {
+            layout: "ui/panels/status.kui".into(),
+            width: 32.0,
+            height: 32.0,
+            resolution: 512,
+            brightness: 1.0,
+            interactive: false,
+        }
+    }
+}
+
+/// An `infodecal`: what to project, and how big.
+#[derive(Component, Reflect, Clone, Debug, PartialEq)]
+#[reflect(Component, Default)]
+pub struct Decal {
+    /// The material.
+    #[reflect(@Key("texture"), @Label("Material"), @Widget::Material)]
+    pub texture: String,
+    /// In units.
+    #[reflect(@Key("size"), @Label("Size (units)"))]
+    pub size: f32,
+}
+
+impl Default for Decal {
+    fn default() -> Self {
+        Decal {
+            texture: "decals/crack".into(),
+            size: 32.0,
+        }
+    }
+}
 
 /// Register the UI classes: `logic_ui`, `point_worldpanel` and `infodecal`.
 pub fn register(registry: &mut ClassRegistry) {
@@ -27,32 +90,28 @@ pub fn register(registry: &mut ClassRegistry) {
     );
     registry.register(
         ClassDef::new("point_worldpanel")
+            .component::<Switchable>()
+            .component::<WorldPanel>()
             .input("Enable", |w, id, _| set_enabled(w, id, true))
             .input("Disable", |w, id, _| set_enabled(w, id, false))
             .input("Emit", emit)
             .output("OnPanelEvent"),
     );
-    registry.register(ClassDef::new("infodecal").on_spawn(place_decal));
+    registry.register(
+        ClassDef::new("infodecal")
+            .component::<Decal>()
+            .on_spawn(place_decal),
+    );
 }
 
-/// Whether a world panel is showing: `startdisabled` at spawn, then the
-/// `Enable`/`Disable` inputs.
+/// Whether a world panel is showing: not switched off by `startdisabled`
+/// or the `Disable` input.
 pub fn panel_enabled(world: &EntityWorld, id: EntityId) -> bool {
-    world.get(id).is_some_and(|e| {
-        !e.fields
-            .bool("disabled", e.fields.bool("startdisabled", false))
-    })
+    world.exists(id) && !is_disabled(world, id)
 }
 
 fn set_enabled(world: &mut EntityWorld, id: EntityId, on: bool) -> bool {
-    match world.get_mut(id) {
-        Some(e) => {
-            e.fields
-                .set("disabled", Value::from_keyvalue(if on { "0" } else { "1" }));
-            true
-        }
-        None => false,
-    }
+    set_disabled(world, id, !on)
 }
 
 fn require(event: &InputEvent, what: &str) -> Option<String> {
@@ -97,20 +156,16 @@ fn hide_layer(world: &mut EntityWorld, id: EntityId, event: &InputEvent) -> bool
 }
 
 fn place_decal(world: &mut EntityWorld, id: EntityId) {
-    let Some(e) = world.get(id) else { return };
-    let texture = e
-        .fields
-        .text("texture")
-        .map(|t| t.into_owned())
-        .unwrap_or_default();
-    if texture.trim().is_empty() {
+    let Some(decal) = world.component::<Decal>(id).cloned() else {
+        return;
+    };
+    if decal.texture.trim().is_empty() {
         log::warn!("infodecal with no texture");
         return;
     }
-    let size = e.fields.f32("size", 32.0);
     world.request(
         host_requests::PLACE_DECAL,
-        format!("{texture} {size}"),
+        format!("{} {}", decal.texture, decal.size),
         id,
         None,
     );

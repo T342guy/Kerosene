@@ -185,15 +185,27 @@ fn a_written_key_that_disagrees_with_the_component_is_caught() {
     let schema = crate::Schema::parse(text)
         .unwrap()
         .with_component_keys(&registry);
-    assert_eq!(schema.get("func_door").unwrap().key("speed").unwrap().default, "90");
+    assert_eq!(
+        schema
+            .get("func_door")
+            .unwrap()
+            .key("speed")
+            .unwrap()
+            .default,
+        "90"
+    );
     let problems = crate::schema::check(&registry, &schema);
     assert!(
-        problems.iter().any(|p| p.contains("func_door.speed") && p.contains("90")),
+        problems
+            .iter()
+            .any(|p| p.contains("func_door.speed") && p.contains("90")),
         "{problems:?}"
     );
     let unoffered = crate::schema::check(&registry, &crate::Schema::parse(text).unwrap());
     assert!(
-        unoffered.iter().any(|p| p.contains("targetsound") && p.contains("not offered")),
+        unoffered
+            .iter()
+            .any(|p| p.contains("targetsound") && p.contains("not offered")),
         "{unoffered:?}"
     );
 }

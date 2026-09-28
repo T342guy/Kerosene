@@ -15,12 +15,54 @@
 //! have to agree. That is a thing to know rather than a thing to see, and a
 //! designer who wants a one-shot noise should not have to know it.
 //!
-//! Like `logic_script`, it holds nothing of its own. It leaves a request on
+//! Like `logic_script`, it holds no mixer of its own. It leaves a request on
 //! the entity world and the engine, which owns the mixer, acts on it -- so
 //! this crate stays free of the audio system entirely.
 
+use kerosene_ecs::prelude::*;
 use kerosene_entity::io::InputEvent;
-use kerosene_entity::{ClassDef, ClassRegistry, EntityId, EntityWorld, Value, host_requests};
+use kerosene_entity::{ClassDef, ClassRegistry, EntityId, EntityWorld, host_requests};
+
+/// A sound an entity plays: what, how loud, and whether it is playing.
+///
+/// The engine reads these by key when it starts the voice (see
+/// `kerosene_engine::audio`). Source's own spellings, `message` for `sound`
+/// and `health` for `volume`, stay loose keyvalues that are still read.
+#[derive(Component, Reflect, Clone, Debug, PartialEq)]
+#[reflect(Component, Default)]
+pub struct Sound {
+    /// The sound's name, as a `.ksnd` script defines it.
+    #[reflect(@Key("sound"))]
+    pub sound: String,
+    /// 0 to 1. Blank means the map did not say, so `health` may.
+    #[reflect(@Key("volume"))]
+    pub volume: Option<f32>,
+    /// Playback rate.
+    #[reflect(@Key("pitch"))]
+    pub pitch: f32,
+    /// How far it carries; 0 uses the sound script's.
+    #[reflect(@Key("radius"))]
+    pub radius: f32,
+    /// Whether it loops. A `point_sound` never does, so it does not offer
+    /// the key.
+    #[reflect(@Key("looping"), @Hidden)]
+    pub looping: bool,
+    /// Whether an ambience is playing now. State, not a key.
+    pub playing: bool,
+}
+
+impl Default for Sound {
+    fn default() -> Self {
+        Sound {
+            sound: String::new(),
+            volume: None,
+            pitch: 1.0,
+            radius: 0.0,
+            looping: true,
+            playing: false,
+        }
+    }
+}
 
 /// Spawnflag 1: start playing as soon as the map does.
 pub const SF_START_SILENT: u32 = 1;
@@ -35,6 +77,7 @@ pub const SF_EVERYWHERE: u32 = 2;
 pub fn register(registry: &mut ClassRegistry) {
     registry.register(
         ClassDef::new("ambient_generic")
+            .component::<Sound>()
             .on_spawn(spawn)
             .on_restore(restore)
             .input("PlaySound", play)
@@ -46,6 +89,7 @@ pub fn register(registry: &mut ClassRegistry) {
 
     registry.register(
         ClassDef::new("point_sound")
+            .component::<Sound>()
             .on_spawn(spawn_one_shot)
             .input("Play", play_once)
             .input("PlaySound", play_once)
@@ -61,12 +105,14 @@ pub fn register(registry: &mut ClassRegistry) {
 /// and none since; it is still read so that anyone who wrote it, or copied a
 /// Source example, is not left wondering why nothing plays.
 pub fn sound_name(world: &EntityWorld, id: EntityId) -> String {
-    world
-        .get(id)
-        .and_then(|e| {
-            e.fields
-                .text("sound")
-                .or_else(|| e.fields.text("message"))
+    let named = world
+        .component::<Sound>(id)
+        .map(|s| s.sound.trim().to_string())
+        .filter(|n| !n.is_empty());
+    named
+        .or_else(|| {
+            world
+                .keyvalue_text(id, "message")
                 .map(|n| n.trim().to_string())
                 .filter(|n| !n.is_empty())
         })
@@ -77,7 +123,9 @@ fn spawn_one_shot(world: &mut EntityWorld, id: EntityId) {
     // The difference from an ambience, and the only one: it does not loop and
     // does not start on its own. Everything else about playing a sound is the
     // same, so it is the same request.
-    set(world, id, "looping", Value::Bool(false));
+    if let Some(s) = world.component_mut::<Sound>(id) {
+        s.looping = false;
+    }
 }
 
 fn play_once(world: &mut EntityWorld, id: EntityId, event: &InputEvent) -> bool {
@@ -96,7 +144,7 @@ fn spawn(world: &mut EntityWorld, id: EntityId) {
     let start_silent = world
         .get(id)
         .is_some_and(|e| e.has_spawnflag(SF_START_SILENT));
-    set(world, id, "playing", Value::Bool(false));
+    set_playing(world, id, false);
     if !start_silent {
         start(world, id, None);
     }
@@ -113,9 +161,7 @@ fn stop(world: &mut EntityWorld, id: EntityId, _e: &InputEvent) -> bool {
 }
 
 fn toggle(world: &mut EntityWorld, id: EntityId, event: &InputEvent) -> bool {
-    let playing = world
-        .get(id)
-        .is_some_and(|e| e.fields.bool("playing", false));
+    let playing = is_playing(world, id);
     if playing {
         silence(world, id)
     } else {
@@ -128,13 +174,13 @@ fn set_volume(world: &mut EntityWorld, id: EntityId, event: &InputEvent) -> bool
     let Some(volume) = event.parameter_f32() else {
         return false;
     };
-    set(world, id, "volume", Value::Float(volume.clamp(0.0, 1.0)));
+    if let Some(s) = world.component_mut::<Sound>(id) {
+        s.volume = Some(volume.clamp(0.0, 1.0));
+    }
     // Restart so the change is heard: the mixer sets a voice's gain when it
     // starts, and a running one is not re-read. A one-shot has nothing to
     // restart, and `playing` is a field only an ambience keeps.
-    let playing = world
-        .get(id)
-        .is_some_and(|e| e.fields.bool("playing", false));
+    let playing = is_playing(world, id);
     if playing {
         silence(world, id);
         start(world, id, None);
@@ -146,9 +192,7 @@ fn set_volume(world: &mut EntityWorld, id: EntityId, event: &InputEvent) -> bool
 /// again, which the mixer forgot with the rest of the old level. `OnPlay`
 /// already fired, the first time.
 fn restore(world: &mut EntityWorld, id: EntityId) {
-    let playing = world
-        .get(id)
-        .is_some_and(|e| e.fields.bool("playing", false));
+    let playing = is_playing(world, id);
     let name = sound_name(world, id);
     if playing && !name.is_empty() {
         world.request(host_requests::PLAY_SOUND, name, id, None);
@@ -162,18 +206,22 @@ fn start(world: &mut EntityWorld, id: EntityId, activator: Option<EntityId>) {
         log::warn!("ambient_generic at {at:?} names no sound");
         return;
     }
-    set(world, id, "playing", Value::Bool(true));
+    set_playing(world, id, true);
     world.request(host_requests::PLAY_SOUND, name, id, activator);
     world.fire_output(id, "OnPlay", activator, None);
 }
 
 fn silence(world: &mut EntityWorld, id: EntityId) {
-    set(world, id, "playing", Value::Bool(false));
+    set_playing(world, id, false);
     world.request(host_requests::STOP_SOUND, "", id, None);
 }
 
-fn set(world: &mut EntityWorld, id: EntityId, key: &str, value: Value) {
-    if let Some(e) = world.get_mut(id) {
-        e.fields.set(key, value);
+fn is_playing(world: &EntityWorld, id: EntityId) -> bool {
+    world.component::<Sound>(id).is_some_and(|s| s.playing)
+}
+
+fn set_playing(world: &mut EntityWorld, id: EntityId, playing: bool) {
+    if let Some(s) = world.component_mut::<Sound>(id) {
+        s.playing = playing;
     }
 }

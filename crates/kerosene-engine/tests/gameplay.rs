@@ -147,26 +147,13 @@ fn shooting_glass_breaks_it_and_fires_on_break() {
     assert!(engine.damage_entity(glass, 20.0, player));
     run(&mut engine, 0.1, &still());
     assert!(engine.entities.exists(glass));
-    assert_eq!(
-        engine
-            .entities
-            .get(glass)
-            .unwrap()
-            .fields
-            .f32("health", 0.0),
-        10.0
-    );
+    assert_eq!(engine.entities.keyvalue_f32(glass, "health", 0.0), 10.0);
     engine.damage_entity(glass, 20.0, player);
     run(&mut engine, 0.1, &still());
     assert!(!engine.entities.exists(glass), "broken");
     let counter = named(&engine, "broken");
     assert_eq!(
-        engine
-            .entities
-            .get(counter)
-            .unwrap()
-            .fields
-            .f32("value", 0.0),
+        engine.entities.keyvalue_f32(counter, "startvalue", 0.0),
         1.0
     );
 
@@ -236,10 +223,7 @@ fn a_pickup_fires_its_output_and_goes() {
     let (mut engine, dir) = play("pickup", &map);
     run(&mut engine, 2.0, &walk());
     let got = named(&engine, "got");
-    assert_eq!(
-        engine.entities.get(got).unwrap().fields.f32("value", 0.0),
-        1.0
-    );
+    assert_eq!(engine.entities.keyvalue_f32(got, "startvalue", 0.0), 1.0);
     assert!(engine.entities.find_by_class("item_generic").is_empty());
     let _ = std::fs::remove_dir_all(dir);
 }
@@ -338,7 +322,7 @@ fn a_trigger_for_physics_objects_notices_a_falling_crate() {
     run(&mut engine, 2.0, &still());
     let count = named(&engine, "count");
     assert_eq!(
-        engine.entities.get(count).unwrap().fields.f32("value", 0.0),
+        engine.entities.keyvalue_f32(count, "startvalue", 0.0),
         1.0,
         "the crate set it off"
     );

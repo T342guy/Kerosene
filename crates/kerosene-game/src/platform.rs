@@ -20,14 +20,87 @@
 //! `logic_achievement` wired to it, and a result that arrives a second later
 //! from Steam's servers lands where the designer expects.
 
+use kerosene_ecs::prelude::*;
 use kerosene_entity::io::InputEvent;
-use kerosene_entity::{ClassDef, ClassRegistry, EntityId, EntityWorld, Value, host_requests};
+use kerosene_entity::{ClassDef, ClassRegistry, EntityId, EntityWorld, host_requests};
+
+/// A `logic_achievement`: the store's id for it.
+///
+/// The engine finds the entities to tell about an unlock by these keys, so
+/// they are read by name: `achievement`.
+#[derive(Component, Reflect, Clone, Debug, Default, PartialEq)]
+#[reflect(Component, Default)]
+pub struct Achievement {
+    /// The store's id for it.
+    #[reflect(@Key("achievement"), @Label("Achievement id"))]
+    pub achievement: String,
+    /// What `SetProgress` counts up to when it is given no maximum.
+    #[reflect(@Key("progressmax"), @Label("Progress out of"))]
+    pub progressmax: i32,
+}
+
+/// A `logic_stat`: the stat, and what reaching a value does.
+#[derive(Component, Reflect, Clone, Debug, Default, PartialEq)]
+#[reflect(Component, Default)]
+pub struct Stat {
+    /// The stat's name in the store.
+    #[reflect(@Key("stat"), @Label("Stat name"))]
+    pub stat: String,
+    /// Fires `OnThreshold` when the stat reaches it; 0 for never.
+    #[reflect(@Key("threshold"), @Label("Threshold"))]
+    pub threshold: f32,
+    /// Awarded at the threshold, with progress on the way.
+    #[reflect(@Key("achievement"), @Label("Achievement at threshold"))]
+    pub achievement: String,
+}
+
+/// A `logic_leaderboard`: which board, and which way is better.
+#[derive(Component, Reflect, Clone, Debug, PartialEq)]
+#[reflect(Component, Default)]
+pub struct Leaderboard {
+    /// The board's name in the store.
+    #[reflect(@Key("leaderboard"), @Label("Leaderboard"))]
+    pub leaderboard: String,
+    /// `desc` when a higher score is better, `asc` when a lower one is.
+    #[reflect(@Key("sort"), @Label("Better is"))]
+    pub sort: String,
+}
+
+impl Default for Leaderboard {
+    fn default() -> Self {
+        Leaderboard {
+            leaderboard: String::new(),
+            sort: "desc".into(),
+        }
+    }
+}
+
+/// A `logic_richpresence`: what it says as the map starts.
+#[derive(Component, Reflect, Clone, Debug, Default, PartialEq)]
+#[reflect(Component, Default)]
+pub struct RichPresence {
+    /// Sent as the `status` key when the map starts.
+    #[reflect(@Key("status"), @Label("Status at start"))]
+    pub status: String,
+}
+
+/// A `logic_platform`: the DLC it asks about.
+#[derive(Component, Reflect, Clone, Debug, Default, PartialEq)]
+#[reflect(Component, Default)]
+pub struct StoreLink {
+    /// What `CheckDlc` asks about when given no parameter; 0 for none.
+    #[reflect(@Key("dlc"), @Label("DLC app id"))]
+    pub dlc: i32,
+    /// The app id a `CheckDlc` is waiting on the answer for. State.
+    pub checking: i32,
+}
 
 /// Register the store's classes: `logic_achievement`, `logic_stat`,
 /// `logic_leaderboard`, `logic_richpresence` and `logic_platform`.
 pub fn register(registry: &mut ClassRegistry) {
     registry.register(
         ClassDef::new("logic_achievement")
+            .component::<Achievement>()
             .input("Unlock", |w, id, e| {
                 ask(w, id, e, |a, _| format!("unlock {a}"))
             })
@@ -39,6 +112,7 @@ pub fn register(registry: &mut ClassRegistry) {
     );
     registry.register(
         ClassDef::new("logic_stat")
+            .component::<Stat>()
             .input("Set", |w, id, e| stat(w, id, e, "set_stat", None))
             .input("Add", |w, id, e| stat(w, id, e, "add_stat", Some("1")))
             .input("Increment", |w, id, e| {
@@ -62,6 +136,7 @@ pub fn register(registry: &mut ClassRegistry) {
     );
     registry.register(
         ClassDef::new("logic_leaderboard")
+            .component::<Leaderboard>()
             .input("Submit", submit)
             .output("OnSubmitted")
             .output("OnRankImproved")
@@ -69,6 +144,7 @@ pub fn register(registry: &mut ClassRegistry) {
     );
     registry.register(
         ClassDef::new("logic_richpresence")
+            .component::<RichPresence>()
             .on_spawn(|w, id| {
                 let status = text(w, id, "status");
                 if !status.is_empty() {
@@ -98,6 +174,7 @@ pub fn register(registry: &mut ClassRegistry) {
     );
     registry.register(
         ClassDef::new("logic_platform")
+            .component::<StoreLink>()
             .on_spawn(|w, id| w.request(host_requests::PLATFORM_STATUS, "", id, None))
             .input("Refresh", |w, id, e| {
                 w.request(host_requests::PLATFORM_STATUS, "", id, e.activator);
@@ -151,8 +228,8 @@ pub fn register(registry: &mut ClassRegistry) {
 /// A text key, trimmed; empty when unset.
 pub fn text(world: &EntityWorld, id: EntityId, key: &str) -> String {
     world
-        .get(id)
-        .and_then(|e| e.fields.text(key).map(|t| t.trim().to_string()))
+        .keyvalue_text(id, key)
+        .map(|t| t.trim().to_string())
         .unwrap_or_default()
 }
 
@@ -180,10 +257,7 @@ fn ask(
 /// `SetProgress <current>` against the `progressmax` key, or
 /// `SetProgress <current> <max>`.
 fn set_progress(world: &mut EntityWorld, id: EntityId, event: &InputEvent) -> bool {
-    let default_max = world
-        .get(id)
-        .map(|e| e.fields.i32("progressmax", 0))
-        .unwrap_or(0);
+    let default_max = world.keyvalue_i32(id, "progressmax", 0);
     let mut words = event.parameter.split_whitespace();
     let Some(current) = words.next().and_then(|w| w.parse::<f32>().ok()) else {
         log::warn!("logic_achievement SetProgress: needs a number");
@@ -288,7 +362,10 @@ fn set_presence_key(world: &mut EntityWorld, id: EntityId, event: &InputEvent) -
 fn check_dlc(world: &mut EntityWorld, id: EntityId, event: &InputEvent) -> bool {
     let given = event.parameter.trim();
     let appid = if given.is_empty() {
-        text(world, id, "dlc")
+        // 0 is the key's default: nothing set.
+        Some(text(world, id, "dlc"))
+            .filter(|d| d != "0")
+            .unwrap_or_default()
     } else {
         given.to_string()
     };
@@ -296,8 +373,8 @@ fn check_dlc(world: &mut EntityWorld, id: EntityId, event: &InputEvent) -> bool 
         log::warn!("logic_platform CheckDlc: needs an app id, or set the dlc key");
         return false;
     };
-    if let Some(e) = world.get_mut(id) {
-        e.fields.set("__checking", Value::Int(appid as i32));
+    if let Some(l) = world.component_mut::<StoreLink>(id) {
+        l.checking = appid as i32;
     }
     world.request(
         host_requests::PLATFORM,

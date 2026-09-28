@@ -1045,13 +1045,17 @@ impl App {
             };
             poses[next_slot] =
                 ModelUniform::with_probe(Pose::new(entity.origin, entity.angles), probe);
-            let bones = match engine.animations.palette(&engine.vfs, entity, now) {
-                Some(palette) if palettes.len() < kerosene_render::gpu::MAX_SKINNED => {
-                    palettes.push(palette);
-                    palettes.len()
-                }
-                _ => 0,
-            };
+            let bones =
+                match engine
+                    .animations
+                    .palette(&engine.vfs, &engine.entities, entity.id, now)
+                {
+                    Some(palette) if palettes.len() < kerosene_render::gpu::MAX_SKINNED => {
+                        palettes.push(palette);
+                        palettes.len()
+                    }
+                    _ => 0,
+                };
             props.push((next_slot, name.to_string(), bones));
             next_slot += 1;
         }

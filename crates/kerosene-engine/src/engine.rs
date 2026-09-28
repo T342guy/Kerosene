@@ -720,7 +720,7 @@ impl Engine {
                 let model = e.brush_model?;
                 // A disabled `func_brush` or `func_wall_toggle` is not
                 // there to see, as it is not there to walk into.
-                if model == 0 || self.entities.keyvalue_bool(e.id, "disabled", false) {
+                if model == 0 || self.entities.is_disabled(e.id) {
                     return None;
                 }
                 Some((
@@ -746,7 +746,7 @@ impl Engine {
             .iter()
             .filter_map(|e| {
                 let model = e.brush_model?;
-                if model == 0 || self.entities.keyvalue_bool(e.id, "disabled", false) {
+                if model == 0 || self.entities.is_disabled(e.id) {
                     return None;
                 }
                 let (prev_origin, prev_angles) = self
@@ -1187,6 +1187,14 @@ impl Engine {
     #[doc(hidden)]
     pub fn animations_mut(&mut self) -> &mut crate::animation::Animations {
         &mut self.animations
+    }
+
+    /// An animated entity's pose now, as skinning matrices. Outside the
+    /// SemVer promise.
+    #[doc(hidden)]
+    pub fn animated_palette(&mut self, id: EntityId) -> Option<Vec<kerosene_math::Mat4>> {
+        let now = self.entities.time;
+        self.animations.palette(&self.vfs, &self.entities, id, now)
     }
 
     /// The map script's VM. Outside the SemVer promise; a game talks to
@@ -1659,7 +1667,7 @@ impl Engine {
             // Gathered before the touch update, because a `trigger_once`
             // removes itself in there and would otherwise deal nothing on the
             // tick it fired.
-            let live = !self.entities.keyvalue_bool(id, "disabled", false);
+            let live = !self.entities.is_disabled(id);
             // The player's own arrival, kept apart from `occupied`, which a
             // prop may have set first: a teleporter a crate is sitting in
             // still takes the player who walks in.

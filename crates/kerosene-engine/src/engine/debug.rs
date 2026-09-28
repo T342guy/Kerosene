@@ -472,10 +472,11 @@ impl Engine {
             e.angles.yaw,
             e.angles.roll
         )];
-        let mut fields: Vec<(String, String)> = e
-            .fields
-            .iter()
-            .map(|(k, v)| (k.clone(), v.to_string()))
+        let mut fields: Vec<(String, String)> = self
+            .entities
+            .keyvalues(e.id)
+            .into_iter()
+            .map(|(k, v)| (k, v.to_string()))
             .collect();
         fields.sort();
         lines.extend(fields.into_iter().map(|(k, v)| format!("  {k} = {v}")));

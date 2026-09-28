@@ -18,7 +18,7 @@
 //! and where they are -- so these ask it, with the requests in
 //! [`kerosene_entity::host_requests`].
 
-use crate::components::Pickup;
+use crate::components::{Pickup, Switchable};
 use kerosene_ecs::prelude::*;
 use kerosene_entity::{ClassDef, ClassRegistry, EntityId, EntityWorld, Value, host_requests};
 
@@ -50,16 +50,6 @@ impl Default for Breakable {
             broken: false,
         }
     }
-}
-
-/// A `func_wall_toggle`: whether it is there. No key: spawnflag 1 hides it
-/// from the start. Named `disabled` because that is what the engine asks
-/// every brush entity, to know whether to draw and collide with it.
-#[derive(Component, Reflect, Clone, Debug, Default, PartialEq)]
-#[reflect(Component, Default)]
-pub struct WallToggle {
-    /// Neither drawn nor solid.
-    pub disabled: bool,
 }
 
 /// A `point_hurt`: how hard, how far and how often.
@@ -148,7 +138,7 @@ pub fn register(registry: &mut ClassRegistry) {
 
     registry.register(
         ClassDef::new("func_wall_toggle")
-            .component::<WallToggle>()
+            .component::<Switchable>()
             .on_spawn(|w, id| {
                 let hidden = w
                     .get(id)
@@ -250,7 +240,7 @@ fn health(world: &EntityWorld, id: EntityId) -> f32 {
 }
 
 fn set_wall_hidden(world: &mut EntityWorld, id: EntityId, hide: impl Fn(bool) -> bool) -> bool {
-    if let Some(w) = world.component_mut::<WallToggle>(id) {
+    if let Some(w) = world.component_mut::<Switchable>(id) {
         w.disabled = hide(w.disabled);
     }
     true

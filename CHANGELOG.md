@@ -123,7 +123,20 @@ with what to do about them.
 - `cargo xtask layers`, run by CI: every crate depends only on the layers
   below it, and subsystems never on each other (`src/devnotes/crate-map.md`).
 
+- `kerosene-reflect` and `kerosene-ecs`: entity fields are declared once, as
+  fields of a component with `Key`, `Label`, `Help`, `Widget`, `Hidden`,
+  `Transient` and `Networked` attributes. The map loader, saves, the
+  editor's keys and scripts all read that declaration. Entities live in a
+  pinned `bevy_ecs` behind `kerosene_ecs::prelude`.
+- `EntityWorld::keyvalue`, `keyvalue_f32`/`_i32`/`_bool`/`_text`,
+  `set_keyvalue`, `keyvalues` and `is_disabled`: a key wherever it lives.
+
 ### Changed
+- **Entity classes are components.** `ClassDef::component` gives a class the
+  components its entities carry; the stock game's classes keep their keys
+  and state in them rather than in loose fields. Read a key with
+  `EntityWorld::keyvalue*`, not `Entity::fields`, when the class may be a
+  component's. Scripts' `set` and `ent_info` go through the same path.
 - **Materials are compiled.** Alchemy (and so `kiln` and Chisel) compiles
   each `.kmat` to a `.kmat_c` beside it, and the engine loads that; `.kmat_c`
   is packed instead of `.kmat`. A project not rebuilt since still runs from

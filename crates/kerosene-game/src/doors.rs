@@ -302,9 +302,15 @@ pub fn register(registry: &mut ClassRegistry) {
     registry.register(
         ClassDef::new("func_brush")
             .component::<Switchable>()
-            .input("Enable", |w, id, _| crate::components::set_disabled(w, id, false))
-            .input("Disable", |w, id, _| crate::components::set_disabled(w, id, true))
-            .input("Toggle", |w, id, _| crate::components::toggle_disabled(w, id)),
+            .input("Enable", |w, id, _| {
+                crate::components::set_disabled(w, id, false)
+            })
+            .input("Disable", |w, id, _| {
+                crate::components::set_disabled(w, id, true)
+            })
+            .input("Toggle", |w, id, _| {
+                crate::components::toggle_disabled(w, id)
+            }),
     );
 }
 
@@ -573,5 +579,7 @@ pub fn door_progress(world: &EntityWorld, id: EntityId) -> f32 {
 
 /// Whether a `func_brush` is currently solid and drawn.
 pub fn brush_enabled(world: &EntityWorld, id: EntityId) -> bool {
-    world.component::<Switchable>(id).is_none_or(|s| !s.disabled)
+    world
+        .component::<Switchable>(id)
+        .is_none_or(|s| !s.disabled)
 }

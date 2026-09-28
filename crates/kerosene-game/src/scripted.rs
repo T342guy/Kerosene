@@ -12,13 +12,40 @@
 //! That keeps the game code free of the script engine entirely -- the same
 //! split the rest of this crate keeps from the engine.
 
+use kerosene_ecs::prelude::*;
 use kerosene_entity::io::InputEvent;
 use kerosene_entity::{ClassDef, ClassRegistry, EntityId, EntityWorld, host_requests};
+
+/// What a `logic_script` runs when its input carries nothing of its own.
+///
+/// The keys' labels and help are in the schema.
+#[derive(Component, Reflect, Clone, Debug, Default, PartialEq)]
+#[reflect(Component, Default)]
+pub struct Script {
+    /// Loaded from `scripts/<name>.kscr` when the map starts.
+    #[reflect(@Key("scriptfile"))]
+    pub scriptfile: String,
+    /// What `CallScriptFunction` runs.
+    #[reflect(@Key("function"))]
+    pub function: String,
+    /// What `RunScriptCode` runs.
+    #[reflect(@Key("code"))]
+    pub code: String,
+}
+
+/// One of the entity's own settings, or empty for an entity with none.
+fn own(world: &EntityWorld, id: EntityId, pick: impl Fn(&Script) -> &String) -> String {
+    world
+        .component::<Script>(id)
+        .map(|s| pick(s).clone())
+        .unwrap_or_default()
+}
 
 /// Register `logic_script`, which runs a Rhai file.
 pub fn register(registry: &mut ClassRegistry) {
     registry.register(
         ClassDef::new("logic_script")
+            .component::<Script>()
             .on_spawn(spawn)
             .input("RunScriptCode", run_code)
             .input("CallScriptFunction", call_function)
@@ -33,10 +60,7 @@ pub fn register(registry: &mut ClassRegistry) {
 /// and no VM, and giving it either would be the beginning of the game DLL
 /// becoming the engine.
 fn spawn(world: &mut EntityWorld, id: EntityId) {
-    let file = world
-        .get(id)
-        .and_then(|e| e.fields.text("scriptfile").map(|s| s.into_owned()))
-        .unwrap_or_default();
+    let file = own(world, id, |s| &s.scriptfile);
     if !file.trim().is_empty() {
         world.request(host_requests::SCRIPT_FILE, file, id, None);
     }
@@ -46,10 +70,7 @@ fn run_code(world: &mut EntityWorld, id: EntityId, event: &InputEvent) -> bool {
     // The parameter if there is one, otherwise whatever the entity was given
     // in the editor -- so a `logic_script` can be a one-liner with no wiring.
     let source = if event.parameter.trim().is_empty() {
-        world
-            .get(id)
-            .and_then(|e| e.fields.text("code").map(|s| s.into_owned()))
-            .unwrap_or_default()
+        own(world, id, |s| &s.code)
     } else {
         event.parameter.clone()
     };
@@ -64,10 +85,7 @@ fn run_code(world: &mut EntityWorld, id: EntityId, event: &InputEvent) -> bool {
 
 fn call_function(world: &mut EntityWorld, id: EntityId, event: &InputEvent) -> bool {
     let name = if event.parameter.trim().is_empty() {
-        world
-            .get(id)
-            .and_then(|e| e.fields.text("function").map(|s| s.into_owned()))
-            .unwrap_or_default()
+        own(world, id, |s| &s.function)
     } else {
         event.parameter.clone()
     };
@@ -82,10 +100,7 @@ fn call_function(world: &mut EntityWorld, id: EntityId, event: &InputEvent) -> b
 
 fn run_file(world: &mut EntityWorld, id: EntityId, event: &InputEvent) -> bool {
     let file = if event.parameter.trim().is_empty() {
-        world
-            .get(id)
-            .and_then(|e| e.fields.text("scriptfile").map(|s| s.into_owned()))
-            .unwrap_or_default()
+        own(world, id, |s| &s.scriptfile)
     } else {
         event.parameter.clone()
     };

@@ -172,7 +172,7 @@ fn console(engine: &mut Engine) {
 
 fn counter(engine: &Engine) -> f32 {
     let id = engine.entities.find_by_name("counter")[0];
-    engine.entities.get(id).unwrap().fields.f32("value", -1.0)
+    engine.entities.keyvalue_f32(id, "startvalue", -1.0)
 }
 
 fn fire(engine: &mut Engine, target: &str, input: &str) {

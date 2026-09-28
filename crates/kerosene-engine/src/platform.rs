@@ -97,11 +97,8 @@ impl Engine {
                     let value = format_number(*new);
                     self.entities
                         .fire_output(e, "OnChanged", None, Some(&value));
-                    let Some(entity) = self.entities.get(e) else {
-                        continue;
-                    };
-                    let threshold = f64::from(entity.fields.f32("threshold", 0.0));
-                    let achievement = field_text(&entity.fields, "achievement");
+                    let threshold = f64::from(self.entities.keyvalue_f32(e, "threshold", 0.0));
+                    let achievement = self.field_text(e, "achievement");
                     if threshold <= 0.0 {
                         continue;
                     }
@@ -151,8 +148,8 @@ impl Engine {
                     .iter()
                     .filter(|e| e.classname.eq_ignore_ascii_case("logic_platform"))
                     .filter(|e| {
-                        field_text(&e.fields, "dlc") == id
-                            || e.fields.i32("__checking", 0) as u32 == *appid
+                        self.field_text(e.id, "dlc") == id
+                            || self.entities.keyvalue_i32(e.id, "checking", 0) as u32 == *appid
                     })
                     .map(|e| e.id)
                     .collect();
@@ -162,11 +159,8 @@ impl Engine {
                     "OnDlcNotOwned"
                 };
                 for e in asking {
-                    if let Some(entity) = self.entities.get_mut(e) {
-                        entity
-                            .fields
-                            .set("__checking", kerosene_entity::Value::Int(0));
-                    }
+                    self.entities
+                        .set_keyvalue(e, "checking", kerosene_entity::Value::Int(0));
                     self.entities.fire_output(e, output, None, Some(&id));
                 }
             }
@@ -222,7 +216,7 @@ impl Engine {
         self.entities
             .iter()
             .filter(|e| e.classname.eq_ignore_ascii_case(class))
-            .filter(|e| field_text(&e.fields, key) == value)
+            .filter(|e| self.field_text(e.id, key) == value)
             .map(|e| e.id)
             .collect()
     }
@@ -370,11 +364,14 @@ fn format_number(n: f64) -> String {
     }
 }
 
-fn field_text(fields: &kerosene_entity::Fields, key: &str) -> String {
-    fields
-        .text(key)
-        .map(|t| t.trim().to_string())
-        .unwrap_or_default()
+impl Engine {
+    /// An entity's text key, trimmed; empty when it has none.
+    fn field_text(&self, id: EntityId, key: &str) -> String {
+        self.entities
+            .keyvalue_text(id, key)
+            .map(|t| t.trim().to_string())
+            .unwrap_or_default()
+    }
 }
 
 pub(crate) fn register(console: &mut kerosene_console::Console) {

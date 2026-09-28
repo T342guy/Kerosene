@@ -394,21 +394,23 @@ impl Engine {
             let Some(e) = self.entities.get(id) else {
                 continue;
             };
-            let start_disabled = self.entities.keyvalue_bool(id, "startdisabled", false);
-            if self.entities.keyvalue_bool(id, "disabled", start_disabled) {
+            if self.entities.is_disabled(id) {
                 continue;
             }
-            let layout = e
-                .fields
-                .text("layout")
-                .map(|t| t.into_owned())
+            let f = |key, default| self.entities.keyvalue_f32(id, key, default);
+            let layout = self
+                .entities
+                .keyvalue_text(id, "layout")
                 .unwrap_or_default();
             if layout.is_empty() {
                 continue;
             }
-            let width = e.fields.f32("width", 32.0).max(1.0);
-            let height = e.fields.f32("height", 32.0).max(1.0);
-            let tall = e.fields.i32("resolution", 512).clamp(16, 2048) as u32;
+            let width = f("width", 32.0).max(1.0);
+            let height = f("height", 32.0).max(1.0);
+            let tall = self
+                .entities
+                .keyvalue_i32(id, "resolution", 512)
+                .clamp(16, 2048) as u32;
             let wide = ((tall as f32 * width / height).round() as u32).clamp(16, 4096);
             let basis = e.angles.vectors();
             // The panel faces along its forward vector; its right is the
@@ -429,8 +431,8 @@ impl Engine {
                 pixels: (wide, tall),
                 corners: [o - hw + hh, o + hw + hh, o - hw - hh, o + hw - hh],
                 normal: basis.forward,
-                brightness: e.fields.f32("brightness", 1.0).max(0.0),
-                interactive: e.fields.bool("interactive", false),
+                brightness: f("brightness", 1.0).max(0.0),
+                interactive: self.entities.keyvalue_bool(id, "interactive", false),
             });
         }
         let vfs = self.vfs.clone();

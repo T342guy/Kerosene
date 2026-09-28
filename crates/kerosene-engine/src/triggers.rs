@@ -12,7 +12,7 @@
 //!
 //! The convention, for anything that wants to be a trigger: the classname
 //! starts with `trigger_` (that is what makes the engine test the volume at
-//! all), `disabled` turns it off, `occupied` is the engine's own record of
+//! all), `startdisabled` (set by `Disable`) turns it off, `occupied` is the engine's own record of
 //! whether the player was inside last tick, and the three outputs are
 //! `OnStartTouch`, `OnEndTouch` and `OnTrigger`. `trigger_hurt` reads
 //! `damage` per second; `trigger_push` reads `pushdir` and `speed`;
@@ -39,7 +39,7 @@ pub fn update_touch(
     inside: bool,
     activator: Option<EntityId>,
 ) {
-    if !world.exists(id) || world.keyvalue_bool(id, "disabled", false) {
+    if !world.exists(id) || world.is_disabled(id) {
         return;
     }
 
@@ -168,7 +168,7 @@ entity { "classname" "math_counter" "targetname" "counter" }
     }
 
     fn field(w: &EntityWorld, id: EntityId, key: &str) -> f32 {
-        w.get(id).map(|e| e.fields.f32(key, -1.0)).unwrap_or(-1.0)
+        w.keyvalue_f32(id, key, -1.0)
     }
 
     #[test]
@@ -182,13 +182,13 @@ entity { "classname" "math_counter" "targetname" "counter" }
             update_touch(&mut w, zone, true, None);
             w.run(TICK);
         }
-        assert_eq!(field(&w, counter, "value"), 1.0);
+        assert_eq!(field(&w, counter, "startvalue"), 1.0);
 
         for _ in 0..20 {
             update_touch(&mut w, zone, false, None);
             w.run(TICK);
         }
-        assert_eq!(field(&w, counter, "value"), 0.0);
+        assert_eq!(field(&w, counter, "startvalue"), 0.0);
     }
 
     #[test]
@@ -202,7 +202,7 @@ entity { "classname" "math_counter" "targetname" "counter" }
             !w.exists(zone),
             "a trigger_once should be gone after it fires"
         );
-        assert_eq!(field(&w, named(&w, "counter"), "value"), 1.0);
+        assert_eq!(field(&w, named(&w, "counter"), "startvalue"), 1.0);
     }
 
     #[test]
@@ -212,12 +212,12 @@ entity { "classname" "math_counter" "targetname" "counter" }
         w.accept_input(zone, &InputEvent::new("Disable"));
         update_touch(&mut w, zone, true, None);
         w.run(TICK);
-        assert_eq!(field(&w, named(&w, "counter"), "value"), 0.0);
+        assert_eq!(field(&w, named(&w, "counter"), "startvalue"), 0.0);
 
         w.accept_input(zone, &InputEvent::new("Enable"));
         update_touch(&mut w, zone, true, None);
         w.run(TICK);
-        assert_eq!(field(&w, named(&w, "counter"), "value"), 1.0);
+        assert_eq!(field(&w, named(&w, "counter"), "startvalue"), 1.0);
     }
 
     #[test]
@@ -228,12 +228,12 @@ entity { "classname" "math_counter" "targetname" "counter" }
         let zone = named(&w, "zone");
         update_touch(&mut w, zone, true, None);
         w.run(TICK);
-        assert_eq!(field(&w, named(&w, "counter"), "value"), 1.0);
+        assert_eq!(field(&w, named(&w, "counter"), "startvalue"), 1.0);
 
         w.accept_input(zone, &InputEvent::new("Disable"));
         w.run(TICK);
         assert_eq!(
-            field(&w, named(&w, "counter"), "value"),
+            field(&w, named(&w, "counter"), "startvalue"),
             0.0,
             "OnEndTouch should have fired"
         );
@@ -242,7 +242,7 @@ entity { "classname" "math_counter" "targetname" "counter" }
         update_touch(&mut w, zone, true, None);
         w.run(TICK);
         assert_eq!(
-            field(&w, named(&w, "counter"), "value"),
+            field(&w, named(&w, "counter"), "startvalue"),
             1.0,
             "it should fire again"
         );

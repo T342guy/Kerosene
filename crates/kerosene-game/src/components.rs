@@ -45,7 +45,9 @@ pub fn toggle_disabled(world: &mut EntityWorld, id: EntityId) -> bool {
 /// Whether an entity is switched off: its [`Switchable`], or for a class
 /// without one, never.
 pub fn is_disabled(world: &EntityWorld, id: EntityId) -> bool {
-    world.component::<Switchable>(id).is_some_and(|s| s.disabled)
+    world
+        .component::<Switchable>(id)
+        .is_some_and(|s| s.disabled)
 }
 
 /// Something the player picks up by walking into it.
@@ -65,5 +67,39 @@ pub struct Pickup {
 impl Default for Pickup {
     fn default() -> Self {
         Pickup { touch_size: 32.0 }
+    }
+}
+
+/// What a rigid body is made of: the schema's `PhysicsBody` base.
+///
+/// The engine reads these by key when it gives a prop its body (see
+/// `kerosene_engine::physics`), and a spawner copies its own onto every prop
+/// it drops.
+#[derive(Component, Reflect, Clone, Debug, PartialEq)]
+#[reflect(Component, Default)]
+pub struct PhysicsBody {
+    /// Kilograms. Blank derives it from the model's size at a wood-like
+    /// density.
+    #[reflect(@Key("mass"), @Label("Mass (kg)"))]
+    pub mass: Option<f32>,
+    /// How much it resists sliding.
+    #[reflect(@Key("friction"), @Label("Friction"))]
+    pub friction: f32,
+    /// How much it bounces.
+    #[reflect(@Key("elasticity"), @Label("Bounciness"))]
+    pub elasticity: f32,
+    /// Whether the pick-up tool can grab it.
+    #[reflect(@Key("pickable"), @Label("Can be picked up"))]
+    pub pickable: bool,
+}
+
+impl Default for PhysicsBody {
+    fn default() -> Self {
+        PhysicsBody {
+            mass: None,
+            friction: 0.8,
+            elasticity: 0.1,
+            pickable: true,
+        }
     }
 }

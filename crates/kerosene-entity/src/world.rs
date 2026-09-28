@@ -7,8 +7,8 @@ use crate::registry::{ClassComponent, ClassRegistry, ComponentDecl};
 use crate::value::{Fields, Value};
 use kerosene_ecs::{Component, Entity as Handle, World};
 use kerosene_kv::KeyValues;
-use kerosene_reflect::Struct;
 use kerosene_math::{Aabb, Angles, Vec3};
+use kerosene_reflect::Struct;
 use std::collections::{BinaryHeap, HashMap};
 use std::sync::Arc;
 use thiserror::Error;
@@ -261,7 +261,11 @@ impl EntityWorld {
     /// declared with that keyvalue, or failing that, one with a field of that
     /// name -- how a saved game from before a field moved into a component,
     /// or a script, names a field that has no keyvalue.
-    pub(crate) fn claiming(&self, id: EntityId, key: &str) -> Option<(ComponentDecl, &'static str)> {
+    pub(crate) fn claiming(
+        &self,
+        id: EntityId,
+        key: &str,
+    ) -> Option<(ComponentDecl, &'static str)> {
         let e = self.get(id)?;
         let decls = self.registry.components(&e.classname);
         decls
@@ -285,6 +289,31 @@ impl EntityWorld {
             return (decl.reflect)(&self.ecs, handle).and_then(|s| kerosene_reflect::get(s, field));
         }
         self.get(id)?.fields.get(key).cloned()
+    }
+
+    /// Every keyvalue an entity has, loose or in a component: what a script
+    /// or a dump shows. A component's field is under its key, or its own
+    /// name when it has none (state the game keeps).
+    pub fn keyvalues(&self, id: EntityId) -> Vec<(String, Value)> {
+        let Some(e) = self.get(id) else {
+            return Vec::new();
+        };
+        let mut all: Vec<(String, Value)> = e
+            .fields
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.clone()))
+            .collect();
+        for decl in self.registry.components(&e.classname) {
+            let Some(target) = (decl.reflect)(&self.ecs, e.handle) else {
+                continue;
+            };
+            for field in decl.fields.iter() {
+                if let Some(v) = kerosene_reflect::get(target, field.name) {
+                    all.push((field.key.unwrap_or(field.name).to_string(), v));
+                }
+            }
+        }
+        all
     }
 
     /// [`EntityWorld::keyvalue`] as a number, or `default` when the entity
@@ -316,6 +345,13 @@ impl EntityWorld {
             Value::Text(t) => t,
             other => other.to_string(),
         })
+    }
+
+    /// Whether an entity is switched off: the `startdisabled` keyvalue,
+    /// which is also where a `Disable` input leaves it. What the engine
+    /// asks of a brush or trigger without knowing the game's components.
+    pub fn is_disabled(&self, id: EntityId) -> bool {
+        self.keyvalue_bool(id, "startdisabled", false)
     }
 
     /// Set a keyvalue wherever it lives. A value that does not fit the

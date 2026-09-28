@@ -65,7 +65,7 @@ impl Engine {
         };
 
         for entity in self.entities.iter() {
-            view.entities.push(entity_view(entity));
+            view.entities.push(entity_view(&self.entities, entity));
         }
         for cvar in self.console.cvars() {
             view.cvars
@@ -75,7 +75,7 @@ impl Engine {
             .player
             .entity
             .and_then(|id| self.entities.get(id))
-            .map(entity_view);
+            .map(|e| entity_view(&self.entities, e));
 
         view
     }
@@ -191,10 +191,13 @@ impl Engine {
                         .queue_input(target, &input, &parameter, delay, None, None);
                 }
                 ScriptAction::SetField { entity, key, value } => {
-                    let id = unpack(entity);
-                    if let Some(e) = self.entities.get_mut(id) {
-                        e.fields.set(&key, kerosene_entity::Value::Text(value));
-                    }
+                    // Wherever the key lives: a component's field takes the
+                    // text as its own type, a loose key stays text.
+                    self.entities.set_keyvalue(
+                        unpack(entity),
+                        &key,
+                        kerosene_entity::Value::Text(value),
+                    );
                 }
                 ScriptAction::SetOrigin { entity, origin } => {
                     let id = unpack(entity);
@@ -347,31 +350,36 @@ impl Engine {
         let Some(entity) = self.entities.get(id) else {
             return;
         };
+        let world = &self.entities;
         let everywhere = entity.has_spawnflag(crate::audio::SF_EVERYWHERE);
         // A brush entity's origin is how far it has moved from where it was
         // compiled, not where it is: a door's sound comes from the middle of
         // the door.
         let origin = match entity.brush_model {
             Some(_) => {
-                let mins = entity.fields.vec3("model_mins", kerosene_math::Vec3::ZERO);
-                let maxs = entity.fields.vec3("model_maxs", kerosene_math::Vec3::ZERO);
+                let vec = |key| {
+                    world
+                        .keyvalue(id, key)
+                        .and_then(|v| v.as_vec3())
+                        .unwrap_or(kerosene_math::Vec3::ZERO)
+                };
+                let (mins, maxs) = (vec("model_mins"), vec("model_maxs"));
                 entity.origin + (mins + maxs) * 0.5
             }
             None => entity.origin,
         };
         // `volume` is what it is called. `health` is what Source calls it, and
         // is still read so a map that says so is not silently ignored.
-        let volume = entity
-            .fields
-            .f32("volume", entity.fields.f32("health", 1.0))
+        let volume = world
+            .keyvalue_f32(id, "volume", world.keyvalue_f32(id, "health", 1.0))
             .clamp(0.0, 1.0);
-        let radius = entity.fields.f32("radius", 0.0);
+        let radius = world.keyvalue_f32(id, "radius", 0.0);
         // A rate, so 1 is unchanged. Source writes pitch as a percentage,
         // and a copied `pitch 100` would otherwise play as a click: anything
         // past what a rate could sensibly be is read as one.
-        let pitch = entity.fields.f32("pitch", 1.0);
+        let pitch = world.keyvalue_f32(id, "pitch", 1.0);
         let pitch = if pitch > 10.0 { pitch / 100.0 } else { pitch }.clamp(0.01, 4.0);
-        let looping = entity.fields.bool("looping", true);
+        let looping = world.keyvalue_bool(id, "looping", true);
 
         // One voice per entity: a second `PlaySound` replaces the first
         // rather than stacking a loop nothing can stop any more.
@@ -413,7 +421,10 @@ impl Engine {
     }
 }
 
-fn entity_view(entity: &kerosene_entity::Entity) -> EntityView {
+fn entity_view(
+    world: &kerosene_entity::EntityWorld,
+    entity: &kerosene_entity::Entity,
+) -> EntityView {
     let mut view = EntityView {
         id: pack(entity.id),
         classname: entity.classname.clone(),
@@ -421,8 +432,8 @@ fn entity_view(entity: &kerosene_entity::Entity) -> EntityView {
         origin: entity.origin,
         ..Default::default()
     };
-    for (key, value) in entity.fields.iter() {
-        view.fields.insert(key.to_string(), value.to_string());
+    for (key, value) in world.keyvalues(entity.id) {
+        view.fields.insert(key, value.to_string());
     }
     view
 }

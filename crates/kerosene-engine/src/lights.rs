@@ -28,34 +28,36 @@ pub fn entity_lights(entities: &EntityWorld) -> Vec<DynamicLight> {
     entities
         .iter()
         .filter(|e| e.classname == "light_dynamic")
-        .filter(|e| e.fields.bool(ON_FIELD, !e.has_spawnflag(SF_START_OFF)))
+        .filter(|e| entities.keyvalue_bool(e.id, ON_FIELD, !e.has_spawnflag(SF_START_OFF)))
         .filter_map(|e| {
-            let (color, brightness) = light_value(e.fields.text("_light").as_deref())?;
-            let cone = e.fields.f32("_cone", 0.0);
+            let f = |key, default| entities.keyvalue_f32(e.id, key, default);
+            let (color, brightness) =
+                light_value(entities.keyvalue_text(e.id, "_light").as_deref())?;
+            let cone = f("_cone", 0.0);
             let spot = (cone > 0.0).then(|| {
                 let mut angles = e.angles;
                 // Upward-positive, the opposite of the engine's pitch, as
                 // on a baked light_spot.
-                let pitch = e.fields.f32("pitch", 0.0);
+                let pitch = f("pitch", 0.0);
                 if pitch != 0.0 {
                     angles.pitch = -pitch;
                 }
                 Spot {
                     direction: angles.forward(),
                     outer: cone.min(89.0),
-                    inner: e.fields.f32("_inner_cone", cone * 0.5).min(cone),
-                    exponent: e.fields.f32("_exponent", 1.0),
+                    inner: f("_inner_cone", cone * 0.5).min(cone),
+                    exponent: f("_exponent", 1.0),
                 }
             });
-            let distance = e.fields.f32("distance", 0.0);
+            let distance = f("distance", 0.0);
             Some(DynamicLight {
                 origin: e.origin,
                 color,
                 brightness,
                 attenuation: Attenuation {
-                    constant: e.fields.f32("_constant_attn", 0.0),
-                    linear: e.fields.f32("_linear_attn", 0.0),
-                    quadratic: e.fields.f32("_quadratic_attn", 1.0),
+                    constant: f("_constant_attn", 0.0),
+                    linear: f("_linear_attn", 0.0),
+                    quadratic: f("_quadratic_attn", 1.0),
                 },
                 max_distance: (distance > 0.0).then_some(distance),
                 spot,

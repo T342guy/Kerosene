@@ -1007,7 +1007,7 @@ fn a_one_shot_sound_does_not_loop() {
     // never stop.
     let w = world_from(SOUND_MAP);
     let chime = named(&w, "chime");
-    assert!(!w.get(chime).unwrap().fields.bool("looping", true));
+    assert!(!w.keyvalue_bool(chime, "looping", true));
 }
 
 #[test]

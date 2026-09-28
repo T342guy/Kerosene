@@ -90,8 +90,7 @@ impl Engine {
                     )
                 }
             };
-            let inside =
-                alive && !self.entities.keyvalue_bool(id, "disabled", false) && bounds.intersects(&player_box);
+            let inside = alive && !self.entities.is_disabled(id) && bounds.intersects(&player_box);
             let was = entity.fields.bool(TOUCHING, false);
             if inside != was
                 && let Some(e) = self.entities.get_mut(id)

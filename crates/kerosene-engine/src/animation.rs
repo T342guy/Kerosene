@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! Posing animated models.
 //!
-//! A `prop_dynamic` keeps what it is playing in plain fields (see
+//! A `prop_dynamic` keeps what it is playing in component fields (see
 //! `kerosene_game::animated`); this reads them, with the model's clips, into
 //! a pose. It runs headless: the tick uses it to notice a one-shot clip
 //! ending and fire `OnAnimationDone`, and the host uses the same poses to
 //! skin the model it draws.
 //!
 //! The field names are fixed here -- the engine has no game crate to ask --
-//! and `kerosene_game::animated` carries the same names for its own use.
+//! and are read and written through the entity world's keyvalues.
 
 use kerosene_anim::{Playback, Skeleton, Transform};
 use kerosene_asset::Model;
-use kerosene_entity::{Entity, EntityId, EntityWorld, ModelRole, Value};
+use kerosene_entity::{EntityId, EntityWorld, ModelRole, Value};
 use kerosene_math::Mat4;
 use kerosene_vfs::Vfs;
 use std::collections::HashMap;
@@ -79,22 +79,21 @@ impl Animations {
     }
 
     /// An entity's playback, read from its fields.
-    pub fn playback(entity: &Entity, animated: &Animated) -> Playback {
+    pub fn playback(entities: &EntityWorld, id: EntityId, animated: &Animated) -> Playback {
         let clip = |key: &str| {
-            entity
-                .fields
-                .text(key)
+            entities
+                .keyvalue_text(id, key)
                 .and_then(|n| animated.model.animation_index(n.trim()))
         };
         Playback {
             clip: clip(ANIMATION),
-            started: entity.fields.f32(STARTED, 0.0),
-            rate: entity.fields.f32(RATE, 1.0),
+            started: entities.keyvalue_f32(id, STARTED, 0.0),
+            rate: entities.keyvalue_f32(id, RATE, 1.0),
             fading: clip(PREVIOUS).map(|previous| {
                 (
                     previous,
-                    entity.fields.f32(PREVIOUS_STARTED, 0.0),
-                    entity.fields.f32(FADE_STARTED, f32::NEG_INFINITY),
+                    entities.keyvalue_f32(id, PREVIOUS_STARTED, 0.0),
+                    entities.keyvalue_f32(id, FADE_STARTED, f32::NEG_INFINITY),
                 )
             }),
         }
@@ -102,11 +101,17 @@ impl Animations {
 
     /// An animated entity's pose at game time `now`, as skinning matrices.
     /// `None` for an entity with no model or one that will not load.
-    pub fn palette(&mut self, vfs: &Vfs, entity: &Entity, now: f32) -> Option<Vec<Mat4>> {
-        let name = entity.fields.text("model")?;
+    pub fn palette(
+        &mut self,
+        vfs: &Vfs,
+        entities: &EntityWorld,
+        id: EntityId,
+        now: f32,
+    ) -> Option<Vec<Mat4>> {
+        let name = entities.keyvalue_text(id, "model")?;
         let animated = self.model(vfs, &name)?;
         let pose: Vec<Transform> =
-            Self::playback(entity, &animated).pose(&animated.model, &animated.skeleton, now);
+            Self::playback(entities, id, &animated).pose(&animated.model, &animated.skeleton, now);
         Some(animated.skeleton.palette(&pose))
     }
 
@@ -120,29 +125,27 @@ impl Animations {
             .iter()
             .filter(|e| registry.model_role(&e.classname) == Some(ModelRole::Animated))
         {
-            if entity.fields.bool(DONE, false) {
+            let id = entity.id;
+            if entities.keyvalue_bool(id, DONE, false) {
                 continue;
             }
-            let Some(name) = entity.fields.text("model") else {
+            let Some(name) = entities.keyvalue_text(id, "model") else {
                 continue;
             };
             let Some(animated) = self.model(vfs, &name) else {
                 continue;
             };
-            if Self::playback(entity, &animated).finished(&animated.model, now) {
-                let current = entity.fields.text(ANIMATION).map(|s| s.into_owned());
-                let default = entity
-                    .fields
-                    .text("defaultanim")
+            if Self::playback(entities, id, &animated).finished(&animated.model, now) {
+                let current = entities.keyvalue_text(id, ANIMATION);
+                let default = entities
+                    .keyvalue_text(id, "defaultanim")
                     .map(|s| s.trim().to_string())
                     .filter(|d| !d.is_empty() && Some(d) != current.as_ref());
-                finished.push((entity.id, default));
+                finished.push((id, default));
             }
         }
         for (id, default) in finished {
-            if let Some(e) = entities.get_mut(id) {
-                e.fields.set(DONE, Value::Bool(true));
-            }
+            entities.set_keyvalue(id, DONE, Value::Bool(true));
             entities.fire_output(id, "OnAnimationDone", None, None);
             if let Some(clip) = default {
                 play(entities, id, &clip);
@@ -155,21 +158,17 @@ impl Animations {
 /// The same as the game class's `SetAnimation`.
 pub fn play(entities: &mut EntityWorld, id: EntityId, clip: &str) {
     let now = entities.time;
-    let Some(e) = entities.get_mut(id) else {
+    if !entities.exists(id) {
         return;
-    };
-    let current = e
-        .fields
-        .text(ANIMATION)
-        .map(|s| s.into_owned())
-        .unwrap_or_default();
-    let started = e.fields.f32(STARTED, now);
-    if !current.is_empty() {
-        e.fields.set(PREVIOUS, Value::Text(current));
-        e.fields.set(PREVIOUS_STARTED, Value::Float(started));
-        e.fields.set(FADE_STARTED, Value::Float(now));
     }
-    e.fields.set(ANIMATION, Value::Text(clip.to_string()));
-    e.fields.set(STARTED, Value::Float(now));
-    e.fields.set(DONE, Value::Bool(false));
+    let current = entities.keyvalue_text(id, ANIMATION).unwrap_or_default();
+    let started = entities.keyvalue_f32(id, STARTED, now);
+    if !current.is_empty() {
+        entities.set_keyvalue(id, PREVIOUS, Value::Text(current));
+        entities.set_keyvalue(id, PREVIOUS_STARTED, Value::Float(started));
+        entities.set_keyvalue(id, FADE_STARTED, Value::Float(now));
+    }
+    entities.set_keyvalue(id, ANIMATION, Value::Text(clip.to_string()));
+    entities.set_keyvalue(id, STARTED, Value::Float(now));
+    entities.set_keyvalue(id, DONE, Value::Bool(false));
 }

@@ -7,35 +7,62 @@
 //! fires `OnAnimationDone` when a clip that does not loop reaches its end --
 //! after which it goes back to its default, as Source's does.
 //!
-//! This class only keeps the playback state, in plain fields and in game
+//! This class only keeps the playback state, in a component and in game
 //! time, so it saves and replays like everything else. The engine reads the
 //! fields to pose the model, and it is the engine, which has the model's
 //! clips, that notices a clip ending (see `kerosene_engine::animation`).
 
+use kerosene_ecs::prelude::*;
 use kerosene_entity::io::InputEvent;
-use kerosene_entity::{ClassDef, ClassRegistry, EntityId, EntityWorld, ModelRole, Value};
+use kerosene_entity::{ClassDef, ClassRegistry, EntityId, EntityWorld, ModelRole};
 
-// The fields, which the engine reads by the same names.
-/// The clip playing now.
-pub const ANIMATION: &str = "animation";
-/// Game time the clip started.
-pub const STARTED: &str = "anim_start";
-/// Playback speed: 1 as authored.
-pub const RATE: &str = "anim_rate";
-/// The clip being faded out of, while a new one fades in.
-pub const PREVIOUS: &str = "anim_previous";
-/// Game time [`PREVIOUS`] started, so it carries on from where it was.
-pub const PREVIOUS_STARTED: &str = "anim_previous_start";
-/// Game time the fade from [`PREVIOUS`] began.
-pub const FADE_STARTED: &str = "anim_fade_start";
-/// Set once `OnAnimationDone` has fired for the current clip.
-pub const DONE: &str = "anim_done";
+/// What a `prop_dynamic` is playing, and when it started, in game time.
+///
+/// The engine reads and writes these by field name (see
+/// `kerosene_engine::animation`), so the names are fixed.
+#[derive(Component, Reflect, Clone, Debug, PartialEq)]
+#[reflect(Component, Default)]
+pub struct Animated {
+    /// The clip it plays from the start and returns to.
+    #[reflect(@Key("defaultanim"))]
+    pub defaultanim: String,
+    /// The clip playing now.
+    pub animation: String,
+    /// Game time the clip started.
+    pub anim_start: f32,
+    /// Playback speed: 1 as authored.
+    pub anim_rate: f32,
+    /// The clip being faded out of, while a new one fades in.
+    pub anim_previous: String,
+    /// Game time `anim_previous` started, so it carries on from where it was.
+    pub anim_previous_start: f32,
+    /// Game time the fade from `anim_previous` began.
+    pub anim_fade_start: f32,
+    /// Set once `OnAnimationDone` has fired for the current clip.
+    pub anim_done: bool,
+}
+
+impl Default for Animated {
+    fn default() -> Self {
+        Animated {
+            defaultanim: String::new(),
+            animation: String::new(),
+            anim_start: 0.0,
+            anim_rate: 1.0,
+            anim_previous: String::new(),
+            anim_previous_start: 0.0,
+            anim_fade_start: 0.0,
+            anim_done: false,
+        }
+    }
+}
 
 /// Register `prop_dynamic`.
 pub fn register(registry: &mut ClassRegistry) {
     registry.register(
         ClassDef::new("prop_dynamic")
             .model(ModelRole::Animated)
+            .component::<Animated>()
             .on_spawn(spawn)
             .input("SetAnimation", set_animation)
             .input("SetDefaultAnimation", set_default)
@@ -46,39 +73,30 @@ pub fn register(registry: &mut ClassRegistry) {
 
 fn spawn(world: &mut EntityWorld, id: EntityId) {
     let now = world.time;
-    let Some(e) = world.get_mut(id) else { return };
-    let default = e
-        .fields
-        .text("defaultanim")
-        .map(|s| s.trim().to_string())
-        .unwrap_or_default();
-    e.fields.set(ANIMATION, Value::Text(default));
-    e.fields.set(STARTED, Value::Float(now));
-    if !e.fields.contains(RATE) {
-        e.fields.set(RATE, Value::Float(1.0));
-    }
+    let Some(a) = world.component_mut::<Animated>(id) else {
+        return;
+    };
+    a.defaultanim = a.defaultanim.trim().to_string();
+    a.animation = a.defaultanim.clone();
+    a.anim_start = now;
 }
 
-/// Start `clip`, fading from whatever was playing. The engine calls this
-/// too, to go back to the default when a one-shot ends.
+/// Start `clip`, fading from whatever was playing. The engine has the same
+/// in `kerosene_engine::animation`, to go back to the default when a
+/// one-shot ends.
 pub fn play(world: &mut EntityWorld, id: EntityId, clip: &str) {
     let now = world.time;
-    let Some(e) = world.get_mut(id) else { return };
-    let current = e
-        .fields
-        .text(ANIMATION)
-        .map(|s| s.into_owned())
-        .unwrap_or_default();
-    let started = e.fields.f32(STARTED, now);
-    if !current.is_empty() {
-        e.fields.set(PREVIOUS, Value::Text(current));
-        e.fields.set(PREVIOUS_STARTED, Value::Float(started));
-        e.fields.set(FADE_STARTED, Value::Float(now));
+    let Some(a) = world.component_mut::<Animated>(id) else {
+        return;
+    };
+    if !a.animation.is_empty() {
+        a.anim_previous = std::mem::take(&mut a.animation);
+        a.anim_previous_start = a.anim_start;
+        a.anim_fade_start = now;
     }
-    e.fields
-        .set(ANIMATION, Value::Text(clip.trim().to_string()));
-    e.fields.set(STARTED, Value::Float(now));
-    e.fields.set(DONE, Value::Bool(false));
+    a.animation = clip.trim().to_string();
+    a.anim_start = now;
+    a.anim_done = false;
 }
 
 fn set_animation(world: &mut EntityWorld, id: EntityId, event: &InputEvent) -> bool {
@@ -87,11 +105,8 @@ fn set_animation(world: &mut EntityWorld, id: EntityId, event: &InputEvent) -> b
 }
 
 fn set_default(world: &mut EntityWorld, id: EntityId, event: &InputEvent) -> bool {
-    if let Some(e) = world.get_mut(id) {
-        e.fields.set(
-            "defaultanim",
-            Value::Text(event.parameter.trim().to_string()),
-        );
+    if let Some(a) = world.component_mut::<Animated>(id) {
+        a.defaultanim = event.parameter.trim().to_string();
     }
     true
 }
@@ -103,8 +118,8 @@ fn set_rate(world: &mut EntityWorld, id: EntityId, event: &InputEvent) -> bool {
         .parse::<f32>()
         .unwrap_or(1.0)
         .max(0.0);
-    if let Some(e) = world.get_mut(id) {
-        e.fields.set(RATE, Value::Float(rate));
+    if let Some(a) = world.component_mut::<Animated>(id) {
+        a.anim_rate = rate;
     }
     true
 }
