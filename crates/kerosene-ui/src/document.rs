@@ -27,6 +27,7 @@ use crate::store::{Event, UiStore, Value};
 use crate::style::{AnimProp, Blend, Dim, Fit, Style, Timing};
 use crate::text::{Fonts, TextLayout, TextParams};
 use crate::{Images, Loader, LogLevel, UiAction, UiKey};
+use kerosene_script::rhai;
 use std::collections::{BTreeMap, BTreeSet};
 
 /// The stylesheet every document starts from, before its own.

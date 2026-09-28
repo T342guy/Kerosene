@@ -19,6 +19,7 @@
 //!   `player_damaged`) and are handed to every document once, the frame after
 //!   they were emitted.
 
+use kerosene_script::rhai;
 use std::collections::BTreeMap;
 use std::fmt;
 

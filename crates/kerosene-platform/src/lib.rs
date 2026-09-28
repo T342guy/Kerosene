@@ -41,7 +41,6 @@ use std::collections::{BTreeMap, HashSet};
 use std::path::PathBuf;
 
 mod null;
-pub mod script;
 #[cfg(feature = "steam")]
 pub mod steam;
 

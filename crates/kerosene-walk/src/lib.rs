@@ -21,9 +21,10 @@ use kerosene_math::{Aabb, Vec3};
 use std::io::{self, Write};
 
 pub mod nav;
+mod rule;
 
-pub use kerosene_map::WalkmapRule;
 pub use nav::NavGraph;
+pub use rule::WalkmapRule;
 
 const MAGIC: [u8; 4] = *b"KRWL";
 const VERSION: u32 = 1;

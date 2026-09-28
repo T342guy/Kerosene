@@ -5,9 +5,8 @@ use crate::MAX_EVENTS_PER_TICK;
 use crate::io::{Connection, InputEvent, PendingEvent, Target};
 use crate::registry::ClassRegistry;
 use crate::value::{Fields, Value};
-use kerosene_bsp::Bsp;
 use kerosene_kv::KeyValues;
-use kerosene_math::{Angles, Vec3};
+use kerosene_math::{Aabb, Angles, Vec3};
 use std::collections::{BinaryHeap, HashMap};
 use std::sync::Arc;
 use thiserror::Error;
@@ -291,23 +290,32 @@ impl EntityWorld {
 
     // ---- loading ---------------------------------------------------------
 
-    /// Create every entity in a compiled map and run its spawn handler.
+    /// Create every entity in a compiled map's entity lump and run its spawn
+    /// handler.
     ///
-    /// Brush entities are given their model's bounds as fields *before* spawn
-    /// handlers run, because a class like `func_door` needs to know how far it
-    /// travels, and that comes from the geometry rather than from a keyvalue.
-    pub fn load_from_bsp(&mut self, bsp: &Bsp) -> Result<usize, SpawnError> {
-        let kv = bsp.entities_kv()?;
-        let created = self.create_entities(&kv);
+    /// `brush_bounds` is the map's brush models' bounds, indexed the way an
+    /// entity's `model` key (`*1`, `*2`...) indexes them. Brush entities are
+    /// given theirs as fields *before* spawn handlers run, because a class
+    /// like `func_door` needs to know how far it travels, and that comes from
+    /// the geometry rather than from a keyvalue.
+    ///
+    /// The lump and the bounds are handed in, rather than read out of a
+    /// `.kbsp` here, so that entities do not depend on the world format:
+    /// the engine, which loads both, joins them.
+    pub fn load_from_lump(
+        &mut self,
+        entities: &KeyValues,
+        brush_bounds: &[Aabb],
+    ) -> Result<usize, SpawnError> {
+        let created = self.create_entities(entities);
 
         for &id in &created {
             let Some(index) = self.get(id).and_then(|e| e.brush_model) else {
                 continue;
             };
-            let Some(model) = bsp.models.get(index) else {
+            let Some(bounds) = brush_bounds.get(index) else {
                 continue;
             };
-            let bounds = model.bounds();
             if let Some(e) = self.get_mut(id) {
                 e.fields.set("model_mins", Value::Vector(bounds.min));
                 e.fields.set("model_maxs", Value::Vector(bounds.max));
@@ -405,7 +413,7 @@ impl EntityWorld {
 
             if let Some(conn) = block.block("connections") {
                 for (output, raw) in conn.pairs() {
-                    match kerosene_map::Connection::parse(output, raw) {
+                    match kerosene_kv::Connection::parse(output, raw) {
                         Ok(c) => {
                             if let Some(e) = self.get_mut(id) {
                                 e.connections.push(c.into());

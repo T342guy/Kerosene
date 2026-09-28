@@ -42,6 +42,11 @@ jobs:
       - name: Clippy
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
 
+      # Every crate depends only on the layers below it; see
+      # xtask/src/layers.rs and src/refactor/.
+      - name: Layers
+        run: cargo xtask layers
+
       - name: Test
         run: cargo test --workspace --locked
 

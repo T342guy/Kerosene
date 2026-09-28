@@ -40,7 +40,7 @@
 //! the top of the file. The price is that `platform` and `steam` cannot be
 //! used as variable names.
 
-use crate::{PlatformAction, PlatformView};
+use kerosene_platform::{PlatformAction, PlatformView};
 use rhai::{Dynamic, Engine, FLOAT, INT, Map};
 use std::rc::Rc;
 
@@ -210,4 +210,70 @@ pub fn register(
     ));
 
     engine.register_fn("to_string", |_: &mut ScriptPlatform| "platform".to_string());
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::cell::RefCell;
+
+    #[test]
+    fn the_script_object_reads_the_view_and_queues_actions() {
+        let mut engine = rhai::Engine::new();
+        let queued = Rc::new(RefCell::new(Vec::new()));
+        let q = queued.clone();
+        let mut view = PlatformView {
+            name: "none".into(),
+            user: "tester".into(),
+            ..Default::default()
+        };
+        view.achievements.insert("ACH_DOOR".into(), true);
+        view.stats.insert("doors".into(), 4.0);
+        view.dlc.insert(111, true);
+        register(
+            &mut engine,
+            move || view.clone(),
+            move |a| q.borrow_mut().push(a),
+        );
+
+        let got: String = engine
+            .eval(
+                r#"
+                fn award() { steam.unlock("ACH_TEN"); }
+                award();
+                platform.add_stat("doors");
+                platform.add_stat("distance", 2.5);
+                platform.submit_score("time", 99, true);
+                platform.presence("status", 3);
+                platform.check_dlc(111);
+                `${platform.user} ${platform.is_unlocked("ACH_DOOR")} ${platform.stat("doors")} ${platform.owns_dlc(111)} ${platform.stat("nope") == ()} ${platform.achievements.len()}`
+                "#,
+            )
+            .unwrap();
+        assert_eq!(got, "tester true 4.0 true true 1");
+        assert_eq!(
+            *queued.borrow(),
+            vec![
+                PlatformAction::Unlock("ACH_TEN".into()),
+                PlatformAction::AddStat {
+                    name: "doors".into(),
+                    delta: 1.0
+                },
+                PlatformAction::AddStat {
+                    name: "distance".into(),
+                    delta: 2.5
+                },
+                PlatformAction::SubmitScore {
+                    board: "time".into(),
+                    score: 99,
+                    ascending: true
+                },
+                PlatformAction::Presence {
+                    key: "status".into(),
+                    value: "3".into()
+                },
+                PlatformAction::CheckDlc(111),
+            ]
+        );
+    }
 }

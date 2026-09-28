@@ -46,9 +46,14 @@ use std::collections::BTreeMap;
 use std::rc::Rc;
 
 mod bindings;
+pub mod platform;
 mod view;
 
 pub use bindings::{ID_TARGET_PREFIX, parse_id_target};
+/// The scripting language, for crates that register their own bindings.
+/// Reached through here so that the script subsystem is the one place
+/// that decides which version the engine embeds.
+pub use rhai;
 pub use view::{EntityView, WorldView};
 
 /// The extension a script file uses.

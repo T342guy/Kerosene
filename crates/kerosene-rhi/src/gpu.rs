@@ -6,7 +6,7 @@
 //! sees that backend and, when no adapter is there, trying again with every
 //! backend rather than refusing to start.
 
-use crate::Renderer;
+use kerosene_config::Renderer;
 
 /// A surface and the adapter that will draw to it.
 ///
@@ -29,7 +29,7 @@ pub async fn open(
     power: wgpu::PowerPreference,
     make_surface: impl Fn(&wgpu::Instance) -> Option<wgpu::Surface<'static>>,
 ) -> Option<Gpu> {
-    let preferred = renderer.wgpu_backends();
+    let preferred = crate::backends(renderer);
     let mut attempts = vec![preferred];
     if preferred != wgpu::Backends::all() {
         attempts.push(wgpu::Backends::all());

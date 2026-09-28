@@ -6,9 +6,11 @@
 //! cargo xtask bundle --out <dir>
 //! cargo xtask publish --dry-run   # check, bundle, and publish -- without the upload
 //! cargo xtask publish             # check, bundle, and publish
+//! cargo xtask layers              # every crate depends only on the layers below it
 //! ```
 
 mod bundle;
+mod layers;
 mod publish;
 mod rewrite;
 
@@ -26,6 +28,7 @@ fn main() -> anyhow::Result<()> {
     match args.first().map(String::as_str) {
         Some("bundle") => bundle::run(&args[1..]),
         Some("publish") => publish::run(&args[1..]),
+        Some("layers") => layers::run(&args[1..]),
         // Asking is not a mistake: the usage, on stdout, and success.
         Some("help" | "--help" | "-h") => {
             println!("{USAGE}");
@@ -44,6 +47,8 @@ fn main() -> anyhow::Result<()> {
 
 const USAGE: &str = "usage: cargo xtask bundle [--out <dir>]
        cargo xtask publish [--dry-run] [--yes]
+       cargo xtask layers
 
 bundle   assemble the one `kerosene` crate crates.io gets, from the workspace
-publish  check the release, bundle it and publish it to crates.io";
+publish  check the release, bundle it and publish it to crates.io
+layers   check that every crate depends only on the layers below it";

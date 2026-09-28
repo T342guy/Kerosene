@@ -23,7 +23,7 @@ pub static BASE_VAULT: &[u8] = include_bytes!("../base/base.vault");
 
 /// The map in the base content: a plain lit room, what the engine opens
 /// when nothing names a map to start on. It is
-/// [`kerosene_map::starter::room`], the room `kerosene-tools new` gives a
+/// `kerosene_map::starter::room`, the room `kerosene-tools new` gives a
 /// new game. The demo that used to be here is its own game now:
 /// <https://github.com/t342guy/kerosene-demo>.
 pub const FALLBACK_MAP: &str = "kerosene_room";

@@ -34,7 +34,6 @@ kerosene-game.workspace = true
 kerosene-math.workspace = true
 kerosene-map.workspace = true
 kerosene-kv.workspace = true
-kerosene-bsp.workspace = true
 kerosene-asset.workspace = true
 kerosene-vfs.workspace = true
 kerosene-render.workspace = true

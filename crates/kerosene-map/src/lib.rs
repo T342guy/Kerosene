@@ -42,15 +42,15 @@ mod ops;
 mod solid;
 pub mod starter;
 pub mod texture;
-mod walk;
 
 pub use editor::{Cordon, EditorData, Group, ObjectId, VisGroup};
-pub use entity::{Connection, Entity, ParseConnectionError};
+pub use entity::Entity;
+pub use kerosene_kv::{Connection, ParseConnectionError};
+pub use kerosene_walk::WalkmapRule;
 pub use mesh::{Mesh, MeshError, MeshFace, polygon_normal};
 pub use ops::bounds_of;
 pub use solid::{Side, Solid, SolidError};
 pub use texture::{TextureAxis, default_axes_for_plane, rotate_axes};
-pub use walk::WalkmapRule;
 
 use kerosene_kv::{Entry, KeyValues};
 use kerosene_math::{Aabb, Vec3};

@@ -22,6 +22,7 @@
 
 use crate::engine::Engine;
 use kerosene_entity::{EntityId, Target};
+use kerosene_script::rhai;
 use kerosene_script::{EntityView, ScriptAction, ScriptLevel, WorldView};
 
 /// Where a map's script lives, given the map's name.

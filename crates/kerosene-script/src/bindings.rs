@@ -51,11 +51,11 @@ pub fn register(engine: &mut Engine, shared: &Rc<RefCell<Shared>>) {
 }
 
 /// The `platform` object, and its `steam` alias: see
-/// [`kerosene_platform::script`] for what it has.
+/// [`crate::platform`] for what it has.
 fn register_platform(engine: &mut Engine, shared: &Rc<RefCell<Shared>>) {
     let view = Rc::clone(shared);
     let sink = Rc::clone(shared);
-    kerosene_platform::script::register(
+    crate::platform::register(
         engine,
         move || view.borrow().view.platform.clone(),
         move |action| push(&sink, ScriptAction::Platform(action)),

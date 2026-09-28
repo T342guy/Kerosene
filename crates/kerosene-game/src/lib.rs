@@ -137,7 +137,7 @@ fn input_add_output(
         log::warn!("AddOutput: expected '<output> <target>,<input>,<param>,<delay>,<times>'");
         return false;
     };
-    match kerosene_map::Connection::parse(output, rest.trim()) {
+    match kerosene_kv::Connection::parse(output, rest.trim()) {
         Ok(c) => {
             if let Some(e) = world.get_mut(id) {
                 e.connections.push(c.into());

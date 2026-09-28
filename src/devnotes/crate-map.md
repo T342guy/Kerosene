@@ -1,11 +1,31 @@
 # Crate map
 
-The workspace is 20 engine crates, 11 tool crates, the toolset that joins
-them, the `kerosene` game crate and one application: 34 packages, all one
-version. `Cargo.toml` at the root lists them; the interesting part is the
-direction of the arrows.
+The workspace is 22 engine crates, 11 tool crates, the toolset that joins
+them, the `kerosene` game crate, one application and `xtask`: 38 packages,
+all one version. `Cargo.toml` at the root lists them; the interesting part
+is the direction of the arrows.
 
 ## The dependency graph
+
+The crates sit in layers, and a crate depends only on the layers below it.
+`cargo xtask layers` checks that on every CI run, from the table in
+`xtask/src/layers.rs`; the reasoning is the refactor design document's, in
+`src/refactor/`.
+
+| Layer | Crates | May depend on |
+|---|---|---|
+| 0 core | math, kv, console | each other |
+| 1 core services | config, vfs, platform | layer 0; each other |
+| 2 data and hardware | asset, bsp, walk, map, scene, rhi | layers 0–1; each other |
+| 3 subsystems | render, physics, rigid, anim, audio, entity, script, ui | layers 0–2, **not each other** |
+| 4 host and game | engine, game | layers 0–3 |
+| 5 tools | toolui and every tool | layers 0–4; each other |
+| 6 facade | `kerosene` | everything |
+
+Two extra rules. `kerosene-map`, the `.kmap` source format, is for the tools
+only: nothing below layer 5 may link it, because the runtime loads compiled
+maps. And the one subsystem edge that is allowed anyway, `ui` → `script`, is
+listed in `xtask/src/layers.rs` with its reason, as an exception to revisit.
 
 ```mermaid
 ---
@@ -13,25 +33,38 @@ config:
   layout: elk
 ---
 flowchart TB
-    math["kerosene-math<br/>units, planes, windings, poses"]
-    kv["kerosene-kv<br/>KeyValues"]
-    console["kerosene-console<br/>convars, commands, logging"]
-    config["kerosene-config<br/>engine.kcfg"]
-    vfs["kerosene-vfs<br/>search paths, archives, content root, toolchain"]
-    asset["kerosene-asset<br/>ktex, kmat, kmdl"]
-    map["kerosene-map<br/>.kmap source"]
-    bsp["kerosene-bsp<br/>.kbsp + traces + vis + acoustics"]
-    walk["kerosene-walk<br/>.kwalk + nav"]
-    physics["kerosene-physics<br/>gamemovement"]
-    rigid["kerosene-rigid<br/>box3d-rust wrapper"]
-    entity["kerosene-entity<br/>entity world + I/O"]
-    render["kerosene-render<br/>mesh, lightmap, wgpu"]
-    engine["kerosene-engine<br/>Engine, Game, host"]
-    game["kerosene-game<br/>stock classes"]
-    audio["kerosene-audio<br/>mixer, reverb"]
-    script["kerosene-script<br/>Rhai layer"]
-    ui["kerosene-ui<br/>game UI: layout, style, bindings"]
-    platform["kerosene-platform<br/>store seam: Steam or none"]
+    subgraph L0["0 core"]
+        math["kerosene-math<br/>units, planes, windings, poses"]
+        kv["kerosene-kv<br/>KeyValues, value encodings, I/O connections"]
+        console["kerosene-console<br/>convars, commands, logging"]
+    end
+    subgraph L1["1 core services"]
+        config["kerosene-config<br/>engine.kcfg"]
+        vfs["kerosene-vfs<br/>search paths, archives, content root, toolchain"]
+        platform["kerosene-platform<br/>store seam: Steam or none"]
+    end
+    subgraph L2["2 data and hardware"]
+        asset["kerosene-asset<br/>ktex, kmat, kmdl"]
+        bsp["kerosene-bsp<br/>.kbsp + traces + vis + acoustics"]
+        walk["kerosene-walk<br/>.kwalk + nav"]
+        map["kerosene-map<br/>.kmap source (tools only)"]
+        scene["kerosene-scene<br/>what the renderer is asked to draw"]
+        rhi["kerosene-rhi<br/>opening a GPU"]
+    end
+    subgraph L3["3 subsystems"]
+        render["kerosene-render<br/>mesh, lightmap, wgpu"]
+        physics["kerosene-physics<br/>gamemovement"]
+        rigid["kerosene-rigid<br/>box3d-rust wrapper"]
+        anim["kerosene-anim<br/>skeletons, clips"]
+        audio["kerosene-audio<br/>mixer, reverb"]
+        entity["kerosene-entity<br/>entity world + I/O"]
+        script["kerosene-script<br/>Rhai layer"]
+        ui["kerosene-ui<br/>game UI: layout, style, bindings"]
+    end
+    subgraph L4["4 host and game"]
+        engine["kerosene-engine<br/>Engine, Game, host"]
+        game["kerosene-game<br/>stock classes"]
+    end
     facade["kerosene<br/>facade + Stock + launch"]
     runtime["apps/kerosene<br/>the runtime binary"]
 
@@ -40,79 +73,68 @@ flowchart TB
     kv --> vfs
     math --> asset
     kv --> asset
-    math --> map
-    kv --> map
+    math --> bsp
     kv --> bsp
     vfs --> bsp
-    map --> walk
+    math --> walk
+    math --> map
+    kv --> map
+    walk --> map
+    config --> rhi
+    math --> anim
+    asset --> anim
+    math --> audio
+    kv --> audio
     math --> physics
     bsp --> physics
     math --> rigid
     math --> entity
-    bsp --> entity
-    map --> entity
-    physics --> entity
-    console --> entity
+    kv --> entity
     math --> render
-    bsp --> render
     asset --> render
+    bsp --> render
     vfs --> render
-    console --> render
+    scene --> render
+    math --> script
+    platform --> script
+    script -. "exception" .-> ui
+    platform --> ui
+    scene --> ui
+    vfs --> ui
+    math --> game
+    kv --> game
+    entity --> game
+    L0 --> engine
+    L1 --> engine
+    anim --> engine
     asset --> engine
+    audio --> engine
     bsp --> engine
-    vfs --> engine
-    console --> engine
-    config --> engine
     entity --> engine
     physics --> engine
-    rigid --> engine
     render --> engine
-    audio --> engine
+    rhi --> engine
+    rigid --> engine
     script --> engine
-    script --> ui
-    platform --> script
-    platform --> ui
-    platform --> engine
-    vfs --> ui
-    ui --> render
     ui --> engine
+    walk --> engine
     engine -. "dev-dep, tests" .-> game
     engine --> facade
     game --> facade
-    entity --> facade
-    console --> facade
-    vfs --> facade
-    map --> facade
-    bsp --> facade
-    script --> facade
-    audio --> facade
-    render --> facade
-    physics --> facade
-    rigid --> facade
-    config --> facade
-    kv --> facade
-    asset --> facade
-    walk --> facade
     facade --> runtime
-
-    classDef base fill:#2962FF,color:#fff
-    classDef mid fill:#AA00FF,color:#fff
-    classDef runtimeC fill:#00C853,color:#fff
-    class math,kv,console,config,vfs base
-    class platform base
-    class asset,map,bsp,walk,physics,rigid,entity,render,audio,script mid
-    class engine,game,facade,runtime runtimeC
 ```
 
-Read it top to bottom: nothing points back up. `kerosene-math` has two
+Read it top to bottom: nothing points back up, and nothing inside layer 3
+points sideways except the one dashed exception. `kerosene-math` has two
 dependencies, both third-party (`glam` and `bytemuck`). `kerosene-engine`
 depends on almost everything and is depended on by nothing except the facade
-and the runtime. The tools are not in this graph at all, and that is the point
+and the runtime. The facade re-exports every engine crate; those edges are
+left out. The tools are not in this graph at all, and that is the point
 — see [Tools and the build](tools-and-build.md).
 
 The graph is not exactly `Cargo.toml`: `kerosene-engine` does not depend on
-`kerosene-game`. The stock game depends on the *entity* and *physics* and
-*map* crates, and the engine has it only as a dev-dependency for tests.
+`kerosene-game`. The stock game depends on the *entity* and *kv* crates,
+and the engine has it only as a dev-dependency for tests.
 `kerosene::game::Stock` is the type that joins the two at the facade level.
 
 ## The four seams worth naming
@@ -237,23 +259,25 @@ internal dependency is pinned at `=<version>` and moved by
 | Crate | Responsibility | Notable source |
 |---|---|---|
 | `kerosene-math` | Units, `Plane`/`Winding`/`Aabb`, angles, `Pose`, epsilon constants | `src/units.rs`, `src/plane.rs`, `src/winding.rs` |
-| `kerosene-kv` | KeyValues parse/serialise, typed reads, `format_float` | `src/parse.rs`, `src/value.rs` |
+| `kerosene-kv` | KeyValues parse/serialise, typed reads, `format_float`, the I/O `Connection` encoding | `src/parse.rs`, `src/value.rs`, `src/connection.rs` |
 | `kerosene-console` | ConVars, ConCommands, command buffer, log relay, crash handler | `src/lib.rs`, `src/logging.rs` |
 | `kerosene-config` | `engine.kcfg` with defaults for every key | `src/lib.rs`, `src/renderer.rs` |
 | `kerosene-vfs` | Search-path stack, `.vault` archives, content discovery, toolchain | `src/lib.rs`, `src/root.rs`, `src/archive.rs` |
 | `kerosene-asset` | `.ktex`, `.kmat`, `.kmdl` readers/writers | `src/texture.rs`, `src/material.rs`, `src/model.rs` |
 | `kerosene-map` | `.kmap` source, brush ops (clip/carve/hollow), editor metadata | `src/solid.rs`, `src/ops.rs`, `src/editor.rs` |
 | `kerosene-bsp` | `.kbsp` lumps, tree queries, traces, PVS, acoustics, sections | `src/lib.rs`, `src/trace.rs`, `src/vis.rs` |
-| `kerosene-walk` | `.kwalk` walkmap and navigation graph | `src/lib.rs`, `src/nav.rs` |
+| `kerosene-walk` | `.kwalk` walkmap, navigation graph, the per-face `WalkmapRule` | `src/lib.rs`, `src/nav.rs`, `src/rule.rs` |
+| `kerosene-scene` | What the renderer is asked to draw: the UI display list, its images, the glyph atlas size | `src/draw.rs`, `src/images.rs` |
+| `kerosene-rhi` | The render hardware interface: opening a GPU for the configured renderer | `src/lib.rs`, `src/gpu.rs` |
 | `kerosene-physics` | Source `gamemovement`, `CollisionWorld` trait | `src/movement.rs`, `src/world.rs` |
 | `kerosene-rigid` | box3d-rust wrapper, inches native | `src/lib.rs` |
 | `kerosene-entity` | Entity slots, fields, I/O queue, class registry, schema, save snapshots | `src/world.rs`, `src/io.rs`, `src/schema.rs`, `src/snapshot.rs` |
 | `kerosene-render` | CPU PVS/mesh build, lightmap atlas, dynamic lights, probes, wgpu backend | `src/mesh.rs`, `src/gpu.rs`, `src/lightmap.rs` |
 | `kerosene-anim` | skeleton, clip sampling, crossfade, skinning palette | `src/lib.rs` |
 | `kerosene-audio` | ADPCM, mixer, FDN reverb, device output | `src/mixer.rs`, `src/reverb.rs`, `src/compiled.rs` |
-| `kerosene-script` | Rhai VM, world snapshot, `ScriptAction` queue | `src/lib.rs`, `src/view.rs`, `src/bindings.rs` |
-| `kerosene-ui` | Game UI: XML/CSS/Rhai documents, store and bindings, flexbox, glyph atlas, display list | `src/document.rs`, `src/bind.rs`, `src/style.rs` |
-| `kerosene-platform` | The store: `Platform` (validation, batching, events) over a `Backend` -- Steam behind the `steam` feature, an offline stand-in otherwise -- and the Rhai `platform` object both script VMs register | `src/lib.rs`, `src/steam.rs`, `src/script.rs` |
+| `kerosene-script` | Rhai VM (and the one `rhai` dependency), world snapshot, `ScriptAction` queue, the `platform` object both script VMs register | `src/lib.rs`, `src/view.rs`, `src/bindings.rs`, `src/platform.rs` |
+| `kerosene-ui` | Game UI: XML/CSS/Rhai documents, store and bindings, flexbox, glyph atlas | `src/document.rs`, `src/bind.rs`, `src/style.rs` |
+| `kerosene-platform` | The store: `Platform` (validation, batching, events) over a `Backend` -- Steam behind the `steam` feature, an offline stand-in otherwise | `src/lib.rs`, `src/steam.rs` |
 | `kerosene-toolui` | The tools' egui window host, theme and widgets | `src/lib.rs`, `src/theme.rs` |
 | `kerosene-engine` | `Engine`, `Game`, `host`, `launch`, streaming, acoustics glue, saved games | `src/engine.rs`, `src/host.rs`, `src/save.rs` |
 | `kerosene-game` | Stock classes: doors, triggers, logic, props, sound | `src/doors.rs`, `src/logic.rs`, `src/props.rs` |

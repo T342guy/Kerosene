@@ -11,7 +11,7 @@ disagree, the code wins.
 | `crates/kerosene-platform/src/lib.rs` | `Platform`: declarations, validation, stat batching, the event queue. `PlatformAction` and its one-line text form, `PlatformEvent`, `PlatformView` |
 | `crates/kerosene-platform/src/null.rs` | The offline stand-in. It behaves like a store: it simulates leaderboard ranks, and keeps "cloud" files in memory or a directory |
 | `crates/kerosene-platform/src/steam.rs` | `SteamBackend`, behind the `steam` feature |
-| `crates/kerosene-platform/src/script.rs` | The Rhai `platform`/`steam` object, registered by both script VMs |
+| `crates/kerosene-script/src/platform.rs` | The Rhai `platform`/`steam` object, registered by both script VMs |
 | `crates/kerosene-engine/src/platform.rs` | Entity requests, result outputs, console commands, publishing to the UI store |
 | `crates/kerosene-game/src/platform.rs` | The five `logic_*` classes |
 | `tools/kiln/src/steam.rs` | `--ship --steam`: build options, finding the redistributable, SteamPipe scripts |

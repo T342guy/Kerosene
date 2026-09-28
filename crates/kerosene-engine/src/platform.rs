@@ -21,6 +21,7 @@
 use crate::engine::Engine;
 use kerosene_entity::EntityId;
 use kerosene_platform::{PlatformAction, PlatformEvent};
+use kerosene_script::rhai;
 
 /// Console requests this module answers.
 pub mod requests {

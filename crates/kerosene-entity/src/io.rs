@@ -47,8 +47,8 @@ impl Connection {
     }
 }
 
-impl From<kerosene_map::Connection> for Connection {
-    fn from(c: kerosene_map::Connection) -> Self {
+impl From<kerosene_kv::Connection> for Connection {
+    fn from(c: kerosene_kv::Connection) -> Self {
         Connection {
             output: c.output,
             target: c.target,
@@ -218,7 +218,7 @@ mod tests {
 
     #[test]
     fn map_connections_convert_across() {
-        let m = kerosene_map::Connection::new("OnPressed", "door1", "Open").with_delay(0.5);
+        let m = kerosene_kv::Connection::new("OnPressed", "door1", "Open").with_delay(0.5);
         let c: Connection = m.into();
         assert_eq!(c.target, "door1");
         assert_eq!(c.delay, 0.5);

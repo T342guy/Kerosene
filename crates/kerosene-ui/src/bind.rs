@@ -22,6 +22,7 @@
 //! mistakes for a key only causes an extra evaluation, never a missed one.
 
 use crate::store::key_affects;
+use kerosene_script::rhai;
 
 /// One piece of a template: literal text, or an expression in braces.
 #[derive(Clone, Debug)]

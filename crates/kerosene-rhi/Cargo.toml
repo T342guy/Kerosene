@@ -1,5 +1,5 @@
 [package]
-name = "kerosene-toolui"
+name = "kerosene-rhi"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -7,21 +7,14 @@ license.workspace = true
 authors.workspace = true
 # Published only as part of the one `kerosene` crate: `cargo xtask bundle`.
 publish = false
-description = "The shared egui theme and widgets of the Kerosene tools."
+description = "The Kerosene game engine's render hardware interface: the one crate that opens a GPU."
 repository.workspace = true
 homepage.workspace = true
 keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-anyhow.workspace = true
-log.workspace = true
+# `Renderer`, the configured backend's name.
 kerosene-config.workspace = true
-kerosene-rhi.workspace = true
-egui.workspace = true
-egui-phosphor.workspace = true
-egui-wgpu.workspace = true
-egui-winit.workspace = true
 wgpu.workspace = true
-winit.workspace = true
-pollster.workspace = true
+log.workspace = true

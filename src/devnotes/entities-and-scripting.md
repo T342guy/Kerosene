@@ -73,7 +73,7 @@ config:
   layout: elk
 ---
 flowchart TB
-    load["load_from_bsp / load_from_kv"] --> create["create_entities:<br/>spawn slots, parse fields + connections"]
+    load["load_from_lump / load_from_kv"] --> create["create_entities:<br/>spawn slots, parse fields + connections"]
     create --> bounds["fill model_mins/model_maxs on brush entities"]
     bounds --> spawnH["run_spawn_handlers (deferred, all entities exist)"]
     spawnH --> ready{{"EntityWorld ready"}}

@@ -21,5 +21,4 @@ steam = ["dep:steamworks"]
 
 [dependencies]
 log.workspace = true
-rhai.workspace = true
 steamworks = { workspace = true, optional = true }

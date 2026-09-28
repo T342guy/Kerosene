@@ -81,7 +81,9 @@ pub mod internals {
     pub use kerosene_kv as kv;
     pub use kerosene_map as map;
     pub use kerosene_render as render;
+    pub use kerosene_rhi as rhi;
     pub use kerosene_rigid as rigid;
+    pub use kerosene_scene as scene;
     pub use kerosene_walk as walk;
 }
 

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! `cargo xtask bundle`: the one `kerosene` crate that crates.io gets.
 //!
-//! Kerosene is developed as a workspace -- twenty engine crates, the tools,
+//! Kerosene is developed as a workspace -- twenty-two engine crates, the tools,
 //! the facade -- because separate crates build in parallel and keep the
 //! engine and the tools honest about what depends on what. It is published
 //! as one crate, because a game should add one line to its `Cargo.toml` and

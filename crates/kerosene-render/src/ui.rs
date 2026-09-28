@@ -19,7 +19,7 @@
 use crate::gpu::{DEPTH_FORMAT, HDR_FORMAT, load_texture};
 use bytemuck::{Pod, Zeroable};
 use kerosene_math::{Mat4, Vec3};
-use kerosene_ui::{ATLAS_SIZE, DisplayList, DrawItem, GlyphAtlas, Images, TextureRef};
+use kerosene_scene::{ATLAS_SIZE, DisplayList, DrawItem, Images, TextureRef};
 use kerosene_vfs::Vfs;
 use std::collections::HashMap;
 use wgpu::util::DeviceExt;
@@ -367,12 +367,12 @@ impl UiRenderer {
         }
     }
 
-    /// Copy the glyph atlas up if anything was added to it.
-    pub fn upload_atlas(&self, queue: &wgpu::Queue, atlas: &mut GlyphAtlas) {
-        if !atlas.dirty {
-            return;
-        }
-        atlas.dirty = false;
+    /// Copy the glyph atlas up: `ATLAS_SIZE * ATLAS_SIZE` bytes of coverage.
+    ///
+    /// Whoever owns the atlas knows whether it changed, and calls this only
+    /// when it did.
+    pub fn upload_atlas(&self, queue: &wgpu::Queue, pixels: &[u8]) {
+        debug_assert_eq!(pixels.len(), (ATLAS_SIZE * ATLAS_SIZE) as usize);
         queue.write_texture(
             wgpu::TexelCopyTextureInfo {
                 texture: &self.atlas,
@@ -380,7 +380,7 @@ impl UiRenderer {
                 origin: wgpu::Origin3d::ZERO,
                 aspect: wgpu::TextureAspect::All,
             },
-            &atlas.pixels,
+            pixels,
             wgpu::TexelCopyBufferLayout {
                 offset: 0,
                 bytes_per_row: Some(ATLAS_SIZE),

@@ -16,13 +16,9 @@ categories.workspace = true
 [dependencies]
 kerosene-math.workspace = true
 kerosene-kv.workspace = true
-kerosene-bsp.workspace = true
-kerosene-console.workspace = true
-kerosene-physics.workspace = true
 glam.workspace = true
 log.workspace = true
 anyhow.workspace = true
-kerosene-map.workspace = true
 thiserror.workspace = true
 serde.workspace = true
 

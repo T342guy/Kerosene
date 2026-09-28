@@ -110,7 +110,10 @@ fn build(map: &Map) -> Bsp {
 
 fn spawned_world(bsp: &Bsp) -> EntityWorld {
     let mut world = EntityWorld::new(kerosene_game::registry());
-    world.load_from_bsp(bsp).expect("entities should load");
+    let lump = bsp.entities_kv().expect("the entity lump should parse");
+    world
+        .load_from_lump(&lump, &bsp.model_bounds())
+        .expect("entities should load");
     world
 }
 

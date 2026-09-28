@@ -321,7 +321,7 @@ async fn create_gfx(event_loop: &ActiveEventLoop, title: &str, size: (u32, u32))
     // Tools share the engine's renderer default (Vulkan), falling back to
     // whatever is there when it is not. The integrated GPU is preferred:
     // a tool window is egui and nothing else.
-    let gpu = kerosene_config::gpu::open(
+    let gpu = kerosene_rhi::gpu::open(
         kerosene_config::Renderer::default(),
         wgpu::PowerPreference::LowPower,
         |instance| instance.create_surface(window.clone()).ok(),

@@ -14,6 +14,5 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-kerosene-map.workspace = true
 kerosene-math.workspace = true
 thiserror.workspace = true

@@ -1,5 +1,5 @@
 use super::*;
-use kerosene_ui::Quad;
+use kerosene_scene::Quad;
 
 fn quad(texture: TextureRef, additive: bool) -> DrawItem {
     DrawItem::Quad(Quad {

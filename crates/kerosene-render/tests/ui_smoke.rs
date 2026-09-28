@@ -64,7 +64,8 @@ fn draw(
     });
 
     let mut renderer = UiRenderer::new(device, queue);
-    renderer.upload_atlas(queue, &mut ui.fonts.atlas);
+    renderer.upload_atlas(queue, &ui.fonts.atlas.pixels);
+    ui.fonts.atlas.dirty = false;
     renderer.sync_images(device, queue, vfs, &mut ui.images);
 
     let mut encoder = device.create_command_encoder(&Default::default());

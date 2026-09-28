@@ -14,9 +14,7 @@
 use kerosene_asset::{Animation, Model};
 use kerosene_math::{Mat4, Quat, Vec3};
 
-/// The most bones the renderer skins with. A model with more draws its
-/// extra bones at their rest pose, with a warning from whoever loads it.
-pub const MAX_BONES: usize = 128;
+pub use kerosene_asset::MAX_BONES;
 
 /// One bone's local transform: translation and rotation relative to its
 /// parent. No scale, as in the file.

@@ -44,7 +44,7 @@ pub struct ModelVertex {
 pub const MAX_SKINNED: usize = 64;
 
 /// One skinning palette: a matrix per bone, as the shaders declare it.
-const PALETTE_BYTES: u64 = (kerosene_anim::MAX_BONES * 64) as u64;
+const PALETTE_BYTES: u64 = (kerosene_asset::MAX_BONES * 64) as u64;
 
 /// One copy of a studio model, for instanced drawing: where it is and which
 /// probe it reflects.
@@ -725,7 +725,7 @@ impl Renderer {
         });
         let palette_stride = (PALETTE_BYTES as u32).div_ceil(alignment) * alignment;
         let identity: Vec<[[f32; 4]; 4]> =
-            vec![Mat4::IDENTITY.to_cols_array_2d(); kerosene_anim::MAX_BONES];
+            vec![Mat4::IDENTITY.to_cols_array_2d(); kerosene_asset::MAX_BONES];
         let mut palette_init = vec![0u8; palette_stride as usize * (MAX_SKINNED + 1)];
         palette_init[..PALETTE_BYTES as usize].copy_from_slice(bytemuck::cast_slice(&identity));
         let bones_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -1145,7 +1145,7 @@ impl Renderer {
     pub fn update_palettes(&self, queue: &wgpu::Queue, palettes: &[Vec<Mat4>]) {
         let stride = self.palette_stride as usize;
         for (i, palette) in palettes.iter().take(MAX_SKINNED).enumerate() {
-            let mut matrices = vec![Mat4::IDENTITY.to_cols_array_2d(); kerosene_anim::MAX_BONES];
+            let mut matrices = vec![Mat4::IDENTITY.to_cols_array_2d(); kerosene_asset::MAX_BONES];
             for (slot, m) in matrices.iter_mut().zip(palette) {
                 *slot = m.to_cols_array_2d();
             }

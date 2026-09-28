@@ -1429,7 +1429,9 @@ dependencies = [
  "kerosene-physics",
  "kerosene-platform",
  "kerosene-render",
+ "kerosene-rhi",
  "kerosene-rigid",
+ "kerosene-scene",
  "kerosene-script",
  "kerosene-tools",
  "kerosene-ui",
@@ -1452,8 +1454,6 @@ dependencies = [
  "image",
  "kerosene-asset",
  "kerosene-cleave",
- "kerosene-kv",
- "kerosene-math",
  "kerosene-vfs",
  "log",
 ]
@@ -1516,7 +1516,6 @@ dependencies = [
  "image",
  "kerosene-alchemy",
  "kerosene-asset",
- "kerosene-bsp",
  "kerosene-cleave",
  "kerosene-entity",
  "kerosene-game",
@@ -1558,7 +1557,6 @@ dependencies = [
  "kerosene-kv",
  "log",
  "png",
- "wgpu",
 ]
 
 [[package]]
@@ -1597,6 +1595,7 @@ dependencies = [
  "kerosene-platform",
  "kerosene-render",
  "kerosene-resonance",
+ "kerosene-rhi",
  "kerosene-rigid",
  "kerosene-script",
  "kerosene-ui",
@@ -1606,7 +1605,6 @@ dependencies = [
  "log",
  "png",
  "pollster",
- "rhai",
  "serde",
  "serde_json",
  "wgpu",
@@ -1619,12 +1617,8 @@ version = "1.0.0-a3"
 dependencies = [
  "anyhow",
  "glam",
- "kerosene-bsp",
- "kerosene-console",
  "kerosene-kv",
- "kerosene-map",
  "kerosene-math",
- "kerosene-physics",
  "log",
  "serde",
  "serde_json",
@@ -1642,7 +1636,6 @@ dependencies = [
  "glam",
  "gltf",
  "kerosene-asset",
- "kerosene-kv",
  "kerosene-math",
  "log",
  "thiserror 2.0.20",
@@ -1653,13 +1646,9 @@ name = "kerosene-game"
 version = "1.0.0-a3"
 dependencies = [
  "glam",
- "kerosene-bsp",
- "kerosene-console",
  "kerosene-entity",
  "kerosene-kv",
- "kerosene-map",
  "kerosene-math",
- "kerosene-physics",
  "log",
  "serde_json",
 ]
@@ -1705,6 +1694,7 @@ dependencies = [
  "glam",
  "kerosene-kv",
  "kerosene-math",
+ "kerosene-walk",
  "log",
  "thiserror 2.0.20",
 ]
@@ -1732,7 +1722,6 @@ name = "kerosene-platform"
 version = "1.0.0-a3"
 dependencies = [
  "log",
- "rhai",
  "steamworks",
 ]
 
@@ -1758,11 +1747,10 @@ dependencies = [
  "anyhow",
  "bytemuck",
  "glam",
- "kerosene-anim",
  "kerosene-asset",
  "kerosene-bsp",
- "kerosene-console",
  "kerosene-math",
+ "kerosene-scene",
  "kerosene-ui",
  "kerosene-vfs",
  "log",
@@ -1791,6 +1779,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "kerosene-rhi"
+version = "1.0.0-a3"
+dependencies = [
+ "kerosene-config",
+ "log",
+ "wgpu",
+]
+
+[[package]]
 name = "kerosene-rigid"
 version = "1.0.0-a3"
 dependencies = [
@@ -1806,6 +1803,10 @@ dependencies = [
  "anyhow",
  "kerosene",
 ]
+
+[[package]]
+name = "kerosene-scene"
+version = "1.0.0-a3"
 
 [[package]]
 name = "kerosene-script"
@@ -1877,6 +1878,7 @@ dependencies = [
  "egui-wgpu",
  "egui-winit",
  "kerosene-config",
+ "kerosene-rhi",
  "log",
  "pollster",
  "wgpu",
@@ -1890,10 +1892,10 @@ dependencies = [
  "ab_glyph",
  "epaint_default_fonts",
  "kerosene-platform",
+ "kerosene-scene",
  "kerosene-script",
  "kerosene-vfs",
  "log",
- "rhai",
  "roxmltree",
  "taffy",
 ]
@@ -1938,7 +1940,6 @@ dependencies = [
 name = "kerosene-walk"
 version = "1.0.0-a3"
 dependencies = [
- "kerosene-map",
  "kerosene-math",
  "thiserror 2.0.20",
 ]

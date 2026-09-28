@@ -20,7 +20,7 @@
 //! | `show_layer(layer, file)` `hide_layer(layer)` | Other documents |
 //! | `schedule(seconds, "fn_name")` | Call a function later |
 //! | `time()` `print(x)` `warn(x)` | |
-//! | `platform` (also `steam`) | The store: `.unlock(id)`, `.add_stat(name, d)`, `.user`, ... -- see [`kerosene_platform::script`] |
+//! | `platform` (also `steam`) | The store: `.unlock(id)`, `.add_stat(name, d)`, `.user`, ... -- see [`kerosene_script::platform`] |
 //!
 //! Hooks: `on_load()` once the layout is up, and `on_event(name, data)` for
 //! every event in the store.
@@ -32,6 +32,7 @@
 
 use crate::UiAction;
 use crate::store::Value;
+use kerosene_script::rhai;
 use std::cell::RefCell;
 use std::collections::{BTreeMap, HashMap};
 use std::rc::Rc;
@@ -215,7 +216,7 @@ pub(crate) fn register(engine: &mut rhai::Engine, shared: &Rc<RefCell<Shared>>) 
     // `platform.user` in a script agree.
     let view = shared.clone();
     let sink = shared.clone();
-    kerosene_platform::script::register(
+    kerosene_script::platform::register(
         engine,
         move || platform_view(&view.borrow().store),
         move |a| action(&sink, UiAction::Platform(a)),

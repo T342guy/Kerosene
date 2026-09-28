@@ -24,7 +24,7 @@
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 
-use kerosene_map::WalkmapRule;
+use crate::WalkmapRule;
 use kerosene_math::Vec3;
 
 use crate::{WalkFace, Walkmap};

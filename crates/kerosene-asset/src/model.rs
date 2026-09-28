@@ -35,6 +35,13 @@ const HEADER_SIZE: usize = 64;
 /// hip to deform smoothly, few enough to keep the vertex small.
 pub const MAX_BONE_INFLUENCES: usize = 4;
 
+/// The most bones the renderer skins with. A model with more draws its
+/// extra bones at their rest pose, with a warning from whoever loads it.
+///
+/// Here rather than in the renderer or `kerosene-anim` because both need it
+/// and neither should depend on the other.
+pub const MAX_BONES: usize = 128;
+
 #[derive(Debug, Error)]
 pub enum ModelError {
     #[error("not a .kmdl file (bad magic)")]

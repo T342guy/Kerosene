@@ -21,8 +21,7 @@
 use ab_glyph::{Font, FontArc, GlyphId, PxScale, ScaleFont, point};
 use std::collections::HashMap;
 
-/// Edge of the square glyph atlas, in texels.
-pub const ATLAS_SIZE: u32 = 1024;
+pub use kerosene_scene::ATLAS_SIZE;
 
 /// Texels of empty border around every glyph, so linear filtering never
 /// samples a neighbour.

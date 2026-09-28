@@ -68,14 +68,18 @@ fn starts_with(rest: &[char], text: &str) -> bool {
 }
 
 /// Whether the identifier at `i` continues a path or a field access, or is
-/// a macro's `$crate`: `a::b`, `a.b`, `$crate`.
+/// a macro's `$crate`: `a::b`, `a.b`, `$crate`. Two dots are not a field
+/// access: `..kerosene_vfs::x()` in a struct update, or a range's end, starts
+/// a path of its own.
 fn follows_path(chars: &[char], i: usize) -> bool {
     let mut j = i;
     while j > 0 && chars[j - 1] == ' ' {
         j -= 1;
     }
+    let field = j >= 1 && chars[j - 1] == '.' && !(j >= 2 && chars[j - 2] == '.');
     (j >= 2 && chars[j - 1] == ':' && chars[j - 2] == ':')
-        || (j >= 1 && (chars[j - 1] == '.' || chars[j - 1] == '$'))
+        || field
+        || (j >= 1 && chars[j - 1] == '$')
 }
 
 /// A crate named whole: `use chisel;`, `use kerosene_math as math;`.
@@ -140,6 +144,21 @@ mod tests {
             "pub use crate::__k::chisel;\npub use crate::__k::math as math;\n\
              pub use crate::__k::tools::*;\n\
              let chisel = 3; self.chisel::x; a.chisel; my_chisel::y; $crate::z; crate::w\n"
+        );
+    }
+
+    #[test]
+    fn a_path_after_two_dots_is_rewritten() {
+        // A struct update, `..kerosene_vfs::x()`, and a range's end are paths
+        // of their own, not a field access like `a.kerosene_vfs`.
+        let crates = crates();
+        let r = Rewrite {
+            crates: &crates,
+            own: None,
+        };
+        assert_eq!(
+            r.apply("S { a, ..kerosene_math::d() }; 0..kerosene_math::N; x.kerosene_math\n"),
+            "S { a, ..crate::__k::math::d() }; 0..crate::__k::math::N; x.kerosene_math\n"
         );
     }
 }

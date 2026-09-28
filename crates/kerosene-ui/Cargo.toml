@@ -14,11 +14,11 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
+kerosene-scene.workspace = true
 kerosene-script.workspace = true
 kerosene-vfs.workspace = true
 kerosene-platform.workspace = true
 log.workspace = true
-rhai.workspace = true
 taffy.workspace = true
 roxmltree.workspace = true
 ab_glyph.workspace = true

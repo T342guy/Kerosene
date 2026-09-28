@@ -30,9 +30,11 @@
 use std::fmt::Write as _;
 use thiserror::Error;
 
+mod connection;
 mod parse;
 mod value;
 
+pub use connection::{Connection, ParseConnectionError};
 pub use parse::ParseError;
 pub use value::{FromKvValue, ParseValueError, ToKvValue, Vec3Value, format_float};
 

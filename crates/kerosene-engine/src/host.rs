@@ -1190,8 +1190,10 @@ impl App {
         // and images it asked for, world panels drawn into their textures,
         // and decals cut out of whatever geometry is loaded.
         let ui = &mut self.engine.ui;
-        gfx.ui_renderer
-            .upload_atlas(&gfx.queue, &mut ui.system.fonts.atlas);
+        let atlas = &mut ui.system.fonts.atlas;
+        if std::mem::take(&mut atlas.dirty) {
+            gfx.ui_renderer.upload_atlas(&gfx.queue, &atlas.pixels);
+        }
         if std::mem::take(&mut ui.images_stale) {
             gfx.ui_renderer.forget_images();
         }
@@ -1722,7 +1724,7 @@ async fn create_gfx(event_loop: &ActiveEventLoop, config: &EngineConfig) -> anyh
     };
     let window = Arc::new(event_loop.create_window(attributes)?);
 
-    let gpu = kerosene_config::gpu::open(
+    let gpu = kerosene_rhi::gpu::open(
         config.renderer,
         wgpu::PowerPreference::HighPerformance,
         |instance| instance.create_surface(window.clone()).ok(),

@@ -397,6 +397,12 @@ impl Bsp {
         KeyValues::parse(&self.entities)
     }
 
+    /// Every brush model's bounds, in the order an entity's `model` key
+    /// (`*1`, `*2`...) indexes them. Model 0 is the world.
+    pub fn model_bounds(&self) -> Vec<Aabb> {
+        self.models.iter().map(|m| m.bounds()).collect()
+    }
+
     pub fn world_bounds(&self) -> Aabb {
         self.models.first().map_or(Aabb::EMPTY, |m| m.bounds())
     }

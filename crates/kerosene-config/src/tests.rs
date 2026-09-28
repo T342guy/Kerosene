@@ -113,14 +113,3 @@ fn load_or_create_reads_an_existing_file_without_overwriting_it() {
 
     let _ = std::fs::remove_dir_all(&dir);
 }
-
-#[test]
-fn every_renderer_maps_to_a_distinct_backend() {
-    // Auto is everything; the named ones are exactly one backend each, so a
-    // config that says "vulkan" cannot silently draw with metal.
-    assert_eq!(Renderer::Auto.wgpu_backends(), wgpu::Backends::all());
-    assert_eq!(Renderer::Vulkan.wgpu_backends(), wgpu::Backends::VULKAN);
-    assert_eq!(Renderer::Metal.wgpu_backends(), wgpu::Backends::METAL);
-    assert_eq!(Renderer::Dx12.wgpu_backends(), wgpu::Backends::DX12);
-    assert_eq!(Renderer::Gl.wgpu_backends(), wgpu::Backends::GL);
-}

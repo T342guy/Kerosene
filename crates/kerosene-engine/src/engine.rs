@@ -19,9 +19,10 @@ use crate::physics::PhysicsProps;
 use kerosene_audio::ReverbParams;
 use kerosene_bsp::{Bsp, contents};
 use kerosene_console::{ConVarFlags, Console, requests};
-use kerosene_entity::{ClassRegistry, EntityId, EntityWorld, Value};
+use kerosene_entity::{ClassRegistry, EntityId, EntityWorld, SpawnError, Value};
 use kerosene_math::{Aabb, Angles, Pose, Quat, Vec3};
 use kerosene_physics::{MoveInput, MoveParams, MoveState};
+use kerosene_script::rhai;
 use kerosene_vfs::{Vfs, VfsError};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -812,7 +813,8 @@ impl Engine {
             None => {
                 self.entities = EntityWorld::new(self.registry.clone());
                 self.entities.set_trace(self.console.int("developer") >= 2);
-                let count = self.entities.load_from_bsp(&bsp)?;
+                let lump = bsp.entities_kv().map_err(SpawnError::from)?;
+                let count = self.entities.load_from_lump(&lump, &bsp.model_bounds())?;
                 self.console.print(format!("{count} entities"));
             }
             Some(save) => {

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 // The game UI: every panel, glyph and image is one of these quads.
 //
-// `crates/kerosene-ui/src/draw.rs` defines what a quad is and
+// `crates/kerosene-scene/src/draw.rs` defines what a quad is and
 // `crates/kerosene-render/src/ui.rs` packs it; this draws it. Each instance is
 // a rectangle with a corner radius, an optional border, a colour or
 // two-colour gradient, an optional texture (the glyph atlas's coverage, or an

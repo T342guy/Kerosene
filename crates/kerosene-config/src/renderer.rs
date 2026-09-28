@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
-//! Which renderer to use, and what that means for wgpu.
+//! Which renderer to use. What that means for wgpu is `kerosene-rhi`'s business.
 
 /// The renderer a config file asks for.
 ///
@@ -52,20 +52,5 @@ impl Renderer {
             Renderer::Dx12,
             Renderer::Gl,
         ]
-    }
-
-    /// The wgpu backends this renderer means.
-    ///
-    /// The backend set is chosen when the wgpu instance is created, so asking
-    /// for Vulkan means creating an instance that only sees Vulkan -- and then
-    /// falling back to everything if no adapter shows up.
-    pub fn wgpu_backends(self) -> wgpu::Backends {
-        match self {
-            Renderer::Auto => wgpu::Backends::all(),
-            Renderer::Vulkan => wgpu::Backends::VULKAN,
-            Renderer::Metal => wgpu::Backends::METAL,
-            Renderer::Dx12 => wgpu::Backends::DX12,
-            Renderer::Gl => wgpu::Backends::GL,
-        }
     }
 }
