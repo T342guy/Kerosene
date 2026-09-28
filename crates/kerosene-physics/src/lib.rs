@@ -34,6 +34,9 @@
 #![warn(missing_docs)]
 
 mod movement;
+// Box3D props. Outside the SemVer promise, and undocumented item by item.
+#[allow(missing_docs)]
+pub mod rigid;
 mod world;
 
 pub use movement::{
@@ -41,6 +44,7 @@ pub use movement::{
     air_accelerate, apply_friction, categorize_position, clip_velocity, player_move, step_move,
     try_move,
 };
+pub use rigid::PhysicsWorld;
 #[cfg(any(test, feature = "test-world"))]
 pub use world::BoxWorld;
 pub use world::{BspWorld, CollisionWorld, sweep_point_vs_box};

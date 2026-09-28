@@ -163,7 +163,7 @@ natively: Box3D's length-unit scale is set to inches once at startup, and no
 coordinate conversion happens anywhere.
 
 In the engine, a [`PhysicsProps`](crate::physics::PhysicsProps) owns one
-`RigidWorld`: at map load every static world brush (and every `func_detail`)
+`PhysicsWorld`: at map load every static world brush (and every `func_detail`)
 becomes a convex hull, moving brush entities become static bodies that follow
 their entity's pose, and each `prop_physics` entity becomes a dynamic box
 (shaped from its model's bounds, loaded through `kerosene-asset`). Once a tick

@@ -10,13 +10,13 @@
 //! What a general-purpose engine is for is everything the player is *not*:
 //! physics props. A crate that tumbles down stairs, a barrel that rolls when
 //! shot, a door panel that breaks off and falls -- those are rigid bodies, and
-//! this crate provides them through Box3D, Erin Catto's 3D physics engine, via
+//! this module provides them through Box3D, Erin Catto's 3D physics engine, via
 //! its pure-Rust port.
 //!
 //! Box3D is unit- and orientation-agnostic: its solver tolerances, gravity and
 //! density defaults are all derived from a single "length units per metre"
 //! scale, and there is no fixed up-axis. [`init`] sets that scale to inches,
-//! and after that every vector this crate accepts or returns is a plain
+//! and after that every vector this module accepts or returns is a plain
 //! Kerosene vector -- inches, Z-up, no conversion anywhere.
 
 use box3d_rust as b3;
@@ -37,7 +37,7 @@ const MAX_HULL_VERTICES: i32 = 255;
 ///
 /// Must run before any Box3D default definition is built, because those
 /// defaults (`default_world_def`, `default_shape_def`, ...) bake the length
-/// scale into their gravity, density and tolerance values. [`RigidWorld::new`]
+/// scale into their gravity, density and tolerance values. [`PhysicsWorld::new`]
 /// calls this itself, so the engine normally never has to; it is exposed for
 /// code that builds Box3D defaults directly.
 pub fn init() {
@@ -71,7 +71,7 @@ fn from_b3_quat(q: b3::Quat) -> Quat {
     Quat::from_xyzw(q.v.x, q.v.y, q.v.z, q.s)
 }
 
-/// A rigid body in a [`RigidWorld`]. Copyable handle; null until created.
+/// A rigid body in a [`PhysicsWorld`]. Copyable handle; null until created.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Body(pub(crate) b3::BodyId);
 
@@ -132,18 +132,18 @@ impl Default for BodyMaterial {
 ///
 /// Owns the Box3D simulation. Bodies are created and destroyed through it, and
 /// their transforms are read back in Kerosene space after [`step`](Self::step).
-pub struct RigidWorld {
+pub struct PhysicsWorld {
     world: b3::world::World,
     bodies: Vec<Body>,
 }
 
-impl RigidWorld {
+impl PhysicsWorld {
     /// Create an empty world with Kerosene gravity (Z-up, 800 units/s² down).
-    pub fn new() -> RigidWorld {
+    pub fn new() -> PhysicsWorld {
         init();
         let mut def = b3::types::default_world_def();
         def.gravity = to_b3(GRAVITY);
-        RigidWorld {
+        PhysicsWorld {
             world: b3::world::World::new(&def),
             bodies: Vec::new(),
         }
@@ -432,7 +432,7 @@ impl RigidWorld {
     }
 }
 
-impl Default for RigidWorld {
+impl Default for PhysicsWorld {
     fn default() -> Self {
         Self::new()
     }
@@ -451,7 +451,7 @@ mod tests {
         // A crate the size of the shipped `props/cube`, at the default wood
         // density. Nothing exotic: if this body's tensor cannot be recovered,
         // no prop in any real level can be turned.
-        let mut world = RigidWorld::new();
+        let mut world = PhysicsWorld::new();
         let body = world.add_dynamic_box(Vec3::splat(16.0), Vec3::ZERO, Quat::IDENTITY);
         let inertia = world.world_inertia(body);
         assert!(
@@ -478,7 +478,7 @@ mod tests {
 
     #[test]
     fn a_dropped_crate_comes_to_rest_on_the_floor() {
-        let mut world = RigidWorld::new();
+        let mut world = PhysicsWorld::new();
         // Floor: a wide, thin slab whose top face is at z = 0.
         world.add_static_box(
             Vec3::new(200.0, 200.0, 1.0),
@@ -514,7 +514,7 @@ mod tests {
 
     #[test]
     fn a_body_with_nothing_under_it_falls() {
-        let mut world = RigidWorld::new();
+        let mut world = PhysicsWorld::new();
         let body = world.add_dynamic_box(
             crate_half_extent(),
             Vec3::new(0.0, 0.0, 1000.0),
@@ -535,7 +535,7 @@ mod tests {
 
     #[test]
     fn gravity_pulls_straight_down_in_kerosene_z() {
-        let mut world = RigidWorld::new();
+        let mut world = PhysicsWorld::new();
         let body = world.add_dynamic_box(crate_half_extent(), Vec3::ZERO, Quat::IDENTITY);
         world.step(1.0 / 64.0);
         let v = world.linear_velocity(body);
@@ -548,7 +548,7 @@ mod tests {
 
     #[test]
     fn a_convex_hull_prop_can_be_created_and_simulated() {
-        let mut world = RigidWorld::new();
+        let mut world = PhysicsWorld::new();
         world.add_static_box(
             Vec3::new(100.0, 100.0, 1.0),
             Vec3::new(0.0, 0.0, -1.0),
@@ -580,7 +580,7 @@ mod tests {
 
     #[test]
     fn coplanar_points_are_rejected_as_a_hull() {
-        let mut world = RigidWorld::new();
+        let mut world = PhysicsWorld::new();
         // Four points all in the z = 0 plane: no volume.
         let points = [
             Vec3::new(0.0, 0.0, 0.0),
@@ -598,7 +598,7 @@ mod tests {
 
     #[test]
     fn destroying_a_body_removes_it() {
-        let mut world = RigidWorld::new();
+        let mut world = PhysicsWorld::new();
         let body = world.add_dynamic_box(crate_half_extent(), Vec3::ZERO, Quat::IDENTITY);
         assert_eq!(world.body_count(), 1);
         world.destroy_body(body);
@@ -607,7 +607,7 @@ mod tests {
 
     #[test]
     fn teleporting_moves_a_body() {
-        let mut world = RigidWorld::new();
+        let mut world = PhysicsWorld::new();
         let body = world.add_dynamic_box(crate_half_extent(), Vec3::ZERO, Quat::IDENTITY);
         world.set_body_transform(body, Vec3::new(10.0, -20.0, 30.0), Quat::IDENTITY);
         let (pos, _) = world.body_transform(body);
@@ -642,7 +642,7 @@ mod tests {
         // Box3D integrates acceleration, so density changes mass without
         // changing the motion under gravity alone -- the point of mass is how
         // hard it pushes, not how fast it falls.
-        let mut world = RigidWorld::new();
+        let mut world = PhysicsWorld::new();
         let light = world.add_dynamic_box_material(
             crate_half_extent(),
             Vec3::new(0.0, 0.0, 1000.0),

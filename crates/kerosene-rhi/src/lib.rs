@@ -6,9 +6,15 @@
 //! windows -- should reach the GPU through here, so that the graphics API is
 //! one crate's business. Today that is wgpu, and this holds what the engine
 //! and the tools share: opening a device for the configured [`Renderer`].
-//! The rest of the device code moves here as the renderer is split up.
+//! It also configures the surface, and reads a finished frame back
+//! ([`Capture`]). The renderer's own pipelines move here as it is split up.
 
+pub mod capture;
 pub mod gpu;
+pub mod surface;
+
+pub use capture::{Capture, Pixels};
+pub use surface::{present_mode, request_device, surface_config};
 
 use kerosene_config::Renderer;
 

@@ -173,7 +173,7 @@ cargo tree --workspace --edges normal --prefix none --format '{p}|{l}'
 
 The MPL-2.0 rows above are `smartstring` and Symphonia's six crates.
 
-`box3d-rust` (MIT) sits in the plain-`MIT` bucket and backs `kerosene-rigid`,
+`box3d-rust` (MIT) sits in the plain-`MIT` bucket and backs `kerosene-physics`'s `PhysicsWorld`,
 the rigid-body simulation. It is a pure-Rust port of Erin Catto's Box3D with
 no dependencies of its own and no build script, chosen over a Jolt FFI wrapper
 specifically so the tree never has to vendor a C++ physics library, carry

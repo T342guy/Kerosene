@@ -132,6 +132,14 @@ with what to do about them.
   `set_keyvalue`, `keyvalues` and `is_disabled`: a key wherever it lives.
 
 ### Changed
+
+- `kerosene-render`'s camera, world mesh, lightmap, lights, probes, decals
+  and BRDF tables moved to `kerosene-scene`. `kerosene::internals::render`
+  still exports them.
+- `kerosene-rigid` is folded into `kerosene-physics` as `physics::rigid`, and
+  `RigidWorld` is now `PhysicsWorld`. `kerosene::internals::rigid` is gone.
+- Device creation, surface configuration and frame read-back moved into
+  `kerosene-rhi`.
 - **Entity classes are components.** `ClassDef::component` gives a class the
   components its entities carry; the stock game's classes keep their keys
   and state in them rather than in loose fields. Read a key with

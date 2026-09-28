@@ -116,7 +116,7 @@ for completeness.
 ## 4. Physics and simulation
 
 - **Rigid-body dynamics.** `kerosene-physics` is the player movement solver
-  only. `kerosene-rigid` wraps Box3D (via `box3d-rust`) and is wired into the
+  plus `PhysicsWorld`, which wraps Box3D (via `box3d-rust`) and is wired into the
   engine: world brushes become static hulls, `func_detail` joins them, and
   moving brush entities (doors, shutters) become static bodies that follow
   their entity's pose, so a closed door blocks a thrown prop. `prop_physics`
@@ -728,7 +728,7 @@ Deliberately not:
    `Engine::find_path` answers with waypoints; `Engine::debug_line` can draw
    them. What is missing is the NPC that walks them.
 2. **The solver already does convex hulls; props do not use them.**
-   `kerosene-rigid` exposes `add_dynamic_hull`, and world brushes and
+   `PhysicsWorld` exposes `add_dynamic_hull`, and world brushes and
    `func_detail` go in as static hulls, so the hull path is real and running.
    But `prop_physics` bodies are built from the model's bounding box
    (`add_dynamic_box_material`), so a barrel collides as a crate. Nothing

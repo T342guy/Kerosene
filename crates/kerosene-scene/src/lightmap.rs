@@ -47,20 +47,9 @@ impl AtlasRect {
     }
 }
 
-/// The atlas's texel format.
-///
-/// Shared-exponent float: three 9-bit mantissas and one 5-bit exponent in 32
-/// bits. Light is HDR by nature -- a lamp against a wall bakes to many times
-/// what a lit floor does -- and the atlas used to squeeze that into 8-bit
-/// unorm through a Reinhard curve, which meant the frame's own tone-mapper
-/// then compressed it a second time and nothing downstream could tell a
-/// bright surface from a very bright one. This keeps it linear, in the same
-/// four bytes a texel cost before, and every GPU wgpu runs on can filter it.
-pub const ATLAS_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgb9e5Ufloat;
-
 /// A packed lightmap atlas, ready to upload.
 pub struct LightmapAtlas {
-    /// Linear light, one little-endian [`ATLAS_FORMAT`] texel per four bytes,
+    /// Linear light, one little-endian `ATLAS_FORMAT` (`kerosene_render::ATLAS_FORMAT`, `Rgb9e5Ufloat`) texel per four bytes,
     /// `ATLAS_SIZE` square. 1.0 is a surface lit to what Radiance calls full.
     pub pixels: Vec<u8>,
     /// Where each face landed, indexed by face. `None` for unlit faces.

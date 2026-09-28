@@ -81,14 +81,7 @@ fn fullscreen_mode(window: &Window, mode: i32) -> Option<winit::window::Fullscre
 }
 
 /// A frame on its way out of the GPU for `screenshot`.
-struct Screenshot {
-    buffer: wgpu::Buffer,
-    width: u32,
-    height: u32,
-    row: u32,
-    /// Whether the surface stores blue first, as most do.
-    bgra: bool,
-}
+struct Screenshot(kerosene_rhi::Capture);
 
 impl Screenshot {
     /// Copy the frame into a buffer the CPU can read. `None`, with a
@@ -98,89 +91,22 @@ impl Screenshot {
         encoder: &mut wgpu::CommandEncoder,
         texture: &wgpu::Texture,
     ) -> Option<Screenshot> {
-        use wgpu::TextureFormat as F;
-        let bgra = match gfx.config.format {
-            F::Bgra8Unorm | F::Bgra8UnormSrgb => true,
-            F::Rgba8Unorm | F::Rgba8UnormSrgb => false,
-            other => {
-                log::warn!("screenshot: cannot read a {other:?} surface");
-                return None;
-            }
-        };
-        if !gfx.config.usage.contains(wgpu::TextureUsages::COPY_SRC) {
-            log::warn!("screenshot: this surface cannot be copied from");
-            return None;
-        }
-        let (width, height) = (gfx.config.width, gfx.config.height);
-        let row = (width * 4).div_ceil(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT)
-            * wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
-        let buffer = gfx.device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("screenshot"),
-            size: u64::from(row) * u64::from(height),
-            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
-            mapped_at_creation: false,
-        });
-        encoder.copy_texture_to_buffer(
-            texture.as_image_copy(),
-            wgpu::TexelCopyBufferInfo {
-                buffer: &buffer,
-                layout: wgpu::TexelCopyBufferLayout {
-                    offset: 0,
-                    bytes_per_row: Some(row),
-                    rows_per_image: Some(height),
-                },
-            },
-            wgpu::Extent3d {
-                width,
-                height,
-                depth_or_array_layers: 1,
-            },
-        );
-        Some(Screenshot {
-            buffer,
-            width,
-            height,
-            row,
-            bgra,
-        })
+        kerosene_rhi::Capture::copy(&gfx.device, &gfx.config, encoder, texture).map(Screenshot)
     }
 
     /// Wait for the copy, and write it as a PNG under `screenshots/` in the
     /// player's directory, named after the map and the time.
     fn save(self, gfx: &Gfx, engine: &Engine) -> anyhow::Result<std::path::PathBuf> {
-        let slice = self.buffer.slice(..);
-        let (send, receive) = std::sync::mpsc::channel();
-        slice.map_async(wgpu::MapMode::Read, move |r| {
-            let _ = send.send(r);
-        });
-        gfx.device
-            .poll(wgpu::PollType::Wait)
+        let frame = self
+            .0
+            .read(&gfx.device)
             .map_err(|e| anyhow::anyhow!("{e}"))?;
-        receive.recv()??;
-        let mut rgba = Vec::with_capacity((self.width * self.height * 4) as usize);
-        {
-            let bytes = slice.get_mapped_range();
-            for y in 0..self.height {
-                let start = (y * self.row) as usize;
-                let (pixels, _) = bytes[start..start + self.width as usize * 4].as_chunks::<4>();
-                for &[a, b, c, _] in pixels {
-                    // Opaque, whatever the surface's alpha holds.
-                    rgba.extend_from_slice(&if self.bgra {
-                        [c, b, a, 255]
-                    } else {
-                        [a, b, c, 255]
-                    });
-                }
-            }
-        }
-        self.buffer.unmap();
-
         let mut png = Vec::new();
         {
-            let mut encoder = png::Encoder::new(&mut png, self.width, self.height);
+            let mut encoder = png::Encoder::new(&mut png, frame.width, frame.height);
             encoder.set_color(png::ColorType::Rgba);
             encoder.set_depth(png::BitDepth::Eight);
-            encoder.write_header()?.write_image_data(&rgba)?;
+            encoder.write_header()?.write_image_data(&frame.rgba)?;
         }
         let stem = engine.map_name().unwrap_or("screenshot").to_string();
         let seconds = std::time::SystemTime::now()
@@ -905,11 +831,7 @@ impl App {
 
         // `r_vsync`, applied the frame it changes: an options menu's switch
         // takes effect without a restart.
-        let present_mode = if self.engine.console.bool("r_vsync") {
-            wgpu::PresentMode::AutoVsync
-        } else {
-            wgpu::PresentMode::AutoNoVsync
-        };
+        let present_mode = kerosene_rhi::present_mode(self.engine.console.bool("r_vsync"));
         if gfx.config.present_mode != present_mode {
             gfx.config.present_mode = present_mode;
             gfx.surface.configure(&gfx.device, &gfx.config);
@@ -1740,43 +1662,12 @@ async fn create_gfx(event_loop: &ActiveEventLoop, config: &EngineConfig) -> anyh
 
     log::info!("gpu: {}", adapter.get_info().name);
 
-    let (device, queue) = adapter
-        .request_device(&wgpu::DeviceDescriptor {
-            label: Some("kerosene"),
-            required_features: wgpu::Features::empty(),
-            required_limits: wgpu::Limits::default(),
-            memory_hints: wgpu::MemoryHints::Performance,
-            trace: wgpu::Trace::Off,
-        })
-        .await?;
+    let (device, queue) = kerosene_rhi::request_device(&adapter).await?;
 
     let size = window.inner_size();
-    let capabilities = surface.get_capabilities(&adapter);
-    // Prefer an sRGB target so the shader's gamma step lands correctly.
-    let format = capabilities
-        .formats
-        .iter()
-        .copied()
-        .find(|f| f.is_srgb())
-        .unwrap_or(capabilities.formats[0]);
-
-    // Copyable where the platform allows it, for `screenshot`.
-    let usage = wgpu::TextureUsages::RENDER_ATTACHMENT
-        | (capabilities.usages & wgpu::TextureUsages::COPY_SRC);
-    let config = wgpu::SurfaceConfiguration {
-        usage,
-        format,
-        width: size.width.max(1),
-        height: size.height.max(1),
-        present_mode: if config.vsync {
-            wgpu::PresentMode::AutoVsync
-        } else {
-            wgpu::PresentMode::AutoNoVsync
-        },
-        alpha_mode: capabilities.alpha_modes[0],
-        view_formats: vec![],
-        desired_maximum_frame_latency: 2,
-    };
+    let config =
+        kerosene_rhi::surface_config(&surface, &adapter, size.width, size.height, config.vsync);
+    let format = config.format;
     surface.configure(&device, &config);
 
     let mut renderer = Renderer::new(&device, format);

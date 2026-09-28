@@ -51,7 +51,7 @@ cheapest way to keep this document honest.
 | [BSP internals and traces](bsp-and-traces.md) | The lump format, tree queries, brush traces | `crates/kerosene-bsp/src/` |
 | [Entities and scripting](entities-and-scripting.md) | `EntityWorld`, the event queue, Rhai | `crates/kerosene-entity/src/`, `crates/kerosene-script/src/` |
 | [Rendering and streaming](rendering.md) | Mesh build, lightmap atlas, wgpu, PVS | `crates/kerosene-render/src/` |
-| [Physics](physics.md) | Source movement and rigid props | `crates/kerosene-physics/src/`, `crates/kerosene-rigid/src/` |
+| [Physics](physics.md) | Source movement and rigid props | `crates/kerosene-physics/src/` |
 | [Audio and acoustics](audio.md) | Mixer, reverb, Resonance data path | `crates/kerosene-audio/src/` |
 | [Tools and the build](tools-and-build.md) | The unified toolset, Kiln, Vault | `tools/kerosene-tools/src/`, `tools/kiln/src/` |
 | [Testing](testing.md) | What is tested without a GPU, and why | every crate's `tests` modules |

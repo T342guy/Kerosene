@@ -1748,7 +1748,6 @@ dependencies = [
  "kerosene-render",
  "kerosene-resource",
  "kerosene-rhi",
- "kerosene-rigid",
  "kerosene-scene",
  "kerosene-script",
  "kerosene-tools",
@@ -1925,7 +1924,6 @@ dependencies = [
  "kerosene-resonance",
  "kerosene-resource",
  "kerosene-rhi",
- "kerosene-rigid",
  "kerosene-script",
  "kerosene-ui",
  "kerosene-umbra",
@@ -2045,6 +2043,7 @@ dependencies = [
 name = "kerosene-physics"
 version = "1.0.0-a3"
 dependencies = [
+ "box3d-rust",
  "glam",
  "kerosene-bsp",
  "kerosene-math",
@@ -2139,15 +2138,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "kerosene-rigid"
-version = "1.0.0-a3"
-dependencies = [
- "box3d-rust",
- "glam",
- "kerosene-math",
-]
-
-[[package]]
 name = "kerosene-runtime"
 version = "1.0.0-a3"
 dependencies = [
@@ -2158,6 +2148,13 @@ dependencies = [
 [[package]]
 name = "kerosene-scene"
 version = "1.0.0-a3"
+dependencies = [
+ "bytemuck",
+ "glam",
+ "kerosene-bsp",
+ "kerosene-math",
+ "log",
+]
 
 [[package]]
 name = "kerosene-script"

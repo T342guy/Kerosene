@@ -49,7 +49,6 @@ const LAYERS: &[(&str, u8)] = &[
     ("kerosene-rhi", DATA),
     ("kerosene-render", SUBSYSTEM),
     ("kerosene-physics", SUBSYSTEM),
-    ("kerosene-rigid", SUBSYSTEM),
     ("kerosene-anim", SUBSYSTEM),
     ("kerosene-audio", SUBSYSTEM),
     ("kerosene-entity", SUBSYSTEM),

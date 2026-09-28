@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
-//! Rigid-body props, driven by [`kerosene_rigid`].
+//! Rigid-body props, driven by [`kerosene_physics::rigid`].
 //!
 //! Player movement stays in [`kerosene_physics`] -- that is Source's
 //! `gamemovement`, and it is the feel of the game. Everything the player is
@@ -16,7 +16,7 @@
 use kerosene_bsp::{Bsp, contents};
 use kerosene_entity::{EntityId, EntityWorld, ModelRole};
 use kerosene_math::{Aabb, Angles, ON_EPSILON, Quat, Vec3, Winding};
-use kerosene_rigid::{Body, RigidWorld};
+use kerosene_physics::rigid::{Body, PhysicsWorld};
 use kerosene_vfs::Vfs;
 use std::collections::HashMap;
 
@@ -40,7 +40,7 @@ struct Mover {
 
 /// The rigid-body simulation and the entities it drives.
 pub struct PhysicsProps {
-    pub rigid: RigidWorld,
+    pub rigid: PhysicsWorld,
     props: HashMap<EntityId, PropBody>,
     /// `prop_static`s: a static box each, from its model's bounds, and that
     /// box in world space for the player's hull to sweep against.
@@ -80,7 +80,7 @@ struct PlayerBody {
 impl PhysicsProps {
     pub fn new() -> PhysicsProps {
         PhysicsProps {
-            rigid: RigidWorld::new(),
+            rigid: PhysicsWorld::new(),
             props: HashMap::new(),
             statics: HashMap::new(),
             movers: HashMap::new(),
@@ -953,7 +953,7 @@ pub struct HoldLimits {
 }
 
 /// The world-space axis-aligned bounds of one prop's oriented box.
-fn prop_aabb(rigid: &RigidWorld, prop: &PropBody) -> Aabb {
+fn prop_aabb(rigid: &PhysicsWorld, prop: &PropBody) -> Aabb {
     let (position, rotation) = rigid.body_transform(prop.body);
     let h = prop.half_extent;
     let mut aabb = Aabb::EMPTY;
@@ -972,7 +972,7 @@ fn prop_material(
     entities: &EntityWorld,
     id: EntityId,
     half_extent: Vec3,
-) -> kerosene_rigid::BodyMaterial {
+) -> kerosene_physics::rigid::BodyMaterial {
     // Through `keyvalue`, so a game that gives its props a component with
     // these keys is read the same as one that leaves them loose.
     let key = |name: &str, default: f32| {
@@ -988,14 +988,14 @@ fn prop_material(
     // arrived with: it accelerates until the numbers stop meaning anything.
     let friction = key("friction", 0.8).max(0.0);
     let restitution = key("elasticity", 0.1).clamp(0.0, 1.0);
-    let mut material = kerosene_rigid::BodyMaterial {
-        density: kerosene_rigid::BodyMaterial::wood().density,
+    let mut material = kerosene_physics::rigid::BodyMaterial {
+        density: kerosene_physics::rigid::BodyMaterial::wood().density,
         friction,
         restitution,
     };
     if mass_kg > 0.0 {
         let volume = half_extent.x * half_extent.y * half_extent.z * 8.0;
-        material.density = kerosene_rigid::BodyMaterial::density_for_mass(mass_kg, volume);
+        material.density = kerosene_physics::rigid::BodyMaterial::density_for_mass(mass_kg, volume);
     }
     material
 }
@@ -1158,7 +1158,7 @@ mod tests {
         let derived = prop_material(&entities, e, half);
         assert_eq!(
             derived.density,
-            kerosene_rigid::BodyMaterial::wood().density
+            kerosene_physics::rigid::BodyMaterial::wood().density
         );
     }
 

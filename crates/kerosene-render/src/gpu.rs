@@ -8,9 +8,10 @@
 //! Materials each get their own bind group, and surfaces arrive sorted by
 //! material, so the loop rebinds only when the material actually changes.
 
+use crate::ATLAS_FORMAT;
 use crate::FrameStats;
 use crate::camera::Camera;
-use crate::lightmap::{ATLAS_FORMAT, ATLAS_SIZE, LightmapAtlas};
+use crate::lightmap::{ATLAS_SIZE, LightmapAtlas};
 use crate::lights::{ClusterMasks, LightFrame, LightsUniform, SHADOW_LAYERS, SHADOW_SIZE};
 use crate::mesh::{NO_PROBE, WorldMesh, WorldVertex};
 use crate::probes::ProbeChain;

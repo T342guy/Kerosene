@@ -18,19 +18,27 @@
 //! Lightmaps are packed into a single atlas ([`lightmap`]) so the world draws
 //! in as many calls as it has materials, rather than one per face.
 
-pub mod brdf;
-pub mod camera;
-pub mod decals;
 pub mod gpu;
-pub mod lightmap;
-pub mod lights;
-pub mod mesh;
-pub mod probes;
 pub mod ui;
 
+// The CPU-side data the renderer draws lives in `kerosene-scene`; these
+// re-exports keep the paths callers already use.
+pub use kerosene_scene::{brdf, camera, decals, lightmap, lights, mesh, probes};
+
 pub use camera::{Camera, Frustum, vertical_fov};
-pub use lightmap::{ATLAS_FORMAT, ATLAS_SIZE, AtlasRect, LightmapAtlas};
+pub use lightmap::{ATLAS_SIZE, AtlasRect, LightmapAtlas};
 pub use mesh::{Batch, NO_PROBE, Surface, WorldMesh, WorldVertex, probe_for};
+
+/// The atlas's texel format.
+///
+/// Shared-exponent float: three 9-bit mantissas and one 5-bit exponent in 32
+/// bits. Light is HDR by nature -- a lamp against a wall bakes to many times
+/// what a lit floor does -- and the atlas used to squeeze that into 8-bit
+/// unorm through a Reinhard curve, which meant the frame's own tone-mapper
+/// then compressed it a second time and nothing downstream could tell a
+/// bright surface from a very bright one. This keeps it linear, in the same
+/// four bytes a texel cost before, and every GPU wgpu runs on can filter it.
+pub const ATLAS_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgb9e5Ufloat;
 
 /// Statistics for a frame, for the `r_speeds`-style overlay.
 #[derive(Clone, Copy, Debug, Default)]

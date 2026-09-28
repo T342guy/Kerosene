@@ -17,7 +17,7 @@ The crates sit in layers, and a crate depends only on the layers below it.
 | 0 core | math, kv, console | each other |
 | 1 core services | config, vfs, platform | layer 0; each other |
 | 2 data and hardware | resource, asset, bsp, walk, map, scene, rhi | layers 0–1; each other |
-| 3 subsystems | render, physics, rigid, anim, audio, entity, script, ui | layers 0–2, **not each other** |
+| 3 subsystems | render, physics, anim, audio, entity, script, ui | layers 0–2, **not each other** |
 | 4 host and game | engine, game | layers 0–3 |
 | 5 tools | toolui and every tool | layers 0–4; each other |
 | 6 facade | `kerosene` | everything |
@@ -54,8 +54,7 @@ flowchart TB
     end
     subgraph L3["3 subsystems"]
         render["kerosene-render<br/>mesh, lightmap, wgpu"]
-        physics["kerosene-physics<br/>gamemovement"]
-        rigid["kerosene-rigid<br/>box3d-rust wrapper"]
+        physics["kerosene-physics<br/>gamemovement, PhysicsWorld"]
         anim["kerosene-anim<br/>skeletons, clips"]
         audio["kerosene-audio<br/>mixer, reverb"]
         entity["kerosene-entity<br/>entity world + I/O"]
@@ -90,7 +89,6 @@ flowchart TB
     kv --> audio
     math --> physics
     bsp --> physics
-    math --> rigid
     math --> entity
     kv --> entity
     math --> render
@@ -118,7 +116,6 @@ flowchart TB
     render --> engine
     resource --> engine
     rhi --> engine
-    rigid --> engine
     script --> engine
     ui --> engine
     walk --> engine
@@ -229,7 +226,7 @@ line:
 - the stable modules, re-exported whole: `engine`, `entity`, `math`,
   `console`, `physics`, `script`, `ui`, `platform`, `vfs`;
 - `kerosene::internals`, everything else — `asset`, `audio`, `bsp`,
-  `config`, `kv`, `map`, `render`, `rigid`, `walk` — public but outside the
+  `config`, `kv`, `map`, `render`, `walk` — public but outside the
   promise;
 - the third-party crates a game names in its own signatures (`glam`, `egui`,
   `rhai`, `winit`, `serde_json`) so a game cannot end up linking two versions
@@ -274,8 +271,7 @@ internal dependency is pinned at `=<version>` and moved by
 | `kerosene-walk` | `.kwalk` walkmap, navigation graph, the per-face `WalkmapRule` | `src/lib.rs`, `src/nav.rs`, `src/rule.rs` |
 | `kerosene-scene` | What the renderer is asked to draw: the UI display list, its images, the glyph atlas size | `src/draw.rs`, `src/images.rs` |
 | `kerosene-rhi` | The render hardware interface: opening a GPU for the configured renderer | `src/lib.rs`, `src/gpu.rs` |
-| `kerosene-physics` | Source `gamemovement`, `CollisionWorld` trait | `src/movement.rs`, `src/world.rs` |
-| `kerosene-rigid` | box3d-rust wrapper, inches native | `src/lib.rs` |
+| `kerosene-physics` | Source `gamemovement`, `CollisionWorld` trait | `src/movement.rs`, `src/world.rs`, `src/rigid.rs` (Box3D `PhysicsWorld`) |
 | `kerosene-entity` | Entity slots, fields, I/O queue, class registry, schema, save snapshots | `src/world.rs`, `src/io.rs`, `src/schema.rs`, `src/snapshot.rs` |
 | `kerosene-render` | CPU PVS/mesh build, lightmap atlas, dynamic lights, probes, wgpu backend | `src/mesh.rs`, `src/gpu.rs`, `src/lightmap.rs` |
 | `kerosene-anim` | skeleton, clip sampling, crossfade, skinning palette | `src/lib.rs` |

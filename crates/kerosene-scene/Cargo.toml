@@ -12,3 +12,10 @@ repository.workspace = true
 homepage.workspace = true
 keywords.workspace = true
 categories.workspace = true
+
+[dependencies]
+kerosene-math.workspace = true
+kerosene-bsp.workspace = true
+glam.workspace = true
+bytemuck.workspace = true
+log.workspace = true

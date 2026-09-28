@@ -11,7 +11,7 @@ decision, not an accident:
   everything the player is not: props that tumble, roll and settle.
 
 `crates/kerosene-engine/src/physics.rs` joins them. `PhysicsProps` owns one
-`RigidWorld` and the entity↔body mapping; the engine calls it once per tick.
+`PhysicsWorld` and the entity↔body mapping; the engine calls it once per tick.
 
 ## Player movement
 
@@ -146,7 +146,7 @@ flowchart TB
     push --> held["steer_prop if carrying"]
     held --> step["sync_and_step(dt, entities, vfs)"]
     step --> newprop["new prop_physics → dynamic box from model bounds"]
-    step --> simulate["RigidWorld::step"]
+    step --> simulate["PhysicsWorld::step"]
     step --> writeback["write body pose back to entity + previous map"]
 
     classDef proc fill:#FF6D00,color:#fff

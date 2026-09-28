@@ -308,8 +308,7 @@ crates/
                       the Game trait; base/, the content every game starts with
   kerosene-game       the stock entity classes — the game DLL analogue
   kerosene-entity     entities, their fields, and the I/O event queue
-  kerosene-physics    player movement and collision response
-  kerosene-rigid      rigid-body props on Box3D (box3d-rust)
+  kerosene-physics    player movement, and the PhysicsWorld of rigid-body props (box3d-rust)
   kerosene-render     the wgpu renderer, lightmap atlas, PVS culling
   kerosene-ui         the game UI: layouts, stylesheets, store, UI scripts
   kerosene-script     Rhai map scripting

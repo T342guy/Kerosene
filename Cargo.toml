@@ -14,7 +14,6 @@ members = [
     "crates/kerosene-bsp",
     "crates/kerosene-walk",
     "crates/kerosene-physics",
-    "crates/kerosene-rigid",
     "crates/kerosene-entity",
     "crates/kerosene-rhi",
     "crates/kerosene-scene",
@@ -73,7 +72,6 @@ kerosene-map     = { version = "=1.0.0-a3", path = "crates/kerosene-map" }
 kerosene-bsp     = { version = "=1.0.0-a3", path = "crates/kerosene-bsp" }
 kerosene-walk    = { version = "=1.0.0-a3", path = "crates/kerosene-walk" }
 kerosene-physics = { version = "=1.0.0-a3", path = "crates/kerosene-physics" }
-kerosene-rigid   = { version = "=1.0.0-a3", path = "crates/kerosene-rigid" }
 kerosene-entity  = { version = "=1.0.0-a3", path = "crates/kerosene-entity" }
 kerosene-rhi     = { version = "=1.0.0-a3", path = "crates/kerosene-rhi" }
 kerosene-scene   = { version = "=1.0.0-a3", path = "crates/kerosene-scene" }
