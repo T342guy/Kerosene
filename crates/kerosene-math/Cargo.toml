@@ -16,3 +16,5 @@ categories.workspace = true
 [dependencies]
 glam.workspace = true
 bytemuck.workspace = true
+# So entity components can hold angles: see kerosene-reflect.
+bevy_reflect.workspace = true

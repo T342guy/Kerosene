@@ -6,7 +6,7 @@
 //! built once from the map's material names and the `.kmat` files behind
 //! them, so the hot loop is an array lookup.
 
-use kerosene_asset::{AcousticProfile, Material, SurfaceProperty, material_path};
+use kerosene_asset::{AcousticProfile, Material, SurfaceProperty, material_source_path};
 use kerosene_bsp::Bsp;
 use std::path::Path;
 
@@ -70,7 +70,7 @@ impl Absorption {
             let _ = vfs.mount_archive(&archive, "GAME");
         }
         Absorption::build(bsp, |name| {
-            let text = vfs.read_string(&material_path(name)).ok()?;
+            let text = vfs.read_string(&material_source_path(name)).ok()?;
             Material::parse(&text).ok().map(|m| m.acoustics())
         })
     }

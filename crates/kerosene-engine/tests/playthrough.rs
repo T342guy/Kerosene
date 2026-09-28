@@ -1900,10 +1900,7 @@ fn a_script_can_open_a_door_through_the_same_path_a_wire_would() {
         .expect("the map has a door");
     let before = engine
         .entities
-        .get(door)
-        .unwrap()
-        .fields
-        .f32("door_state", -1.0);
+        .keyvalue_f32(door, "door_state", -1.0);
 
     engine.run_script(r#" ent_fire("gate", "Open"); "#).unwrap();
     for _ in 0..8 {
@@ -1912,10 +1909,7 @@ fn a_script_can_open_a_door_through_the_same_path_a_wire_would() {
 
     let after = engine
         .entities
-        .get(door)
-        .unwrap()
-        .fields
-        .f32("door_state", -1.0);
+        .keyvalue_f32(door, "door_state", -1.0);
     assert_ne!(before, after, "the door never moved");
     let _ = std::fs::remove_dir_all(&dir);
 }

@@ -220,3 +220,78 @@ What is left, on purpose:
   moves behind `rhi` in Phase 5.
 - The facade still re-exports `kerosene-map` under `internals`, for game
   code that builds maps.
+
+## CI cleanup (between phases 1 and 2)
+
+CI had failed on most pushes for a month. Three causes: the Windows and
+macOS test jobs, the new-game jobs, which failed on `5d79bf9`'s bundler
+bug, and the book job, whose link checker misread angle-bracket links. It is
+now five jobs, and every one must pass:
+
+| Job | What it runs |
+| --- | --- |
+| check (Linux) | fmt, clippy `-D warnings`, `xtask layers`, tests, Steam clippy and tests, `cargo doc` |
+| build (Windows, macOS) | `cargo check --workspace --all-targets`: compiles, does not test |
+| bundle and new game | `xtask bundle`, build, package under 10 MB, then `kerosene-tools new` and play it headless |
+| book | link check, `mdbook build` |
+| licences | `cargo deny` |
+
+Every Rust job starts with `.github/actions/setup`. The job list:
+
+- **Removed:** `msrv` and `semver`, now release steps in `src/docs/releasing.md`.
+  semver would have failed on every refactor phase, since each one breaks
+  the API on purpose.
+- **Merged:** the three new-game jobs, now one Linux job inside `bundle`.
+- **Changed:** the Windows and macOS test jobs are compile-only. The test
+  failures there were not diagnosed: the logs need a GitHub login.
+
+`release.yml` drafts the release with `gh`, and stops with a clear message
+when a release for the tag already exists. That case is why `1.0.0-a2` and
+`1.0.0-a3` both failed: immutable releases take no assets.
+
+## Phase 2 results — resources
+
+Done. The workspace build, all 2,313 tests, clippy, fmt and `xtask layers`
+are green.
+
+**New crate `kerosene-resource`** (layer 2, depends on `vfs`):
+
+- `container`: `KRES` header (kind, kind version, FNV-1a source hash),
+  block table, blocks on 16-byte boundaries. `DATA`, `REFS` (dependencies as
+  virtual paths) and `EDIT` (compiler, args, inputs with hashes) are shared
+  by every kind.
+- `ResourceType` + `decode::<T>`: checks kind and version, falls back to
+  `decode_legacy` for files from before a type moved into the container.
+- `Resources` / `Resource<T>`: one handle per path and type, `load` now or
+  `request` + `pump` later (`LoadState::Queued`), `reload` swaps the value
+  and bumps `generation`, `on_reload` listeners, `collect` frees what
+  nothing holds. It reads through a `Source` trait, implemented for `Vfs`, so
+  the engine keeps owning its file system.
+- `types`: the asset-type table (source extensions, compiled extension,
+  kind, compiler).
+
+**Migrated formats:**
+
+| Format | Kind | Notes |
+| --- | --- | --- |
+| `.kmat` → `.kmat_c` | `KMAT` | New compiled form. Alchemy compiles it in the texture pass (`compile_materials`); `.kmat_c` is packed and `.kmat` is not. The two runtime parsers (engine footsteps, render) now load `.kmat_c`; the footstep lookup goes through the engine's `Resources` cache rather than re-reading the file each step. `WithMaterialSources` falls back to `.kmat` with one warning per file for unrebuilt projects |
+| `.ktex` | `KTEX` | The old layout is the `DATA` block unchanged; old files still load |
+| `.kmdl` | `KMDL` | Same, and `REFS` lists its materials |
+
+`base.vault` was repacked: its 26 materials are `.kmat_c`, and its textures
+and models are in the container. Every texture payload is byte-identical to
+before. The two committed `.kmdl` were rewrapped rather than recompiled, so
+their geometry is unchanged. Only their payload version field went from 1
+to 2, which reads the same.
+
+**Left for later:**
+
+- `.kaud`, `.kbsp` (a lump directory with its own `KCUB`/`ACST` lumps),
+  `.kwalk` and `.vault` keep their own headers. `.vault` is an archive, not a
+  resource, and stays that way.
+- Once projects have been rebuilt, the `.kmat` fallback goes.
+- Render still loads textures and models by reading bytes itself. Moving it
+  onto `Resources` belongs with the render split in Phase 5, where hot reload
+  can rebuild GPU data from a handle's `generation`.
+- Found on the way: `kiln --force` does not reach the texture pass, so it
+  does not recompile textures or materials.

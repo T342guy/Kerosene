@@ -34,7 +34,7 @@ echo "==> packing the engine's base content"
 # the engine. Built from the same compiled files as the vault above; the list
 # says which. `cargo test -p kerosene-engine base` fails when it is stale.
 BASE_ARGS=()
-for ext in ktex kmat kmdl kbsp kwalk kscr ksnd kaud kui kcss ttf otf; do
+for ext in ktex kmat_c kmdl kbsp kwalk kscr ksnd kaud kui kcss ttf otf; do
     BASE_ARGS+=(--ext "$ext")
 done
 "$BIN/kerosene-tools" vault pack content \

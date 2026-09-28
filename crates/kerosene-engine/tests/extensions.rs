@@ -11,6 +11,10 @@ use kerosene_vfs::ext;
 fn every_copy_of_an_extension_agrees_with_the_table() {
     assert_eq!(kerosene_asset::ext::TEXTURE, ext::TEXTURE);
     assert_eq!(kerosene_asset::ext::MATERIAL, ext::MATERIAL);
+    assert_eq!(
+        kerosene_asset::ext::MATERIAL_COMPILED,
+        ext::MATERIAL_COMPILED
+    );
     assert_eq!(kerosene_asset::ext::MODEL, ext::MODEL);
     assert_eq!(kerosene_asset::ext::MAP_SOURCE, ext::MAP);
     assert_eq!(kerosene_asset::ext::MAP_COMPILED, ext::BSP);

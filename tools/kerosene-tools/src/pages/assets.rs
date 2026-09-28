@@ -26,6 +26,7 @@ pub enum Kind {
     Map,
     CompiledMap,
     Material,
+    CompiledMaterial,
     Texture,
     Image,
     Model,
@@ -54,6 +55,7 @@ impl Kind {
             e if e == ext::MAP => Kind::Map,
             e if e == ext::BSP => Kind::CompiledMap,
             e if e == ext::MATERIAL => Kind::Material,
+            e if e == ext::MATERIAL_COMPILED => Kind::CompiledMaterial,
             e if e == ext::TEXTURE => Kind::Texture,
             e if e == ext::MODEL => Kind::Model,
             e if e == ext::AUDIO => Kind::Sound,
@@ -84,6 +86,7 @@ impl Kind {
             Kind::Map => "Map",
             Kind::CompiledMap => "Compiled map",
             Kind::Material => "Material",
+            Kind::CompiledMaterial => "Compiled material",
             Kind::Texture => "Texture",
             Kind::Image => "Image",
             Kind::Model => "Model",
@@ -103,7 +106,7 @@ impl Kind {
         match self {
             Kind::Map => icons::MAP_TRIFOLD,
             Kind::CompiledMap => icons::CUBE,
-            Kind::Material => icons::PAINT_BUCKET,
+            Kind::Material | Kind::CompiledMaterial => icons::PAINT_BUCKET,
             Kind::Texture | Kind::Image => icons::IMAGE,
             Kind::Model | Kind::Mesh => icons::PACKAGE,
             Kind::Sound | Kind::AudioSource => icons::SPEAKER_HIGH,
@@ -119,7 +122,7 @@ impl Kind {
     pub fn category(self) -> Category {
         match self {
             Kind::Map | Kind::CompiledMap => Category::Maps,
-            Kind::Material => Category::Materials,
+            Kind::Material | Kind::CompiledMaterial => Category::Materials,
             Kind::Texture | Kind::Image => Category::Textures,
             Kind::Model | Kind::Mesh => Category::Models,
             Kind::Sound | Kind::AudioSource => Category::Sounds,
@@ -249,6 +252,7 @@ impl Entry {
 fn output_of(root: &Path, relative: &str, path: &Path, kind: Kind) -> Option<PathBuf> {
     match kind {
         Kind::Map => Some(path.with_extension(ext::BSP)),
+        Kind::Material => Some(path.with_extension(ext::MATERIAL_COMPILED)),
         // Forge compiles `art/<name>.obj` to `models/<name>.kmdl`, as Kiln
         // runs it; a mesh anywhere else is not built by anything.
         Kind::Mesh => kiln::model_output(root, path),
@@ -816,6 +820,10 @@ mod tests {
         assert_eq!(Kind::of("maps/arena.kmap"), Kind::Map);
         assert_eq!(Kind::of("maps/arena.KBSP"), Kind::CompiledMap);
         assert_eq!(Kind::of("materials/dev/grid.kmat"), Kind::Material);
+        assert_eq!(
+            Kind::of("materials/dev/grid.kmat_c"),
+            Kind::CompiledMaterial
+        );
         assert_eq!(Kind::of("art/dev/grid.png"), Kind::Image);
         assert_eq!(Kind::of("models/props/crate.kmdl"), Kind::Model);
         assert_eq!(Kind::of("sound/ui/click.wav"), Kind::AudioSource);

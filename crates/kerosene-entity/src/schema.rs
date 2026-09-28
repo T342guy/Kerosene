@@ -449,6 +449,81 @@ impl Schema {
     }
 }
 
+impl Schema {
+    /// Give each class the keys its components declare (see
+    /// [`ClassDef::component`](crate::ClassDef::component)), after the keys
+    /// the text already gives it.
+    ///
+    /// A key the text defines is left as the text has it: that is where a
+    /// key that needs a list of choices or named flags says so. [`check`]
+    /// holds such a key's default to the component's.
+    pub fn with_component_keys(mut self, registry: &crate::ClassRegistry) -> Schema {
+        for spec in &mut self.classes {
+            for decl in registry.components(&spec.name) {
+                for key in component_keys(decl) {
+                    if spec.key(&key.name).is_none() {
+                        spec.keys.push(key);
+                    }
+                }
+            }
+        }
+        self
+    }
+}
+
+/// The editor's keys for a component: each field with a keyvalue that is
+/// not [`Hidden`](kerosene_reflect::Hidden), with its label, help and the
+/// type's default.
+pub fn component_keys(decl: &crate::ComponentDecl) -> Vec<KeySpec> {
+    use kerosene_reflect::{FieldKind, Widget};
+    decl.fields
+        .iter()
+        .filter(|f| !f.hidden)
+        .filter_map(|f| {
+            let key = f.key?;
+            let kind = match (f.widget, f.kind) {
+                (Some(Widget::TargetSource), _) => KeyKind::TargetSource,
+                (Some(Widget::TargetDestination), _) => KeyKind::TargetDestination,
+                (Some(Widget::Material), _) => KeyKind::Material,
+                (Some(Widget::Model), _) => KeyKind::Model,
+                (Some(Widget::Color), _) => KeyKind::Color,
+                (None, FieldKind::Float) => KeyKind::Float,
+                (None, FieldKind::Integer | FieldKind::Unsigned) => KeyKind::Integer,
+                (None, FieldKind::Boolean) => KeyKind::Boolean,
+                (None, FieldKind::Vector) => KeyKind::Vector,
+                (None, FieldKind::Angles) => KeyKind::Angles,
+                (None, FieldKind::String | FieldKind::Other) => KeyKind::String,
+            };
+            Some(KeySpec {
+                name: key.to_string(),
+                label: f.label.unwrap_or(key).to_string(),
+                kind,
+                default: decl.default_value(f.name)
+                    .map(|v| v.to_string())
+                    .unwrap_or_default(),
+                help: f.help.unwrap_or("").to_string(),
+                choices: Vec::new(),
+            })
+        })
+        .collect()
+}
+
+/// Whether a schema's default text means the same as a component's default.
+fn same_default(value: &crate::Value, text: &str) -> bool {
+    use crate::Value;
+    let written = Value::from_keyvalue(text);
+    match value {
+        Value::Float(v) => written.as_f32() == Some(*v),
+        Value::Int(v) => written.as_i32() == Some(*v),
+        Value::Bool(v) => written.as_bool() == Some(*v),
+        Value::Text(v) => text == v,
+        Value::Vector(v) => written.as_vec3() == Some(*v),
+        Value::Angle(a) => {
+            written.as_vec3() == Some(kerosene_math::Vec3::new(a.pitch, a.yaw, a.roll))
+        }
+    }
+}
+
 /// Every way a schema and a class registry disagree, as sentences.
 ///
 /// A schema is what the editor offers; a registry is what the game does.
@@ -471,6 +546,28 @@ pub fn check(registry: &crate::ClassRegistry, schema: &Schema) -> Vec<String> {
             continue;
         };
         let def = registry.get(name).expect("just listed");
+        for decl in &def.components {
+            for field in decl.fields.iter() {
+                let Some(key) = field.key.filter(|_| !field.hidden) else {
+                    continue;
+                };
+                let Some(offered) = spec.key(key) else {
+                    problems.push(format!(
+                        "key `{name}.{key}` is read ({}) but not offered",
+                        decl.name
+                    ));
+                    continue;
+                };
+                if let Some(default) = decl.default_value(field.name)
+                    && !same_default(&default, &offered.default)
+                {
+                    problems.push(format!(
+                        "key `{name}.{key}` defaults to {default} in {}, but the schema says {:?}",
+                        decl.name, offered.default
+                    ));
+                }
+            }
+        }
         for (input, _) in &def.inputs {
             if !spec.has_input(input) {
                 problems.push(format!("input `{name}.{input}` is handled but not offered"));

@@ -1,0 +1,27 @@
+# The start of every job that builds Rust: the pinned toolchain, the system
+# libraries, and a build cache. One place, so every job builds the same way.
+name: Set up the Rust build
+description: Install the toolchain from rust-toolchain.toml, ALSA on Linux, and the cargo cache.
+
+inputs:
+  cache-key:
+    description: Keeps this job's cache apart from jobs that build something else.
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    # The toolchain file pins the channel; rustup reads it.
+    - name: Install toolchain
+      shell: bash
+      run: rustup show
+
+    - name: Install ALSA headers
+      if: runner.os == 'Linux'
+      shell: bash
+      run: sudo apt-get update && sudo apt-get install -y libasound2-dev
+
+    - uses: Swatinem/rust-cache@v2
+      with:
+        key: ${{ inputs.cache-key }}

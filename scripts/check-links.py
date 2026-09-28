@@ -11,7 +11,9 @@ import re
 import sys
 
 root = pathlib.Path(__file__).resolve().parent.parent
-link = re.compile(r"\]\(([^)\s]+)\)")
+# A destination is bare, or in angle brackets when it has spaces or
+# parentheses of its own: `[a](<Some Page (draft).md>)`.
+link = re.compile(r"\]\((?:<([^>]+)>|([^)\s]+))\)")
 fence = re.compile(r"^\s*(```|~~~)")
 
 pages = sorted(root.glob("src/**/*.md")) + [root / "README.md"]
@@ -24,7 +26,8 @@ for page in pages:
             continue
         if in_code:
             continue
-        for target in link.findall(line):
+        for bracketed, bare in link.findall(line):
+            target = bracketed or bare
             if target.startswith(("http://", "https://", "mailto:", "#")):
                 continue
             # Rust intra-doc style paths in prose, `crate::x`, are not files.

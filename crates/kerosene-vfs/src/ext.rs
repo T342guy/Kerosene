@@ -17,8 +17,10 @@ pub const MAP: &str = "kmap";
 pub const BSP: &str = "kbsp";
 /// Model. Binary.
 pub const MODEL: &str = "kmdl";
-/// Material. KeyValues text.
+/// Material source. KeyValues text.
 pub const MATERIAL: &str = "kmat";
+/// Compiled material: a `.kmat` in the resource container. Binary.
+pub const MATERIAL_COMPILED: &str = "kmat_c";
 /// Texture, with its mips. Binary.
 pub const TEXTURE: &str = "ktex";
 /// Project file. KeyValues text.
@@ -56,15 +58,24 @@ pub const ARCHIVE: &str = "vault";
 /// leaves. What `kiln --clean` deletes, and what a project's `.gitignore`
 /// leaves out. Models are not here: a `.kmdl` may have come from
 /// somewhere with no source to rebuild it from.
-pub const COMPILED: &[&str] = &[TEXTURE, AUDIO, BSP, PORTALS, WALK, LEAK, BUILD_STAMP];
+pub const COMPILED: &[&str] = &[
+    TEXTURE,
+    MATERIAL_COMPILED,
+    AUDIO,
+    BSP,
+    PORTALS,
+    WALK,
+    LEAK,
+    BUILD_STAMP,
+];
 
 /// What goes into an archive: the compiled formats and the loose data the
 /// engine reads directly. Sources -- `.png`, `.obj`, `.wav`, `.kmap` -- are
 /// left out: shipping them doubles the download to deliver files the engine
-/// can read a smaller version of.
+/// can read a smaller version of, and the engine does not read sources.
 pub const PACKED: &[&str] = &[
     TEXTURE,
-    MATERIAL,
+    MATERIAL_COMPILED,
     MODEL,
     BSP,
     WALK,
@@ -100,6 +111,7 @@ mod tests {
             BSP,
             MODEL,
             MATERIAL,
+            MATERIAL_COMPILED,
             TEXTURE,
             PROJECT,
             UI_LAYOUT,

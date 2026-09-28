@@ -13,7 +13,12 @@
 use kerosene_entity::{ClassKind, Schema};
 
 fn schema() -> Schema {
-    Schema::parse(kerosene_game::schema::BUILTIN).expect("the embedded schema must parse")
+    kerosene_game::schema::schema()
+}
+
+#[test]
+fn the_text_alone_parses() {
+    Schema::parse(kerosene_game::schema::BUILTIN).expect("the embedded schema must parse");
 }
 
 #[test]

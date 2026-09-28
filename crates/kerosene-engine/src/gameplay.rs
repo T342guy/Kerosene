@@ -79,7 +79,11 @@ impl Engine {
                 )
                 .bounds_of(model.bounds()),
                 None => {
-                    let half = entity.fields.f32("touch_size", DEFAULT_TOUCH_SIZE).max(1.0) * 0.5;
+                    let half = self
+                        .entities
+                        .keyvalue_f32(id, "touch_size", DEFAULT_TOUCH_SIZE)
+                        .max(1.0)
+                        * 0.5;
                     Aabb::new(
                         entity.origin - Vec3::splat(half),
                         entity.origin + Vec3::splat(half),
@@ -87,7 +91,7 @@ impl Engine {
                 }
             };
             let inside =
-                alive && !entity.fields.bool("disabled", false) && bounds.intersects(&player_box);
+                alive && !self.entities.keyvalue_bool(id, "disabled", false) && bounds.intersects(&player_box);
             let was = entity.fields.bool(TOUCHING, false);
             if inside != was
                 && let Some(e) = self.entities.get_mut(id)

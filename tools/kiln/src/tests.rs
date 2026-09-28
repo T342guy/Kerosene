@@ -178,10 +178,10 @@ fn the_texture_stage_builds_a_real_tree() {
 fn sources_are_never_packed() {
     // Shipping the .png next to the .ktex doubles the download to deliver
     // a file the engine cannot read.
-    for source in ["png", "obj", "kmap", "kprt", "kleak"] {
+    for source in ["png", "obj", "kmap", "kmat", "kprt", "kleak"] {
         assert!(!PACKED.contains(&source), "{source} should not be packed");
     }
-    for compiled in ["ktex", "kmdl", "kbsp"] {
+    for compiled in ["ktex", "kmat_c", "kmdl", "kbsp"] {
         assert!(PACKED.contains(&compiled), "{compiled} should be packed");
     }
 }
@@ -276,9 +276,9 @@ fn the_newest_material_is_found_anywhere_under_the_tree() {
 fn an_archive_is_current_until_something_it_packs_is_newer() {
     let dir = scratch("pack");
     let archive = dir.join("content.vault");
-    touch(&dir.join("materials/a.kmat"));
+    touch(&dir.join("materials/a.kmat_c"));
     touch(&dir.join("art/a.png"));
-    age(&dir.join("materials/a.kmat"), 60);
+    age(&dir.join("materials/a.kmat_c"), 60);
     assert!(!archive_is_current(&dir, &archive), "no archive yet");
     let write = |paths: &[&str]| {
         let mut b = kerosene_vfs::ArchiveBuilder::new();
@@ -287,22 +287,22 @@ fn an_archive_is_current_until_something_it_packs_is_newer() {
         }
         b.write(&archive).unwrap();
     };
-    write(&["materials/a.kmat"]);
+    write(&["materials/a.kmat_c"]);
     assert!(
         archive_is_current(&dir, &archive),
         "a newer source that is never packed does not matter"
     );
-    touch(&dir.join("materials/b.kmat"));
+    touch(&dir.join("materials/b.kmat_c"));
     age(&archive, 30);
     assert!(!archive_is_current(&dir, &archive));
 
     // Newer than everything, but not holding everything.
-    write(&["materials/a.kmat"]);
-    assert!(!archive_is_current(&dir, &archive), "b.kmat is not in it");
-    write(&["materials/a.kmat", "materials/b.kmat"]);
+    write(&["materials/a.kmat_c"]);
+    assert!(!archive_is_current(&dir, &archive), "b.kmat_c is not in it");
+    write(&["materials/a.kmat_c", "materials/b.kmat_c"]);
     assert!(archive_is_current(&dir, &archive));
-    std::fs::remove_file(dir.join("materials/b.kmat")).unwrap();
-    assert!(!archive_is_current(&dir, &archive), "b.kmat was deleted");
+    std::fs::remove_file(dir.join("materials/b.kmat_c")).unwrap();
+    assert!(!archive_is_current(&dir, &archive), "b.kmat_c was deleted");
 
     // A pack cut short: newest of all, and not an archive.
     std::fs::write(&archive, b"KVLT").unwrap();
@@ -322,6 +322,7 @@ fn clean_deletes_what_the_build_wrote_and_nothing_else() {
         ("art/dev/grid.png", false),
         ("materials/dev/grid.kmat", false),
         ("materials/dev/grid.ktex", true),
+        ("materials/dev/grid.kmat_c", true),
         ("models/props/cube.kmdl", false),
         ("sound/hum.wav", false),
         ("sound/hum.kaud", true),
@@ -343,7 +344,7 @@ fn clean_deletes_what_the_build_wrote_and_nothing_else() {
     std::os::unix::fs::symlink(&shared, dir.join("linked")).unwrap();
 
     let dry = crate::clean(&dir, None, true).unwrap();
-    assert_eq!(dry.files, 7);
+    assert_eq!(dry.files, 8);
     assert!(
         dir.join("maps/a.kbsp").exists(),
         "a dry run deletes nothing"
@@ -363,6 +364,7 @@ fn clean_deletes_what_the_build_wrote_and_nothing_else() {
     for built in [
         "maps/a.kbsp",
         "materials/dev/grid.ktex",
+        "materials/dev/grid.kmat_c",
         "sound/hum.kaud",
         "maps/ARENA.KBSP",
         "content.vault",

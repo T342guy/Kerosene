@@ -103,11 +103,23 @@ same compile.
 
 `.github/workflows/ci.yml`:
 
-- **Linux** runs `cargo fmt --all --check`, `cargo clippy --workspace
-  --all-targets -- -D warnings` and `cargo test --workspace`.
-- **Windows and macOS** build only. The point of those two is to find out the
-  tree still compiles there, which is the question nobody at a Linux desk can
-  answer by hand.
+- **check** (Linux) runs `cargo fmt --all --check`, `cargo clippy
+  --workspace --all-targets -- -D warnings`, `cargo xtask layers`, `cargo
+  test --workspace`, the Steam feature's clippy and tests, and `cargo doc`
+  on the published crate with warnings as errors.
+- **platforms** (Windows and macOS) runs `cargo check --workspace
+  --all-targets`. The point of those two is to find out the tree still
+  compiles there, which is the question nobody at a Linux desk can answer by
+  hand.
+- **bundle** folds the workspace into the published crate (`cargo xtask
+  bundle`), builds and packages it, then makes a game with it and plays it
+  headless.
+- **book** checks the book's relative links and builds it; **licences** runs
+  `cargo deny`.
+
+Every job must pass; none is allowed to fail. Each Rust job starts with
+`.github/actions/setup`, so they all build with the same toolchain and
+libraries.
 
 Tool crates are compiled at `opt-level = 2` in the dev profile
 (`Cargo.toml`), because a debug build of Cleave/Umbra/Radiance is brutally slow

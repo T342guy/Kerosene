@@ -7,6 +7,8 @@
 //! register its own classes without touching the engine.
 
 use crate::world::{EntityId, EntityWorld};
+use kerosene_ecs::{Component, Entity as Handle, Mutable, World};
+use kerosene_reflect::{Struct, TypeInfo, Typed};
 use std::collections::HashMap;
 
 /// Called once when an entity is created from the map.
@@ -73,6 +75,106 @@ impl ModelRole {
     }
 }
 
+/// What a class's entities carry as typed data: a struct whose fields are
+/// declared once, with the keyvalue each is filled from (see
+/// `kerosene_reflect`).
+///
+/// ```
+/// use kerosene_ecs::prelude::*;
+///
+/// #[derive(Component, Reflect, Clone, Debug)]
+/// #[reflect(Component, Default)]
+/// pub struct Counter {
+///     #[reflect(@Key("max"), @Label("Maximum"))]
+///     pub max: i32,
+///     /// Where it has got to.
+///     pub value: i32,
+/// }
+///
+/// impl Default for Counter {
+///     fn default() -> Self {
+///         Counter { max: 10, value: 0 }
+///     }
+/// }
+///
+/// let class = kerosene_entity::ClassDef::new("math_counter").component::<Counter>();
+/// ```
+///
+/// Its `Default` is what an entity whose map left a key out gets, and what
+/// the editor offers as the default.
+pub trait ClassComponent: Component<Mutability = Mutable> + Struct + Typed + Default {}
+
+impl<T: Component<Mutability = Mutable> + Struct + Typed + Default> ClassComponent for T {}
+
+/// A component a class's entities carry: the type, erased, with what the
+/// entity world needs to make one and reach its fields.
+#[derive(Clone)]
+pub struct ComponentDecl {
+    /// The type's short name, `Mover`: what a saved game files it under.
+    pub name: &'static str,
+    pub info: &'static TypeInfo,
+    /// Its fields, read from `info` once rather than on every lookup.
+    pub fields: std::sync::Arc<[kerosene_reflect::Field]>,
+    /// Give an entity the class's starting value: `T::default()`, or what
+    /// [`ClassDef::component_with`] was given.
+    insert: std::sync::Arc<dyn Fn(&mut World, Handle) + Send + Sync>,
+    /// A field of that starting value.
+    default_field: std::sync::Arc<dyn Fn(&str) -> Option<kerosene_reflect::Value> + Send + Sync>,
+    pub(crate) reflect: fn(&World, Handle) -> Option<&dyn Struct>,
+    pub(crate) reflect_mut: fn(&mut World, Handle) -> Option<&mut dyn Struct>,
+}
+
+impl ComponentDecl {
+    fn of<T: ClassComponent>(make: fn() -> T) -> ComponentDecl {
+        ComponentDecl {
+            name: T::type_info().type_path_table().short_path(),
+            info: T::type_info(),
+            fields: kerosene_reflect::fields::<T>().into(),
+            insert: std::sync::Arc::new(move |world: &mut World, handle| {
+                world.entity_mut(handle).insert(make());
+            }),
+            default_field: std::sync::Arc::new(move |field: &str| {
+                kerosene_reflect::get(&make(), field)
+            }),
+            reflect: |world, handle| world.get::<T>(handle).map(|c| c as &dyn Struct),
+            reflect_mut: |world, handle| {
+                world
+                    .get_mut::<T>(handle)
+                    .map(|c| c.into_inner() as &mut dyn Struct)
+            },
+        }
+    }
+
+    /// Give `handle` the class's starting value of the component.
+    pub(crate) fn insert(&self, world: &mut World, handle: Handle) {
+        (self.insert)(world, handle);
+    }
+
+    /// A field's starting value: what an entity whose map leaves the key
+    /// out gets, and so what the editor shows as the default.
+    pub fn default_value(&self, field: &str) -> Option<kerosene_reflect::Value> {
+        (self.default_field)(field)
+    }
+
+    /// The field a keyvalue fills, matched without regard to case.
+    pub fn field_for_key(&self, key: &str) -> Option<&kerosene_reflect::Field> {
+        self.fields
+            .iter()
+            .find(|f| f.key.is_some_and(|k| k.eq_ignore_ascii_case(key)))
+    }
+
+    /// The field with this Rust name, matched without regard to case.
+    pub fn field_named(&self, name: &str) -> Option<&kerosene_reflect::Field> {
+        self.fields.iter().find(|f| f.name.eq_ignore_ascii_case(name))
+    }
+}
+
+impl std::fmt::Debug for ComponentDecl {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.name)
+    }
+}
+
 /// Everything the engine needs to know about one entity class.
 ///
 /// Built with [`ClassDef::new`] and its builder methods; new fields arrive
@@ -102,6 +204,8 @@ pub struct ClassDef {
     pub touch: Option<TouchHandler>,
     /// What it does when it is damaged. See [`DamageHandler`].
     pub damage: Option<DamageHandler>,
+    /// The typed data its entities carry. See [`ClassDef::component`].
+    pub components: Vec<ComponentDecl>,
 }
 
 impl ClassDef {
@@ -116,7 +220,31 @@ impl ClassDef {
             model: None,
             touch: None,
             damage: None,
+            components: Vec::new(),
         }
+    }
+
+    /// Give every entity of the class a `T`, filled from the map's
+    /// keyvalues where `T` declares a key and from `T::default()` where the
+    /// map says nothing.
+    ///
+    /// A keyvalue a component claims lives only there: it is read and set
+    /// through the component, or by name through
+    /// [`EntityWorld::keyvalue`](crate::EntityWorld::keyvalue), and never
+    /// lands in the entity's loose fields.
+    pub fn component<T: ClassComponent>(self) -> Self {
+        self.component_with(T::default)
+    }
+
+    /// [`ClassDef::component`], starting from `make()` rather than
+    /// `T::default()`: for a component two classes share with different
+    /// defaults, as a door and a button share a mover.
+    pub fn component_with<T: ClassComponent>(mut self, make: fn() -> T) -> Self {
+        let decl = ComponentDecl::of(make);
+        self.components
+            .retain(|c| c.info.type_id() != decl.info.type_id());
+        self.components.push(decl);
+        self
     }
 
     /// React to the player walking into it. See [`TouchHandler`].
@@ -272,5 +400,11 @@ impl ClassRegistry {
 
     pub fn damage_handler(&self, classname: &str) -> Option<DamageHandler> {
         self.get(classname).and_then(|c| c.damage)
+    }
+
+    /// The components a class's entities carry; none for a class nobody
+    /// registered.
+    pub fn components(&self, classname: &str) -> &[ComponentDecl] {
+        self.get(classname).map_or(&[], |c| &c.components)
     }
 }

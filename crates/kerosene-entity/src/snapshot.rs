@@ -14,6 +14,11 @@
 //! variable or the game's own state still names the same entity afterwards.
 //! That is also why nothing here renumbers anything.
 //!
+//! A class's components go in by type name, each field by its Rust name.
+//! A save from before a field moved out of the loose fields into a
+//! component still loads: the restore hands each loose field to the
+//! component that now claims it, by keyvalue or by field name.
+//!
 //! Restoring does not run spawn handlers -- a `logic_auto` would fire again,
 //! a `math_counter` would reset -- but runs each class's
 //! [`on_restore`](crate::ClassDef::on_restore) instead, for the little that
@@ -65,6 +70,9 @@ pub struct SavedEntity {
     pub next_think: Option<f32>,
     /// Sorted, so the same world always writes the same file.
     pub fields: BTreeMap<String, SavedValue>,
+    /// Each component by type name, and its saved fields by name.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub components: BTreeMap<String, BTreeMap<String, SavedValue>>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub connections: Vec<Connection>,
 }
@@ -204,6 +212,17 @@ impl EntityWorld {
                     .iter()
                     .map(|(k, v)| (k.clone(), v.into()))
                     .collect(),
+                components: self
+                    .components(e.id)
+                    .into_iter()
+                    .map(|(name, component)| {
+                        let fields = kerosene_reflect::saved(component)
+                            .into_iter()
+                            .map(|(field, v)| (field.to_string(), (&v).into()))
+                            .collect();
+                        (name.to_string(), fields)
+                    })
+                    .collect(),
                 connections: e.connections.clone(),
             });
         }
@@ -241,6 +260,7 @@ impl EntityWorld {
     pub fn restore(&mut self, snapshot: &WorldSnapshot) -> Result<usize, String> {
         let slots = snapshot.generations.len();
         let mut restored: Vec<Option<Entity>> = vec![None; slots];
+        let mut ecs = kerosene_ecs::World::new();
         for saved in &snapshot.entities {
             let at = saved.id[0] as usize;
             if at >= slots {
@@ -263,6 +283,21 @@ impl EntityWorld {
                 fields.set(key, value.into());
             }
             let [p, y, r] = saved.angles;
+            let ecs_entity = ecs.spawn_empty().id();
+            for decl in self.registry.components(&saved.classname) {
+                decl.insert(&mut ecs, ecs_entity);
+                let Some(fields) = saved.components.get(decl.name) else {
+                    continue;
+                };
+                let Some(target) = (decl.reflect_mut)(&mut ecs, ecs_entity) else {
+                    continue;
+                };
+                for (field, value) in fields {
+                    if let Err(e) = kerosene_reflect::set(target, field, &value.into()) {
+                        log::warn!("restoring {} {}: {e}", saved.classname, decl.name);
+                    }
+                }
+            }
             restored[at] = Some(Entity {
                 id: handle(saved.id),
                 classname: saved.classname.clone(),
@@ -273,6 +308,7 @@ impl EntityWorld {
                 next_think: saved.next_think,
                 brush_model: saved.brush_model,
                 pending_removal: false,
+                handle: ecs_entity,
             });
         }
         if let Some(bad) = snapshot
@@ -289,6 +325,7 @@ impl EntityWorld {
         }
 
         self.slots = restored;
+        self.ecs = ecs;
         self.generations = snapshot.generations.clone();
         self.free = snapshot.free.clone();
         self.by_name.clear();
@@ -316,8 +353,38 @@ impl EntityWorld {
         self.time = snapshot.time;
         self.player = snapshot.player.map(handle).filter(|&h| self.exists(h));
 
-        let registry = self.registry.clone();
+        // A save from before a field moved into a component has it loose.
+        // Where two loose fields fill the same component field -- the
+        // `disabled` state and the `startdisabled` key that began it -- the
+        // one that is the field's own name wins, since it is the later.
         let ids = self.ids();
+        for &id in &ids {
+            let mut keys: Vec<(bool, String)> = self
+                .get(id)
+                .map(|e| {
+                    let decls = self.registry.components(&e.classname);
+                    e.fields
+                        .iter()
+                        .map(|(k, _)| {
+                            let by_name = decls.iter().any(|d| d.field_named(k).is_some());
+                            (by_name, k.clone())
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
+            // Keys first, names last, so a name overwrites a key.
+            keys.sort();
+            for (_, key) in keys {
+                if self.claiming(id, &key).is_none() {
+                    continue;
+                }
+                if let Some(value) = self.get_mut(id).and_then(|e| e.fields.remove(&key)) {
+                    self.set_keyvalue(id, &key, value);
+                }
+            }
+        }
+
+        let registry = self.registry.clone();
         for &id in &ids {
             let Some(classname) = self.get(id).map(|e| e.classname.clone()) else {
                 continue;

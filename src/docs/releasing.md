@@ -8,15 +8,17 @@ number it gets; this is the order of things.
 1. **Choose the number.** Read the changelog's Unreleased section against
    [what the promise covers](versioning.md#what-the-promise-covers). Anything
    marked **Breaking** is a major version (or the next pre-release, before
-   `1.0.0`). CI's `semver` job says what `cargo semver-checks` found against
-   the last release; it is advice before `1.0.0` and a gate after.
+   `1.0.0`). `cargo semver-checks -p kerosene --baseline-rev <last tag>`
+   says what changed in the API since the last release; it is advice before
+   `1.0.0` and a gate after.
 2. **Base content.** If anything under `content/` that the engine's base
    content holds has changed, run `scripts/build-content.sh`, which repacks
    `crates/kerosene-engine/base/base.vault`.
    `cargo test -p kerosene-engine base` fails when it is stale.
 3. **Green.** `cargo fmt --check`, `cargo clippy --workspace --all-targets
-   -- -D warnings` and `cargo test --workspace`, and CI green on every job,
-   including the new-game job on all three platforms.
+   -- -D warnings` and `cargo test --workspace`, and CI green on every job.
+   `cargo +<rust-version> check --workspace` with the `rust-version` from
+   `Cargo.toml` keeps that promise.
 
 ## The release
 
@@ -37,6 +39,10 @@ is marked a pre-release. It is a draft because the repository's releases
 are immutable: once published, a release takes no more files, so the
 archives go on first and you publish the draft from the Releases page when
 they are all there.
+
+So do not make the release by hand before the workflow runs: if one already
+exists for the tag, the workflow stops and says so. Delete it and re-run
+the `release` job.
 
 ## crates.io
 

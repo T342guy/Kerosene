@@ -30,8 +30,10 @@ fn named(w: &EntityWorld, name: &str) -> EntityId {
         .unwrap_or_else(|| panic!("no entity named {name}"))
 }
 
+/// A field by keyvalue name, wherever it lives: a component or the loose
+/// fields. -1 when the entity has none.
 fn field(w: &EntityWorld, id: EntityId, key: &str) -> f32 {
-    w.get(id).map(|e| e.fields.f32(key, -1.0)).unwrap_or(-1.0)
+    w.keyvalue_f32(id, key, -1.0)
 }
 
 // ---- doors ---------------------------------------------------------------
@@ -121,7 +123,7 @@ fn a_door_with_a_wait_closes_itself() {
         120.0,
         "open, and still waiting"
     );
-    assert!(w.get(gate).unwrap().fields.f32("progress", 0.0) == 1.0);
+    assert!(field(&w, gate, "progress") == 1.0);
     run(&mut w, 3.0);
     assert_eq!(
         w.get(gate).unwrap().origin.z,
@@ -409,14 +411,17 @@ fn a_brush_entity_can_be_switched_off() {
 }
 
 #[test]
-fn setting_a_field_directly_still_works_for_engine_code() {
+fn engine_code_sets_a_field_by_name_without_knowing_the_component() {
     let mut w = EntityWorld::new(kerosene_game::registry());
     let id = w.spawn("math_counter");
-    w.get_mut(id)
-        .unwrap()
-        .fields
-        .set("value", Value::Float(7.0));
+    assert!(w.set_keyvalue(id, "value", Value::Float(7.0)));
     assert_eq!(field(&w, id, "value"), 7.0);
+    assert_eq!(
+        w.component::<kerosene_game::logic::Counter>(id)
+            .unwrap()
+            .value,
+        7.0
+    );
 }
 
 #[test]
@@ -668,9 +673,7 @@ fn a_button_pops_back_out_after_its_wait() {
 fn a_button_held_in_stays_in() {
     let mut w = world_from(BUTTON_MAP);
     let switch = named(&w, "switch");
-    if let Some(e) = w.get_mut(switch) {
-        e.fields.set("wait", Value::Float(-1.0));
-    }
+    w.set_keyvalue(switch, "wait", Value::Float(-1.0));
 
     press(&mut w, switch);
     run(&mut w, 3.0);
@@ -686,9 +689,7 @@ fn a_button_held_in_stays_in() {
 fn pressing_a_button_that_is_already_in_does_nothing() {
     let mut w = world_from(BUTTON_MAP);
     let switch = named(&w, "switch");
-    if let Some(e) = w.get_mut(switch) {
-        e.fields.set("wait", Value::Float(-1.0));
-    }
+    w.set_keyvalue(switch, "wait", Value::Float(-1.0));
 
     press(&mut w, switch);
     run(&mut w, 0.5);

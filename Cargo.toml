@@ -4,8 +4,11 @@ members = [
     "crates/kerosene-math",
     "crates/kerosene-kv",
     "crates/kerosene-config",
+    "crates/kerosene-reflect",
+    "crates/kerosene-ecs",
     "crates/kerosene-console",
     "crates/kerosene-vfs",
+    "crates/kerosene-resource",
     "crates/kerosene-asset",
     "crates/kerosene-map",
     "crates/kerosene-bsp",
@@ -61,7 +64,10 @@ kerosene-math    = { version = "=1.0.0-a3", path = "crates/kerosene-math" }
 kerosene-kv      = { version = "=1.0.0-a3", path = "crates/kerosene-kv" }
 kerosene-config  = { version = "=1.0.0-a3", path = "crates/kerosene-config" }
 kerosene-console = { version = "=1.0.0-a3", path = "crates/kerosene-console" }
+kerosene-reflect = { version = "=1.0.0-a3", path = "crates/kerosene-reflect" }
+kerosene-ecs     = { version = "=1.0.0-a3", path = "crates/kerosene-ecs" }
 kerosene-vfs     = { version = "=1.0.0-a3", path = "crates/kerosene-vfs" }
+kerosene-resource = { version = "=1.0.0-a3", path = "crates/kerosene-resource" }
 kerosene-asset   = { version = "=1.0.0-a3", path = "crates/kerosene-asset" }
 kerosene-map     = { version = "=1.0.0-a3", path = "crates/kerosene-map" }
 kerosene-bsp     = { version = "=1.0.0-a3", path = "crates/kerosene-bsp" }
@@ -105,7 +111,7 @@ log         = "0.4"
 env_logger  = "0.11"
 bytemuck    = { version = "1", features = ["derive"] }
 rayon       = "1"
-glam        = { version = "0.30", features = ["bytemuck"] }
+glam        = { version = "0.32", features = ["bytemuck"] }
 image       = { version = "0.25", default-features = false, features = ["png", "jpeg", "tga"] }
 wgpu        = "25"   # pinned to what egui-wgpu 0.32 links; a second wgpu major
                      # pulls in a second naga, and the two unify
@@ -137,6 +143,14 @@ epaint_default_fonts = "0.32"
 # read one without a tool.
 serde       = { version = "1", features = ["derive"] }
 serde_json  = "1"
+# Entities and the reflection that describes their fields, behind the
+# `kerosene-ecs` and `kerosene-reflect` facades. MIT OR Apache-2.0. Pinned to
+# an exact release because Bevy breaks its API in most of them: an upgrade is
+# a decision, made in the two facade crates and nowhere else. One thread, so
+# entity I/O runs in the same order on every machine; no Bevy-wide registry
+# built by the linker.
+bevy_ecs     = { version = "=0.19.1", default-features = false, features = ["std", "bevy_reflect"] }
+bevy_reflect = { version = "=0.19.1", default-features = false, features = ["std", "glam"] }
 # Steamworks, for `kerosene-platform`'s optional `steam` feature and nothing
 # else. The crate is MIT OR Apache-2.0; what it binds, Valve's SDK, is not
 # free software, which is why no default build enables it and the tree

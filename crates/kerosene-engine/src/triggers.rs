@@ -27,12 +27,6 @@ use kerosene_math::Vec3;
 /// as Source numbers it.
 pub const SF_PHYSICS_OBJECTS: u32 = 8;
 
-fn set_field(world: &mut EntityWorld, id: EntityId, key: &str, value: Value) {
-    if let Some(e) = world.get_mut(id) {
-        e.fields.set(key, value);
-    }
-}
-
 /// Tell a trigger whether something is inside it this tick.
 ///
 /// The engine calls this for every trigger each tick; the edge detection lives
@@ -45,17 +39,16 @@ pub fn update_touch(
     inside: bool,
     activator: Option<EntityId>,
 ) {
-    let Some(entity) = world.get(id) else { return };
-    if entity.fields.bool("disabled", false) {
+    if !world.exists(id) || world.keyvalue_bool(id, "disabled", false) {
         return;
     }
 
-    let was_inside = entity.fields.bool("occupied", false);
+    let was_inside = world.keyvalue_bool(id, "occupied", false);
     if inside == was_inside {
         return;
     }
 
-    set_field(world, id, "occupied", Value::Bool(inside));
+    world.set_keyvalue(id, "occupied", Value::Bool(inside));
 
     if inside {
         world.fire_output(id, "OnStartTouch", activator, None);
@@ -83,8 +76,11 @@ pub fn push_of(world: &EntityWorld, id: EntityId) -> Option<(Vec3, f32)> {
     if !entity.classname.eq_ignore_ascii_case("trigger_push") {
         return None;
     }
-    let dir = entity.fields.vec3("pushdir", Vec3::Z);
-    let speed = entity.fields.f32("speed", 400.0);
+    let dir = world
+        .keyvalue(id, "pushdir")
+        .and_then(|v| v.as_vec3())
+        .unwrap_or(Vec3::Z);
+    let speed = world.keyvalue_f32(id, "speed", 400.0);
     let dir = dir.normalize_or_zero();
     if dir.length_squared() < 1e-6 || speed == 0.0 {
         return None;
@@ -102,7 +98,7 @@ pub fn teleport_target(world: &EntityWorld, id: EntityId) -> Option<String> {
     if !entity.classname.eq_ignore_ascii_case("trigger_teleport") {
         return None;
     }
-    let target = entity.fields.text("target")?;
+    let target = world.keyvalue_text(id, "target")?;
     let target = target.trim();
     (!target.is_empty()).then(|| target.to_string())
 }
@@ -114,13 +110,12 @@ pub fn changelevel_of(world: &EntityWorld, id: EntityId) -> Option<(String, Opti
     if !entity.classname.eq_ignore_ascii_case("trigger_changelevel") {
         return None;
     }
-    let map = entity.fields.text("map")?.trim().to_string();
+    let map = world.keyvalue_text(id, "map")?.trim().to_string();
     if map.is_empty() {
         return None;
     }
-    let landmark = entity
-        .fields
-        .text("landmark")
+    let landmark = world
+        .keyvalue_text(id, "landmark")
         .map(|l| l.trim().to_string())
         .filter(|l| !l.is_empty());
     Some((map, landmark))
@@ -130,7 +125,7 @@ pub fn changelevel_of(world: &EntityWorld, id: EntityId) -> Option<(String, Opti
 pub fn hurt_per_second(world: &EntityWorld, id: EntityId) -> f32 {
     world.get(id).map_or(0.0, |e| {
         if e.classname.eq_ignore_ascii_case("trigger_hurt") {
-            e.fields.f32("damage", 10.0)
+            world.keyvalue_f32(id, "damage", 10.0)
         } else {
             0.0
         }

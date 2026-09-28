@@ -13,7 +13,7 @@ flowchart LR
     n1["Source content"] --> n2(["Build-time tools"])
     n2 --> n3["Runtime"]
     n4(["art/.png"]) --> n7@{ label: "<span style=\"color:\">alchemy</span>" }
-    n7 --> n8(["materials/*.ktex &amp; *.kmat"])
+    n7 --> n8(["materials/*.ktex &amp; *.kmat_c"])
     n8 --> n9["Kerosene"]
     n5(["art/.obj"]) --> n10["forge"]
     n10 --> n11(["models/*.kmdl"])

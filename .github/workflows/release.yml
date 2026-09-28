@@ -37,13 +37,8 @@ jobs:
             exe: ""
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-      - name: Install toolchain
-        run: rustup show
-      - name: Install ALSA headers
-        if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libasound2-dev
-      - uses: Swatinem/rust-cache@v2
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
 
       # The Windows build links the C runtime statically, so the binaries
       # need no Visual C++ redistributable: the same choice `kiln --ship`
@@ -71,7 +66,7 @@ jobs:
             echo "ASSET=$out.tar.gz" >> "$GITHUB_ENV"
           fi
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: ${{ matrix.name }}
           path: ${{ env.ASSET }}
@@ -81,8 +76,8 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v5
         with:
           path: dist
           merge-multiple: true
@@ -96,11 +91,19 @@ jobs:
           ' CHANGELOG.md > notes.md
           test -s notes.md || echo "See CHANGELOG.md." > notes.md
       # A draft: the repository's releases are immutable, and an immutable
-      # release takes no assets once published. Publish the draft by hand
-      # after checking its archives.
-      - uses: softprops/action-gh-release@v2
-        with:
-          draft: true
-          files: dist/*
-          body_path: notes.md
-          prerelease: ${{ contains(github.ref_name, '-') }}
+      # release takes no assets once published. Check the draft's archives,
+      # then publish it by hand. If a release for the tag already exists --
+      # made by hand in the web page, say -- this stops, rather than failing
+      # half way through an upload; delete it, and re-run.
+      - name: Draft the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
+            echo "::error::a release for $GITHUB_REF_NAME already exists; delete it and re-run this job"
+            exit 1
+          fi
+          pre=""
+          case "$GITHUB_REF_NAME" in *-*) pre="--prerelease" ;; esac
+          gh release create "$GITHUB_REF_NAME" --draft $pre \
+            --title "$GITHUB_REF_NAME" --notes-file notes.md dist/*

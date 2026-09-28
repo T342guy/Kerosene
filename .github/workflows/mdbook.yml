@@ -22,7 +22,7 @@ jobs:
       MDBOOK_VERSION: "0.5.4"
       MDBOOK_MERMAID_VERSION: "^0.17"   # 0.17+ is required for mdBook 0.5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install mdBook and mdbook-mermaid
         run: |

@@ -57,10 +57,12 @@ fn moving_brushes(document: &Document, entity: &kerosene_map::Entity) -> Option<
         return None;
     }
 
+    // The class's own default when the key is not set: a button's lip is
+    // not a door's.
     let lip = entity
         .get("lip")
         .and_then(|v| v.trim().parse::<f32>().ok())
-        .unwrap_or(8.0);
+        .unwrap_or_else(|| kerosene_game::doors::Mover::of_class(entity.classname()).lip);
     let (dir, distance) = kerosene_game::doors::travel(bounds.size(), movedir, lip);
     let offset = dir * distance;
 

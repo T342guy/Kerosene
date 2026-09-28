@@ -60,6 +60,7 @@ kerosene-kv.workspace = true
 kerosene-asset.workspace = true
 kerosene-walk.workspace = true
 kerosene-scene.workspace = true
+kerosene-resource.workspace = true
 kerosene-rhi.workspace = true
 egui.workspace = true
 glam.workspace = true

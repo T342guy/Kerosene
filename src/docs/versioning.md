@@ -61,9 +61,9 @@ of a given version was built and tested together.
   variant cannot be forgotten there. The price is that adding a variant to
   one of them is a major change.
 - **`Game`'s methods all have defaults**, so a new hook is a minor change.
-- **CI checks it.** `cargo semver-checks` compares `kerosene`'s API with the
-  last release on every push. During the `1.0.0` pre-releases it reports; from
-  `1.0.0` it fails the build.
+- **Checked at release.** `cargo semver-checks` compares `kerosene`'s API
+  with the last release, as a step of [releasing](releasing.md). During the
+  `1.0.0` pre-releases it reports; from `1.0.0` it blocks the release.
 
 ## Formats
 

@@ -1,0 +1,18 @@
+[package]
+name = "kerosene-reflect"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+# Published only as part of the one `kerosene` crate: `cargo xtask bundle`.
+publish = false
+description = "Kerosene's reflection: each entity field declared once, for the map loader, saves, the network and the editor."
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+kerosene-math.workspace = true
+bevy_reflect.workspace = true

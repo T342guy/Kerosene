@@ -59,7 +59,7 @@ impl<'a> LevelCollision<'a> {
                 continue;
             }
             // A disabled func_brush is not there.
-            if entity.fields.bool("disabled", false) {
+            if entities.keyvalue_bool(entity.id, "disabled", false) {
                 continue;
             }
 

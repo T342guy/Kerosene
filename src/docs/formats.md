@@ -7,10 +7,11 @@
 | `.kprt` | Portal graph | text | Cleave | `.prt` |
 | `.kleak` | Leak trace | text | Cleave | `.lin` |
 | `.kwalk` | NPC walkmap | binary | Cleave | (Source has no equivalent) |
-| `.ktex` | Texture | binary | Alchemy | `.vtf` |
-| `.kmat` | Material | text (KeyValues) | Alchemy, by hand | `.vmt` |
+| `.ktex` | Texture | binary, resource container | Alchemy | `.vtf` |
+| `.kmat` | Material source | text (KeyValues) | Alchemy, by hand | `.vmt` |
+| `.kmat_c` | Compiled material | binary, [resource container](#the-resource-container) | Alchemy | `.vmat_c` |
 | `texture.kcfg` | Texture set definition | text (KeyValues) | Alchemy, by hand | (no equivalent) |
-| `.kmdl` | Model | binary | Forge | `.mdl` |
+| `.kmdl` | Model | binary, resource container | Forge | `.mdl` |
 | `.kdef` | Entity class definitions | text (KeyValues) | the game, by hand | `.fgd` |
 | `.kscr` | Level script, UI script | text (Rhai) | by hand | `.nut` (VScript) |
 | `.kui` | UI layout | text (XML) | by hand | Panorama `.xml` |
@@ -21,6 +22,8 @@
 | `.vault` | Content archive | binary | Vault | `.vpk` |
 
 Text where a person edits or reviews it; binary where the engine loads it.
+The runtime reads no source format: a `.kmat` becomes a `.kmat_c` in the
+build, as a `.png` becomes a `.ktex`.
 
 Every coordinate in every one of them is in **kerosene units** -- one kerosene unit is
 one inch, a player is 72 of them tall. Angles are degrees, times are seconds,
@@ -293,9 +296,36 @@ faces that share an edge and A*-searches them into a list of waypoints, with
 detour is not much longer. The runtime asks for a path the way it asks whether
 a point is walkable — cheaply, against data the compiler already produced.
 
+## The resource container
+
+Compiled materials, textures and models share one layout, `KRES`, from the
+`kerosene-resource` crate. The rest (`.kaud`, `.kbsp`, `.kwalk`) still have
+a header of their own each, and move into it one at a time. A `.ktex` or
+`.kmdl` from before the container still loads: its old layout is exactly
+what the container's `DATA` block now holds.
+
+| Offset | Size | Field |
+|---|---|---|
+| 0 | 4 | `KRES` |
+| 4 | 4 | Container version, 1 |
+| 8 | 4 | Kind: four bytes naming the payload, `KMAT`, `KTEX`, `KMDL` |
+| 12 | 4 | Kind version |
+| 16 | 8 | Source hash: 64-bit FNV-1a of the source it was compiled from |
+| 24 | 4 | Block count |
+| 28 | 4 | Reserved, 0 |
+| 32 | 12 × count | Block table: tag, offset, length |
+
+Then the blocks, each on a 16-byte boundary. Three tags mean the same in
+every kind: `DATA` is the payload; `REFS` lists, as virtual paths, the other
+resources this one needs, which a packager follows; `EDIT` records the
+compiler, its arguments, and each input with its hash, so a tool can tell a
+stale file. A reader skips tags it does not know. All integers are
+little-endian. `alchemy info` prints a compiled material's header and
+blocks.
+
 ## `.ktex` — textures
 
-A 48-byte header (dimensions, format, flags, average colour) then the mip
+The resource container, kind `KTEX`. Its `DATA` block is a 48-byte header (dimensions, format, flags, average colour) then the mip
 chain, largest first. Uncompressed RGBA8, RGB8 or R8.
 
 Mipmaps, the average colour Radiance needs for bounce lighting, and sampling
@@ -316,6 +346,12 @@ lit
     "$surfaceprop"   "concrete"
 }
 ```
+
+That is the source. Alchemy compiles each one to a `.kmat_c` beside it (kind
+`KMAT`): the shader is resolved and the text parsed at build time, and the
+textures it names go in the `REFS` block. The engine loads the `.kmat_c`. A
+project whose content predates compiled materials still runs from its
+`.kmat` files, with a warning for each, until its next build.
 
 The block name is the shader — `lit`, `unlit`, `sky`, `water`, `ui`. A small
 closed set, because every one is a real code path; an open-ended string would
@@ -356,7 +392,7 @@ probe reflects an even glow the brightness of its own lightmap.
 
 `$surfaceprop` is the physical type the surface is made of — `concrete`,
 `metal`, `wood`, and so on. It has two consumers. At runtime a trace that
-stops against a face reports the face's material, and the engine parses that
+stops against a face reports the face's material, and the engine reads that
 material's `$surfaceprop` to choose a footstep sound (`footstep/<type>/n`).
 At compile time Resonance reads it for how much sound the surface soaks up,
 per band, from a table of the published figures for each type: carpet eats
@@ -371,7 +407,9 @@ to borrow them from, `"carpet"`, leaving the footsteps as they were.
 
 ## `.kmdl` — models
 
-A 64-byte header, then vertices, indices, meshes, bones and a string table.
+The resource container, kind `KMDL`, whose `REFS` block names every material
+the model draws with. Its `DATA` block is a 64-byte header, then vertices,
+indices, meshes, bones and a string table.
 
 One model holds several meshes, each with its own material, because a single
 object routinely uses more than one. Splitting by material at compile time

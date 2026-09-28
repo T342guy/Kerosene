@@ -18,6 +18,7 @@
 
 use bytemuck::{Pod, Zeroable};
 use kerosene_math::Vec3;
+use kerosene_resource::{ResourceError, ResourceFile, ResourceType, ResourceView, tag};
 use thiserror::Error;
 
 const MAGIC: [u8; 4] = *b"KRTX";
@@ -49,6 +50,24 @@ pub enum TextureError {
         "{width}x{height} is not a usable size (max {MAX_DIMENSION}, and neither side may be zero)"
     )]
     BadSize { width: u32, height: u32 },
+    #[error(transparent)]
+    Resource(#[from] ResourceError),
+}
+
+impl ResourceType for Texture {
+    const KIND: [u8; 4] = *b"KTEX";
+    const VERSION: u32 = 1;
+
+    fn decode(file: &ResourceView<'_>) -> Result<Self, ResourceError> {
+        Texture::from_payload(file.require(tag::DATA)?)
+            .map_err(|e| ResourceError::Invalid(e.to_string()))
+    }
+
+    fn decode_legacy(bytes: &[u8]) -> Option<Result<Self, ResourceError>> {
+        bytes.starts_with(&MAGIC).then(|| {
+            Texture::from_payload(bytes).map_err(|e| ResourceError::Invalid(e.to_string()))
+        })
+    }
 }
 
 /// How pixels are stored.
@@ -214,7 +233,35 @@ impl Texture {
         })
     }
 
+    /// The `.ktex` file: the resource container, kind `KTEX`, holding the
+    /// texture's own layout as its `DATA` block.
     pub fn to_bytes(&self) -> Vec<u8> {
+        self.to_resource().to_bytes()
+    }
+
+    /// The texture as a compiled resource, for a compiler to add its source
+    /// hash and edit info to before writing.
+    pub fn to_resource(&self) -> ResourceFile {
+        let mut file = ResourceFile::new(Self::KIND, Self::VERSION);
+        file.push(tag::DATA, self.payload());
+        file
+    }
+
+    /// Read a `.ktex`: the container, or a file from before it, which was
+    /// the payload alone.
+    pub fn from_bytes(bytes: &[u8]) -> Result<Texture, TextureError> {
+        if !kerosene_resource::is_resource(bytes) {
+            return Texture::from_payload(bytes);
+        }
+        let file = ResourceView::parse(bytes)?;
+        if file.kind() != Self::KIND {
+            return Err(TextureError::BadMagic);
+        }
+        Texture::from_payload(file.require(tag::DATA)?)
+    }
+
+    /// The texture's own layout: a 48-byte header, then the mips.
+    fn payload(&self) -> Vec<u8> {
         let header = RawHeader {
             magic: MAGIC,
             version: VERSION,
@@ -237,7 +284,7 @@ impl Texture {
         out
     }
 
-    pub fn from_bytes(bytes: &[u8]) -> Result<Texture, TextureError> {
+    fn from_payload(bytes: &[u8]) -> Result<Texture, TextureError> {
         if bytes.len() < HEADER_SIZE {
             return Err(TextureError::Truncated {
                 needed: HEADER_SIZE,
@@ -629,11 +676,13 @@ mod tests {
             vec![1; 32 * 32 * 4],
         )
         .unwrap();
-        let bytes = tex.to_bytes();
+        let bytes = tex.payload();
         assert!(matches!(
             Texture::from_bytes(&bytes[..bytes.len() / 2]),
             Err(TextureError::Truncated { .. })
         ));
+        let bytes = tex.to_bytes();
+        assert!(Texture::from_bytes(&bytes[..bytes.len() / 2]).is_err());
     }
 
     #[test]
@@ -650,7 +699,7 @@ mod tests {
     fn a_header_claiming_absurd_mip_counts_is_rejected_not_allocated() {
         let tex =
             Texture::build(4, 4, PixelFormat::Rgba8, TextureFlags::NONE, vec![0; 64]).unwrap();
-        let mut bytes = tex.to_bytes();
+        let mut bytes = tex.payload();
         // mip_count lives after magic, version, width, height, format, flags.
         let at = 4 * 6;
         bytes[at..at + 4].copy_from_slice(&u32::MAX.to_le_bytes());
@@ -664,7 +713,7 @@ mod tests {
     fn a_chain_longer_than_the_image_is_rejected() {
         let tex =
             Texture::build(4, 4, PixelFormat::Rgba8, TextureFlags::NONE, vec![0; 64]).unwrap();
-        let mut bytes = tex.to_bytes();
+        let mut bytes = tex.payload();
         // 4x4 halves to 2x2 and 1x1: three levels, not four. Padded, so it
         // is the count that is refused and not the length.
         bytes[4 * 6..4 * 6 + 4].copy_from_slice(&4u32.to_le_bytes());
@@ -682,6 +731,24 @@ mod tests {
         let mut padded = vec![0u8; 1];
         padded.extend(tex.to_bytes());
         assert!(Texture::from_bytes(&padded[1..]).is_ok());
+    }
+
+    #[test]
+    fn a_ktex_from_before_the_container_still_loads() {
+        let tex =
+            Texture::build(4, 4, PixelFormat::Rgba8, TextureFlags::CLAMP, vec![9; 64]).unwrap();
+        let old = tex.payload();
+        assert_eq!(&old[..4], b"KRTX");
+        let back = Texture::from_bytes(&old).unwrap();
+        assert_eq!(back.mips[0].pixels, tex.mips[0].pixels);
+        let through_trait: Texture = kerosene_resource::decode(&old).unwrap();
+        assert!(through_trait.flags.contains(TextureFlags::CLAMP));
+
+        let new = tex.to_bytes();
+        assert!(kerosene_resource::is_resource(&new));
+        let view = ResourceView::parse(&new).unwrap();
+        assert_eq!(view.kind(), *b"KTEX");
+        assert_eq!(view.block(tag::DATA), Some(&old[..]));
     }
 
     #[test]

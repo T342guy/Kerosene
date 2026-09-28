@@ -226,7 +226,7 @@ fn compile(
     if let Some(parent) = out.parent() {
         std::fs::create_dir_all(parent)?;
     }
-    let bytes = model.to_bytes();
+    let bytes = compiled_bytes(&model, source)?;
     std::fs::write(out, &bytes).with_context(|| format!("writing {}", out.display()))?;
     println!(
         "  wrote {} ({:.1} KiB)",
@@ -283,7 +283,7 @@ fn compile_gltf(
     if let Some(parent) = out.parent() {
         std::fs::create_dir_all(parent)?;
     }
-    let bytes = model.to_bytes();
+    let bytes = compiled_bytes(&model, source)?;
     std::fs::write(out, &bytes).with_context(|| format!("writing {}", out.display()))?;
     println!(
         "  wrote {} ({:.1} KiB)",
@@ -291,6 +291,26 @@ fn compile_gltf(
         bytes.len() as f64 / 1024.0
     );
     Ok(())
+}
+
+/// The `.kmdl` bytes for `model`, recording `source`'s hash and, by file
+/// name only so a checkout anywhere compiles the same bytes, the source.
+fn compiled_bytes(model: &Model, source: &Path) -> Result<Vec<u8>> {
+    let source_bytes =
+        std::fs::read(source).with_context(|| format!("reading {}", source.display()))?;
+    let mut file = model.to_resource().with_source(&source_bytes);
+    file.set_edit_info(&kerosene_resource::EditInfo {
+        compiler: "forge".into(),
+        args: Vec::new(),
+        inputs: vec![(
+            source
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_default(),
+            kerosene_resource::source_hash(&source_bytes),
+        )],
+    });
+    Ok(file.to_bytes())
 }
 
 /// Normal of a triangle, from its winding.

@@ -22,6 +22,7 @@ path = "src/lib.rs"
 [dependencies]
 kerosene-vfs.workspace = true
 kerosene-asset.workspace = true
+kerosene-resource.workspace = true
 anyhow.workspace = true
 clap.workspace = true
 log.workspace = true

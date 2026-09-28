@@ -2796,9 +2796,7 @@ fn load_material_maps(
     vfs: &Vfs,
     name: &str,
 ) -> Option<LoadedMaps> {
-    let material_path = kerosene_asset::material_path(name);
-    let text = vfs.read_string(&material_path).ok()?;
-    let material = Material::parse(&text).ok()?;
+    let material = Material::load(vfs, name).ok()?;
 
     // A sky material's base texture is sampled by direction, but it is loaded
     // exactly the same way as any other.

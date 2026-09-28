@@ -41,6 +41,7 @@
 #![warn(missing_docs)]
 
 pub mod animated;
+pub mod components;
 pub mod doors;
 pub mod gameplay;
 pub mod lights;
@@ -54,7 +55,7 @@ pub mod triggers;
 pub mod ui;
 pub mod weapons;
 
-use kerosene_entity::{ClassDef, ClassRegistry, EntityId, EntityWorld, ModelRole, Value};
+use kerosene_entity::{ClassDef, ClassRegistry, EntityId, EntityWorld, ModelRole};
 use std::sync::Arc;
 
 /// Register every class this game provides.
@@ -158,17 +159,4 @@ fn input_add_output(
 fn fire_user(world: &mut EntityWorld, id: EntityId, n: u8) -> bool {
     world.fire_output(id, &format!("OnUser{n}"), None, None);
     true
-}
-
-/// Shorthand for reading a numeric field with a default.
-pub(crate) fn field_f32(world: &EntityWorld, id: EntityId, key: &str, default: f32) -> f32 {
-    world
-        .get(id)
-        .map_or(default, |e| e.fields.f32(key, default))
-}
-
-pub(crate) fn set_field(world: &mut EntityWorld, id: EntityId, key: &str, value: Value) {
-    if let Some(e) = world.get_mut(id) {
-        e.fields.set(key, value);
-    }
 }

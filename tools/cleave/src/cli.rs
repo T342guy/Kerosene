@@ -116,7 +116,7 @@ fn texture_sizes(
 
 fn texture_size(vfs: &kerosene_vfs::Vfs, material: &str) -> Option<(u32, u32)> {
     let text = vfs
-        .read_string(&kerosene_asset::material_path(material))
+        .read_string(&kerosene_asset::material_source_path(material))
         .ok()?;
     let parsed = kerosene_asset::Material::parse(&text).ok()?;
     // The same fallback the renderer applies: a material with no

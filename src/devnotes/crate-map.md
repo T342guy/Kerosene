@@ -1,7 +1,7 @@
 # Crate map
 
-The workspace is 22 engine crates, 11 tool crates, the toolset that joins
-them, the `kerosene` game crate, one application and `xtask`: 38 packages,
+The workspace is 23 engine crates, 11 tool crates, the toolset that joins
+them, the `kerosene` game crate, one application and `xtask`: 39 packages,
 all one version. `Cargo.toml` at the root lists them; the interesting part
 is the direction of the arrows.
 
@@ -16,7 +16,7 @@ The crates sit in layers, and a crate depends only on the layers below it.
 |---|---|---|
 | 0 core | math, kv, console | each other |
 | 1 core services | config, vfs, platform | layer 0; each other |
-| 2 data and hardware | asset, bsp, walk, map, scene, rhi | layers 0–1; each other |
+| 2 data and hardware | resource, asset, bsp, walk, map, scene, rhi | layers 0–1; each other |
 | 3 subsystems | render, physics, rigid, anim, audio, entity, script, ui | layers 0–2, **not each other** |
 | 4 host and game | engine, game | layers 0–3 |
 | 5 tools | toolui and every tool | layers 0–4; each other |
@@ -44,7 +44,8 @@ flowchart TB
         platform["kerosene-platform<br/>store seam: Steam or none"]
     end
     subgraph L2["2 data and hardware"]
-        asset["kerosene-asset<br/>ktex, kmat, kmdl"]
+        resource["kerosene-resource<br/>compiled container, handles"]
+        asset["kerosene-asset<br/>ktex, kmat_c, kmdl"]
         bsp["kerosene-bsp<br/>.kbsp + traces + vis + acoustics"]
         walk["kerosene-walk<br/>.kwalk + nav"]
         map["kerosene-map<br/>.kmap source (tools only)"]
@@ -71,8 +72,10 @@ flowchart TB
     math --> kv
     kv --> config
     kv --> vfs
+    vfs --> resource
     math --> asset
     kv --> asset
+    resource --> asset
     math --> bsp
     kv --> bsp
     vfs --> bsp
@@ -113,6 +116,7 @@ flowchart TB
     entity --> engine
     physics --> engine
     render --> engine
+    resource --> engine
     rhi --> engine
     rigid --> engine
     script --> engine
@@ -263,7 +267,8 @@ internal dependency is pinned at `=<version>` and moved by
 | `kerosene-console` | ConVars, ConCommands, command buffer, log relay, crash handler | `src/lib.rs`, `src/logging.rs` |
 | `kerosene-config` | `engine.kcfg` with defaults for every key | `src/lib.rs`, `src/renderer.rs` |
 | `kerosene-vfs` | Search-path stack, `.vault` archives, content discovery, toolchain | `src/lib.rs`, `src/root.rs`, `src/archive.rs` |
-| `kerosene-asset` | `.ktex`, `.kmat`, `.kmdl` readers/writers | `src/texture.rs`, `src/material.rs`, `src/model.rs` |
+| `kerosene-resource` | The compiled resource container (header, typed blocks, references, source hash), `Resource<T>` handles and their cache, the asset-type table | `src/container.rs`, `src/handle.rs`, `src/types.rs` |
+| `kerosene-asset` | `.ktex`, `.kmdl` readers/writers; `.kmat` source and its compiled `.kmat_c` | `src/texture.rs`, `src/material.rs`, `src/model.rs` |
 | `kerosene-map` | `.kmap` source, brush ops (clip/carve/hollow), editor metadata | `src/solid.rs`, `src/ops.rs`, `src/editor.rs` |
 | `kerosene-bsp` | `.kbsp` lumps, tree queries, traces, PVS, acoustics, sections | `src/lib.rs`, `src/trace.rs`, `src/vis.rs` |
 | `kerosene-walk` | `.kwalk` walkmap, navigation graph, the per-face `WalkmapRule` | `src/lib.rs`, `src/nav.rs`, `src/rule.rs` |

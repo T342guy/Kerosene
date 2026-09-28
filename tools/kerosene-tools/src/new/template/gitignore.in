@@ -3,6 +3,7 @@
 
 # Compiled content: `cargo play` builds it again from the sources beside it.
 *.ktex
+*.kmat_c
 *.kaud
 *.kbsp
 *.kprt

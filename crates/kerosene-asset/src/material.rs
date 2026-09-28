@@ -24,9 +24,17 @@
 //! The block name is the shader. Parameters are `$`-prefixed by convention,
 //! and unknown ones are preserved rather than dropped, so a game can add its
 //! own without the engine needing to know about them.
+//!
+//! That text is the source. Alchemy compiles it to a `.kmat_c` -- the
+//! resource container, kind `KMAT` -- and that is what the runtime loads:
+//! the shader is resolved and the text parsed once, at build time, and the
+//! textures it names are in the file's reference block for the packager.
+//! [`Material::compile`] makes one; [`load`](Material::load) reads one.
 
 use kerosene_kv::{FromKvValue, KeyValues, Vec3Value};
 use kerosene_math::Vec3;
+use kerosene_resource::bytes::{Reader, Writer};
+use kerosene_resource::{EditInfo, ResourceError, ResourceFile, ResourceType, ResourceView, tag};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -35,6 +43,70 @@ pub enum MaterialError {
     Parse(#[from] kerosene_kv::ParseError),
     #[error("material file has no shader block")]
     NoShader,
+}
+
+impl ResourceType for Material {
+    const KIND: [u8; 4] = *b"KMAT";
+    const VERSION: u32 = 1;
+
+    fn decode(file: &ResourceView<'_>) -> Result<Self, ResourceError> {
+        let mut r = Reader::new(file.require(tag::DATA)?);
+        let shader_name = r.str()?;
+        let shader = Shader::from_name(shader_name)
+            .ok_or_else(|| ResourceError::Invalid(format!("unknown shader {shader_name:?}")))?;
+        let mut material = Material::new(shader);
+        let count = r.u32()?;
+        for _ in 0..count {
+            let key = r.str()?;
+            material.params.push(key, r.str()?);
+        }
+        Ok(material)
+    }
+
+    /// A material that is not in the container is `.kmat` source text,
+    /// which [`WithMaterialSources`] hands over while projects migrate.
+    fn decode_legacy(bytes: &[u8]) -> Option<Result<Self, ResourceError>> {
+        let text = std::str::from_utf8(bytes).ok()?;
+        Some(Material::parse(text).map_err(|e| ResourceError::Invalid(e.to_string())))
+    }
+}
+
+/// A [`Source`](kerosene_resource::Source) that answers for a missing
+/// `.kmat_c` with its `.kmat` source, once per file with a warning.
+///
+/// For the migration only: a project whose content has not been rebuilt
+/// since materials began compiling has only the sources, and should keep
+/// running until its next build. Nothing else at runtime reads a source
+/// file, and when every project has been rebuilt this goes.
+pub struct WithMaterialSources<'a>(pub &'a dyn kerosene_resource::Source);
+
+impl kerosene_resource::Source for WithMaterialSources<'_> {
+    fn read(&self, path: &str) -> Result<Vec<u8>, String> {
+        let not_compiled = match self.0.read(path) {
+            Ok(bytes) => return Ok(bytes),
+            Err(e) => e,
+        };
+        let Some(stem) = path.strip_suffix(crate::ext::MATERIAL_COMPILED) else {
+            return Err(not_compiled);
+        };
+        let legacy = format!("{stem}{}", crate::ext::MATERIAL);
+        let bytes = self.0.read(&legacy).map_err(|_| not_compiled)?;
+        warn_uncompiled(&legacy);
+        Ok(bytes)
+    }
+}
+
+/// Say once per material that it was loaded from source.
+fn warn_uncompiled(path: &str) {
+    use std::collections::HashSet;
+    use std::sync::Mutex;
+    static WARNED: Mutex<Option<HashSet<String>>> = Mutex::new(None);
+    let mut warned = WARNED.lock().unwrap_or_else(|e| e.into_inner());
+    if warned.get_or_insert_default().insert(path.to_string()) {
+        log::warn!(
+            "{path} has not been compiled; loading its source. Build the content (kiln) to fix"
+        );
+    }
 }
 
 /// Which shader draws a surface.
@@ -127,6 +199,56 @@ impl Material {
         let mut block = self.params.clone();
         block.name = self.shader.name().to_string();
         block.to_text()
+    }
+
+    /// Compile `.kmat` source text into the bytes of a `.kmat_c`.
+    ///
+    /// `source_path` is recorded in the edit info, as whatever the caller
+    /// calls the file; it changes nothing else.
+    pub fn compile(text: &str, source_path: &str) -> Result<Vec<u8>, MaterialError> {
+        let material = Material::parse(text)?;
+        // Hashed without carriage returns, so a checkout that turned LF into
+        // CRLF compiles to the same bytes: the text means the same thing.
+        let normalized: Vec<u8> = text.bytes().filter(|&b| b != b'\r').collect();
+        let mut file = material.to_resource().with_source(&normalized);
+        file.set_edit_info(&EditInfo {
+            compiler: "alchemy".into(),
+            args: Vec::new(),
+            inputs: vec![(
+                source_path.to_string(),
+                kerosene_resource::source_hash(&normalized),
+            )],
+        });
+        Ok(file.to_bytes())
+    }
+
+    /// The material as a compiled resource, without edit info or a source
+    /// hash: [`Material::compile`] adds those when there is a source.
+    pub fn to_resource(&self) -> ResourceFile {
+        let mut data = Writer::new();
+        data.str(self.shader.name());
+        let pairs: Vec<(&str, &str)> = self.params.pairs().collect();
+        data.u32(pairs.len() as u32);
+        for (k, v) in pairs {
+            data.str(k).str(v);
+        }
+        let mut file = ResourceFile::new(Self::KIND, Self::VERSION);
+        file.push(tag::DATA, data.finish());
+        file.set_refs(
+            self.referenced_textures()
+                .into_iter()
+                .map(crate::texture_path),
+        );
+        file
+    }
+
+    /// Load the material geometry calls `name`: `materials/<name>.kmat_c`,
+    /// or its source while projects migrate (see [`WithMaterialSources`]).
+    pub fn load(source: &dyn kerosene_resource::Source, name: &str) -> Result<Material, String> {
+        use kerosene_resource::Source as _;
+        let path = crate::material_path(name);
+        let bytes = WithMaterialSources(source).read(&path)?;
+        kerosene_resource::decode(&bytes).map_err(|e| format!("{path}: {e}"))
     }
 
     // ---- parameters ------------------------------------------------------
@@ -714,5 +836,80 @@ lit
         assert_eq!(m.metalness(), 0.25);
         let m = Material::parse(r#"lit { "$metalness" "7" }"#).unwrap();
         assert_eq!(m.metalness(), 1.0);
+    }
+
+    const SOURCE: &str = r#"lit
+{
+    "$basetexture" "dev/grid"
+    "$bumpmap" "dev/grid_normal"
+    "$surfaceprop" "metal"
+    "$mymodkey" "kept"
+}
+"#;
+
+    #[test]
+    fn a_compiled_material_reads_back_as_its_source() {
+        let bytes = Material::compile(SOURCE, "materials/dev/grid.kmat").unwrap();
+        let compiled: Material = kerosene_resource::decode(&bytes).unwrap();
+        let source = Material::parse(SOURCE).unwrap();
+        assert_eq!(compiled.shader, source.shader);
+        assert_eq!(
+            compiled.params().collect::<Vec<_>>(),
+            source.params().collect::<Vec<_>>(),
+            "every parameter, in order, unknown ones included"
+        );
+    }
+
+    #[test]
+    fn a_compiled_material_names_its_textures_and_its_source() {
+        let bytes = Material::compile(SOURCE, "materials/dev/grid.kmat").unwrap();
+        let view = ResourceView::parse(&bytes).unwrap();
+        assert_eq!(view.kind(), *b"KMAT");
+        assert_eq!(
+            view.refs().unwrap(),
+            ["materials/dev/grid.ktex", "materials/dev/grid_normal.ktex"]
+        );
+        let edit = view.edit_info().unwrap().unwrap();
+        assert_eq!(edit.inputs[0].0, "materials/dev/grid.kmat");
+        assert_eq!(edit.inputs[0].1, view.source_hash());
+    }
+
+    #[test]
+    fn line_endings_do_not_change_the_compiled_bytes() {
+        let crlf = SOURCE.replace('\n', "\r\n");
+        assert_eq!(
+            Material::compile(SOURCE, "a.kmat").unwrap(),
+            Material::compile(&crlf, "a.kmat").unwrap()
+        );
+    }
+
+    #[test]
+    fn the_runtime_prefers_the_compiled_file_and_falls_back_to_source() {
+        use std::collections::HashMap;
+        let mut files: HashMap<String, Vec<u8>> = HashMap::new();
+        files.insert(
+            "materials/a.kmat".into(),
+            br#"unlit { "$basetexture" "from_source" }"#.to_vec(),
+        );
+        assert_eq!(
+            Material::load(&files, "a").unwrap().base_texture(),
+            Some("from_source"),
+            "a project not yet rebuilt still loads"
+        );
+        let compiled = Material::compile(r#"lit { "$basetexture" "compiled" }"#, "a").unwrap();
+        files.insert("materials/a.kmat_c".into(), compiled);
+        let m = Material::load(&files, "a").unwrap();
+        assert_eq!(m.base_texture(), Some("compiled"));
+        assert_eq!(m.shader, Shader::Lit);
+        assert!(Material::load(&files, "missing").is_err());
+    }
+
+    #[test]
+    fn an_unknown_shader_in_a_compiled_file_is_an_error() {
+        let mut data = Writer::new();
+        data.str("hologram").u32(0);
+        let mut file = ResourceFile::new(Material::KIND, Material::VERSION);
+        file.push(tag::DATA, data.finish());
+        assert!(kerosene_resource::decode::<Material>(&file.to_bytes()).is_err());
     }
 }

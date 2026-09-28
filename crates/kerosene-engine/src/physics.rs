@@ -404,10 +404,7 @@ impl PhysicsProps {
             let rotation = Quat::from_mat3(&angles.to_mat3());
             let center = bounds.center();
             let half_extent = (bounds.size() * 0.5).max(Vec3::splat(0.5));
-            let material = entities
-                .get(id)
-                .map(|e| prop_material(e, half_extent))
-                .unwrap_or_default();
+            let material = prop_material(entities, id, half_extent);
             // The body sits at the model's visual centre, so an off-centre
             // model still rests where it draws.
             let body = self.rigid.add_dynamic_box_material(
@@ -974,14 +971,26 @@ fn prop_aabb(rigid: &RigidWorld, prop: &PropBody) -> Aabb {
     aabb
 }
 
-fn prop_material(e: &kerosene_entity::Entity, half_extent: Vec3) -> kerosene_rigid::BodyMaterial {
-    let mass_kg = e.fields.f32("mass", -1.0);
+fn prop_material(
+    entities: &EntityWorld,
+    id: EntityId,
+    half_extent: Vec3,
+) -> kerosene_rigid::BodyMaterial {
+    // Through `keyvalue`, so a game that gives its props a component with
+    // these keys is read the same as one that leaves them loose.
+    let key = |name: &str, default: f32| {
+        entities
+            .keyvalue(id, name)
+            .and_then(|v| v.as_f32())
+            .unwrap_or(default)
+    };
+    let mass_kg = key("mass", -1.0);
     // Clamped, because these come from a designer typing into Chisel's object
     // properties and the solver has no defence of its own. A restitution above
     // 1 is a body that leaves every collision with more energy than it
     // arrived with: it accelerates until the numbers stop meaning anything.
-    let friction = e.fields.f32("friction", 0.8).max(0.0);
-    let restitution = e.fields.f32("elasticity", 0.1).clamp(0.0, 1.0);
+    let friction = key("friction", 0.8).max(0.0);
+    let restitution = key("elasticity", 0.1).clamp(0.0, 1.0);
     let mut material = kerosene_rigid::BodyMaterial {
         density: kerosene_rigid::BodyMaterial::wood().density,
         friction,
@@ -1089,7 +1098,6 @@ fn model_bounds(vfs: &Vfs, name: &str) -> Option<Aabb> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use kerosene_entity::Entity;
 
     #[test]
     fn physics_props_are_recognised_by_class() {
@@ -1117,54 +1125,41 @@ mod tests {
     fn object_properties_become_the_body_material() {
         // A designer writes `mass`, `friction` and `elasticity`; the engine
         // turns them into the rigid body's material.
-        let mut e = Entity {
-            id: kerosene_entity::EntityId {
-                index: 0,
-                generation: 0,
-            },
-            classname: "prop_physics".into(),
-            fields: kerosene_entity::Fields::new(),
-            origin: Vec3::ZERO,
-            angles: Angles::ZERO,
-            connections: Vec::new(),
-            next_think: None,
-            brush_model: None,
-            pending_removal: false,
-        };
+        let mut entities = EntityWorld::new(std::sync::Arc::new(
+            kerosene_entity::ClassRegistry::new(),
+        ));
+        let e = entities.spawn_with("prop_physics", &[]);
         let half = Vec3::new(8.0, 8.0, 8.0);
         let volume = half.x * half.y * half.z * 8.0;
 
         // Unset keys fall back to wood.
-        let wood = prop_material(&e, half);
+        let wood = prop_material(&entities, e, half);
         assert_eq!(wood.friction, 0.8);
         assert_eq!(wood.restitution, 0.1);
 
-        e.fields.set("friction", kerosene_entity::Value::Float(0.2));
-        e.fields
-            .set("elasticity", kerosene_entity::Value::Float(0.9));
-        let slippery = prop_material(&e, half);
+        entities.set_keyvalue(e, "friction", kerosene_entity::Value::Float(0.2));
+        entities.set_keyvalue(e, "elasticity", kerosene_entity::Value::Float(0.9));
+        let slippery = prop_material(&entities, e, half);
         assert_eq!(slippery.friction, 0.2);
         assert_eq!(slippery.restitution, 0.9);
 
         // Values the solver cannot survive are clamped rather than obeyed. A
         // restitution over 1 gains energy on every bounce, and a prop given
         // one shakes itself apart.
-        e.fields
-            .set("friction", kerosene_entity::Value::Float(-3.0));
-        e.fields
-            .set("elasticity", kerosene_entity::Value::Float(2.0));
-        let absurd = prop_material(&e, half);
+        entities.set_keyvalue(e, "friction", kerosene_entity::Value::Float(-3.0));
+        entities.set_keyvalue(e, "elasticity", kerosene_entity::Value::Float(2.0));
+        let absurd = prop_material(&entities, e, half);
         assert_eq!(absurd.friction, 0.0);
         assert_eq!(absurd.restitution, 1.0);
 
         // A set mass turns into the density that makes that total mass.
-        e.fields.set("mass", kerosene_entity::Value::Float(64.0));
-        let heavy = prop_material(&e, half);
+        entities.set_keyvalue(e, "mass", kerosene_entity::Value::Float(64.0));
+        let heavy = prop_material(&entities, e, half);
         assert!((heavy.density - 64.0 / volume).abs() < 1e-6);
 
         // Zero or negative mass means "derive it", not "weightless".
-        e.fields.set("mass", kerosene_entity::Value::Float(0.0));
-        let derived = prop_material(&e, half);
+        entities.set_keyvalue(e, "mass", kerosene_entity::Value::Float(0.0));
+        let derived = prop_material(&entities, e, half);
         assert_eq!(
             derived.density,
             kerosene_rigid::BodyMaterial::wood().density

@@ -115,8 +115,34 @@ with what to do about them.
   `OnDamaged` on anything it hits. The stock weapons damage what they shoot,
   so glass breaks.
 - A trigger with spawnflag 8 notices physics props as well as the player.
+- `kerosene-resource`: the one compiled resource container (a header with
+  the kind and a hash of the source, then typed blocks: the payload, the
+  other resources it needs, and how it was compiled), `Resource<T>`
+  handles with a cache that loads now or later and reloads in place, and
+  the table of asset types. See `src/docs/formats.md`.
+- `cargo xtask layers`, run by CI: every crate depends only on the layers
+  below it, and subsystems never on each other (`src/devnotes/crate-map.md`).
 
 ### Changed
+- **Materials are compiled.** Alchemy (and so `kiln` and Chisel) compiles
+  each `.kmat` to a `.kmat_c` beside it, and the engine loads that; `.kmat_c`
+  is packed instead of `.kmat`. A project not rebuilt since still runs from
+  its `.kmat` files, with a warning each. `kerosene_asset::material_path`
+  now names the `.kmat_c`; `material_source_path` names the source.
+- `.ktex` and `.kmdl` are written in the resource container. Files written
+  before still load.
+- **Breaking:** `EntityWorld::load_from_bsp(&Bsp)` is
+  `load_from_lump(&KeyValues, &[Aabb])`: pass `bsp.entities_kv()?` and
+  `bsp.model_bounds()`.
+- **Breaking:** `UiRenderer::upload_atlas` takes the atlas's pixels, and
+  the caller checks its `dirty` flag. `kerosene_config::gpu` is
+  `kerosene_rhi::gpu`. The UI draw list is in `kerosene-scene`, and
+  `Connection` in `kerosene-kv`; `kerosene-ui` and `kerosene-map` re-export
+  them.
+- CI is five jobs that must all pass: checks and tests on Linux, a build on
+  Windows and macOS, the bundled crate with a new game played headless, the
+  book, and `cargo deny`. The MSRV and semver jobs are release steps now
+  (`src/docs/releasing.md`).
 - A windowed game with no `+map` opens on the main menu rather than on the
   project's start map. `-nomenu` restores the old behaviour.
 - `game.title` is published to the UI, and the pause menu shows it rather
@@ -157,6 +183,12 @@ with what to do about them.
   zoomed in far enough to read, or when selected.
 
 ### Fixed
+- `cargo xtask bundle` no longer mangles a crate path after `..` (a struct
+  update like `..kerosene_vfs::toolchain::MapStages::new(..)`), which broke
+  the bundle.
+- The release workflow stops with a clear message when a release for the
+  tag already exists, rather than failing part-way through an upload.
+- The link checker reads `[text](<path with spaces>)` links.
 - Timbre's settings are `sound/timbre.kcfg`. They were `timbre.kerobuild`,
   which `kiln --clean` deleted as a build stamp and `.gitignore` kept out of
   version control.

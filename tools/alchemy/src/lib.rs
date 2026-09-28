@@ -2,7 +2,7 @@
 //! Alchemy -- the Kerosene texture and material tool.
 //!
 //! Turns source art into the formats the engine loads: `.png` and friends into
-//! `.ktex`, and material definitions into `.kmat`. This is the
+//! `.ktex`, and `.kmat` material sources into compiled `.kmat_c`. This is the
 //! VTFEdit/vtex analogue, and it exists for the same reason: the engine should
 //! load textures, not decode and mipmap them.
 //!
@@ -86,9 +86,30 @@ pub fn compile_image(
     if let Some(parent) = out.parent() {
         std::fs::create_dir_all(parent)?;
     }
-    let bytes = texture.to_bytes();
+    let source_bytes =
+        std::fs::read(source).with_context(|| format!("reading {}", source.display()))?;
+    let mut file = texture.to_resource().with_source(&source_bytes);
+    file.set_edit_info(&edit_info(source, &source_bytes));
+    let bytes = file.to_bytes();
     std::fs::write(out, &bytes).with_context(|| format!("writing {}", out.display()))?;
     Ok(bytes.len() as u64)
+}
+
+/// What a compiled file records about how it was made: this compiler, and
+/// the source by its file name -- not its whole path, so the same content
+/// compiles to the same bytes wherever it is checked out.
+fn edit_info(source: &Path, bytes: &[u8]) -> kerosene_resource::EditInfo {
+    kerosene_resource::EditInfo {
+        compiler: "alchemy".into(),
+        args: Vec::new(),
+        inputs: vec![(
+            source
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_default(),
+            kerosene_resource::source_hash(bytes),
+        )],
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -454,6 +475,8 @@ pub struct Build {
     pub textures: Batch,
     /// What compiling the `textures/` folder sets did.
     pub sets: Batch,
+    /// What compiling the material sources did.
+    pub compiled_materials: MaterialBuild,
 }
 
 impl Build {
@@ -463,6 +486,7 @@ impl Build {
             || self.dev_materials.changed > 0
             || self.textures.did_anything()
             || self.sets.did_anything()
+            || self.compiled_materials.compiled > 0
     }
 }
 
@@ -484,6 +508,16 @@ impl std::fmt::Display for Build {
         }
         if materials > 0 {
             write!(f, ", {materials} new materials")?;
+        }
+        if self.compiled_materials.compiled > 0 {
+            write!(
+                f,
+                ", {} materials compiled",
+                self.compiled_materials.compiled
+            )?;
+        }
+        if self.compiled_materials.failed > 0 {
+            write!(f, ", {} materials FAILED", self.compiled_materials.failed)?;
         }
         Ok(())
     }
@@ -511,12 +545,95 @@ pub fn build_textures(content_root: &Path) -> Result<Build> {
         dev_materials: devtex::write_materials(&materials)?,
         textures: Batch::default(),
         sets: Batch::default(),
+        compiled_materials: MaterialBuild::default(),
     };
     build.textures = batch(&art, &materials, true)?;
-    // Sets last, so a set may deliberately shadow a loose image of the same
-    // name: the folder is the more specific statement of the two.
+    // Sets after the loose images, so a set may deliberately shadow a loose
+    // image of the same name: the folder is the more specific statement of
+    // the two.
     build.sets = batch_sets(&content_root.join("textures"), &materials)?;
+    // Materials last: every pass above may have written a source.
+    build.compiled_materials = compile_materials(&materials)?;
     Ok(build)
+}
+
+// ---- material sources to compiled materials ---------------------------------
+
+/// What compiling a tree of material sources did.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct MaterialBuild {
+    /// `.kmat` sources compiled into a `.kmat_c`.
+    pub compiled: usize,
+    /// Sources whose `.kmat_c` was already newer.
+    pub skipped: usize,
+    /// Sources that would not parse. Each is reported as it is found; the
+    /// rest still compile, so one typo does not leave a project with no
+    /// materials at all.
+    pub failed: usize,
+}
+
+/// Compile one `.kmat` source into the `.kmat_c` the runtime loads.
+///
+/// `name` is what the edit info records as the input: the path relative to
+/// the content tree, so the same content compiles to the same bytes on every
+/// machine.
+pub fn compile_material(source: &Path, out: &Path, name: &str) -> Result<()> {
+    let text =
+        std::fs::read_to_string(source).with_context(|| format!("reading {}", source.display()))?;
+    let bytes = Material::compile(&text, name).map_err(|e| anyhow::anyhow!("{name}: {e}"))?;
+    kerosene_vfs::write_atomic(out, &bytes)
+        .with_context(|| format!("writing {}", out.display()))?;
+    Ok(())
+}
+
+/// Compile every `.kmat` under `dir` that is newer than its `.kmat_c`.
+pub fn compile_materials(dir: &Path) -> Result<MaterialBuild> {
+    let mut build = MaterialBuild::default();
+    if !dir.is_dir() {
+        return Ok(build);
+    }
+    let mut sources = Vec::new();
+    collect_ext(dir, ext::MATERIAL, &mut sources)?;
+    sources.sort();
+    for source in sources {
+        let out = source.with_extension(ext::MATERIAL_COMPILED);
+        if is_up_to_date(&source, &out) {
+            build.skipped += 1;
+            continue;
+        }
+        let relative = source.strip_prefix(dir).unwrap_or(&source);
+        let name = format!(
+            "materials/{}",
+            relative.to_string_lossy().replace('\\', "/")
+        );
+        match compile_material(&source, &out, &name) {
+            Ok(()) => build.compiled += 1,
+            Err(e) => {
+                eprintln!("alchemy: {e:#}");
+                build.failed += 1;
+            }
+        }
+    }
+    Ok(build)
+}
+
+/// Every file under `dir` with extension `extension`, ignoring case.
+fn collect_ext(dir: &Path, extension: &str, out: &mut Vec<PathBuf>) -> Result<()> {
+    for entry in std::fs::read_dir(dir).with_context(|| format!("reading {}", dir.display()))? {
+        let path = entry?.path();
+        if path.is_dir() {
+            collect_ext(&path, extension, out)?;
+        } else if ext_is(&path, extension) {
+            out.push(path);
+        }
+    }
+    Ok(())
+}
+
+fn ext_is(path: &Path, extension: &str) -> bool {
+    path.extension()
+        .and_then(|e| e.to_str())
+        .is_some_and(|e| e.eq_ignore_ascii_case(extension))
 }
 
 fn collect_images(root: &Path, dir: &Path, out: &mut Vec<(PathBuf, String)>) -> Result<()> {
@@ -586,7 +703,24 @@ pub fn info(path: &Path) -> Result<()> {
                 println!("    {k} = {v}");
             }
         }
-        _ => bail!("{} is not a .ktex or .kmat", path.display()),
+        Some("kmat_c") => {
+            let view = kerosene_resource::ResourceView::parse(&bytes)?;
+            let material: Material = kerosene_resource::decode(&bytes)?;
+            println!("{}", path.display());
+            println!("  shader: {}", material.shader.name());
+            println!("  surface: {}", material.surface_property());
+            println!("  source hash: {:016x}", view.source_hash());
+            println!("  references: {}", view.refs()?.join(", "));
+            if let Some(edit) = view.edit_info()? {
+                for (input, hash) in &edit.inputs {
+                    println!("  compiled by {} from {input} ({hash:016x})", edit.compiler);
+                }
+            }
+            for (k, v) in material.params() {
+                println!("    {k} = {v}");
+            }
+        }
+        _ => bail!("{} is not a .ktex, .kmat or .kmat_c", path.display()),
     }
     Ok(())
 }

@@ -184,7 +184,7 @@ fn key(material: &str) -> String {
 
 /// Read a material and the texture it names.
 fn load(vfs: &Vfs, material: &str) -> Result<Texture, String> {
-    let material_path = kerosene_asset::material_path(material);
+    let material_path = kerosene_asset::material_source_path(material);
     let text = vfs
         .read_string(&material_path)
         .map_err(|e| format!("{material_path}: {e}"))?;

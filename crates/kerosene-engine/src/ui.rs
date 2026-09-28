@@ -394,9 +394,8 @@ impl Engine {
             let Some(e) = self.entities.get(id) else {
                 continue;
             };
-            if e.fields
-                .bool("disabled", e.fields.bool("startdisabled", false))
-            {
+            let start_disabled = self.entities.keyvalue_bool(id, "startdisabled", false);
+            if self.entities.keyvalue_bool(id, "disabled", start_disabled) {
                 continue;
             }
             let layout = e

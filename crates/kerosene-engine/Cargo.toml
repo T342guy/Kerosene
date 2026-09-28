@@ -26,6 +26,7 @@ steam = ["kerosene-platform/steam"]
 kerosene-math.workspace = true
 kerosene-bsp.workspace = true
 kerosene-asset.workspace = true
+kerosene-resource.workspace = true
 kerosene-vfs.workspace = true
 kerosene-console.workspace = true
 kerosene-config.workspace = true

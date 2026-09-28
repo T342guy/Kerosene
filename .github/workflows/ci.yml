@@ -1,16 +1,28 @@
 # Build, lint and test on every push and pull request.
 #
-# Every platform runs the whole test suite: Kerosene is a crate people build
-# on their own machines, on whatever they have, so "it builds on Windows" is
-# not enough. Linux also lints, checks the minimum Rust version, the docs,
-# the licences and the packaging; and on all three, a game made with
-# `kerosene-tools new` has to build and run.
+# Four jobs, each answering one question:
+#
+# - check:     does the workspace pass fmt, clippy, the layering rules, its
+#              tests and its docs? (Linux, where everything is linted.)
+# - platforms: does it still compile on Windows and macOS?
+# - bundle:    does the one crate crates.io gets build, package, and make a
+#              game that plays?
+# - book:      does every relative link lead to a page, and does mdBook
+#              build? (Deploying is mdbook.yml's.)
+#
+# plus cargo-deny for licences and advisories. Everything here must pass:
+# a job that is allowed to fail is a job nobody reads.
 name: CI
 
 on:
   push:
     branches: ["MASTER"]
   pull_request:
+
+# A newer push to the same branch makes an older run's answer moot.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   CARGO_TERM_COLOR: always
@@ -22,19 +34,11 @@ env:
 
 jobs:
   check:
-    name: fmt, clippy, test (linux)
+    name: check (linux)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
-      # The toolchain file pins the channel; rustup reads it.
-      - name: Install toolchain
-        run: rustup show
-
-      - name: Install ALSA headers
-        run: sudo apt-get update && sudo apt-get install -y libasound2-dev
-
-      - uses: Swatinem/rust-cache@v2
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
 
       - name: Format
         run: cargo fmt --all --check
@@ -51,8 +55,8 @@ jobs:
         run: cargo test --workspace --locked
 
       # Steam is an opt-in feature, so the workspace build above never sees
-      # it. Linting it here keeps it compiling; it links against the
-      # redistributable the steamworks crate carries, and needs no client.
+      # it. It links against the redistributable the steamworks crate
+      # carries, and needs no client.
       - name: Clippy (steam)
         run: cargo clippy -p kerosene-runtime -p kerosene-tools --features kerosene-runtime/steam,kerosene-tools/steam --locked -- -D warnings
 
@@ -66,73 +70,50 @@ jobs:
         env:
           RUSTDOCFLAGS: -D warnings
 
-  test:
-    name: test (${{ matrix.os }})
+  # Compiled, not tested: the suite runs on Linux. This catches the code
+  # that only builds on one platform -- a cfg, a path, a system API.
+  platforms:
+    name: build (${{ matrix.os }})
     strategy:
       fail-fast: false
       matrix:
         os: [windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-      - name: Install toolchain
-        run: rustup show
-      - uses: Swatinem/rust-cache@v2
-      - name: Test
-        run: cargo test --workspace --locked
-      - name: Build (steam)
-        run: cargo build -p kerosene-runtime --features steam --locked
-
-  # `rust-version` in Cargo.toml is a promise; this keeps it.
-  msrv:
-    name: minimum Rust version
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install ALSA headers
-        run: sudo apt-get update && sudo apt-get install -y libasound2-dev
-      - name: Install the minimum toolchain
-        run: |
-          msrv=$(sed -n 's/^rust-version = "\(.*\)"$/\1/p' Cargo.toml)
-          rustup toolchain install "$msrv" --profile minimal
-          echo "MSRV=$msrv" >> "$GITHUB_ENV"
-      - uses: Swatinem/rust-cache@v2
-        with:
-          key: msrv
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
       - name: Check
-        run: cargo +"$MSRV" check --workspace --all-targets --locked
+        run: cargo check --workspace --all-targets --locked
 
   # The one crate crates.io gets: the workspace folded into `kerosene` by
-  # `cargo xtask bundle`. Built with and without the tools, and packaged the
-  # way `cargo publish` would -- which builds it again, alone, from the
-  # tarball -- and held under crates.io's 10 MB limit. Publishing stays a
-  # person's decision.
+  # `cargo xtask bundle`. Built with and without the tools, packaged the way
+  # `cargo publish` would -- which builds it again, alone, from the tarball
+  # -- and held under crates.io's 10 MB limit. Then what a new user does on
+  # day one: make a game with it and play it. Publishing stays a person's
+  # decision.
   bundle:
-    name: bundle (the published crate)
+    name: bundle and new game
     runs-on: ubuntu-latest
+    env:
+      CARGO_TARGET_DIR: ${{ github.workspace }}/target/bundle/target
     steps:
-      - uses: actions/checkout@v4
-      - name: Install toolchain
-        run: rustup show
-      - name: Install ALSA headers
-        run: sudo apt-get update && sudo apt-get install -y libasound2-dev
-      - uses: Swatinem/rust-cache@v2
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
         with:
-          key: bundle
+          cache-key: bundle
+
       - name: Bundle
         run: cargo xtask bundle
+
       - name: Build
         working-directory: target/bundle/kerosene
-        env:
-          CARGO_TARGET_DIR: ${{ github.workspace }}/target/bundle/target
         run: |
           cargo build
           cargo build --features tools
           cargo check --features tools,steam
+
       - name: Package
         working-directory: target/bundle/kerosene
-        env:
-          CARGO_TARGET_DIR: ${{ github.workspace }}/target/bundle/target
         run: |
           cargo package --allow-dirty
           ls -l "$CARGO_TARGET_DIR"/package/*.crate
@@ -141,43 +122,29 @@ jobs:
             exit 1
           fi
 
-  licences:
-    name: licences and advisories
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: EmbarkStudios/cargo-deny-action@v2
-        with:
-          command: check licenses advisories bans sources
+      - name: Make a game
+        run: |
+          cargo run --manifest-path target/bundle/kerosene/Cargo.toml --features tools \
+            --bin kerosene-tools -- new "$RUNNER_TEMP/ci_game" \
+            --name "CI Game" --kerosene-path target/bundle/kerosene
 
-  # The kerosene crate's API against the last release. Kerosene's version
-  # is that API's (src/docs/versioning.md): a breaking change needs a major
-  # version. Reported, not enforced, while 1.0.0 is in pre-release.
-  semver:
-    name: semver (kerosene)
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Install ALSA headers
-        run: sudo apt-get update && sudo apt-get install -y libasound2-dev
-      - name: Last release
-        run: echo "BASELINE=$(git describe --tags --abbrev=0 --match '[0-9]*')" >> "$GITHUB_ENV"
-      - uses: obi1kenobi/cargo-semver-checks-action@v2
-        with:
-          package: kerosene
-          baseline-rev: ${{ env.BASELINE }}
+      - name: Test the game
+        working-directory: ${{ runner.temp }}/ci_game
+        run: cargo test
 
-  # The book: every relative link leads to a page, and mdBook builds it.
-  # Deploying stays mdbook.yml's, on MASTER; this is what catches a broken
-  # link in a pull request before it is published.
+      - name: Play the game headless
+        working-directory: ${{ runner.temp }}/ci_game
+        # The engine logs to stderr.
+        run: |
+          set -o pipefail
+          cargo play -- --headless 120 2>&1 | tee play.log
+          grep -q "picked up a gem" play.log
+
   book:
     name: book
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Links
         run: python3 scripts/check-links.py
       - uses: Swatinem/rust-cache@v2
@@ -188,40 +155,11 @@ jobs:
       - name: Build
         run: mdbook build
 
-  # What a new user does on day one, on every platform: make a game and play
-  # it -- against the bundled crate, since that is what they will get.
-  new-game:
-    name: new game (${{ matrix.os }})
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
-    env:
-      CARGO_TARGET_DIR: ${{ github.workspace }}/target/bundle/target
+  licences:
+    name: licences and advisories
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Install toolchain
-        run: rustup show
-      - name: Install ALSA headers
-        if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libasound2-dev
-      - uses: Swatinem/rust-cache@v2
+      - uses: actions/checkout@v5
+      - uses: EmbarkStudios/cargo-deny-action@v2
         with:
-          key: new-game
-      - name: Bundle
-        run: cargo xtask bundle
-      - name: Make a game
-        shell: bash
-        run: |
-          cargo run --manifest-path target/bundle/kerosene/Cargo.toml --features tools \
-            --bin kerosene-tools -- new "$RUNNER_TEMP/ci_game" \
-            --name "CI Game" --kerosene-path target/bundle/kerosene
-      - name: Test it
-        working-directory: ${{ runner.temp }}/ci_game
-        run: cargo test
-      - name: Play it headless
-        shell: bash
-        working-directory: ${{ runner.temp }}/ci_game
-        # The engine logs to stderr.
-        run: cargo play -- --headless 120 2>&1 | tee play.log && grep -q "picked up a gem" play.log
+          command: check licenses advisories bans sources

@@ -3,9 +3,11 @@
 
 use crate::MAX_EVENTS_PER_TICK;
 use crate::io::{Connection, InputEvent, PendingEvent, Target};
-use crate::registry::ClassRegistry;
+use crate::registry::{ClassComponent, ClassRegistry, ComponentDecl};
 use crate::value::{Fields, Value};
+use kerosene_ecs::{Component, Entity as Handle, World};
 use kerosene_kv::KeyValues;
+use kerosene_reflect::Struct;
 use kerosene_math::{Aabb, Angles, Vec3};
 use std::collections::{BinaryHeap, HashMap};
 use std::sync::Arc;
@@ -37,6 +39,9 @@ pub enum SpawnError {
 pub struct Entity {
     pub id: EntityId,
     pub classname: String,
+    /// Keyvalues no component of its class claims: a mod's own keys, and the
+    /// engine's for classes not yet described by components. See
+    /// [`EntityWorld::keyvalue`], which looks in both.
     pub fields: Fields,
     pub origin: Vec3,
     pub angles: Angles,
@@ -47,6 +52,8 @@ pub struct Entity {
     pub brush_model: Option<usize>,
     /// Set by [`EntityWorld::remove`]; the slot is reclaimed at end of tick.
     pub pending_removal: bool,
+    /// Where its components live in [`EntityWorld`]'s ECS world.
+    pub(crate) handle: Handle,
 }
 
 impl Entity {
@@ -74,6 +81,8 @@ impl Entity {
 /// Every entity in the running level, plus the queue that drives their I/O.
 pub struct EntityWorld {
     pub(crate) slots: Vec<Option<Entity>>,
+    /// Each entity's components, by its [`Entity::handle`].
+    pub(crate) ecs: World,
     pub(crate) generations: Vec<u32>,
     pub(crate) free: Vec<u32>,
     pub(crate) by_name: HashMap<String, Vec<EntityId>>,
@@ -166,6 +175,7 @@ impl EntityWorld {
     pub fn new(registry: Arc<ClassRegistry>) -> Self {
         EntityWorld {
             slots: Vec::new(),
+            ecs: World::new(),
             generations: Vec::new(),
             free: Vec::new(),
             by_name: HashMap::new(),
@@ -195,6 +205,7 @@ impl EntityWorld {
             index,
             generation: self.generations[index as usize],
         };
+        let handle = self.spawn_components(classname);
         self.slots[index as usize] = Some(Entity {
             id,
             classname: classname.to_string(),
@@ -205,8 +216,134 @@ impl EntityWorld {
             next_think: None,
             brush_model: None,
             pending_removal: false,
+            handle,
         });
         id
+    }
+
+    /// A new ECS entity holding the class's components at their defaults.
+    pub(crate) fn spawn_components(&mut self, classname: &str) -> Handle {
+        let handle = self.ecs.spawn_empty().id();
+        let registry = self.registry.clone();
+        for decl in registry.components(classname) {
+            decl.insert(&mut self.ecs, handle);
+        }
+        handle
+    }
+
+    // ---- components ------------------------------------------------------
+
+    /// An entity's `T`, if its class carries one.
+    pub fn component<T: Component>(&self, id: EntityId) -> Option<&T> {
+        self.ecs.get::<T>(self.get(id)?.handle)
+    }
+
+    /// An entity's `T`, to change, if its class carries one.
+    pub fn component_mut<T: ClassComponent>(&mut self, id: EntityId) -> Option<&mut T> {
+        let handle = self.get(id)?.handle;
+        self.ecs.get_mut::<T>(handle).map(|c| c.into_inner())
+    }
+
+    /// Every component an entity carries, by type name, for a script, the
+    /// console or a debugger to look through.
+    pub fn components(&self, id: EntityId) -> Vec<(&'static str, &dyn Struct)> {
+        let Some(e) = self.get(id) else {
+            return Vec::new();
+        };
+        self.registry
+            .components(&e.classname)
+            .iter()
+            .filter_map(|d| (d.reflect)(&self.ecs, e.handle).map(|s| (d.name, s)))
+            .collect()
+    }
+
+    /// The component of an entity's class that has a field for `key`: one
+    /// declared with that keyvalue, or failing that, one with a field of that
+    /// name -- how a saved game from before a field moved into a component,
+    /// or a script, names a field that has no keyvalue.
+    pub(crate) fn claiming(&self, id: EntityId, key: &str) -> Option<(ComponentDecl, &'static str)> {
+        let e = self.get(id)?;
+        let decls = self.registry.components(&e.classname);
+        decls
+            .iter()
+            .find_map(|d| d.field_for_key(key).map(|f| (d.clone(), f.name)))
+            .or_else(|| {
+                decls
+                    .iter()
+                    .find_map(|d| d.field_named(key).map(|f| (d.clone(), f.name)))
+            })
+    }
+
+    /// An entity's value for a keyvalue, wherever it lives: the component
+    /// field that claims it, or its loose fields.
+    ///
+    /// What the engine, scripts and I/O use to read a key without knowing
+    /// the game's types.
+    pub fn keyvalue(&self, id: EntityId, key: &str) -> Option<Value> {
+        if let Some((decl, field)) = self.claiming(id, key) {
+            let handle = self.get(id)?.handle;
+            return (decl.reflect)(&self.ecs, handle).and_then(|s| kerosene_reflect::get(s, field));
+        }
+        self.get(id)?.fields.get(key).cloned()
+    }
+
+    /// [`EntityWorld::keyvalue`] as a number, or `default` when the entity
+    /// has no such key or it does not convert.
+    pub fn keyvalue_f32(&self, id: EntityId, key: &str, default: f32) -> f32 {
+        self.keyvalue(id, key)
+            .and_then(|v| v.as_f32())
+            .unwrap_or(default)
+    }
+
+    /// [`EntityWorld::keyvalue`] as an integer, or `default`.
+    pub fn keyvalue_i32(&self, id: EntityId, key: &str, default: i32) -> i32 {
+        self.keyvalue(id, key)
+            .and_then(|v| v.as_i32())
+            .unwrap_or(default)
+    }
+
+    /// [`EntityWorld::keyvalue`] as a flag, or `default`.
+    pub fn keyvalue_bool(&self, id: EntityId, key: &str, default: bool) -> bool {
+        self.keyvalue(id, key)
+            .and_then(|v| v.as_bool())
+            .unwrap_or(default)
+    }
+
+    /// [`EntityWorld::keyvalue`] as text, however it is typed; `None` only
+    /// when the entity has no such key.
+    pub fn keyvalue_text(&self, id: EntityId, key: &str) -> Option<String> {
+        self.keyvalue(id, key).map(|v| match v {
+            Value::Text(t) => t,
+            other => other.to_string(),
+        })
+    }
+
+    /// Set a keyvalue wherever it lives. A value that does not fit the
+    /// component field that claims it is refused, with a warning, and
+    /// changes nothing. Returns whether it was set.
+    pub fn set_keyvalue(&mut self, id: EntityId, key: &str, value: Value) -> bool {
+        if let Some((decl, field)) = self.claiming(id, key) {
+            let Some(handle) = self.get(id).map(|e| e.handle) else {
+                return false;
+            };
+            let Some(target) = (decl.reflect_mut)(&mut self.ecs, handle) else {
+                return false;
+            };
+            return match kerosene_reflect::set(target, field, &value) {
+                Ok(()) => true,
+                Err(e) => {
+                    log::warn!("{}: {e}", decl.name);
+                    false
+                }
+            };
+        }
+        match self.get_mut(id) {
+            Some(e) => {
+                e.fields.set(key, value);
+                true
+            }
+            None => false,
+        }
     }
 
     pub fn get(&self, id: EntityId) -> Option<&Entity> {
@@ -368,7 +505,17 @@ impl EntityWorld {
             }
             "targetname" => self.set_targetname(id, value),
             other => {
-                if let Some(e) = self.get_mut(id) {
+                if let Some((decl, field)) = self.claiming(id, other) {
+                    let Some(handle) = self.get(id).map(|e| e.handle) else {
+                        return;
+                    };
+                    if let Some(target) = (decl.reflect_mut)(&mut self.ecs, handle)
+                        && let Err(e) = kerosene_reflect::set_from_text(target, field, value)
+                    {
+                        let classname = self.get(id).map_or("", |e| e.classname.as_str());
+                        log::warn!("{classname}: keyvalue `{other}`: {e}");
+                    }
+                } else if let Some(e) = self.get_mut(id) {
                     e.fields.set(other, Value::from_keyvalue(value));
                 }
             }
@@ -695,7 +842,9 @@ impl EntityWorld {
                 list.retain(|&x| x != id);
             }
             let index = id.index as usize;
-            self.slots[index] = None;
+            if let Some(e) = self.slots[index].take() {
+                self.ecs.despawn(e.handle);
+            }
             // Bumping the generation is what makes stale handles fail to
             // resolve instead of addressing whoever moves into this slot.
             self.generations[index] = self.generations[index].wrapping_add(1);
@@ -768,3 +917,7 @@ impl EntityWorld {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+#[path = "world/components_tests.rs"]
+mod components_tests;

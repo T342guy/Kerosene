@@ -73,7 +73,7 @@ content/
   engine.kcfg      renderer, window size, vsync — written on first run
   art/                source textures (.png) and meshes (.obj)
   textures/           texture *sets*: colour, normal, roughness… per folder
-  materials/          .kmat — hand-written KeyValues
+  materials/          .kmat — hand-written KeyValues (built into .kmat_c)
   models/             .kmdl, compiled by Forge from art/
   maps/               .kmap (yours) and .kbsp (compiled)
   sound/              .wav / .flac / .mp3 sources and compiled .kaud

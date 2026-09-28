@@ -8,7 +8,8 @@
 //! it fires are chosen by class. Two copies of this would drift, and the one
 //! that drifted would be the one nobody was testing.
 
-use crate::{field_f32, set_field};
+use crate::components::Switchable;
+use kerosene_ecs::prelude::*;
 use kerosene_entity::io::InputEvent;
 use kerosene_entity::{ClassDef, ClassRegistry, EntityId, EntityWorld, Value, host_requests};
 use kerosene_math::Vec3;
@@ -93,6 +94,120 @@ fn outputs_of(world: &EntityWorld, id: EntityId) -> &'static MoverOutputs {
         .map_or(&DOOR_OUTPUTS, |e| outputs_for(&e.classname))
 }
 
+/// A door or a button: what the map says about it, and where it has got to.
+///
+/// The keys' labels and help live in the schema, because a door and a
+/// button word them differently; their types and defaults live here, and
+/// the schema's check holds it to them.
+#[derive(Component, Reflect, Clone, Debug, PartialEq)]
+#[reflect(Component, Default)]
+pub struct Mover {
+    /// Which way it travels. Normalised at spawn.
+    #[reflect(@Key("movedir"))]
+    pub movedir: Vec3,
+    /// Units per second.
+    #[reflect(@Key("speed"))]
+    pub speed: f32,
+    /// How much of it stays showing at the far end.
+    #[reflect(@Key("lip"))]
+    pub lip: f32,
+    /// Fires its locked output instead of moving.
+    #[reflect(@Key("locked"))]
+    pub locked: bool,
+    /// Seconds at the far end before coming back; -1 to stay.
+    #[reflect(@Key("wait"))]
+    pub wait: f32,
+    /// Played as it starts to move. Empty for silence.
+    #[reflect(@Key("noise_move"))]
+    pub noise_move: String,
+    /// Played when it reaches either end.
+    #[reflect(@Key("noise_stop"))]
+    pub noise_stop: String,
+    /// Played when something tries it while it is locked.
+    #[reflect(@Key("noise_locked"))]
+    pub noise_locked: String,
+    /// How far it travels, from its geometry. Set at spawn.
+    pub travel: f32,
+    /// How far along it is: 0 at rest, 1 at the far end.
+    pub progress: f32,
+    /// One of the `state` constants.
+    pub door_state: i32,
+    /// Bumped by every move, so a return queued by an earlier one can tell
+    /// it is stale.
+    pub move_serial: i32,
+    /// Game time of the last step, to integrate from.
+    pub last_move: f32,
+}
+
+impl Default for Mover {
+    /// A door's.
+    fn default() -> Self {
+        Mover {
+            movedir: Vec3::Z,
+            speed: 100.0,
+            lip: 8.0,
+            locked: false,
+            wait: 4.0,
+            noise_move: "door/move".into(),
+            noise_stop: String::new(),
+            noise_locked: String::new(),
+            travel: 64.0,
+            progress: 0.0,
+            door_state: state::CLOSED,
+            move_serial: 0,
+            last_move: 0.0,
+        }
+    }
+}
+
+impl Mover {
+    /// A button's: it goes into the wall, slower and not as far, pops back
+    /// out after a second, and makes no noise unless told to.
+    pub fn button() -> Self {
+        Mover {
+            movedir: -Vec3::Z,
+            speed: 40.0,
+            lip: 4.0,
+            wait: 1.0,
+            noise_move: String::new(),
+            ..Mover::default()
+        }
+    }
+
+    /// The mover a class starts with, for an editor drawing where one will
+    /// end up before any key is set.
+    pub fn of_class(classname: &str) -> Mover {
+        if classname.eq_ignore_ascii_case("func_button") {
+            Mover::button()
+        } else {
+            Mover::default()
+        }
+    }
+}
+
+/// A brush that spins in place.
+#[derive(Component, Reflect, Clone, Debug, PartialEq)]
+#[reflect(Component, Default)]
+pub struct Rotating {
+    /// Degrees per second; negative turns the other way.
+    #[reflect(@Key("maxspeed"))]
+    pub maxspeed: f32,
+    /// Whether it is turning.
+    pub spinning: bool,
+    /// Game time of the last step, to integrate from.
+    pub last_move: f32,
+}
+
+impl Default for Rotating {
+    fn default() -> Self {
+        Rotating {
+            maxspeed: 100.0,
+            spinning: false,
+            last_move: 0.0,
+        }
+    }
+}
+
 /// Which way a door is going.
 mod state {
     pub const CLOSED: i32 = 0;
@@ -106,6 +221,7 @@ mod state {
 pub fn register(registry: &mut ClassRegistry) {
     registry.register(
         ClassDef::new("func_door")
+            .component::<Mover>()
             .on_spawn(spawn_mover)
             .on_think(think_mover)
             .input("Open", |w, id, e| start(w, id, e, true))
@@ -114,17 +230,13 @@ pub fn register(registry: &mut ClassRegistry) {
             // Pressing a door is a toggle, which is what makes the use key
             // work on it without the map wiring anything at all.
             .input("Use", input_toggle)
-            .input("Lock", |w, id, _| {
-                set_field(w, id, "locked", Value::Bool(true));
-                true
-            })
-            .input("Unlock", |w, id, _| {
-                set_field(w, id, "locked", Value::Bool(false));
-                true
-            })
+            .input("Lock", |w, id, _| set_locked(w, id, true))
+            .input("Unlock", |w, id, _| set_locked(w, id, false))
             .input("SetSpeed", |w, id, e| {
-                if let Some(v) = e.parameter_f32() {
-                    set_field(w, id, "speed", Value::Float(v));
+                if let Some(v) = e.parameter_f32()
+                    && let Some(m) = w.component_mut::<Mover>(id)
+                {
+                    m.speed = v;
                 }
                 true
             })
@@ -137,6 +249,7 @@ pub fn register(registry: &mut ClassRegistry) {
 
     registry.register(
         ClassDef::new("func_button")
+            .component_with(Mover::button)
             .on_spawn(spawn_mover)
             .on_think(think_mover)
             // Press and Use are the same act from two directions: a player
@@ -144,14 +257,8 @@ pub fn register(registry: &mut ClassRegistry) {
             .input("Press", |w, id, e| start(w, id, e, true))
             .input("Use", |w, id, e| start(w, id, e, true))
             .input("Unpress", |w, id, e| start(w, id, e, false))
-            .input("Lock", |w, id, _| {
-                set_field(w, id, "locked", Value::Bool(true));
-                true
-            })
-            .input("Unlock", |w, id, _| {
-                set_field(w, id, "locked", Value::Bool(false));
-                true
-            })
+            .input("Lock", |w, id, _| set_locked(w, id, true))
+            .input("Unlock", |w, id, _| set_locked(w, id, false))
             .output("OnPressed")
             .output("OnIn")
             .output("OnOut")
@@ -160,6 +267,7 @@ pub fn register(registry: &mut ClassRegistry) {
 
     registry.register(
         ClassDef::new("func_rotating")
+            .component::<Rotating>()
             .on_spawn(spawn_rotating)
             .on_think(think_rotating)
             .input("Start", |w, id, _| {
@@ -171,18 +279,21 @@ pub fn register(registry: &mut ClassRegistry) {
                 true
             })
             .input("Toggle", |w, id, _| {
-                let on = w.get(id).is_some_and(|e| e.fields.bool("spinning", false));
+                let on = w.component::<Rotating>(id).is_some_and(|r| r.spinning);
                 set_spinning(w, id, !on);
                 true
             })
             .input("Reverse", |w, id, _| {
-                let speed = field_f32(w, id, "maxspeed", 100.0);
-                set_field(w, id, "maxspeed", Value::Float(-speed));
+                if let Some(r) = w.component_mut::<Rotating>(id) {
+                    r.maxspeed = -r.maxspeed;
+                }
                 true
             })
             .input("SetSpeed", |w, id, e| {
-                if let Some(v) = e.parameter_f32() {
-                    set_field(w, id, "maxspeed", Value::Float(v));
+                if let Some(v) = e.parameter_f32()
+                    && let Some(r) = w.component_mut::<Rotating>(id)
+                {
+                    r.maxspeed = v;
                 }
                 true
             }),
@@ -190,29 +301,15 @@ pub fn register(registry: &mut ClassRegistry) {
 
     registry.register(
         ClassDef::new("func_brush")
-            .on_spawn(spawn_brush)
-            .input("Enable", |w, id, _| {
-                set_field(w, id, "disabled", Value::Bool(false));
-                true
-            })
-            .input("Disable", |w, id, _| {
-                set_field(w, id, "disabled", Value::Bool(true));
-                true
-            })
-            .input("Toggle", |w, id, _| {
-                let off = w
-                    .get(id)
-                    .map(|e| e.fields.bool("disabled", false))
-                    .unwrap_or(false);
-                set_field(w, id, "disabled", Value::Bool(!off));
-                true
-            }),
+            .component::<Switchable>()
+            .input("Enable", |w, id, _| crate::components::set_disabled(w, id, false))
+            .input("Disable", |w, id, _| crate::components::set_disabled(w, id, true))
+            .input("Toggle", |w, id, _| crate::components::toggle_disabled(w, id)),
     );
 }
 
 fn spawn_rotating(world: &mut EntityWorld, id: EntityId) {
     let on = world.get(id).is_some_and(|e| e.has_spawnflag(SF_START_ON));
-    set_field(world, id, "last_move", Value::Float(world.time));
     set_spinning(world, id, on);
 }
 
@@ -221,11 +318,15 @@ fn spawn_rotating(world: &mut EntityWorld, id: EntityId) {
 /// Stopping clears the think rather than leaving one scheduled that does
 /// nothing: a map with fifty stopped fans should cost nothing to run.
 fn set_spinning(world: &mut EntityWorld, id: EntityId, on: bool) {
-    set_field(world, id, "spinning", Value::Bool(on));
+    let now = world.time;
+    let Some(r) = world.component_mut::<Rotating>(id) else {
+        return;
+    };
+    r.spinning = on;
     if on {
         // The clock restarts, or a fan switched on after a minute would jump
         // through a minute's worth of rotation on its first think.
-        set_field(world, id, "last_move", Value::Float(world.time));
+        r.last_move = now;
         world.set_think_delay(id, 0.0);
     } else {
         world.clear_think(id);
@@ -233,13 +334,16 @@ fn set_spinning(world: &mut EntityWorld, id: EntityId, on: bool) {
 }
 
 fn think_rotating(world: &mut EntityWorld, id: EntityId) {
+    let Some(rotating) = world.component::<Rotating>(id).cloned() else {
+        return;
+    };
     let Some(entity) = world.get(id) else { return };
-    if !entity.fields.bool("spinning", false) {
+    if !rotating.spinning {
         return;
     }
 
-    let speed = entity.fields.f32("maxspeed", 100.0);
-    let elapsed = (world.time - entity.fields.f32("last_move", world.time)).max(0.0);
+    let speed = rotating.maxspeed;
+    let elapsed = (world.time - rotating.last_move).max(0.0);
     // Source's numbering: 2 turns about forward, 4 about left, otherwise up.
     let turned = speed * elapsed;
     let mut angles = entity.angles;
@@ -257,16 +361,11 @@ fn think_rotating(world: &mut EntityWorld, id: EntityId) {
     if let Some(e) = world.get_mut(id) {
         e.angles = angles
     }
-    set_field(world, id, "last_move", Value::Float(world.time));
+    let now = world.time;
+    if let Some(r) = world.component_mut::<Rotating>(id) {
+        r.last_move = now;
+    }
     world.set_think_delay(id, MOVE_INTERVAL);
-}
-
-fn spawn_brush(world: &mut EntityWorld, id: EntityId) {
-    let start_disabled = world
-        .get(id)
-        .map(|e| e.fields.bool("startdisabled", false))
-        .unwrap_or(false);
-    set_field(world, id, "disabled", Value::Bool(start_disabled));
 }
 
 /// How far a door travels, and which way.
@@ -297,43 +396,29 @@ pub fn travel(size: Vec3, movedir: Vec3, lip: f32) -> (Vec3, f32) {
 /// That is what lets a designer resize a door and have it still work.
 fn spawn_mover(world: &mut EntityWorld, id: EntityId) {
     let Some(entity) = world.get(id) else { return };
-
+    // The brush's bounds, which the loader puts on every brush entity.
     let mins = entity.fields.vec3("model_mins", Vec3::ZERO);
     let maxs = entity.fields.vec3("model_maxs", Vec3::ZERO);
-    let (dir, travel) = travel(
-        maxs - mins,
-        entity.fields.vec3("movedir", Vec3::Z),
-        entity.fields.f32("lip", 8.0),
-    );
-
-    let speed = entity.fields.f32("speed", 100.0).max(1.0);
     // Spawnflag 1 is "starts open", as Source numbers it. A named bit rather
     // than a key of its own, so it agrees with every other class here.
     let start_open = entity.has_spawnflag(SF_START_OPEN);
+    let Some(mover) = world.component_mut::<Mover>(id) else {
+        return;
+    };
 
-    set_field(world, id, "movedir", Value::Vector(dir));
-    set_field(world, id, "travel", Value::Float(travel));
-    set_field(world, id, "speed", Value::Float(speed));
-    set_field(
-        world,
-        id,
-        "progress",
-        Value::Float(if start_open { 1.0 } else { 0.0 }),
-    );
-    set_field(
-        world,
-        id,
-        "door_state",
-        Value::Int(if start_open {
-            state::OPEN
-        } else {
-            state::CLOSED
-        }),
-    );
-    set_field(world, id, "locked", Value::Bool(false));
+    let (dir, travel) = travel(maxs - mins, mover.movedir, mover.lip);
+    mover.movedir = dir;
+    mover.travel = travel;
+    mover.speed = mover.speed.max(1.0);
+    mover.progress = if start_open { 1.0 } else { 0.0 };
+    mover.door_state = if start_open {
+        state::OPEN
+    } else {
+        state::CLOSED
+    };
     // A mover's noises play once each; `looping` is what the engine's
     // entity sound reads, and it defaults to on for the ambient classes.
-    set_field(world, id, "looping", Value::Bool(false));
+    world.set_keyvalue(id, "looping", Value::Bool(false));
 
     if start_open && let Some(e) = world.get_mut(id) {
         e.origin = dir * travel;
@@ -346,57 +431,42 @@ fn spawn_mover(world: &mut EntityWorld, id: EntityId) {
 const AUTO_RETURN: &str = "auto_return:";
 
 fn start(world: &mut EntityWorld, id: EntityId, event: &InputEvent, opening: bool) -> bool {
-    if let Some(serial) = event.parameter.strip_prefix(AUTO_RETURN) {
-        let current = world
-            .get(id)
-            .map(|e| e.fields.i32("move_serial", 0))
-            .unwrap_or(0);
-        if serial.parse::<i32>().ok() != Some(current) {
-            return true;
-        }
-    }
-    if world
-        .get(id)
-        .map(|e| e.fields.bool("locked", false))
-        .unwrap_or(false)
+    let Some(mover) = world.component::<Mover>(id).cloned() else {
+        return false;
+    };
+    if let Some(serial) = event.parameter.strip_prefix(AUTO_RETURN)
+        && serial.parse::<i32>().ok() != Some(mover.move_serial)
     {
+        return true;
+    }
+    if mover.locked {
         let locked = outputs_of(world, id).locked;
-        noise(world, id, "noise_locked", event.activator);
+        noise(world, id, &mover.noise_locked, event.activator);
         world.fire_output(id, locked, event.activator, None);
         return true;
     }
 
-    let current = world
-        .get(id)
-        .map(|e| e.fields.i32("door_state", state::CLOSED))
-        .unwrap_or(0);
     let already = if opening {
-        current == state::OPEN || current == state::OPENING
+        mover.door_state == state::OPEN || mover.door_state == state::OPENING
     } else {
-        current == state::CLOSED || current == state::CLOSING
+        mover.door_state == state::CLOSED || mover.door_state == state::CLOSING
     };
     if already {
         return true;
     }
 
     let outputs = outputs_of(world, id);
-    let serial = world
-        .get(id)
-        .map(|e| e.fields.i32("move_serial", 0))
-        .unwrap_or(0);
-    set_field(world, id, "move_serial", Value::Int(serial.wrapping_add(1)));
-    set_field(
-        world,
-        id,
-        "door_state",
-        Value::Int(if opening {
+    let now = world.time;
+    if let Some(m) = world.component_mut::<Mover>(id) {
+        m.move_serial = m.move_serial.wrapping_add(1);
+        m.door_state = if opening {
             state::OPENING
         } else {
             state::CLOSING
-        }),
-    );
-    set_field(world, id, "last_move", Value::Float(world.time));
-    noise(world, id, "noise_move", event.activator);
+        };
+        m.last_move = now;
+    }
+    noise(world, id, &mover.noise_move, event.activator);
     let announce = if opening {
         Some(outputs.start_forward)
     } else {
@@ -409,30 +479,33 @@ fn start(world: &mut EntityWorld, id: EntityId, event: &InputEvent, opening: boo
     true
 }
 
+fn set_locked(world: &mut EntityWorld, id: EntityId, locked: bool) -> bool {
+    if let Some(m) = world.component_mut::<Mover>(id) {
+        m.locked = locked;
+    }
+    true
+}
+
 fn input_toggle(world: &mut EntityWorld, id: EntityId, event: &InputEvent) -> bool {
     let current = world
-        .get(id)
-        .map(|e| e.fields.i32("door_state", state::CLOSED))
-        .unwrap_or(0);
+        .component::<Mover>(id)
+        .map_or(state::CLOSED, |m| m.door_state);
     let opening = current == state::CLOSED || current == state::CLOSING;
     start(world, id, event, opening)
 }
 
 fn think_mover(world: &mut EntityWorld, id: EntityId) {
-    let Some(entity) = world.get(id) else { return };
-    let door_state = entity.fields.i32("door_state", state::CLOSED);
-    let travel = entity.fields.f32("travel", 64.0);
-    let speed = entity.fields.f32("speed", 100.0);
-    let dir = entity.fields.vec3("movedir", Vec3::Z);
-    let mut progress = entity.fields.f32("progress", 0.0);
-    let last_move = entity.fields.f32("last_move", world.time);
+    let Some(mover) = world.component::<Mover>(id).cloned() else {
+        return;
+    };
+    let mut progress = mover.progress;
 
     // Integrate the elapsed time rather than assuming the interval was met.
-    let elapsed = (world.time - last_move).max(0.0);
-    let step = (speed * elapsed) / travel.max(1.0);
-    let mut next_state = door_state;
+    let elapsed = (world.time - mover.last_move).max(0.0);
+    let step = (mover.speed * elapsed) / mover.travel.max(1.0);
+    let mut next_state = mover.door_state;
 
-    match door_state {
+    match mover.door_state {
         state::OPENING => {
             progress += step;
             if progress >= 1.0 {
@@ -450,31 +523,29 @@ fn think_mover(world: &mut EntityWorld, id: EntityId) {
         _ => return,
     }
 
-    set_field(world, id, "progress", Value::Float(progress));
-    set_field(world, id, "last_move", Value::Float(world.time));
+    let now = world.time;
+    if let Some(m) = world.component_mut::<Mover>(id) {
+        m.progress = progress;
+        m.last_move = now;
+        m.door_state = next_state;
+    }
     if let Some(e) = world.get_mut(id) {
-        e.origin = dir * (travel * progress);
+        e.origin = mover.movedir * (mover.travel * progress);
     }
 
-    if next_state != door_state {
+    if next_state != mover.door_state {
         let outputs = outputs_of(world, id);
-        set_field(world, id, "door_state", Value::Int(next_state));
-        noise(world, id, "noise_stop", None);
+        noise(world, id, &mover.noise_stop, None);
         if next_state == state::OPEN {
             world.fire_output(id, outputs.fully_forward, None, None);
             // A positive `wait` sends it back by itself; -1 leaves it where it
             // is until something tells it otherwise.
-            let wait = field_f32(world, id, "wait", 4.0);
-            if wait > 0.0 {
-                let serial = world
-                    .get(id)
-                    .map(|e| e.fields.i32("move_serial", 0))
-                    .unwrap_or(0);
+            if mover.wait > 0.0 {
                 world.queue_input(
                     kerosene_entity::Target::Myself,
                     outputs.ret,
-                    &format!("{AUTO_RETURN}{serial}"),
-                    wait,
+                    &format!("{AUTO_RETURN}{}", mover.move_serial),
+                    mover.wait,
                     None,
                     Some(id),
                 );
@@ -488,19 +559,8 @@ fn think_mover(world: &mut EntityWorld, id: EntityId) {
     world.set_think_delay(id, MOVE_INTERVAL);
 }
 
-/// Play one of a mover's noises -- `noise_move`, `noise_stop`,
-/// `noise_locked` -- if the map gave it one. A door with no `noise_move` key
-/// at all gets the stock `door/move`; an empty one is silent.
-fn noise(world: &mut EntityWorld, id: EntityId, key: &str, activator: Option<EntityId>) {
-    let Some(entity) = world.get(id) else { return };
-    let stock = match (key, entity.classname.to_ascii_lowercase().as_str()) {
-        ("noise_move", "func_door") => "door/move",
-        _ => "",
-    };
-    let name = match entity.fields.get(key) {
-        Some(value) => value.to_string(),
-        None => stock.to_string(),
-    };
+/// Play one of a mover's noises, unless it is empty.
+fn noise(world: &mut EntityWorld, id: EntityId, name: &str, activator: Option<EntityId>) {
     if !name.trim().is_empty() {
         world.request(host_requests::PLAY_SOUND, name.trim(), id, activator);
     }
@@ -508,12 +568,10 @@ fn noise(world: &mut EntityWorld, id: EntityId, key: &str, activator: Option<Ent
 
 /// How far along its travel a door is, in `0..1`.
 pub fn door_progress(world: &EntityWorld, id: EntityId) -> f32 {
-    world.get(id).map_or(0.0, |e| e.fields.f32("progress", 0.0))
+    world.component::<Mover>(id).map_or(0.0, |m| m.progress)
 }
 
 /// Whether a `func_brush` is currently solid and drawn.
 pub fn brush_enabled(world: &EntityWorld, id: EntityId) -> bool {
-    world
-        .get(id)
-        .is_none_or(|e| !e.fields.bool("disabled", false))
+    world.component::<Switchable>(id).is_none_or(|s| !s.disabled)
 }

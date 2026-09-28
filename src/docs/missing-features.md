@@ -329,9 +329,9 @@ for completeness.
 
 ## 13. Platform and distribution
 
-- ~~**Windows/macOS support.**~~ Tested: CI runs the whole test suite on
-  Windows and macOS, and makes and plays a new game on all three platforms.
-  Nobody has yet played one there by hand.
+- **Windows/macOS support.** CI compiles the workspace on Windows and
+  macOS, but runs the tests and plays a new game only on Linux. Nobody has
+  yet played one there by hand.
 - **Mobile / console.** None.
 - **Crash reporting.** A panic hook writes `crash.log` (section 1); there
   are no minidumps for native crashes and nothing that phones home. `sentry`
@@ -746,8 +746,8 @@ Weighed against `positioning.md`: the shortest path to a shipped movement
 shooter or immersive sim, cheapest first.
 
 1. ~~**Interpolation, MSAA, runtime mipmaps, texdata dimensions.**~~ Done.
-2. ~~**CI.**~~ Done: three operating systems, `fmt`, `clippy`, the tests,
-   and a new game made and played on each.
+2. ~~**CI.**~~ Done: `fmt`, `clippy`, the layering check and the tests on
+   Linux, a build on Windows and macOS, and a new game made and played.
 3. **Demo record and playback.** Proves determinism, becomes the movement
    solver's regression fixture, and is the ghost system for genre 3.
 4. ~~**A game UI layer and save/load.**~~ Done, with a main menu, a loading

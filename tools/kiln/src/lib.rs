@@ -297,7 +297,10 @@ pub fn build(settings: &Settings) -> Result<Report> {
         }
         // Cleave sizes every face by its texture and Resonance reads every
         // material, so a map is only as current as the newest of those too.
-        let materials = newest(&settings.content, &[ext::MATERIAL, ext::TEXTURE]);
+        let materials = newest(
+            &settings.content,
+            &[ext::MATERIAL, ext::MATERIAL_COMPILED, ext::TEXTURE],
+        );
         for map in &maps {
             if !settings.force && map_is_current(map, settings.fast, materials) {
                 report.maps_skipped += 1;

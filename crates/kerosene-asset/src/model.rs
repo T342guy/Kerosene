@@ -23,6 +23,7 @@
 
 use bytemuck::{Pod, Zeroable};
 use kerosene_math::{Aabb, Vec3};
+use kerosene_resource::{ResourceError, ResourceFile, ResourceType, ResourceView, tag};
 use thiserror::Error;
 
 const MAGIC: [u8; 4] = *b"KRMD";
@@ -64,6 +65,8 @@ pub enum ModelError {
         bones: usize,
         expected: usize,
     },
+    #[error(transparent)]
+    Resource(#[from] ResourceError),
 }
 
 #[repr(C)]
@@ -306,7 +309,42 @@ impl Model {
             .position(|a| a.name.eq_ignore_ascii_case(name))
     }
 
+    /// The `.kmdl` file: the resource container, kind `KMDL`, holding the
+    /// model's own layout as its `DATA` block and naming its materials in
+    /// `REFS`.
     pub fn to_bytes(&self) -> Vec<u8> {
+        self.to_resource().to_bytes()
+    }
+
+    /// The model as a compiled resource, for a compiler to add its source
+    /// hash and edit info to before writing.
+    pub fn to_resource(&self) -> ResourceFile {
+        let mut file = ResourceFile::new(Self::KIND, Self::VERSION);
+        file.push(tag::DATA, self.payload());
+        file.set_refs(
+            self.materials()
+                .into_iter()
+                .filter(|m| !m.is_empty())
+                .map(crate::material_path),
+        );
+        file
+    }
+
+    /// Read a `.kmdl`: the container, or a file from before it, which was
+    /// the payload alone.
+    pub fn from_bytes(bytes: &[u8]) -> Result<Model, ModelError> {
+        if !kerosene_resource::is_resource(bytes) {
+            return Model::from_payload(bytes);
+        }
+        let file = ResourceView::parse(bytes)?;
+        if file.kind() != Self::KIND {
+            return Err(ModelError::BadMagic);
+        }
+        Model::from_payload(file.require(tag::DATA)?)
+    }
+
+    /// The model's own layout: a 64-byte header, then its arrays.
+    fn payload(&self) -> Vec<u8> {
         // Animation names go in the string table with everything else, so
         // they are interned on a copy rather than on `self`.
         let mut strings = self.strings.clone();
@@ -354,7 +392,7 @@ impl Model {
         out
     }
 
-    pub fn from_bytes(bytes: &[u8]) -> Result<Model, ModelError> {
+    fn from_payload(bytes: &[u8]) -> Result<Model, ModelError> {
         if bytes.len() < HEADER_SIZE {
             return Err(ModelError::Truncated {
                 needed: HEADER_SIZE,
@@ -419,6 +457,22 @@ impl Model {
         };
         model.validate()?;
         Ok(model)
+    }
+}
+
+impl ResourceType for Model {
+    const KIND: [u8; 4] = *b"KMDL";
+    const VERSION: u32 = 1;
+
+    fn decode(file: &ResourceView<'_>) -> Result<Self, ResourceError> {
+        Model::from_payload(file.require(tag::DATA)?)
+            .map_err(|e| ResourceError::Invalid(e.to_string()))
+    }
+
+    fn decode_legacy(bytes: &[u8]) -> Option<Result<Self, ResourceError>> {
+        bytes
+            .starts_with(&MAGIC)
+            .then(|| Model::from_payload(bytes).map_err(|e| ResourceError::Invalid(e.to_string())))
     }
 }
 
@@ -613,7 +667,7 @@ mod tests {
             Err(ModelError::Truncated { .. })
         ));
 
-        let bytes = crate_model().to_bytes();
+        let bytes = crate_model().payload();
         assert!(matches!(
             Model::from_bytes(&bytes[..HEADER_SIZE + 8]),
             Err(ModelError::Truncated { .. })
@@ -682,9 +736,32 @@ mod tests {
     }
 
     #[test]
+    fn a_kmdl_from_before_the_container_still_loads_and_the_new_one_names_its_materials() {
+        let m = crate_model();
+        let old = m.payload();
+        assert_eq!(&old[..4], b"KRMD");
+        assert_eq!(
+            Model::from_bytes(&old).unwrap().meshes.len(),
+            m.meshes.len()
+        );
+
+        let new = m.to_bytes();
+        let view = ResourceView::parse(&new).unwrap();
+        assert_eq!(view.kind(), *b"KMDL");
+        let expected: Vec<String> = m
+            .materials()
+            .into_iter()
+            .map(crate::material_path)
+            .collect();
+        assert_eq!(view.refs().unwrap(), expected);
+        let through_trait: Model = kerosene_resource::decode(&new).unwrap();
+        assert_eq!(through_trait.meshes.len(), m.meshes.len());
+    }
+
+    #[test]
     fn a_version_1_model_still_loads_with_no_animations() {
         // Every prop compiled before animations existed.
-        let mut bytes = crate_model().to_bytes();
+        let mut bytes = crate_model().payload();
         bytes[4..8].copy_from_slice(&1u32.to_le_bytes());
         let back = Model::from_bytes(&bytes).unwrap();
         assert!(back.animations.is_empty());

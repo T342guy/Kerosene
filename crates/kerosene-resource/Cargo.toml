@@ -1,0 +1,19 @@
+[package]
+name = "kerosene-resource"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+# Published only as part of the one `kerosene` crate: `cargo xtask bundle`.
+publish = false
+description = "Kerosene's compiled resource container, resource handles and asset-type table."
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+kerosene-vfs.workspace = true
+thiserror.workspace = true
+log.workspace = true

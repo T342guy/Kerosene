@@ -34,8 +34,8 @@ mod world;
 
 pub use io::{Connection, InputEvent, PendingEvent, Target};
 pub use registry::{
-    ClassDef, ClassRegistry, DamageHandler, InputHandler, ModelRole, RestoreHandler, SpawnHandler,
-    ThinkHandler, TouchHandler,
+    ClassComponent, ClassDef, ClassRegistry, ComponentDecl, DamageHandler, InputHandler, ModelRole,
+    RestoreHandler, SpawnHandler, ThinkHandler, TouchHandler,
 };
 pub use schema::{
     ClassKind, ClassSpec, HelperKind, HelperSpec, IoSpec, KeyKind, KeySpec, Schema, SchemaError,

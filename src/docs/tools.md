@@ -818,7 +818,7 @@ kerosene-tools alchemy build content
 kerosene-tools alchemy info materials/dev/grid.ktex
 ```
 
-Compiles PNG/JPEG/TGA into `.ktex` and authors `.kmat` materials.
+Compiles PNG/JPEG/TGA into `.ktex`, authors `.kmat` materials, and compiles them to the `.kmat_c` the engine loads.
 
 `new-texture` is the deliberate way to add one. It makes a folder under
 `content/textures/`, copies the images in under canonical names, and writes the

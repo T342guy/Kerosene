@@ -23,9 +23,9 @@ fn the_base_content_mounts_and_holds_what_the_engine_asks_for_by_default() {
         "ui/hud.kui",
         "ui/menus/pause.kui",
         "scripts/kerosene.ksnd",
-        "materials/dev/grid.kmat",
+        "materials/dev/grid.kmat_c",
         "materials/dev/grid.ktex",
-        "materials/tools/nodraw.kmat",
+        "materials/tools/nodraw.kmat_c",
         "maps/kerosene_room.kbsp",
         "models/props/cube.kmdl",
     ] {
@@ -34,6 +34,29 @@ fn the_base_content_mounts_and_holds_what_the_engine_asks_for_by_default() {
     let mut vfs = Vfs::new();
     mount(&mut vfs);
     assert!(vfs.exists("ui/hud.kui"));
+}
+
+#[test]
+fn every_base_material_is_compiled_and_loads() {
+    let archive = Archive::from_static(BASE_VAULT, "base").unwrap();
+    let names: Vec<String> = archive
+        .entries()
+        .iter()
+        .filter_map(|e| {
+            let name = e.path.strip_prefix("materials/")?.strip_suffix(".kmat_c")?;
+            Some(name.to_string())
+        })
+        .collect();
+    assert!(names.len() > 10, "{names:?}");
+    assert!(
+        !archive.entries().iter().any(|e| e.path.ends_with(".kmat")),
+        "material sources are not shipped"
+    );
+    let mut vfs = Vfs::new();
+    mount(&mut vfs);
+    for name in names {
+        kerosene_asset::Material::load(&vfs, &name).unwrap_or_else(|e| panic!("{e}"));
+    }
 }
 
 #[test]

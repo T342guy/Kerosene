@@ -185,7 +185,8 @@ pub fn run(args: Vec<String>) -> Result<()> {
             translucent,
             extra,
         } => {
-            let out = output.unwrap_or_else(|| PathBuf::from(kerosene_asset::material_path(&name)));
+            let out = output
+                .unwrap_or_else(|| PathBuf::from(kerosene_asset::material_source_path(&name)));
             write_material(
                 &name,
                 &out,

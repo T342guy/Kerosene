@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
+use bevy_reflect::std_traits::ReflectDefault;
 use glam::{Mat3, Quat, Vec3};
 use std::fmt;
 
@@ -12,7 +13,8 @@ use std::fmt;
 /// The inverted pitch is a Quake inheritance. It is preserved deliberately:
 /// every `.kmap` angle key, every entity `angles` value and every recorded
 /// view angle in the wild assumes it.
-#[derive(Clone, Copy, PartialEq, Default)]
+#[derive(Clone, Copy, PartialEq, Default, bevy_reflect::Reflect)]
+#[reflect(Clone, PartialEq, Default)]
 pub struct Angles {
     /// Up and down, in degrees. Positive looks down.
     pub pitch: f32,

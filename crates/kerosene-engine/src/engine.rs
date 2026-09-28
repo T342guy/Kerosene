@@ -298,6 +298,9 @@ pub struct Engine {
     /// Sound. The mixer runs whether or not a device opened.
     pub audio: crate::audio::AudioSystem,
     pub(crate) vfs: Arc<Vfs>,
+    /// Compiled resources read through `vfs`, cached by path. Emptied of
+    /// whatever nothing holds on every map load.
+    pub(crate) resources: kerosene_resource::Resources,
     pub(crate) level: Option<Level>,
     pub entities: EntityWorld,
     /// The classes every entity world is built with: the game's, asked for
@@ -585,6 +588,7 @@ impl Engine {
                 crate::audio::AudioSystem::silent()
             },
             vfs,
+            resources: kerosene_resource::Resources::new(),
             level: None,
             entities,
             registry,
@@ -716,7 +720,7 @@ impl Engine {
                 let model = e.brush_model?;
                 // A disabled `func_brush` or `func_wall_toggle` is not
                 // there to see, as it is not there to walk into.
-                if model == 0 || e.fields.bool("disabled", false) {
+                if model == 0 || self.entities.keyvalue_bool(e.id, "disabled", false) {
                     return None;
                 }
                 Some((
@@ -742,7 +746,7 @@ impl Engine {
             .iter()
             .filter_map(|e| {
                 let model = e.brush_model?;
-                if model == 0 || e.fields.bool("disabled", false) {
+                if model == 0 || self.entities.keyvalue_bool(e.id, "disabled", false) {
                     return None;
                 }
                 let (prev_origin, prev_angles) = self
@@ -874,6 +878,7 @@ impl Engine {
             nav,
         });
         self.load_generation += 1;
+        self.resources.collect();
         // Before the entities' spawn requests are taken: an `infodecal`
         // places its decal there, and clearing the old map's after would
         // take the new one with them.
@@ -1654,17 +1659,11 @@ impl Engine {
             // Gathered before the touch update, because a `trigger_once`
             // removes itself in there and would otherwise deal nothing on the
             // tick it fired.
-            let live = !self
-                .entities
-                .get(id)
-                .is_some_and(|e| e.fields.bool("disabled", false));
+            let live = !self.entities.keyvalue_bool(id, "disabled", false);
             // The player's own arrival, kept apart from `occupied`, which a
             // prop may have set first: a teleporter a crate is sitting in
             // still takes the player who walks in.
-            let was = self
-                .entities
-                .get(id)
-                .is_some_and(|e| e.fields.bool("player_inside", false));
+            let was = self.entities.keyvalue_bool(id, "player_inside", false);
             if inside && live {
                 hurt += crate::triggers::hurt_per_second(&self.entities, id) * dt;
                 if !was {
@@ -1673,11 +1672,9 @@ impl Engine {
             }
             // Left alone while disabled, as `occupied` is, so enabling a
             // trigger around the player sets it off.
-            if live
-                && inside != was
-                && let Some(e) = self.entities.get_mut(id)
-            {
-                e.fields.set("player_inside", Value::Bool(inside));
+            if live && inside != was {
+                self.entities
+                    .set_keyvalue(id, "player_inside", Value::Bool(inside));
             }
             // A trigger flagged for physics objects (spawnflag 8, as Source
             // numbers it) notices a prop too: its outputs fire as the first
@@ -1842,11 +1839,11 @@ impl Engine {
         if name.is_empty() {
             return None;
         }
-        let text = self
-            .vfs
-            .read_string(&kerosene_asset::material_path(name))
-            .ok()?;
-        let material = kerosene_asset::Material::parse(&text).ok()?;
+        let source = kerosene_asset::WithMaterialSources(&*self.vfs);
+        let material = self
+            .resources
+            .load::<kerosene_asset::Material>(&source, &kerosene_asset::material_path(name))
+            .get()?;
         Some(material.surface_type())
     }
 

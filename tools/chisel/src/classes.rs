@@ -78,8 +78,9 @@ pub fn load(content_root: &Path) -> Loaded {
 /// tree can still override a class of the game's the same way it can one
 /// of the engine's.
 pub fn load_with(content_root: &Path, builtin: &[&str]) -> Loaded {
+    // The game's text with its components' keys added: what the game reads.
     let mut schema = match Schema::parse(kerosene_game::schema::BUILTIN) {
-        Ok(schema) => schema,
+        Ok(schema) => schema.with_component_keys(&kerosene_game::registry()),
         Err(e) => {
             return Loaded {
                 schema: Schema::default(),

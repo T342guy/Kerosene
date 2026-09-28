@@ -17,6 +17,19 @@
 //! The text is the `.kdef` format described in `docs/formats.md`, kept as
 //! data rather than constructed in code so it stays readable and reviewable.
 
+/// The schema Chisel shows: [`BUILTIN`], with every key the game's
+/// components declare that the text does not already give.
+///
+/// The text says what only text can -- a class's help, its inputs and
+/// outputs, and how a key is worded for that class; a key's type and
+/// default come from the component, and `kerosene_entity::schema::check`
+/// holds any the text repeats to what the component says.
+pub fn schema() -> kerosene_entity::Schema {
+    kerosene_entity::Schema::parse(BUILTIN)
+        .expect("the built-in schema parses; a test sees to it")
+        .with_component_keys(&crate::registry())
+}
+
 /// The shipped entity schema, in `.kdef` text form.
 ///
 /// Parsed with `kerosene_entity::Schema::parse`. This is the canonical copy:
@@ -484,7 +497,6 @@ class
     "kind" "brush"
     "base" "Entity" "base" "Switchable" "base" "Trigger"
     "help" "Damages whatever is standing in it."
-    key { "name" "damage" "label" "Damage per second" "type" "float" "default" "10" }
 }
 
 class
@@ -493,10 +505,6 @@ class
     "kind" "brush"
     "base" "Entity" "base" "Switchable" "base" "Trigger"
     "help" "Shoves whatever enters it. An impulse on the way in, not a force while inside, so a launch pad throws you and a player can still walk back out of one."
-    key { "name" "pushdir" "label" "Push direction" "type" "vec3" "default" "0 0 1"
-          "help" "Normalised. 0 0 1 throws straight up." }
-    key { "name" "speed" "label" "Speed" "type" "float" "default" "400"
-          "help" "Units per second added along the push direction." }
 }
 
 class
@@ -505,8 +513,6 @@ class
     "kind" "brush"
     "base" "Entity" "base" "Switchable" "base" "Trigger"
     "help" "Moves whatever enters it to the entity it targets. The view is left alone -- you arrive facing the way you were going."
-    key { "name" "target" "label" "Destination" "type" "target_destination"
-          "help" "The targetname of an info_target, or anything else with a position." }
     helper { "type" "line" "key" "target" }
 }
 
@@ -516,10 +522,6 @@ class
     "kind" "brush"
     "base" "Entity" "base" "Switchable" "base" "Trigger"
     "help" "Moves the player to another map when they walk in, keeping their health and whatever the game carries -- an inventory, say. With a landmark, they arrive where they stood relative to it, so a corridor that crosses the seam is walked straight through."
-    key { "name" "map" "label" "Map" "type" "string"
-          "help" "The map to go to, by name: kero_start, not maps/kero_start.kbsp." }
-    key { "name" "landmark" "label" "Landmark" "type" "target_destination"
-          "help" "The targetname of an info_landmark placed at the same spot in both maps. Empty starts the player at the next map's spawn point." }
     input { "name" "ChangeLevel" "help" "Go now, whether or not the player is inside." }
     helper { "type" "line" "key" "landmark" }
 }
@@ -538,8 +540,6 @@ class
     "name" "logic_autosave"
     "base" "Entity" "base" "Point"
     "help" "A checkpoint: saves the game when told to. Wire a trigger_once to its Save input."
-    key { "name" "savename" "label" "Save name" "type" "string" "default" "auto"
-          "help" "The name the save is written under. Letters, digits, - and _." }
     input { "name" "Save" "help" "Save the game now." }
 }
 
@@ -561,8 +561,6 @@ class
     "name" "logic_branch"
     "base" "Entity" "base" "Point"
     "help" "Remembers a yes or no, and fires one of two outputs depending on which it is. The way a map says \"otherwise\": everything else here fires a list, this one chooses."
-    key { "name" "initialvalue" "label" "Starts true" "type" "bool" "default" "0"
-          "help" "What it remembers before anything sets it." }
     input  { "name" "SetValue" "parameter" "0 or 1"
              "help" "Remember this, without testing it yet." }
     input  { "name" "SetValueTest" "parameter" "0 or 1"
@@ -587,8 +585,6 @@ class
     "name" "logic_timer"
     "base" "Entity" "base" "Point" "base" "Switchable"
     "help" "Fires on a repeating interval."
-    key { "name" "refiretime" "label" "Interval" "type" "float" "default" "1"
-          "help" "Seconds between firings." }
     output { "name" "OnTimer" }
 }
 
@@ -597,9 +593,6 @@ class
     "name" "math_counter"
     "base" "Entity" "base" "Point"
     "help" "Counts, clamps, and fires when it reaches a limit. The usual way to build 'do this after three of those'."
-    key { "name" "startvalue" "label" "Starting value" "type" "float" "default" "0" }
-    key { "name" "min" "label" "Minimum" "type" "float" "help" "Left blank, there is no minimum." }
-    key { "name" "max" "label" "Maximum" "type" "float" "help" "Left blank, there is no maximum." }
     input  { "name" "Add"      "parameter" "amount (default 1)" }
     input  { "name" "Subtract" "parameter" "amount (default 1)" }
     input  { "name" "SetValue" "parameter" "new value" }
@@ -681,7 +674,6 @@ class
     "name" "point_message"
     "base" "Entity" "base" "Point"
     "help" "Prints to the console. Useful while building a level and wiring it up."
-    key { "name" "message" "label" "Text" "type" "string" }
     input  { "name" "Show" }
     input  { "name" "Display" "help" "The same as Show." }
     output { "name" "OnShowMessage" }
@@ -803,10 +795,6 @@ class
     "kind" "brush"
     "base" "Entity"
     "help" "A brush with health: glass, a crate, a boarded window. Shoot it, or fire Break, and it is gone."
-    key { "name" "health" "label" "Health" "type" "float" "default" "1"
-          "help" "How much damage it takes to break. 0 breaks only when told." }
-    key { "name" "breaksound" "label" "Break sound" "type" "string" "default" ""
-          "help" "A sound to play as it breaks." }
     key {
         "name" "spawnflags" "label" "Flags" "type" "flags" "default" "0"
         choice { "value" "1" "label" "Break on trigger only" }
@@ -839,11 +827,6 @@ class
     "name" "point_hurt"
     "base" "Entity" "base" "Point"
     "help" "Hurts the player near it: once when told, or every so often while on. Less the further away they are."
-    key { "name" "damage" "label" "Damage" "type" "float" "default" "10" }
-    key { "name" "damageradius" "label" "Radius" "type" "float" "default" "256"
-          "help" "Full damage at the centre, none at the edge. 0 reaches everywhere." }
-    key { "name" "damagedelay" "label" "Interval" "type" "float" "default" "0.5"
-          "help" "Seconds between hurts while on." }
     key {
         "name" "spawnflags" "label" "Flags" "type" "flags" "default" "0"
         choice { "value" "1" "label" "Start on" }
@@ -870,9 +853,6 @@ class
     "name" "item_healthkit"
     "base" "Entity" "base" "Point"
     "help" "Heals the player who walks into it, and goes. A player at full health leaves it where it is."
-    key { "name" "health" "label" "Health given" "type" "float" "default" "25" }
-    key { "name" "touch_size" "label" "Touch size" "type" "float" "default" "32"
-          "help" "How big a cube around it the player has to walk into." }
     output { "name" "OnPlayerHealed" "help" "The parameter is how much." }
     output { "name" "OnHealthFull" "help" "Walked into at full health." }
 }
@@ -882,8 +862,6 @@ class
     "name" "item_generic"
     "base" "Entity" "base" "Point"
     "help" "Anything else a player picks up -- a key, a note, ammunition for a game's own weapons: fires OnPlayerTouch when walked into, and goes."
-    key { "name" "touch_size" "label" "Touch size" "type" "float" "default" "32"
-          "help" "How big a cube around it the player has to walk into." }
     key {
         "name" "spawnflags" "label" "Flags" "type" "flags" "default" "0"
         choice { "value" "1" "label" "Stay after pickup" }

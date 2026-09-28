@@ -11,7 +11,7 @@
 //! | Format  | Extension | Analogue in Source | Built by |
 //! |---------|-----------|--------------------|----------|
 //! | Texture | `.ktex`   | VTF                | Alchemy  |
-//! | Material| `.kmat`   | VMT                | Alchemy  |
+//! | Material| `.kmat_c` | VMT                | Alchemy  |
 //! | Model   | `.kmdl`   | MDL                | Forge    |
 //!
 //! Textures have two source forms. A loose image under `art/` compiles to one
@@ -30,7 +30,7 @@ pub mod textureset;
 
 pub use material::{
     ACOUSTIC_BANDS_HZ, AcousticProfile, MAX_ABSORPTION, Material, MaterialError, Shader,
-    SurfaceProperty,
+    SurfaceProperty, WithMaterialSources,
 };
 pub use model::{Animation, Bone, BoneKey, MAX_BONES, Mesh, Model, ModelError, Vertex};
 pub use texture::{Mip, PixelFormat, Texture, TextureError, TextureFlags};
@@ -42,18 +42,29 @@ pub use textureset::{MapKind, TextureSet};
 pub mod ext {
     pub const TEXTURE: &str = "ktex";
     pub const MATERIAL: &str = "kmat";
+    pub const MATERIAL_COMPILED: &str = "kmat_c";
     pub const MODEL: &str = "kmdl";
     pub const MAP_SOURCE: &str = "kmap";
     pub const MAP_COMPILED: &str = "kbsp";
     pub const ARCHIVE: &str = "vault";
 }
 
-/// Where a material lives, given the name geometry refers to it by.
+/// Where a compiled material lives, given the name geometry refers to it by.
 ///
-/// Brush faces store `dev/grid`; the file is `materials/dev/grid.kmat`. The
-/// prefix and extension are added here rather than being written into every
-/// map, so content can be reorganised without rewriting geometry.
+/// Brush faces store `dev/grid`; the file is `materials/dev/grid.kmat_c`.
+/// The prefix and extension are added here rather than being written into
+/// every map, so content can be reorganised without rewriting geometry.
 pub fn material_path(name: &str) -> String {
+    format!(
+        "materials/{}.{}",
+        name.trim_start_matches('/'),
+        ext::MATERIAL_COMPILED
+    )
+}
+
+/// Where a material's source lives: `materials/dev/grid.kmat`. For the tools,
+/// which edit and compile it; the runtime loads [`material_path`].
+pub fn material_source_path(name: &str) -> String {
     format!(
         "materials/{}.{}",
         name.trim_start_matches('/'),
@@ -86,14 +97,15 @@ mod tests {
 
     #[test]
     fn asset_names_resolve_to_paths() {
-        assert_eq!(material_path("dev/grid"), "materials/dev/grid.kmat");
+        assert_eq!(material_path("dev/grid"), "materials/dev/grid.kmat_c");
+        assert_eq!(material_source_path("dev/grid"), "materials/dev/grid.kmat");
         assert_eq!(texture_path("dev/grid"), "materials/dev/grid.ktex");
         assert_eq!(model_path("props/crate"), "models/props/crate.kmdl");
     }
 
     #[test]
     fn a_leading_slash_does_not_produce_a_doubled_path() {
-        assert_eq!(material_path("/dev/grid"), "materials/dev/grid.kmat");
+        assert_eq!(material_path("/dev/grid"), "materials/dev/grid.kmat_c");
     }
 
     #[test]
