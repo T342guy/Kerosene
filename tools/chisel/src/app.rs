@@ -21,6 +21,7 @@ use egui::{Context, Key, Modifiers, RichText};
 use kerosene_entity::{ClassKind, KeyKind, Schema};
 use kerosene_map::{Connection, EditorData, ObjectId, WalkmapRule};
 use kerosene_math::Vec3;
+use kerosene_rhi::wgpu;
 use std::path::PathBuf;
 
 mod browser;

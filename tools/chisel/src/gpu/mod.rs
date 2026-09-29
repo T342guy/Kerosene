@@ -24,6 +24,7 @@
 
 pub mod scene;
 
+use kerosene_rhi::wgpu;
 use scene::{Batch, LineVertex, Scene, Vertex};
 use std::collections::HashMap;
 use std::sync::Arc;

@@ -8,8 +8,8 @@ use crate::{
     MaterialBindings, MaterialMode, MaterialUniform,
 };
 use kerosene_asset::{MapKind, Material};
-use kerosene_vfs::Vfs;
 use kerosene_rhi::wgpu::util::DeviceExt;
+use kerosene_vfs::Vfs;
 
 /// The 1x1 textures that stand in for maps a material does not have.
 ///

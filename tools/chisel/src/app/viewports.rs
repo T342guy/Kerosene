@@ -3,6 +3,7 @@
 
 use super::*;
 use kerosene_math::Quat;
+use kerosene_rhi::wgpu;
 use kerosene_toolui::theme::{self, colors, icons};
 use kerosene_toolui::widgets;
 

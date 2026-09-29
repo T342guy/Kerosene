@@ -13,6 +13,7 @@
 //! looking at a layout change without opening a window, and for attaching
 //! to a bug report.
 use anyhow::{Context, Result};
+use kerosene_rhi::wgpu;
 
 fn main() -> Result<()> {
     let mut args: Vec<String> = std::env::args().skip(1).collect();

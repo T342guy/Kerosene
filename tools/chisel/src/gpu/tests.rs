@@ -3,6 +3,7 @@ use super::*;
 use crate::document::Document;
 use crate::draw::colors;
 use kerosene_math::{Aabb, Angles};
+use kerosene_rhi::wgpu;
 
 /// Where a world point lands in normalised device coordinates.
 fn ndc(m: Mat4, p: Vec3) -> Vec3 {

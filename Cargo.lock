@@ -1843,11 +1843,11 @@ dependencies = [
  "kerosene-map",
  "kerosene-math",
  "kerosene-render",
+ "kerosene-rhi",
  "kerosene-toolui",
  "kerosene-vfs",
  "log",
  "pollster",
- "wgpu",
 ]
 
 [[package]]
@@ -2217,6 +2217,7 @@ dependencies = [
  "kerosene-map",
  "kerosene-radiance",
  "kerosene-resonance",
+ "kerosene-rhi",
  "kerosene-timbre",
  "kerosene-toolui",
  "kerosene-umbra",
@@ -2225,7 +2226,6 @@ dependencies = [
  "log",
  "pollster",
  "steamworks",
- "wgpu",
 ]
 
 [[package]]

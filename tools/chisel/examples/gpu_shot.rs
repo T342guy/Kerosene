@@ -10,6 +10,7 @@
 //! rasteriser's equivalent.
 use anyhow::{Context, Result};
 use kerosene_math::{Angles, Vec3};
+use kerosene_rhi::wgpu;
 
 fn main() -> Result<()> {
     let mut args: Vec<String> = std::env::args().skip(1).collect();

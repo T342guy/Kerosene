@@ -24,9 +24,9 @@ pub use kerosene_material::{
 };
 use kerosene_material::{NeutralMaps, fallback_texture, load_material_maps, upload_rgba_format};
 use kerosene_math::{Mat4, Pose, Vec3};
+use kerosene_rhi::wgpu::util::DeviceExt;
 use kerosene_vfs::Vfs;
 use std::collections::HashMap;
-use kerosene_rhi::wgpu::util::DeviceExt;
 
 mod decals;
 mod draw;

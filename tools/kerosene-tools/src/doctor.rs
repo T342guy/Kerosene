@@ -7,6 +7,7 @@
 //! something is wrong, what to do. Nothing is changed.
 
 use anyhow::Result;
+use kerosene_rhi::wgpu;
 use std::process::Command;
 
 /// What one check found.

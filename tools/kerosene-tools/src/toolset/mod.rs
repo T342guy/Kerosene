@@ -18,6 +18,7 @@ mod commands;
 mod sidebar;
 mod topbar;
 
+use kerosene_rhi::wgpu;
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;

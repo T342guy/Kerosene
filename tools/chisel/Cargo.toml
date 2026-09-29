@@ -46,7 +46,7 @@ glam.workspace = true
 egui.workspace = true
 # The 3D pane renders through the device the toolset's window already has.
 egui-wgpu.workspace = true
-wgpu.workspace = true
+kerosene-rhi.workspace = true
 bytemuck.workspace = true
 image.workspace = true
 

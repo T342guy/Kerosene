@@ -12,6 +12,7 @@
 //! attaching to a bug report.
 
 use anyhow::{Context, Result, bail};
+use kerosene_rhi::wgpu;
 use kerosene_tools::{Action, Launch, Tab, Toolset};
 use kerosene_toolui::App as _;
 

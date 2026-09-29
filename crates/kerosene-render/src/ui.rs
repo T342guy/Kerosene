@@ -21,10 +21,10 @@ use crate::gpu::{DEPTH_FORMAT, HDR_FORMAT};
 use bytemuck::{Pod, Zeroable};
 use kerosene_material::load_texture;
 use kerosene_math::{Mat4, Vec3};
+use kerosene_rhi::wgpu::util::DeviceExt;
 use kerosene_scene::{ATLAS_SIZE, DisplayList, DrawItem, Images, TextureRef};
 use kerosene_vfs::Vfs;
 use std::collections::HashMap;
-use kerosene_rhi::wgpu::util::DeviceExt;
 
 /// Format of a world panel's texture.
 pub const PANEL_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8UnormSrgb;
