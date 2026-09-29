@@ -149,7 +149,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-kerosene = { version = "1.0.0-a3", default-features = false }
+kerosene = { version = "1.0.0-a4", default-features = false }
 
 [features]
 default = ["audio"]

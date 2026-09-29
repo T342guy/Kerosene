@@ -11,6 +11,8 @@ with what to do about them.
 
 ## [Unreleased]
 
+## [1.0.0-a4] - 2026-09-28
+
 ### Added
 - The toolset window is rebuilt around a sidebar of seven tabs -- Home,
   Assets, Editor, Models, Sound, Build, Archive (`ctrl-1`..`ctrl-7`) -- a top
@@ -509,7 +511,8 @@ The first version numbered by the `kerosene` crate's API.
   shading and shadow maps, HDR, MSAA, GGX/metalness shading and cubemap
   probes.
 
-[Unreleased]: https://github.com/t342guy/kerosene/compare/1.0.0-a3...HEAD
+[Unreleased]: https://github.com/t342guy/kerosene/compare/1.0.0-a4...HEAD
+[1.0.0-a4]: https://github.com/t342guy/kerosene/compare/1.0.0-a3...1.0.0-a4
 [1.0.0-a3]: https://github.com/t342guy/kerosene/compare/1.0.0-a2...1.0.0-a3
 [1.0.0-a2]: https://github.com/t342guy/kerosene/compare/1.0.0-a1...1.0.0-a2
 [1.0.0-a1]: https://github.com/t342guy/kerosene/releases/tag/1.0.0-a1

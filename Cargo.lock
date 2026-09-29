@@ -1726,7 +1726,7 @@ dependencies = [
 
 [[package]]
 name = "kerosene"
-version = "1.0.0-a3"
+version = "1.0.0-a4"
 dependencies = [
  "anyhow",
  "egui",
@@ -1763,7 +1763,7 @@ dependencies = [
 
 [[package]]
 name = "kerosene-alchemy"
-version = "1.0.0-a3"
+version = "1.0.0-a4"
 dependencies = [
  "anyhow",
  "clap",
@@ -1779,7 +1779,7 @@ dependencies = [
 
 [[package]]
 name = "kerosene-anim"
-version = "1.0.0-a3"
+version = "1.0.0-a4"
 dependencies = [
  "kerosene-asset",
  "kerosene-math",
@@ -1787,7 +1787,7 @@ dependencies = [
 
 [[package]]
 name = "kerosene-asset"
-version = "1.0.0-a3"
+version = "1.0.0-a4"
 dependencies = [
  "anyhow",
  "bytemuck",
@@ -1801,7 +1801,7 @@ dependencies = [
 
 [[package]]
 name = "kerosene-audio"
-version = "1.0.0-a3"
+version = "1.0.0-a4"
 dependencies = [
  "cpal",
  "kerosene-kv",
@@ -1812,7 +1812,7 @@ dependencies = [
 
 [[package]]
 name = "kerosene-bsp"
-version = "1.0.0-a3"
+version = "1.0.0-a4"
 dependencies = [
  "anyhow",
  "bytemuck",
@@ -1826,7 +1826,7 @@ dependencies = [
 
 [[package]]
 name = "kerosene-chisel"
-version = "1.0.0-a3"
+version = "1.0.0-a4"
 dependencies = [
  "anyhow",
  "bytemuck",
@@ -1852,7 +1852,7 @@ dependencies = [
 
 [[package]]
 name = "kerosene-cleave"
-version = "1.0.0-a3"
+version = "1.0.0-a4"
 dependencies = [
  "anyhow",
  "clap",
@@ -1872,7 +1872,7 @@ dependencies = [
 
 [[package]]
 name = "kerosene-config"
-version = "1.0.0-a3"
+version = "1.0.0-a4"
 dependencies = [
  "kerosene-kv",
  "log",
@@ -1881,7 +1881,7 @@ dependencies = [
 
 [[package]]
 name = "kerosene-console"
-version = "1.0.0-a3"
+version = "1.0.0-a4"
 dependencies = [
  "log",
  "thiserror 2.0.20",
@@ -1890,7 +1890,7 @@ dependencies = [
 
 [[package]]
 name = "kerosene-ecs"
-version = "1.0.0-a3"
+version = "1.0.0-a4"
 dependencies = [
  "bevy_ecs",
  "kerosene-reflect",
@@ -1898,7 +1898,7 @@ dependencies = [
 
 [[package]]
 name = "kerosene-engine"
-version = "1.0.0-a3"
+version = "1.0.0-a4"
 dependencies = [
  "anyhow",
  "bytemuck",
@@ -1940,7 +1940,7 @@ dependencies = [
 
 [[package]]
 name = "kerosene-entity"
-version = "1.0.0-a3"
+version = "1.0.0-a4"
 dependencies = [
  "anyhow",
  "glam",
@@ -1956,7 +1956,7 @@ dependencies = [
 
 [[package]]
 name = "kerosene-forge"
-version = "1.0.0-a3"
+version = "1.0.0-a4"
 dependencies = [
  "anyhow",
  "bytemuck",
@@ -1973,7 +1973,7 @@ dependencies = [
 
 [[package]]
 name = "kerosene-game"
-version = "1.0.0-a3"
+version = "1.0.0-a4"
 dependencies = [
  "glam",
  "kerosene-ecs",
@@ -1986,7 +1986,7 @@ dependencies = [
 
 [[package]]
 name = "kerosene-kiln"
-version = "1.0.0-a3"
+version = "1.0.0-a4"
 dependencies = [
  "anyhow",
  "clap",
@@ -2000,7 +2000,7 @@ dependencies = [
 
 [[package]]
 name = "kerosene-kv"
-version = "1.0.0-a3"
+version = "1.0.0-a4"
 dependencies = [
  "kerosene-math",
  "thiserror 2.0.20",
@@ -2008,7 +2008,7 @@ dependencies = [
 
 [[package]]
 name = "kerosene-loupe"
-version = "1.0.0-a3"
+version = "1.0.0-a4"
 dependencies = [
  "egui",
  "kerosene-asset",
@@ -2019,7 +2019,7 @@ dependencies = [
 
 [[package]]
 name = "kerosene-map"
-version = "1.0.0-a3"
+version = "1.0.0-a4"
 dependencies = [
  "anyhow",
  "glam",
@@ -2032,7 +2032,7 @@ dependencies = [
 
 [[package]]
 name = "kerosene-material"
-version = "1.0.0-a3"
+version = "1.0.0-a4"
 dependencies = [
  "bytemuck",
  "kerosene-asset",
@@ -2043,7 +2043,7 @@ dependencies = [
 
 [[package]]
 name = "kerosene-math"
-version = "1.0.0-a3"
+version = "1.0.0-a4"
 dependencies = [
  "bevy_reflect",
  "bytemuck",
@@ -2052,7 +2052,7 @@ dependencies = [
 
 [[package]]
 name = "kerosene-physics"
-version = "1.0.0-a3"
+version = "1.0.0-a4"
 dependencies = [
  "box3d-rust",
  "glam",
@@ -2063,7 +2063,7 @@ dependencies = [
 
 [[package]]
 name = "kerosene-platform"
-version = "1.0.0-a3"
+version = "1.0.0-a4"
 dependencies = [
  "log",
  "steamworks",
@@ -2071,7 +2071,7 @@ dependencies = [
 
 [[package]]
 name = "kerosene-radiance"
-version = "1.0.0-a3"
+version = "1.0.0-a4"
 dependencies = [
  "anyhow",
  "clap",
@@ -2086,7 +2086,7 @@ dependencies = [
 
 [[package]]
 name = "kerosene-reflect"
-version = "1.0.0-a3"
+version = "1.0.0-a4"
 dependencies = [
  "bevy_reflect",
  "kerosene-math",
@@ -2094,7 +2094,7 @@ dependencies = [
 
 [[package]]
 name = "kerosene-render"
-version = "1.0.0-a3"
+version = "1.0.0-a4"
 dependencies = [
  "anyhow",
  "bytemuck",
@@ -2115,7 +2115,7 @@ dependencies = [
 
 [[package]]
 name = "kerosene-resonance"
-version = "1.0.0-a3"
+version = "1.0.0-a4"
 dependencies = [
  "anyhow",
  "clap",
@@ -2133,7 +2133,7 @@ dependencies = [
 
 [[package]]
 name = "kerosene-resource"
-version = "1.0.0-a3"
+version = "1.0.0-a4"
 dependencies = [
  "kerosene-vfs",
  "log",
@@ -2142,7 +2142,7 @@ dependencies = [
 
 [[package]]
 name = "kerosene-rhi"
-version = "1.0.0-a3"
+version = "1.0.0-a4"
 dependencies = [
  "kerosene-config",
  "log",
@@ -2151,7 +2151,7 @@ dependencies = [
 
 [[package]]
 name = "kerosene-runtime"
-version = "1.0.0-a3"
+version = "1.0.0-a4"
 dependencies = [
  "anyhow",
  "kerosene",
@@ -2159,7 +2159,7 @@ dependencies = [
 
 [[package]]
 name = "kerosene-scene"
-version = "1.0.0-a3"
+version = "1.0.0-a4"
 dependencies = [
  "bytemuck",
  "glam",
@@ -2170,7 +2170,7 @@ dependencies = [
 
 [[package]]
 name = "kerosene-script"
-version = "1.0.0-a3"
+version = "1.0.0-a4"
 dependencies = [
  "kerosene-math",
  "kerosene-platform",
@@ -2182,7 +2182,7 @@ dependencies = [
 
 [[package]]
 name = "kerosene-timbre"
-version = "1.0.0-a3"
+version = "1.0.0-a4"
 dependencies = [
  "anyhow",
  "clap",
@@ -2198,7 +2198,7 @@ dependencies = [
 
 [[package]]
 name = "kerosene-tools"
-version = "1.0.0-a3"
+version = "1.0.0-a4"
 dependencies = [
  "anyhow",
  "clap",
@@ -2230,7 +2230,7 @@ dependencies = [
 
 [[package]]
 name = "kerosene-toolui"
-version = "1.0.0-a3"
+version = "1.0.0-a4"
 dependencies = [
  "anyhow",
  "egui",
@@ -2246,7 +2246,7 @@ dependencies = [
 
 [[package]]
 name = "kerosene-ui"
-version = "1.0.0-a3"
+version = "1.0.0-a4"
 dependencies = [
  "ab_glyph",
  "epaint_default_fonts",
@@ -2261,7 +2261,7 @@ dependencies = [
 
 [[package]]
 name = "kerosene-umbra"
-version = "1.0.0-a3"
+version = "1.0.0-a4"
 dependencies = [
  "anyhow",
  "clap",
@@ -2276,7 +2276,7 @@ dependencies = [
 
 [[package]]
 name = "kerosene-vault"
-version = "1.0.0-a3"
+version = "1.0.0-a4"
 dependencies = [
  "anyhow",
  "clap",
@@ -2287,7 +2287,7 @@ dependencies = [
 
 [[package]]
 name = "kerosene-vfs"
-version = "1.0.0-a3"
+version = "1.0.0-a4"
 dependencies = [
  "anyhow",
  "kerosene-kv",
@@ -2297,7 +2297,7 @@ dependencies = [
 
 [[package]]
 name = "kerosene-walk"
-version = "1.0.0-a3"
+version = "1.0.0-a4"
 dependencies = [
  "kerosene-math",
  "thiserror 2.0.20",
@@ -2305,7 +2305,7 @@ dependencies = [
 
 [[package]]
 name = "kerosene-xtask"
-version = "1.0.0-a3"
+version = "1.0.0-a4"
 dependencies = [
  "anyhow",
  "serde_json",
