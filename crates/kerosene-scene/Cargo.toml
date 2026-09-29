@@ -17,5 +17,5 @@ categories.workspace = true
 kerosene-math.workspace = true
 kerosene-bsp.workspace = true
 glam.workspace = true
-bytemuck.workspace = true
+bytemuck = { workspace = true, features = ["min_const_generics"] }
 log.workspace = true

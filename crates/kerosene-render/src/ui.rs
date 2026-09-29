@@ -15,14 +15,16 @@
 //! Images are loaded here, not by the UI: [`UiRenderer::sync_images`] reads
 //! any `.ktex` the UI has asked for since the last frame and reports its
 //! size back, so `contain` and `cover` can fit it.
+use kerosene_rhi::wgpu;
 
-use crate::gpu::{DEPTH_FORMAT, HDR_FORMAT, load_texture};
+use crate::gpu::{DEPTH_FORMAT, HDR_FORMAT};
 use bytemuck::{Pod, Zeroable};
+use kerosene_material::load_texture;
 use kerosene_math::{Mat4, Vec3};
 use kerosene_scene::{ATLAS_SIZE, DisplayList, DrawItem, Images, TextureRef};
 use kerosene_vfs::Vfs;
 use std::collections::HashMap;
-use wgpu::util::DeviceExt;
+use kerosene_rhi::wgpu::util::DeviceExt;
 
 /// Format of a world panel's texture.
 pub const PANEL_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8UnormSrgb;

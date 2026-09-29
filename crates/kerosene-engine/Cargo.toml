@@ -40,7 +40,6 @@ bytemuck.workspace = true
 anyhow.workspace = true
 log.workspace = true
 winit.workspace = true
-wgpu.workspace = true
 pollster.workspace = true
 env_logger.workspace = true
 kerosene-script.workspace = true

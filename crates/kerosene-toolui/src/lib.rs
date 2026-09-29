@@ -32,6 +32,7 @@
 //! }
 //! kerosene_toolui::run("Hello", (1024, 768), Hello).unwrap();
 //! ```
+use kerosene_rhi::wgpu;
 
 pub mod output;
 pub mod palette;

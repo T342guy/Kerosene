@@ -1742,6 +1742,7 @@ dependencies = [
  "kerosene-game",
  "kerosene-kv",
  "kerosene-map",
+ "kerosene-material",
  "kerosene-math",
  "kerosene-physics",
  "kerosene-platform",
@@ -1934,7 +1935,6 @@ dependencies = [
  "pollster",
  "serde",
  "serde_json",
- "wgpu",
  "winit",
 ]
 
@@ -2031,6 +2031,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "kerosene-material"
+version = "1.0.0-a3"
+dependencies = [
+ "bytemuck",
+ "kerosene-asset",
+ "kerosene-rhi",
+ "kerosene-vfs",
+ "log",
+]
+
+[[package]]
 name = "kerosene-math"
 version = "1.0.0-a3"
 dependencies = [
@@ -2090,7 +2101,9 @@ dependencies = [
  "glam",
  "kerosene-asset",
  "kerosene-bsp",
+ "kerosene-material",
  "kerosene-math",
+ "kerosene-rhi",
  "kerosene-scene",
  "kerosene-ui",
  "kerosene-vfs",
@@ -2098,7 +2111,6 @@ dependencies = [
  "naga",
  "png",
  "pollster",
- "wgpu",
 ]
 
 [[package]]
@@ -2229,7 +2241,6 @@ dependencies = [
  "kerosene-rhi",
  "log",
  "pollster",
- "wgpu",
  "winit",
 ]
 

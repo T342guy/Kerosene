@@ -10,6 +10,7 @@
 //! A machine with no adapter at all -- a CI runner without even a software
 //! rasteriser -- skips rather than fails. Where there is one, a validation
 //! error panics inside wgpu and fails the test, which is the point.
+use kerosene_rhi::wgpu;
 
 use kerosene_bsp::cubemaps::FACES;
 use kerosene_bsp::{

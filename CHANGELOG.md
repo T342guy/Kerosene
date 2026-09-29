@@ -140,6 +140,15 @@ with what to do about them.
   `RigidWorld` is now `PhysicsWorld`. `kerosene::internals::rigid` is gone.
 - Device creation, surface configuration and frame read-back moved into
   `kerosene-rhi`.
+- New `kerosene-material` holds material loading and binding, out of
+  `kerosene-render`. `kerosene::internals::material` exposes it.
+- `PhysicsWorld` builds a map's world and mover bodies from a `Bsp`.
+- `kerosene-render`'s `gpu`, and the engine's `engine` and `host`, are split
+  into modules, and the host's frame is a handful of steps rather than one
+  function. No behaviour changed.
+- `render`, `material`, `engine` and `toolui` reach wgpu as
+  `kerosene_rhi::wgpu`; only `kerosene-rhi` depends on the crate, and
+  `cargo xtask layers` checks it.
 - **Entity classes are components.** `ClassDef::component` gives a class the
   components its entities carry; the stock game's classes keep their keys
   and state in them rather than in loose fields. Read a key with

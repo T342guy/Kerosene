@@ -47,6 +47,7 @@ const LAYERS: &[(&str, u8)] = &[
     ("kerosene-map", DATA),
     ("kerosene-scene", DATA),
     ("kerosene-rhi", DATA),
+    ("kerosene-material", DATA),
     ("kerosene-render", SUBSYSTEM),
     ("kerosene-physics", SUBSYSTEM),
     ("kerosene-anim", SUBSYSTEM),
@@ -104,6 +105,13 @@ const EXCEPTIONS: &[(&str, &str, &str)] = &[(
 /// never the source formats or the compilers that read them.
 const TOOLS_ONLY: &[&str] = &["kerosene-map"];
 
+/// Graphics API crates, which only `kerosene-rhi` may depend on. Everything
+/// else reaches them as `kerosene_rhi::wgpu`, so the API and its version are
+/// one crate's business.
+const RHI_ONLY: &[&str] = &["wgpu"];
+
+const RHI: &str = "kerosene-rhi";
+
 pub fn run(args: &[String]) -> Result<()> {
     if let Some(extra) = args.first() {
         bail!("`layers` takes no arguments (got {extra:?})");
@@ -157,7 +165,7 @@ fn workspace_edges() -> Result<BTreeMap<String, Vec<String>>> {
             // `kind` is null for normal dependencies, "build" or "dev" otherwise.
             .filter(|d| d["kind"].as_str() != Some("dev"))
             .filter_map(|d| d["name"].as_str())
-            .filter(|d| names.contains(d))
+            .filter(|d| names.contains(d) || RHI_ONLY.contains(d))
             .map(str::to_string)
             .collect();
         deps.sort();
@@ -180,6 +188,15 @@ fn check(edges: &BTreeMap<String, Vec<String>>) -> Vec<String> {
             continue;
         };
         for to in deps {
+            if RHI_ONLY.contains(&to.as_str()) {
+                if from != RHI {
+                    problems.push(format!(
+                        "{from} depends on {to}, which only {RHI} may: use `{}::{to}`",
+                        RHI.replace('-', "_")
+                    ));
+                }
+                continue;
+            }
             let Some(to_layer) = layer(to) else {
                 // Reported once, as its own crate.
                 continue;
@@ -255,6 +272,14 @@ mod tests {
         let g = graph(&[("kerosene-entity", &["kerosene-map"])]);
         let p = check(&g);
         assert!(p.iter().any(|p| p.contains("only the tools")), "{p:?}");
+    }
+
+    #[test]
+    fn only_the_rhi_may_link_the_graphics_api() {
+        let g = graph(&[("kerosene-rhi", &["wgpu"]), ("kerosene-render", &["wgpu"])]);
+        let p = check(&g);
+        assert_eq!(p.len(), 1, "{p:?}");
+        assert!(p[0].contains("kerosene-render") && p[0].contains("only kerosene-rhi"));
     }
 
     #[test]

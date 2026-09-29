@@ -14,13 +14,14 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
+kerosene-rhi.workspace = true
 kerosene-math.workspace = true
 kerosene-bsp.workspace = true
 kerosene-asset.workspace = true
 kerosene-vfs.workspace = true
 kerosene-scene.workspace = true
+kerosene-material.workspace = true
 glam.workspace = true
-wgpu.workspace = true
 bytemuck.workspace = true
 anyhow.workspace = true
 log.workspace = true

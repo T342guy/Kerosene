@@ -41,7 +41,7 @@ of a given version was built and tested together.
 **Not covered**, and free to change in a minor release:
 
 - `kerosene::internals`: `asset`, `audio`, `bsp`, `config`, `kv`, `map`,
-  `render` and `walk`, and `physics::rigid`. They are public because tools and ambitious
+  `material`, `render` and `walk`, and `physics::rigid`. They are public because tools and ambitious
   games need them, and they change as the engine does.
 - Anything `#[doc(hidden)]`, such as `Engine::level` and `Engine::physics`.
 - `kerosene::__k`, where the bundle keeps the workspace's crates. It is

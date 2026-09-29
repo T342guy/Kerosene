@@ -9,6 +9,8 @@
 //! It also configures the surface, and reads a finished frame back
 //! ([`Capture`]). The renderer's own pipelines move here as it is split up.
 
+pub use wgpu;
+
 pub mod capture;
 pub mod gpu;
 pub mod surface;

@@ -6,6 +6,7 @@
 //! a directory, it also draws the shipped HUD and pause menu at 1280x720 and
 //! writes them there as PNGs -- the quickest way to see a stylesheet change
 //! without starting the game.
+use kerosene_rhi::wgpu;
 
 use kerosene_render::ui::UiRenderer;
 use kerosene_ui::{Loader, UiStore, UiSystem};

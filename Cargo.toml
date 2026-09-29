@@ -10,6 +10,7 @@ members = [
     "crates/kerosene-vfs",
     "crates/kerosene-resource",
     "crates/kerosene-asset",
+    "crates/kerosene-material",
     "crates/kerosene-map",
     "crates/kerosene-bsp",
     "crates/kerosene-walk",
@@ -68,6 +69,7 @@ kerosene-ecs     = { version = "=1.0.0-a3", path = "crates/kerosene-ecs" }
 kerosene-vfs     = { version = "=1.0.0-a3", path = "crates/kerosene-vfs" }
 kerosene-resource = { version = "=1.0.0-a3", path = "crates/kerosene-resource" }
 kerosene-asset   = { version = "=1.0.0-a3", path = "crates/kerosene-asset" }
+kerosene-material = { version = "=1.0.0-a3", path = "crates/kerosene-material" }
 kerosene-map     = { version = "=1.0.0-a3", path = "crates/kerosene-map" }
 kerosene-bsp     = { version = "=1.0.0-a3", path = "crates/kerosene-bsp" }
 kerosene-walk    = { version = "=1.0.0-a3", path = "crates/kerosene-walk" }

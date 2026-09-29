@@ -33,6 +33,7 @@
 // stable API. See src/docs/versioning.md.
 #![warn(missing_docs)]
 
+mod brushes;
 mod movement;
 // Box3D props. Outside the SemVer promise, and undocumented item by item.
 #[allow(missing_docs)]

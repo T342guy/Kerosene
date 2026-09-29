@@ -4,7 +4,7 @@
 //! Player movement stays in [`kerosene_physics`] -- that is Source's
 //! `gamemovement`, and it is the feel of the game. Everything the player is
 //! *not* lives here: physics props, the bodies that tumble, roll and settle.
-//! Box3D (through `kerosene-rigid`) simulates them in native Kerosene units,
+//! Box3D (through `PhysicsWorld`) simulates them in native Kerosene units,
 //! so there is no coordinate conversion anywhere in this file.
 //!
 //! The world's own brushes become static convex hulls so props have something
@@ -13,9 +13,9 @@
 //! the entity so the renderer draws the prop exactly where the simulation put
 //! it.
 
-use kerosene_bsp::{Bsp, contents};
+use kerosene_bsp::Bsp;
 use kerosene_entity::{EntityId, EntityWorld, ModelRole};
-use kerosene_math::{Aabb, Angles, ON_EPSILON, Quat, Vec3, Winding};
+use kerosene_math::{Aabb, Angles, Quat, Vec3};
 use kerosene_physics::rigid::{Body, PhysicsWorld};
 use kerosene_vfs::Vfs;
 use std::collections::HashMap;
@@ -104,7 +104,7 @@ impl PhysicsProps {
     /// Brush entities are handled in two groups. Detail brushes (`func_detail`)
     /// are static geometry already in `bsp.brushes`, so they become static
     /// hulls like the world's own brushes. Moving brushes (doors, shutters,
-    /// rotating brushes -- anything with [`contents::MOVEABLE`]) become static
+    /// rotating brushes -- anything with [`kerosene_bsp::contents::MOVEABLE`]) become static
     /// bodies too, but are re-placed to their entity's pose every tick, so a
     /// closed door blocks a thrown prop and an open one lets it through.
     /// Triggers, water, ladders and the player/monster clip volumes are solid
@@ -125,41 +125,10 @@ impl PhysicsProps {
                 continue;
             }
 
-            let mut bodies = Vec::new();
-            for &brush_index in &model_brush_indices(bsp, model) {
-                let Some(brush) = bsp.brushes.get(brush_index) else {
-                    continue;
-                };
-                if brush.contents & contents::MOVEABLE == 0 {
-                    continue;
-                }
-                if brush.contents & contents::SOLID == 0 {
-                    continue;
-                }
-                let Some(points) = brush_vertices(bsp, brush) else {
-                    continue;
-                };
-                // Brushes are compiled in world coordinates; the body's local
-                // space is centred on the pivot so the entity's angles turn
-                // the body about the same point the renderer does.
-                let pivot = bsp
-                    .models
-                    .get(model)
-                    .map(|m| m.bounds().center())
-                    .unwrap_or(Vec3::ZERO);
-                let local: Vec<Vec3> = points.iter().map(|&p| p - pivot).collect();
-                let rotation = Quat::from_mat3(&entity.angles.to_mat3());
-                let position = entity.origin + pivot;
-                if let Some(body) = self.rigid.add_static_hull(&local, position, rotation) {
-                    bodies.push(body);
-                }
-            }
-            if !bodies.is_empty() {
-                let pivot = bsp
-                    .models
-                    .get(model)
-                    .map(|m| m.bounds().center())
-                    .unwrap_or(Vec3::ZERO);
+            if let Some((bodies, pivot)) =
+                self.rigid
+                    .add_mover(bsp, model, entity.origin, entity.angles)
+            {
                 self.movers.insert(model, Mover { bodies, pivot });
             }
         }
@@ -167,33 +136,7 @@ impl PhysicsProps {
 
     /// The static hulls of one section.
     fn add_section_hulls(&mut self, bsp: &Bsp, section: usize) {
-        let mut bodies = Vec::new();
-        for (i, brush) in bsp.brushes.iter().enumerate() {
-            if bsp.brush_section(i) as usize != section {
-                continue;
-            }
-            if brush.contents & contents::SOLID == 0 {
-                continue;
-            }
-            if brush.contents & contents::MOVEABLE != 0 {
-                continue;
-            }
-            if brush.contents & (contents::PLAYER_CLIP | contents::MONSTER_CLIP) != 0 {
-                continue;
-            }
-
-            let Some(points) = brush_vertices(bsp, brush) else {
-                continue;
-            };
-            // Static hulls live in world coordinates already.
-            match self
-                .rigid
-                .add_static_hull(&points, Vec3::ZERO, Quat::IDENTITY)
-            {
-                Some(body) => bodies.push(body),
-                None => log::debug!("physics: skipped degenerate world brush {i}"),
-            }
-        }
+        let bodies = self.rigid.add_world_section(bsp, section);
         self.static_bodies += bodies.len();
         if let Some(slot) = self.section_bodies.get_mut(section) {
             *slot = bodies;
@@ -1023,66 +966,6 @@ pub const BOX_EDGES: [(usize, usize); 12] = [
     (5, 7),
     (6, 7),
 ];
-
-/// The unique vertices of one BSP brush, computed by clipping each face's base
-/// winding against every other face. Returns `None` for a degenerate brush.
-fn brush_vertices(bsp: &Bsp, brush: &kerosene_bsp::Brush) -> Option<Vec<Vec3>> {
-    let mut planes = Vec::with_capacity(brush.num_sides as usize);
-    for i in 0..brush.num_sides as usize {
-        let side = bsp.brushsides.get(brush.first_side as usize + i)?;
-        let plane = bsp.planes.get(side.plane as usize)?.to_plane();
-        planes.push(plane);
-    }
-    if planes.len() < 4 {
-        return None;
-    }
-
-    let mut points = Vec::new();
-    for (i, plane) in planes.iter().enumerate() {
-        let mut w = Winding::base_for_plane(plane);
-        for (j, other) in planes.iter().enumerate() {
-            if i == j {
-                continue;
-            }
-            // Keep the half of the brush we are inside: the other face's
-            // plane, flipped to point inward.
-            w = w.clipped(&other.flipped(), ON_EPSILON)?;
-        }
-        w.remove_collinear();
-        if w.is_tiny() {
-            continue;
-        }
-        points.extend(w.points);
-    }
-
-    let mut unique: Vec<Vec3> = Vec::new();
-    for p in points {
-        if !unique.iter().any(|&q| (q - p).length_squared() < 0.01) {
-            unique.push(p);
-        }
-    }
-    (unique.len() >= 4).then_some(unique)
-}
-
-/// The brush indices belonging to one BSP model (0 = world, 1.. = brush
-/// entities). A brush model's head node is a single leaf whose leafbrushes
-/// reference exactly its brushes.
-fn model_brush_indices(bsp: &Bsp, model: usize) -> Vec<usize> {
-    let Some(m) = bsp.models.get(model) else {
-        return Vec::new();
-    };
-    let kerosene_bsp::Child::Leaf(leaf) = kerosene_bsp::decode_child(m.head_node) else {
-        return Vec::new();
-    };
-    let Some(leaf) = bsp.leaves.get(leaf) else {
-        return Vec::new();
-    };
-    let first = leaf.first_leafbrush as usize;
-    let count = leaf.num_leafbrushes as usize;
-    (first..first + count)
-        .filter_map(|i| bsp.leafbrushes.get(i).map(|&bi| bi as usize))
-        .collect()
-}
 
 /// The bounding box of a `.kmdl` model, by the name an entity refers to it.
 fn model_bounds(vfs: &Vfs, name: &str) -> Option<Aabb> {

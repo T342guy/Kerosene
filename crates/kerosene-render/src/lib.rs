@@ -17,6 +17,7 @@
 //!
 //! Lightmaps are packed into a single atlas ([`lightmap`]) so the world draws
 //! in as many calls as it has materials, rather than one per face.
+use kerosene_rhi::wgpu;
 
 pub mod gpu;
 pub mod ui;

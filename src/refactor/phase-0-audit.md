@@ -341,26 +341,26 @@ and `ent_info` views (they showed only loose fields).
 - `networked` is recorded but nothing reads it: there is no network layer.
 - Saves from before the port still load (fields are handed to the component
   that claims them). No migration tool: the project is alpha.
-- Phase 5 is under way; see below.
+- Phase 5 is done except for the leftovers listed at the end of its section.
 
-## Phase 5 results — split render and physics (first part)
+## Phase 5 results — split render and physics
 
 | Change | What moved |
 | --- | --- |
 | `render` → `scene` | The CPU-side half of the renderer moved to `kerosene-scene`: `camera`, `mesh` (with visibility culling), `lightmap`, `lights`, `probes`, `decals` and `brdf`. None of it touched the graphics API. `kerosene-render` re-exports the modules, so no path changes. `ATLAS_FORMAT` is a wgpu type, so it stayed in `render` |
 | `rigid` → `physics` | `kerosene-rigid` is gone. Its code is `kerosene_physics::rigid`, and `RigidWorld` is now `PhysicsWorld` (also at the crate root). It is outside the SemVer promise, as `rigid` was |
 | `host` → `rhi` | Requesting the device, choosing the surface configuration (sRGB, copyable) and the present mode, and reading a frame back (`Capture`) moved into `kerosene-rhi`. The host's screenshot code only encodes the PNG |
+| `render` → `material` | New `kerosene-material` (layer 2): the material bind layout and sampler (`MaterialBindings`), the uniform and mode types, loading a material's maps through the VFS (`maps`), and texture upload (`texture`). `render` binds the groups it makes |
+| `gpu.rs` split | The renderer's 3.4k-line `gpu.rs` is `gpu/`: `uniforms`, `renderer` (the struct and `new`), `frame`, `shadow`, `draw`, `pipelines`, `map`, `model`, `decals`, `probes`, `tests`. Nothing changed but where the code lives |
+| `PhysicsWorld` | It builds a map's collision too: `add_world_section` (a section's static hulls) and `add_mover` (a moving brush entity's bodies). The brush-to-hull code left the engine |
+| `engine` split | `engine.rs` (2.3k lines) is `engine.rs` plus `engine/{config, level, tick, player}`; `host.rs` (2.1k) is `host/{mod, gfx, sections, draw, keys}` |
+| `App::draw` split | The 650-line function is `draw` (takes the GPU state out of the app for the frame) and `render_frame`, which gathers a `FrameScene` (`gather_models`, `upload_props`, `gather_lights`, `debug_lines`) and runs `prepare_ui`, `shadow_passes` and `scene_pass`, then tone-maps, draws the UI and presents |
+| wgpu behind `rhi` | `kerosene-rhi` re-exports `wgpu`, and `render`, `material`, `engine` and `toolui` no longer depend on it: they write `kerosene_rhi::wgpu`. The API and its version are one crate's business, and `cargo xtask layers` refuses any other crate that depends on `wgpu`. The renderer still *calls* wgpu; it does not wrap it, because wgpu is already the portable layer the design document names |
 
 Left for later:
 
-- `material`: there is nothing to split out yet. Materials are `kerosene-asset`
-  data, and `render` binds them inside `gpu.rs` (3.4k lines). A material crate
-  belongs with cutting `gpu.rs` into pipelines, where the shader permutations
-  described in the design document have somewhere to live.
-- The renderer's pipelines and the host's per-frame wgpu code still name wgpu
-  directly, so `render` and `engine` depend on it.
-- `PhysicsWorld` still has only the body API. World traces go through
-  `CollisionWorld`, and `PhysicsProps` in the engine still owns the
-  entity-to-body mapping. Folding those in means moving the mapping out of the
-  engine.
-- Breaking up `kerosene-engine` itself (`engine.rs`, `host.rs`).
+- `PhysicsProps` in the engine still owns the entity-to-body mapping, because
+  it reads and writes entities and a subsystem may not depend on `entity`.
+- The audit's optional leftovers: render's texture and model loading onto
+  `Resources`, dropping the `.kmat` fallback, and `kiln --force` not reaching
+  the texture pass.

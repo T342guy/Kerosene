@@ -16,7 +16,7 @@ The crates sit in layers, and a crate depends only on the layers below it.
 |---|---|---|
 | 0 core | math, kv, console | each other |
 | 1 core services | config, vfs, platform | layer 0; each other |
-| 2 data and hardware | resource, asset, bsp, walk, map, scene, rhi | layers 0–1; each other |
+| 2 data and hardware | resource, asset, bsp, walk, map, scene, rhi, material | layers 0–1; each other |
 | 3 subsystems | render, physics, anim, audio, entity, script, ui | layers 0–2, **not each other** |
 | 4 host and game | engine, game | layers 0–3 |
 | 5 tools | toolui and every tool | layers 0–4; each other |
@@ -50,7 +50,8 @@ flowchart TB
         walk["kerosene-walk<br/>.kwalk + nav"]
         map["kerosene-map<br/>.kmap source (tools only)"]
         scene["kerosene-scene<br/>what the renderer is asked to draw"]
-        rhi["kerosene-rhi<br/>opening a GPU"]
+        rhi["kerosene-rhi<br/>device, surface, capture"]
+        material["kerosene-material<br/>materials on the GPU"]
     end
     subgraph L3["3 subsystems"]
         render["kerosene-render<br/>mesh, lightmap, wgpu"]
@@ -83,6 +84,9 @@ flowchart TB
     kv --> map
     walk --> map
     config --> rhi
+    asset --> material
+    vfs --> material
+    material --> render
     math --> anim
     asset --> anim
     math --> audio
@@ -269,8 +273,9 @@ internal dependency is pinned at `=<version>` and moved by
 | `kerosene-map` | `.kmap` source, brush ops (clip/carve/hollow), editor metadata | `src/solid.rs`, `src/ops.rs`, `src/editor.rs` |
 | `kerosene-bsp` | `.kbsp` lumps, tree queries, traces, PVS, acoustics, sections | `src/lib.rs`, `src/trace.rs`, `src/vis.rs` |
 | `kerosene-walk` | `.kwalk` walkmap, navigation graph, the per-face `WalkmapRule` | `src/lib.rs`, `src/nav.rs`, `src/rule.rs` |
-| `kerosene-scene` | What the renderer is asked to draw: the UI display list, its images, the glyph atlas size | `src/draw.rs`, `src/images.rs` |
-| `kerosene-rhi` | The render hardware interface: opening a GPU for the configured renderer | `src/lib.rs`, `src/gpu.rs` |
+| `kerosene-scene` | What the renderer is asked to draw: the UI display list and images, and the CPU-side frame data (camera, world mesh and culling, lightmaps, lights, probes, decals) | `src/draw.rs`, `src/mesh/`, `src/camera.rs`, … |
+| `kerosene-rhi` | The render hardware interface: opening a GPU, the device and surface, frame read-back | `src/gpu.rs`, `src/surface.rs`, `src/capture.rs` |
+| `kerosene-material` | Materials on the GPU: the shared bind layout, loading a material's maps, texture upload | `src/maps.rs`, `src/texture.rs` |
 | `kerosene-physics` | Source `gamemovement`, `CollisionWorld` trait | `src/movement.rs`, `src/world.rs`, `src/rigid.rs` (Box3D `PhysicsWorld`) |
 | `kerosene-entity` | Entity slots, fields, I/O queue, class registry, schema, save snapshots | `src/world.rs`, `src/io.rs`, `src/schema.rs`, `src/snapshot.rs` |
 | `kerosene-render` | CPU PVS/mesh build, lightmap atlas, dynamic lights, probes, wgpu backend | `src/mesh.rs`, `src/gpu.rs`, `src/lightmap.rs` |
