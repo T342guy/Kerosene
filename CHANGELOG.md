@@ -133,6 +133,11 @@ with what to do about them.
 
 ### Changed
 
+- **Breaking:** the brush-entity classes lose their `func_` prefix: `door`,
+  `detail`, `brush`, `button`, `ladder`, `breakable`, `wall_toggle`, `rotating`,
+  `illusionary`, `areaportal`, `occluder`, `water`, `liquid`, `door_rotating`,
+  `movelinear`, `platform`, `tracktrain`, `physbox`. Maps and `.kdef` files that
+  name the old ones need the same edit; there is no shim.
 - `kerosene-render`'s camera, world mesh, lightmap, lights, probes, decals
   and BRDF tables moved to `kerosene-scene`. `kerosene::internals::render`
   still exports them.

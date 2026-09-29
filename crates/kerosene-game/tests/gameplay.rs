@@ -41,7 +41,7 @@ fn field(w: &EntityWorld, id: EntityId, key: &str) -> f32 {
 const DOOR_MAP: &str = r#"
 entity
 {
-    "classname" "func_door"
+    "classname" "door"
     "targetname" "gate"
     "model" "*1"
     "movedir" "0 0 1"
@@ -400,8 +400,7 @@ entity { "classname" "info_player_start" "origin" "0 0 16" }
 
 #[test]
 fn a_brush_entity_can_be_switched_off() {
-    let mut w =
-        world_from(r#"entity { "classname" "func_brush" "targetname" "wall" "model" "*3" }"#);
+    let mut w = world_from(r#"entity { "classname" "brush" "targetname" "wall" "model" "*3" }"#);
     let wall = named(&w, "wall");
     assert!(kerosene_game::doors::brush_enabled(&w, wall));
     w.accept_input(wall, &InputEvent::new("Disable"));
@@ -580,7 +579,7 @@ fn setting_it_with_nothing_attached_means_yes() {
 const BUTTON_MAP: &str = r#"
 entity
 {
-    "classname" "func_button"
+    "classname" "button"
     "targetname" "switch"
     "model" "*1"
     "movedir" "0 0 -1"
@@ -599,7 +598,7 @@ entity
 }
 entity
 {
-    "classname" "func_door"
+    "classname" "door"
     "targetname" "gate"
     "model" "*2"
     "movedir" "0 0 1"
@@ -794,7 +793,7 @@ fn using_a_locked_door_reports_it_rather_than_opening() {
 const FAN_MAP: &str = r#"
 entity
 {
-    "classname" "func_rotating"
+    "classname" "rotating"
     "targetname" "fan"
     "model" "*1"
     "maxspeed" "90"
@@ -804,7 +803,7 @@ entity
 }
 entity
 {
-    "classname" "func_rotating"
+    "classname" "rotating"
     "targetname" "stopped"
     "model" "*2"
     "maxspeed" "90"
@@ -903,9 +902,9 @@ fn reversing_turns_the_other_way() {
 #[test]
 fn the_axis_is_chosen_by_spawnflag() {
     let source = r#"
-entity { "classname" "func_rotating" "targetname" "roll" "model" "*1" "maxspeed" "90"
+entity { "classname" "rotating" "targetname" "roll" "model" "*1" "maxspeed" "90"
          "spawnflags" "3" "model_mins" "0 0 0" "model_maxs" "64 64 8" }
-entity { "classname" "func_rotating" "targetname" "pitch" "model" "*2" "maxspeed" "90"
+entity { "classname" "rotating" "targetname" "pitch" "model" "*2" "maxspeed" "90"
          "spawnflags" "5" "model_mins" "0 0 0" "model_maxs" "64 64 8" }
 "#;
     let mut w = world_from(source);

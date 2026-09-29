@@ -1231,7 +1231,7 @@ mod tests {
         // and a press on its corner is a move, not a resize.
         let (mut document, viewport) = setup();
         document.create_block(Vec3::ZERO, Vec3::splat(128.0));
-        document.tie_to_entity("func_door").unwrap();
+        document.tie_to_entity("door").unwrap();
         let bounds = document.selection_bounds().unwrap();
         let mut tool = Tool::new();
 

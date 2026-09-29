@@ -2,7 +2,7 @@
 //! Entity classes and their handlers.
 //!
 //! Source splits its engine from its game DLL: the engine routes inputs and
-//! runs think functions, and the game decides what `func_door` means. The same
+//! runs think functions, and the game decides what `door` means. The same
 //! split here means `kerosene-entity` never mentions a game concept, and a mod can
 //! register its own classes without touching the engine.
 

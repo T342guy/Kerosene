@@ -33,9 +33,9 @@ fn brush_classes_are_marked_as_such() {
     // A class tied to brushes that the schema calls a point entity would be
     // offered in the wrong menu and refuse the brushes it needs.
     for name in [
-        "func_door",
-        "func_brush",
-        "func_detail",
+        "door",
+        "brush",
+        "detail",
         "trigger_multiple",
         "trigger_once",
     ] {
@@ -84,10 +84,10 @@ fn the_keys_the_game_reads_are_all_offered() {
     let schema = schema();
     for (class, keys) in [
         (
-            "func_door",
+            "door",
             &["speed", "lip", "movedir", "locked", "spawnflags"][..],
         ),
-        ("func_brush", &["startdisabled"][..]),
+        ("brush", &["startdisabled"][..]),
         ("trigger_multiple", &["startdisabled"][..]),
         ("trigger_hurt", &["damage"][..]),
         ("logic_relay", &["startdisabled", "spawnflags"][..]),

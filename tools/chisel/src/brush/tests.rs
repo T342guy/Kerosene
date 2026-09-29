@@ -99,7 +99,7 @@ fn an_ordinary_material_is_not_reported_as_an_unknown_tool() {
 #[test]
 fn brushes_tied_to_a_class_are_described_by_it() {
     let mut document = one_brush("dev/door");
-    document.tie_to_entity("func_door");
+    document.tie_to_entity("door");
     // Tying selects the entity; select its brushes to ask about them.
     let ids: Vec<u32> = document
         .map
@@ -113,7 +113,7 @@ fn brushes_tied_to_a_class_are_described_by_it() {
     }
 
     let info = BrushInfo::of_selection(&document).unwrap();
-    assert_eq!(info.classname.as_deref(), Some("func_door"));
+    assert_eq!(info.classname.as_deref(), Some("door"));
     assert!(info.compiles_as.contains("moves"), "{}", info.compiles_as);
 }
 
@@ -127,7 +127,7 @@ fn a_world_brush_is_not_called_a_worldspawn() {
 #[test]
 fn a_selection_spanning_two_classes_claims_neither() {
     let mut document = one_brush("dev/door");
-    document.tie_to_entity("func_door");
+    document.tie_to_entity("door");
     let tied: Vec<u32> = document
         .map
         .entities
@@ -174,7 +174,7 @@ fn selecting_a_brush_entity_describes_its_brushes() {
     // Clicking a door selects the door. A panel that then said "nothing
     // selected" would be the same split this panel exists to remove.
     let mut document = one_brush("dev/door");
-    document.set_brush_class(Some("func_door"));
+    document.set_brush_class(Some("door"));
     assert!(
         document.selection.solids.is_empty(),
         "the entity is what is selected"
@@ -182,7 +182,7 @@ fn selecting_a_brush_entity_describes_its_brushes() {
 
     let info = BrushInfo::of_selection(&document).expect("the door is what we are looking at");
     assert_eq!(info.brushes, 1);
-    assert_eq!(info.classname.as_deref(), Some("func_door"));
+    assert_eq!(info.classname.as_deref(), Some("door"));
 }
 
 #[test]
@@ -204,8 +204,8 @@ fn a_trigger_reports_itself_as_a_region_rather_than_a_wall() {
 fn giving_a_brush_the_ladder_class_textures_it_as_one() {
     // Same courtesy triggers get: the class implies the material, so a
     // designer does not have to know which tool texture goes with it.
-    assert_eq!(material_for_class("func_ladder"), Some("tools/ladder"));
-    assert_eq!(material_for_class("FUNC_LADDER"), Some("tools/ladder"));
+    assert_eq!(material_for_class("ladder"), Some("tools/ladder"));
+    assert_eq!(material_for_class("LADDER"), Some("tools/ladder"));
 }
 
 #[test]

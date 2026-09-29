@@ -101,7 +101,7 @@ impl PhysicsProps {
 
     /// Add the static world's solid brushes as convex hulls.
     ///
-    /// Brush entities are handled in two groups. Detail brushes (`func_detail`)
+    /// Brush entities are handled in two groups. Detail brushes (`detail`)
     /// are static geometry already in `bsp.brushes`, so they become static
     /// hulls like the world's own brushes. Moving brushes (doors, shutters,
     /// rotating brushes -- anything with [`kerosene_bsp::contents::MOVEABLE`]) become static

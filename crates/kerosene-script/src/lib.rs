@@ -28,7 +28,7 @@
 //! # use kerosene_script::{ScriptHost, WorldView, EntityView, ScriptAction};
 //! let mut host = ScriptHost::new();
 //! let mut view = WorldView::default();
-//! view.entities.push(EntityView::new(1, "func_door").with_name("gate"));
+//! view.entities.push(EntityView::new(1, "door").with_name("gate"));
 //!
 //! host.set_view(view);
 //! host.run(r#" ent_fire("gate", "Open"); "#).unwrap();

@@ -61,7 +61,7 @@ impl ChiselApp {
         solids.into_iter().map(TargetId::Solid).collect()
     }
 
-    /// A short description of a target list for a heading: `func_door`,
+    /// A short description of a target list for a heading: `door`,
     /// `3 entities`, `2 brushes`, `1 face`.
     pub(super) fn describe_targets(&self, targets: &[TargetId]) -> String {
         let plural = |n: usize, one: &str, many: &str| {

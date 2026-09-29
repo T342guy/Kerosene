@@ -197,7 +197,7 @@ impl ChiselApp {
     /// be two: a page headed "properties" that offered only a list of classes
     /// to "tie to", and then, once you had tied, a different page with the
     /// settings on it. That is a step and a mode change to reach something
-    /// that was never anywhere else, and it left `func_detail` -- which has no
+    /// that was never anywhere else, and it left `detail` -- which has no
     /// settings at all, being a wall -- looking exactly as configurable as a
     /// door.
     pub(super) fn brush_panel(&mut self, ui: &mut egui::Ui) {

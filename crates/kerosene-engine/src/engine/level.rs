@@ -17,7 +17,7 @@ impl Engine {
             .iter()
             .filter_map(|e| {
                 let model = e.brush_model?;
-                // A disabled `func_brush` or `func_wall_toggle` is not
+                // A disabled `brush` or `wall_toggle` is not
                 // there to see, as it is not there to walk into.
                 if model == 0 || self.entities.is_disabled(e.id) {
                     return None;

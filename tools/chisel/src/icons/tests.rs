@@ -33,7 +33,7 @@ fn a_script_is_a_script_before_it_is_logic() {
 #[test]
 fn a_class_nobody_anticipated_still_gets_a_shape() {
     // A blank space where an entity is would be worse than a plain box.
-    assert_eq!(Kind::of("func_wibble"), Kind::Other);
+    assert_eq!(Kind::of("wibble"), Kind::Other);
     assert_eq!(Kind::of(""), Kind::Other);
 }
 

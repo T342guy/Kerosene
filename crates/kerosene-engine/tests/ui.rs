@@ -43,7 +43,7 @@ fn room() -> Map {
     for (s, sid) in solid.sides.iter_mut().zip(side_ids) {
         s.id = sid;
     }
-    let mut door = Entity::new(id, "func_door");
+    let mut door = Entity::new(id, "door");
     door.set("targetname", "gate");
     door.set("movedir", "0 0 1");
     door.set("speed", "400");

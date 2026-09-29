@@ -130,7 +130,7 @@ fn every_edit_is_undoable() {
     d.selection.solids.insert(d.map.world.solids[0].id);
     d.current_material = "dev/wall".into();
     d.apply_material();
-    d.tie_to_entity("func_door");
+    d.tie_to_entity("door");
     d.untie_to_world();
     d.selection.solids.insert(d.map.world.solids[0].id);
     d.move_selection(Vec3::new(32.0, 0.0, 0.0));
@@ -259,7 +259,7 @@ fn applying_a_material_to_a_selected_brush_entity_retextures_it() {
     // reach its brushes -- otherwise retexturing a door silently does nothing.
     let mut d = doc();
     block(&mut d, 0.0, 64.0);
-    let entity = d.tie_to_entity("func_door").unwrap();
+    let entity = d.tie_to_entity("door").unwrap();
     assert_eq!(
         d.map.world.solids.len(),
         0,
@@ -335,15 +335,13 @@ fn tying_brushes_to_an_entity_moves_them_out_of_the_world() {
     d.selection.solids.insert(a);
     d.selection.solids.insert(b);
 
-    let entity = d
-        .tie_to_entity("func_door")
-        .expect("should create an entity");
+    let entity = d.tie_to_entity("door").expect("should create an entity");
     assert!(
         d.map.world.solids.is_empty(),
         "the brushes should have left the world"
     );
     let door = d.find_entity(entity).unwrap();
-    assert_eq!(door.classname(), "func_door");
+    assert_eq!(door.classname(), "door");
     assert_eq!(door.solids.len(), 2);
     assert_eq!(d.selection.entities.len(), 1);
 }
@@ -352,7 +350,7 @@ fn tying_brushes_to_an_entity_moves_them_out_of_the_world() {
 fn untying_puts_the_brushes_back() {
     let mut d = doc();
     block(&mut d, 0.0, 64.0);
-    let entity = d.tie_to_entity("func_door").unwrap();
+    let entity = d.tie_to_entity("door").unwrap();
     assert_eq!(d.map.world.solids.len(), 0);
 
     d.selection.clear();
@@ -368,7 +366,7 @@ fn untying_puts_the_brushes_back() {
 #[test]
 fn tying_nothing_does_nothing() {
     let mut d = doc();
-    assert!(d.tie_to_entity("func_door").is_none());
+    assert!(d.tie_to_entity("door").is_none());
 }
 
 #[test]
@@ -423,7 +421,7 @@ fn a_point_entity_is_not_resizable() {
 fn a_brush_entity_is_not_resizable() {
     let mut d = doc();
     block(&mut d, 0.0, 64.0);
-    let entity = d.tie_to_entity("func_door").unwrap();
+    let entity = d.tie_to_entity("door").unwrap();
     assert!(d.selection.entities.contains(&entity));
     assert!(d.selection.solids.is_empty());
     assert!(d.selection_bounds().is_some(), "the door still has bounds");
@@ -684,13 +682,13 @@ fn a_world_brush_belongs_to_no_class() {
 #[test]
 fn setting_a_class_makes_the_brushes_into_one_entity() {
     let (mut d, _) = one_selected_brush();
-    assert!(d.set_brush_class(Some("func_door")));
+    assert!(d.set_brush_class(Some("door")));
 
     assert!(d.map.world.solids.is_empty(), "it left the world");
     assert_eq!(d.map.entities.len(), 1);
     assert_eq!(
         d.selected_brush_class().map(|(_, c)| c),
-        Some("func_door".into())
+        Some("door".into())
     );
     assert_eq!(
         d.selection.entities.len(),
@@ -704,10 +702,10 @@ fn setting_the_class_it_already_is_does_nothing() {
     // Including nothing to undo: a no-op that costs a ctrl-Z is worse than
     // no operation at all.
     let (mut d, _) = one_selected_brush();
-    d.set_brush_class(Some("func_door"));
+    d.set_brush_class(Some("door"));
     let depth = d.undo_depth();
 
-    assert!(!d.set_brush_class(Some("func_door")));
+    assert!(!d.set_brush_class(Some("door")));
     assert_eq!(d.undo_depth(), depth);
 }
 
@@ -718,11 +716,11 @@ fn changing_the_class_is_one_step_not_two() {
     d.set_brush_class(Some("trigger_multiple"));
     let depth = d.undo_depth();
 
-    assert!(d.set_brush_class(Some("func_door")));
+    assert!(d.set_brush_class(Some("door")));
     assert_eq!(d.undo_depth(), depth + 1);
     assert_eq!(
         d.selected_brush_class().map(|(_, c)| c),
-        Some("func_door".into())
+        Some("door".into())
     );
 
     d.undo();
@@ -747,7 +745,7 @@ fn changing_the_class_keeps_the_name_and_the_wiring() {
         ));
     }
 
-    d.set_brush_class(Some("func_door"));
+    d.set_brush_class(Some("door"));
     let id = d.selected_brush_class().unwrap().0;
     let entity = d.find_entity(id).unwrap();
     assert_eq!(entity.get("targetname"), Some("gate_trigger"));
@@ -759,7 +757,7 @@ fn putting_it_back_in_the_world_leaves_no_empty_entity_behind() {
     // An entity with no brushes still reaches the compiler's entity lump and
     // still gets spawned, which is a ghost that is very hard to find.
     let (mut d, _) = one_selected_brush();
-    d.set_brush_class(Some("func_door"));
+    d.set_brush_class(Some("door"));
     assert!(d.set_brush_class(None));
 
     assert_eq!(d.map.world.solids.len(), 1);
@@ -795,7 +793,7 @@ fn a_door_keeps_whatever_it_was_textured_with() {
     d.selection.clear();
     d.selection.solids.insert(id);
 
-    d.set_brush_class(Some("func_door"));
+    d.set_brush_class(Some("door"));
     let entity_id = d.selected_brush_class().unwrap().0;
     let entity = d.find_entity(entity_id).unwrap();
     assert!(
@@ -811,7 +809,7 @@ fn selecting_a_brush_entity_is_the_same_as_selecting_its_brushes() {
     // Clicking a door selects the door, and "what am I editing" has to mean
     // the same thing either way.
     let (mut d, _) = one_selected_brush();
-    d.set_brush_class(Some("func_door"));
+    d.set_brush_class(Some("door"));
     let by_entity = d.selected_solid_ids();
 
     let entity_id = d.selected_brush_class().unwrap().0;
@@ -830,14 +828,14 @@ fn selecting_a_brush_entity_is_the_same_as_selecting_its_brushes() {
     assert_eq!(d.selected_solid_ids(), by_entity);
     assert_eq!(
         d.selected_brush_class().map(|(_, c)| c),
-        Some("func_door".into())
+        Some("door".into())
     );
 }
 
 #[test]
 fn a_selection_spanning_two_entities_has_no_single_class() {
     let (mut d, _) = one_selected_brush();
-    d.set_brush_class(Some("func_door"));
+    d.set_brush_class(Some("door"));
     let first: Vec<u32> = d.map.entities[0].solids.iter().map(|s| s.id).collect();
 
     let other = d.create_block(Vec3::new(256.0, 0.0, 0.0), Vec3::new(320.0, 64.0, 64.0));
@@ -863,14 +861,14 @@ fn a_selection_spanning_two_entities_has_no_single_class() {
 fn nothing_selected_cannot_be_given_a_class() {
     let mut d = Document::new();
     d.selection.clear();
-    assert!(!d.set_brush_class(Some("func_door")));
+    assert!(!d.set_brush_class(Some("door")));
 }
 
 #[test]
 fn duplicating_a_selection_makes_fresh_copies_and_selects_them() {
     let mut d = doc();
     let original = block(&mut d, 0.0, 64.0);
-    let door = d.create_entity("func_door", Vec3::ZERO);
+    let door = d.create_entity("door", Vec3::ZERO);
     d.find_entity_mut(door).unwrap().set("targetname", "gate");
     d.selection.solids.insert(original);
     d.selection.entities.insert(door);
@@ -1084,7 +1082,7 @@ fn clipping_a_brush_entity_keeps_the_pieces_in_it() {
     let mut d = doc();
     let id = block(&mut d, 0.0, 64.0);
     d.selection.solids.insert(id);
-    d.set_brush_class(Some("func_door"));
+    d.set_brush_class(Some("door"));
     let door = d.selection.entities.iter().copied().next().unwrap();
     assert_eq!(
         d.clip_selection(Plane::new(Vec3::Z, 32.0), ClipMode::Both),
@@ -1313,7 +1311,7 @@ fn a_brush_picked_out_of_an_entity_goes_to_the_world_when_the_entity_is_gone() {
     let id = block(&mut d, 0.0, 64.0);
     d.selection.clear();
     d.selection.solids.insert(id);
-    let door = d.tie_to_entity("func_door").unwrap();
+    let door = d.tie_to_entity("door").unwrap();
     d.selection.clear();
     let inner = d.find_entity(door).unwrap().solids[0].id;
     d.selection.solids.insert(inner);
@@ -1341,7 +1339,7 @@ fn an_empty_clipboard_pastes_nothing_and_records_nothing() {
 fn go_to_finds_a_brush_by_id_and_an_entity_by_name_or_class() {
     let mut d = doc();
     let brush = block(&mut d, 0.0, 64.0);
-    let door = d.create_entity("func_door", Vec3::ZERO);
+    let door = d.create_entity("door", Vec3::ZERO);
     d.find_entity_mut(door)
         .unwrap()
         .set("targetname", "Front_Gate");
@@ -1352,7 +1350,7 @@ fn go_to_finds_a_brush_by_id_and_an_entity_by_name_or_class() {
     assert_eq!(d.go_to(&format!("#{door}")), 1);
     assert!(d.selection.entities.contains(&door));
     assert_eq!(d.go_to("gate"), 1, "names match in any case");
-    assert_eq!(d.go_to("func_"), 1, "and classes match by part");
+    assert_eq!(d.go_to("do"), 1, "and classes match by part");
 
     d.selection.clear();
     d.selection.solids.insert(brush);

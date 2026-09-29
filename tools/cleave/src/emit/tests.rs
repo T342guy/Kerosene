@@ -230,7 +230,7 @@ fn the_entity_lump_carries_every_entity() {
 fn brush_entities_become_numbered_models() {
     let mut map = room_map(false);
     let id = map.next_id();
-    let mut door = kerosene_map::Entity::new(id, "func_door");
+    let mut door = kerosene_map::Entity::new(id, "door");
     door.set("targetname", "door1");
     let mut solid = Solid::cube(
         Aabb::new(Vec3::new(64.0, 120.0, 0.0), Vec3::new(96.0, 128.0, 96.0)),
@@ -250,7 +250,7 @@ fn brush_entities_become_numbered_models() {
     let kv = out.bsp.entities_kv().unwrap();
     let door_kv = kv
         .blocks("entity")
-        .find(|e| e.get("classname") == Some("func_door"))
+        .find(|e| e.get("classname") == Some("door"))
         .expect("the door should be in the entity lump");
     assert_eq!(
         door_kv.get("model"),
@@ -288,7 +288,7 @@ fn a_moving_brush_entity_does_not_carve_the_world() {
     let plain_faces = compile_ok(&plain).bsp.faces.len();
 
     let id = plain.next_id();
-    let mut door = kerosene_map::Entity::new(id, "func_door");
+    let mut door = kerosene_map::Entity::new(id, "door");
     let mut solid = Solid::cube(
         Aabb::new(Vec3::new(64.0, 64.0, 0.0), Vec3::new(96.0, 96.0, 96.0)),
         "dev/grid",
@@ -416,7 +416,7 @@ fn detail_brushes_do_not_split_the_world_tree() {
     for i in 0..6 {
         let x = 32.0 + i as f32 * 32.0;
         let id = with_detail.next_id();
-        let mut e = kerosene_map::Entity::new(id, "func_detail");
+        let mut e = kerosene_map::Entity::new(id, "detail");
         let mut s = Solid::cube(
             Aabb::new(Vec3::new(x, 32.0, 0.0), Vec3::new(x + 8.0, 40.0, 256.0)),
             "dev/grid",

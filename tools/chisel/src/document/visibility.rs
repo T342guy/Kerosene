@@ -31,7 +31,7 @@ pub enum AutoGroup {
     BrushEntities,
     /// A brush with any face on a `tools/` material.
     ToolBrushes,
-    /// A brush the compiler treats as detail: `func_detail` or `"detail" "1"`.
+    /// A brush the compiler treats as detail: `detail` or `"detail" "1"`.
     Detail,
     /// Triggers, by class.
     Triggers,
@@ -76,7 +76,7 @@ impl AutoGroup {
             AutoGroup::BrushEntities => !world,
             AutoGroup::ToolBrushes => solid.sides.iter().any(|s| s.is_tool_material()),
             AutoGroup::Detail => {
-                owner.classname() == "func_detail" || solid.get("detail").is_some_and(is_on)
+                owner.classname() == "detail" || solid.get("detail").is_some_and(is_on)
             }
             AutoGroup::Triggers => owner.classname().starts_with("trigger_"),
             AutoGroup::Clip => solid.sides.iter().any(|s| {
@@ -92,7 +92,7 @@ impl AutoGroup {
             AutoGroup::Class(c) => entity.solids.is_empty() && entity.classname() == c,
             AutoGroup::BrushEntities => !entity.solids.is_empty(),
             AutoGroup::Triggers => entity.classname().starts_with("trigger_"),
-            AutoGroup::Detail => entity.classname() == "func_detail",
+            AutoGroup::Detail => entity.classname() == "detail",
             _ => false,
         }
     }

@@ -5,7 +5,7 @@
 //! test of a HUD. This is the smallest thing that gives it real state to bind
 //! to: three hitscan weapons in slots, a clip and a reserve each, reloading,
 //! and one ability on a cooldown. Firing traces from the eye, damages what
-//! it hits (`Engine::damage_entity`: a `func_breakable` breaks), pushes a
+//! it hits (`Engine::damage_entity`: a `breakable` breaks), pushes a
 //! prop and leaves a bullet hole on anything else.
 //!
 //! It is pure logic, like everything in this crate: [`Arsenal::tick`] takes

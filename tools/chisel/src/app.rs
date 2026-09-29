@@ -726,11 +726,7 @@ impl ChiselApp {
     pub fn brush_classes(&self) -> Vec<String> {
         let names = self.schema.names_of_kind(ClassKind::Brush);
         if names.is_empty() {
-            return vec![
-                "func_detail".into(),
-                "func_brush".into(),
-                "trigger_multiple".into(),
-            ];
+            return vec!["detail".into(), "brush".into(), "trigger_multiple".into()];
         }
         names
             .into_iter()
@@ -1492,7 +1488,7 @@ mod tests {
         let id = app.document.create_block(Vec3::ZERO, Vec3::splat(64.0));
         app.document.selection.clear();
         app.document.selection.solids.insert(id);
-        app.document.set_brush_class(Some("func_door"));
+        app.document.set_brush_class(Some("door"));
 
         let [TargetId::Entity(target)] = app.properties_targets()[..] else {
             panic!("the brush entity is the target");
@@ -1500,7 +1496,7 @@ mod tests {
         assert_ne!(target, app.document.map.world.id);
         assert_eq!(
             app.document.find_entity(target).unwrap().classname(),
-            "func_door"
+            "door"
         );
     }
 
@@ -1625,7 +1621,7 @@ mod tests {
         // Hammer's dialog now live in the one window.
         let mut app = app_with_shipped_content();
         app.document = starter_document();
-        let id = app.document.create_entity("func_door", Vec3::ZERO);
+        let id = app.document.create_entity("door", Vec3::ZERO);
         app.document.selection.clear();
         app.document.selection.entities.insert(id);
 
@@ -1658,7 +1654,7 @@ mod tests {
         // the level is running.
         let mut app = app_with_shipped_content();
         app.document = starter_document();
-        let id = app.document.create_entity("func_door", Vec3::ZERO);
+        let id = app.document.create_entity("door", Vec3::ZERO);
         app.document.selection.clear();
         app.document.selection.entities.insert(id);
 
@@ -1696,7 +1692,7 @@ mod tests {
         // undoes the undo.
         let mut app = app_with_shipped_content();
         app.document = starter_document();
-        let id = app.document.create_entity("func_door", Vec3::ZERO);
+        let id = app.document.create_entity("door", Vec3::ZERO);
         app.document.selection.clear();
         app.document.selection.entities.insert(id);
         app.open_property_window();
@@ -1724,7 +1720,7 @@ mod tests {
         // would collapse the two into one and typing in either would move the
         // other's caret.
         let (mut app, root) = app_in("popup-outputs");
-        let id = app.document.create_entity("func_door", Vec3::ZERO);
+        let id = app.document.create_entity("door", Vec3::ZERO);
         if let Some(e) = app.document.find_entity_mut(id) {
             e.connections
                 .push(Connection::new("OnFullyOpen", "lift", "Trigger"));
@@ -1764,7 +1760,7 @@ mod tests {
         // area claims the larger space. Left alone it walks to the edge of the
         // screen a frame at a time.
         let (mut app, root) = app_in("popup-size");
-        let id = app.document.create_entity("func_door", Vec3::ZERO);
+        let id = app.document.create_entity("door", Vec3::ZERO);
         app.document.selection.clear();
         app.document.selection.entities.insert(id);
         app.open_property_window();
@@ -1857,7 +1853,7 @@ mod tests {
         // there -- and nothing about the map was wrong, so only looking at it
         // would tell you.
         let (mut app, root) = app_in("popup-widths");
-        let id = app.document.create_entity("func_door", Vec3::ZERO);
+        let id = app.document.create_entity("door", Vec3::ZERO);
         app.document.selection.clear();
         app.document.selection.entities.insert(id);
         app.open_property_window();
@@ -1901,7 +1897,7 @@ mod tests {
         // because a window already smaller than its handle allows can still be
         // dragged. It is the full one that gets pinned to its contents.
         let (mut app, root) = app_in("popup-resize");
-        let id = app.document.create_entity("func_door", Vec3::ZERO);
+        let id = app.document.create_entity("door", Vec3::ZERO);
         if let Some(e) = app.document.find_entity_mut(id) {
             for n in 0..40 {
                 e.set(&format!("custom_key_{n}"), "value");
@@ -1932,7 +1928,7 @@ mod tests {
         // makes a long entity produce a scrollbar instead of a window taller
         // than the display it is being edited on.
         let (mut app, root) = app_in("popup-tall");
-        let id = app.document.create_entity("func_door", Vec3::ZERO);
+        let id = app.document.create_entity("door", Vec3::ZERO);
         if let Some(e) = app.document.find_entity_mut(id) {
             for n in 0..60 {
                 e.set(&format!("custom_key_{n}"), "value");
@@ -1966,7 +1962,7 @@ mod tests {
         // six keys instead of sixty is not ten times shorter, because past the
         // cap the extra rows go behind a scrollbar instead of into the window.
         let (mut small, small_root) = app_in("popup-short");
-        let id = small.document.create_entity("func_door", Vec3::ZERO);
+        let id = small.document.create_entity("door", Vec3::ZERO);
         if let Some(e) = small.document.find_entity_mut(id) {
             for n in 0..6 {
                 e.set(&format!("custom_key_{n}"), "value");
@@ -1999,7 +1995,7 @@ mod tests {
     #[test]
     fn the_popup_closes_when_what_it_was_editing_is_deleted() {
         let (mut app, root) = app_in("popup-deleted");
-        let id = app.document.create_entity("func_door", Vec3::ZERO);
+        let id = app.document.create_entity("door", Vec3::ZERO);
         app.document.selection.clear();
         app.document.selection.entities.insert(id);
         app.open_property_window();
@@ -2118,10 +2114,10 @@ mod tests {
     fn the_entity_report_lists_finds_and_flags_dangling_wiring() {
         let mut app = app_with_shipped_content();
         app.document = starter_document();
-        let door = app.document.create_entity("func_door", Vec3::ZERO);
+        let door = app.document.create_entity("door", Vec3::ZERO);
         let button = app
             .document
-            .create_entity("func_button", Vec3::new(64.0, 0.0, 0.0));
+            .create_entity("button", Vec3::new(64.0, 0.0, 0.0));
         app.document
             .find_entity_mut(door)
             .unwrap()
@@ -2185,12 +2181,12 @@ mod tests {
         assert!(points.iter().any(|c| c == "light_spot"));
         assert!(points.iter().any(|c| c == "math_counter"));
         assert!(
-            !points.iter().any(|c| c == "func_door"),
+            !points.iter().any(|c| c == "door"),
             "a door is not placed as a point"
         );
 
         let brushes = app.brush_classes();
-        assert!(brushes.iter().any(|c| c == "func_door"));
+        assert!(brushes.iter().any(|c| c == "door"));
         assert!(brushes.iter().any(|c| c == "trigger_multiple"));
         assert!(
             !brushes.iter().any(|c| c == "light"),
@@ -2701,7 +2697,7 @@ mod tests {
     #[test]
     fn putting_a_brush_back_in_the_world_draws_too() {
         let (mut app, root) = app_with_a_brush("panel-untied");
-        app.document.set_brush_class(Some("func_door"));
+        app.document.set_brush_class(Some("door"));
         draw_a_frame(&mut app);
         assert!(app.document.set_brush_class(None));
         draw_a_frame(&mut app);
@@ -2779,12 +2775,12 @@ mod tests {
     /// A button wired to a door, and a door; `door_name` is what the door
     /// is actually called.
     fn wired(app: &mut ChiselApp, door_name: &str) -> (u32, u32) {
-        let button = app.document.create_entity("func_button", Vec3::ZERO);
+        let button = app.document.create_entity("button", Vec3::ZERO);
         app.document
             .find_entity_mut(button)
             .unwrap()
             .connect(kerosene_map::Connection::new("OnPressed", "door", "Open"));
-        let door = app.document.create_entity("func_door", Vec3::X * 64.0);
+        let door = app.document.create_entity("door", Vec3::X * 64.0);
         app.document
             .find_entity_mut(door)
             .unwrap()
@@ -3078,6 +3074,23 @@ mod tests {
         assert!(app.go_to(&id.to_string()));
         assert!(app.document.selection.solids.contains(&id));
         assert!(!app.go_to("zzz"));
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn the_autosave_timer_starts_on_the_first_frame_whatever_the_clock_says() {
+        let (mut app, root) = app_in("autosave-clock");
+        app.document.create_block(Vec3::ZERO, Vec3::splat(64.0));
+        let ctx = egui::Context::default();
+        // A host whose clock is the time of day, not the time since start.
+        let at = |t: f64| egui::RawInput {
+            time: Some(t),
+            ..Default::default()
+        };
+        let _ = ctx.run(at(1.7e9), |ctx| app.tick_autosave(ctx));
+        assert!(!root.join("maps/untitled.kmap~").exists());
+        let _ = ctx.run(at(1.7e9 + 61.0), |ctx| app.tick_autosave(ctx));
+        assert!(root.join("maps/untitled.kmap~").exists());
         let _ = std::fs::remove_dir_all(&root);
     }
 }

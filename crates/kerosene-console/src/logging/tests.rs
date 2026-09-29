@@ -27,14 +27,14 @@ fn a_record_from_the_game_reaches_the_console() {
         &relay,
         log::Level::Warn,
         "kerosene_game",
-        "func_door has no target",
+        "door has no target",
     );
 
     let (lines, dropped) = relay.take();
     assert_eq!(dropped, 0);
     assert_eq!(lines.len(), 1);
     assert_eq!(lines[0].level, LogLevel::Warning);
-    assert_eq!(lines[0].text, "func_door has no target");
+    assert_eq!(lines[0].text, "door has no target");
 }
 
 #[test]

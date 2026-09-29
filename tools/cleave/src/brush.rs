@@ -154,7 +154,7 @@ impl BrushWork {
             None => resolve_contents_of(face_contents.iter().copied()),
         };
         // `"detail" "1"` on the brush itself: detail without tying it to a
-        // `func_detail`, for a brush that should stay where it is in the
+        // `detail`, for a brush that should stay where it is in the
         // world's list -- and in its visgroup -- but out of the vis tree.
         if solid
             .get("detail")
@@ -572,7 +572,7 @@ mod tests {
         let mut planes = PlaneSet::new();
         let mut w = Vec::new();
         let solid = cube(0.0, 64.0, "dev/grid");
-        let b = BrushWork::from_solid(&solid, 1, "func_detail", &mut planes, &mut w).unwrap();
+        let b = BrushWork::from_solid(&solid, 1, "detail", &mut planes, &mut w).unwrap();
         assert!(b.is_detail());
         assert!(!b.is_structural());
     }

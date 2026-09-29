@@ -253,7 +253,7 @@ impl Leaf {
 
 /// A brush model: model 0 is the world, models 1.. are brush entities.
 ///
-/// A `func_door` is model 1, say; the entity lump gives its `model` key as
+/// A `door` is model 1, say; the entity lump gives its `model` key as
 /// `"*1"`, and the engine moves it by moving the model rather than by
 /// re-splitting the world tree.
 #[repr(C)]

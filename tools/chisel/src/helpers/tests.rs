@@ -255,7 +255,7 @@ fn target_names_match_case_blind_and_exactly() {
 
 #[test]
 fn a_brush_entity_stands_in_the_middle_of_its_brushes() {
-    let mut door = kerosene_map::Entity::new(1, "func_door");
+    let mut door = kerosene_map::Entity::new(1, "door");
     door.solids.push(kerosene_map::Solid::cube(
         kerosene_math::Aabb::new(Vec3::new(100.0, 0.0, 0.0), Vec3::new(200.0, 10.0, 50.0)),
         "x",

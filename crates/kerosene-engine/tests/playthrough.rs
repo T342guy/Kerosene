@@ -21,7 +21,7 @@ const TICK: f32 = 1.0 / 64.0;
 
 /// A sealed corridor 512 long, with a gap in the middle wall.
 ///
-/// `with_door` fills the gap with a `func_door`; `with_trigger` wires a
+/// `with_door` fills the gap with a `door`; `with_trigger` wires a
 /// trigger in front of it to open it.
 fn corridor_map(with_door: bool, with_trigger: bool) -> Map {
     let mut map = Map::new();
@@ -64,7 +64,7 @@ fn corridor_map(with_door: bool, with_trigger: bool) -> Map {
             s.id = sid;
         }
 
-        let mut door = Entity::new(id, "func_door");
+        let mut door = Entity::new(id, "door");
         door.set("targetname", "gate");
         door.set("movedir", "0 0 1");
         door.set("speed", "200");
@@ -190,7 +190,7 @@ fn a_closed_door_blocks_the_player() {
     let bsp = build(&corridor_map(true, false));
     let mut entities = spawned_world(&bsp);
     assert!(
-        entities.first_of_class("func_door").is_some(),
+        entities.first_of_class("door").is_some(),
         "the door should have loaded"
     );
 
@@ -402,7 +402,7 @@ fn a_physics_prop_falls_and_comes_to_rest_on_the_floor() {
 }
 
 #[test]
-fn a_prop_rests_on_a_func_detail_pillar() {
+fn a_prop_rests_on_a_detail_pillar() {
     use kerosene_engine::engine::EngineConfig;
 
     let dir = std::env::temp_dir().join(format!("kerosene-detail-{}", std::process::id()));
@@ -413,7 +413,7 @@ fn a_prop_rests_on_a_func_detail_pillar() {
     // A pillar that is detail geometry, not structural world.
     add_brush_entity(
         &mut map,
-        "func_detail",
+        "detail",
         Aabb::new(Vec3::new(200.0, 32.0, 0.0), Vec3::new(232.0, 64.0, 64.0)),
         "dev/grid",
     );
@@ -456,7 +456,7 @@ fn a_prop_rests_on_a_closed_moving_brush() {
     // so props must still collide with it while it is closed.
     add_brush_entity(
         &mut map,
-        "func_door",
+        "door",
         Aabb::new(Vec3::new(300.0, 0.0, 0.0), Vec3::new(316.0, 128.0, 64.0)),
         "dev/grid",
     );
@@ -549,7 +549,7 @@ fn the_player_can_pick_up_and_drop_a_prop() {
     // pick-up tool's straight-ahead ray reaches it.
     add_brush_entity(
         &mut map,
-        "func_detail",
+        "detail",
         Aabb::new(Vec3::new(64.0, 48.0, 0.0), Vec3::new(96.0, 80.0, 56.0)),
         "dev/grid",
     );
@@ -626,7 +626,7 @@ fn an_unpickable_prop_cannot_be_scooped_up() {
     let mut map = corridor_map(false, false);
     add_brush_entity(
         &mut map,
-        "func_detail",
+        "detail",
         Aabb::new(Vec3::new(64.0, 48.0, 0.0), Vec3::new(96.0, 80.0, 56.0)),
         "dev/grid",
     );
@@ -675,7 +675,7 @@ fn a_carried_prop_turns_to_face_the_player() {
     let mut map = corridor_map(false, false);
     add_brush_entity(
         &mut map,
-        "func_detail",
+        "detail",
         Aabb::new(Vec3::new(64.0, 48.0, 0.0), Vec3::new(96.0, 80.0, 56.0)),
         "dev/grid",
     );
@@ -743,7 +743,7 @@ fn a_carried_prop_cannot_be_pushed_through_a_wall() {
     let mut map = corridor_map(false, false);
     add_brush_entity(
         &mut map,
-        "func_detail",
+        "detail",
         Aabb::new(Vec3::new(64.0, 48.0, 0.0), Vec3::new(96.0, 80.0, 56.0)),
         "dev/grid",
     );
@@ -834,7 +834,7 @@ fn physics_engine(
     if pillar {
         add_brush_entity(
             &mut map,
-            "func_detail",
+            "detail",
             Aabb::new(Vec3::new(64.0, 48.0, 0.0), Vec3::new(96.0, 80.0, 56.0)),
             "dev/grid",
         );
@@ -1052,7 +1052,7 @@ fn a_carried_prop_shoves_another_one_instead_of_passing_into_it() {
     // The pillar the carried prop is lifted from, at eye height...
     add_brush_entity(
         &mut map,
-        "func_detail",
+        "detail",
         Aabb::new(Vec3::new(64.0, 48.0, 0.0), Vec3::new(96.0, 80.0, 56.0)),
         "dev/grid",
     );
@@ -1060,7 +1060,7 @@ fn a_carried_prop_shoves_another_one_instead_of_passing_into_it() {
     // exactly the height the first one is carried at.
     add_brush_entity(
         &mut map,
-        "func_detail",
+        "detail",
         Aabb::new(Vec3::new(120.0, 48.0, 0.0), Vec3::new(180.0, 80.0, 40.0)),
         "dev/grid",
     );
@@ -1155,14 +1155,14 @@ fn a_carried_prop_gives_way_when_it_meets_something_it_cannot_move() {
     let mut map = corridor_map(false, false);
     add_brush_entity(
         &mut map,
-        "func_detail",
+        "detail",
         Aabb::new(Vec3::new(64.0, 48.0, 0.0), Vec3::new(96.0, 80.0, 56.0)),
         "dev/grid",
     );
     // A shelf standing the obstacle at the height the carried prop rides at.
     add_brush_entity(
         &mut map,
-        "func_detail",
+        "detail",
         Aabb::new(Vec3::new(112.0, 48.0, 0.0), Vec3::new(180.0, 80.0, 40.0)),
         "dev/grid",
     );
@@ -1322,7 +1322,7 @@ fn engine_with_a_carried_prop(
     let mut map = open_room_map();
     add_brush_entity(
         &mut map,
-        "func_detail",
+        "detail",
         Aabb::new(Vec3::new(300.0, 96.0, 0.0), Vec3::new(332.0, 128.0, 56.0)),
         "dev/grid",
     );
@@ -1787,7 +1787,7 @@ fn what_the_engine_logs_reaches_the_console() {
         &log::Record::builder()
             .level(log::Level::Warn)
             .target("kerosene_game")
-            .args(format_args!("func_door could not find `gate`"))
+            .args(format_args!("door could not find `gate`"))
             .build(),
     );
     // Nothing arrives until a frame runs: logging happens on whatever thread
@@ -1921,7 +1921,7 @@ fn a_script_reads_the_world_it_is_actually_in() {
             .run_script(r#" find_by_name("gate").classname "#)
             .unwrap()
             .as_deref(),
-        Some("func_door")
+        Some("door")
     );
     // The player exists and is somewhere, and a script can measure from it.
     assert_eq!(
@@ -2426,7 +2426,7 @@ fn corridor_with_button() -> Map {
     // reach and outside anything the player is standing in.
     let at = add_brush_entity(
         &mut map,
-        "func_button",
+        "button",
         Aabb::new(Vec3::new(96.0, 48.0, 32.0), Vec3::new(112.0, 80.0, 96.0)),
         "dev/grid",
     );
@@ -2581,7 +2581,7 @@ fn a_button_can_switch_a_brush_out_of_the_world() {
     // actually goes: in the corridor proper it would be something to walk into.
     let switch = add_brush_entity(
         &mut map,
-        "func_button",
+        "button",
         Aabb::new(Vec3::new(24.0, 112.0, 48.0), Vec3::new(40.0, 128.0, 96.0)),
         "dev/grid",
     );
@@ -2592,7 +2592,7 @@ fn a_button_can_switch_a_brush_out_of_the_world() {
 
     let shutter = add_brush_entity(
         &mut map,
-        "func_brush",
+        "brush",
         Aabb::new(Vec3::new(300.0, 0.0, 0.0), Vec3::new(316.0, 128.0, 128.0)),
         "dev/grid",
     );
@@ -2646,7 +2646,7 @@ fn corridor_with_bar(yaw: f32) -> Map {
     let mut map = corridor_map(false, false);
     let at = add_brush_entity(
         &mut map,
-        "func_rotating",
+        "rotating",
         Aabb::new(Vec3::new(250.0, 0.0, 0.0), Vec3::new(266.0, 64.0, 128.0)),
         "dev/grid",
     );
@@ -2962,14 +2962,14 @@ fn the_suns_brightness_does_not_leak_into_the_sky_tint() {
 // ---- ladders --------------------------------------------------------------
 
 #[test]
-fn a_func_ladder_can_be_climbed_in_a_compiled_map() {
+fn a_ladder_can_be_climbed_in_a_compiled_map() {
     // End to end because that is where this could break: Cleave has to give
     // the brush ladder contents, the lump has to survive the round trip, and
     // the collision world has to report a volume that nothing collides with.
     let mut map = corridor_map(false, false);
     let at = add_brush_entity(
         &mut map,
-        "func_ladder",
+        "ladder",
         Aabb::new(Vec3::new(16.0, 32.0, 0.0), Vec3::new(80.0, 96.0, 120.0)),
         "dev/grid",
     );
@@ -3010,7 +3010,7 @@ fn a_ladder_does_not_block_the_player() {
     let mut map = corridor_map(false, false);
     let at = add_brush_entity(
         &mut map,
-        "func_ladder",
+        "ladder",
         Aabb::new(Vec3::new(96.0, 0.0, 0.0), Vec3::new(128.0, 128.0, 128.0)),
         "dev/grid",
     );

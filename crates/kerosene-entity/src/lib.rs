@@ -8,7 +8,7 @@
 //! the editor, and it composes far further than it has any right to.
 //!
 //! ```text
-//! func_button                 func_door               logic_relay
+//! button                 door               logic_relay
 //! ------------                ---------               -----------
 //! OnPressed  --0.0s-->  Open                       
 //!                        OnFullyOpen  --0.5s-->  Trigger  --> ...

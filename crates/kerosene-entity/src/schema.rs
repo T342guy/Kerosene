@@ -3,7 +3,7 @@
 //!
 //! The engine reads whatever keys a map happens to carry: an entity is a bag
 //! of fields, and that is deliberate. But an editor cannot work that way. A
-//! designer who places a `func_door` and is shown an empty property list has
+//! designer who places a `door` and is shown an empty property list has
 //! no way to discover that `speed`, `lip` and `wait` exist, and typing them
 //! from memory is not an editor feature.
 //!
@@ -22,7 +22,7 @@
 //!
 //! class
 //! {
-//!     "name" "func_door"
+//!     "name" "door"
 //!     "kind" "brush"
 //!     "base" "Targetname"
 //!     "help" "A brush that slides open and shut."
@@ -58,7 +58,7 @@ pub enum SchemaError {
     UnknownHelper(String),
     /// Any of the above, with the class it happened in. A schema is hundreds
     /// of classes; "`strng` is not a key type" is a search, "in class
-    /// `func_door`: ..." is a fix.
+    /// `door`: ..." is a fix.
     #[error("in class `{class}`: {source}")]
     InClass {
         class: String,

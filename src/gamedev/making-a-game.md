@@ -336,7 +336,7 @@ without any wiring: `ClassDef::new("item_ammo").on_touch(give_ammo)` runs
 brush, or for a point entity a cube `touch_size` across), and
 `.on_damage(f)` runs `f(world, id, amount, attacker)` whenever
 `engine.damage_entity` hits it. The stock weapons call `damage_entity` on
-what they shoot, which is how `func_breakable` glass breaks.
+what they shoot, which is how `breakable` glass breaks.
 
 Input reaches a game the way it reaches the engine: as console commands,
 bound to keys. A game's own held action needs no command of its own: bind a

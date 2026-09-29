@@ -824,7 +824,7 @@ mod tests {
         // tick boundary must show the real pose, not something a hair off it
         // from floating-point slop in the blend.
         let mut engine = Engine::new(&EngineConfig::default());
-        let id = engine.entities.spawn("func_door");
+        let id = engine.entities.spawn("door");
         let previous = Vec3::new(0.0, 0.0, 0.0);
         let current = Vec3::new(0.0, 0.0, 128.0);
         if let Some(e) = engine.entities.get_mut(id) {
@@ -850,7 +850,7 @@ mod tests {
     #[test]
     fn interpolated_brush_poses_blend_at_the_midpoint() {
         let mut engine = Engine::new(&EngineConfig::default());
-        let id = engine.entities.spawn("func_door");
+        let id = engine.entities.spawn("door");
         if let Some(e) = engine.entities.get_mut(id) {
             e.brush_model = Some(1);
             e.origin = Vec3::new(0.0, 0.0, 128.0);
@@ -872,7 +872,7 @@ mod tests {
         // it) has nothing to blend from; it should render at its current
         // pose rather than at some default like the world origin.
         let mut engine = Engine::new(&EngineConfig::default());
-        let id = engine.entities.spawn("func_door");
+        let id = engine.entities.spawn("door");
         let current = Vec3::new(12.0, -4.0, 8.0);
         if let Some(e) = engine.entities.get_mut(id) {
             e.brush_model = Some(1);

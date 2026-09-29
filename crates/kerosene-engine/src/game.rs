@@ -2,7 +2,7 @@
 //! The game: what the engine runs, and the one thing it does not own.
 //!
 //! Source splits the engine from the game DLL. The engine moves the player,
-//! routes entity I/O, draws the world; the DLL says what a `func_door` is,
+//! routes entity I/O, draws the world; the DLL says what a `door` is,
 //! what an inventory holds, what the HUD shows. Kerosene keeps the same
 //! split, as a trait: a game is a type that implements [`Game`], handed to
 //! [`Engine::with_game`] once, and the engine calls it at the moments a

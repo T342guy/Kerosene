@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 use super::*;
 
-/// A door: a 16-deep, 96-wide, 128-tall slab tied to `func_door`.
+/// A door: a 16-deep, 96-wide, 128-tall slab tied to `door`.
 fn door_document(keys: &[(&str, &str)]) -> Document {
     let mut document = Document::new();
     document.map.world.solids.clear();
     let id = document.create_block(Vec3::new(0.0, 0.0, 0.0), Vec3::new(16.0, 96.0, 128.0));
     document.selection.clear();
     document.selection.solids.insert(id);
-    let entity = document.tie_to_entity("func_door").unwrap();
+    let entity = document.tie_to_entity("door").unwrap();
     if let Some(e) = document.find_entity_mut(entity) {
         for (k, v) in keys {
             e.set(k, *v);

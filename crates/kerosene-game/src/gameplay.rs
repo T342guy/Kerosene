@@ -5,8 +5,8 @@
 //!
 //! | Class | What it does |
 //! |---|---|
-//! | `func_breakable` | A brush with health: shoot it, or fire `Break`, and it is gone |
-//! | `func_wall_toggle` | A wall that is there, or is not |
+//! | `breakable` | A brush with health: shoot it, or fire `Break`, and it is gone |
+//! | `wall_toggle` | A wall that is there, or is not |
 //! | `point_hurt` | Hurts the player near it, once or over and over |
 //! | `point_teleport` | Moves the player to itself |
 //! | `item_healthkit` | Heals the player who walks into it, if they need it |
@@ -22,7 +22,7 @@ use crate::components::{Pickup, Switchable};
 use kerosene_ecs::prelude::*;
 use kerosene_entity::{ClassDef, ClassRegistry, EntityId, EntityWorld, Value, host_requests};
 
-/// A `func_breakable`: how much more it takes, and what it sounds like
+/// A `breakable`: how much more it takes, and what it sounds like
 /// going.
 #[derive(Component, Reflect, Clone, Debug, PartialEq)]
 #[reflect(Component, Default)]
@@ -99,9 +99,9 @@ impl Default for Healthkit {
     }
 }
 
-/// `func_breakable`: break only when told to, never from damage.
+/// `breakable`: break only when told to, never from damage.
 pub const SF_BREAK_ON_TRIGGER_ONLY: u32 = 1;
-/// `func_wall_toggle`: start not there.
+/// `wall_toggle`: start not there.
 pub const SF_START_INVISIBLE: u32 = 1;
 /// `point_hurt`: hurt on its own, every `interval`, from the start.
 pub const SF_HURT_START_ON: u32 = 1;
@@ -111,7 +111,7 @@ pub const SF_PICKUP_STAYS: u32 = 1;
 /// Register the classes.
 pub fn register(registry: &mut ClassRegistry) {
     registry.register(
-        ClassDef::new("func_breakable")
+        ClassDef::new("breakable")
             .component::<Breakable>()
             .on_damage(damage_breakable)
             .input("Break", |w, id, e| {
@@ -137,7 +137,7 @@ pub fn register(registry: &mut ClassRegistry) {
     );
 
     registry.register(
-        ClassDef::new("func_wall_toggle")
+        ClassDef::new("wall_toggle")
             .component::<Switchable>()
             .on_spawn(|w, id| {
                 let hidden = w

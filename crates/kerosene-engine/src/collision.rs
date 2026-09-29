@@ -53,12 +53,10 @@ impl<'a> LevelCollision<'a> {
             if crate::engine::is_trigger_class(class) {
                 continue;
             }
-            if class.eq_ignore_ascii_case("func_detail")
-                || class.eq_ignore_ascii_case("func_illusionary")
-            {
+            if class.eq_ignore_ascii_case("detail") || class.eq_ignore_ascii_case("illusionary") {
                 continue;
             }
-            // A disabled func_brush is not there.
+            // A disabled brush is not there.
             if entities.is_disabled(entity.id) {
                 continue;
             }
@@ -136,7 +134,7 @@ impl CollisionWorld for LevelCollision<'_> {
     fn contents_at(&self, point: Vec3) -> u32 {
         let mut out = self.bsp.point_contents_brushes(point);
         // A point inside a mover picks up its contents too, so standing in a
-        // moving water brush still reads as water -- and so a func_ladder,
+        // moving water brush still reads as water -- and so a ladder,
         // which is a brush entity that nothing collides with, is found at all.
         for mover in &self.movers {
             let local = mover.pose.to_local(point);

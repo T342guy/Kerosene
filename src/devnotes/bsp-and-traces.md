@@ -139,7 +139,7 @@ leaves, it is inside and the entry point is the hit. One subtlety is recorded
 in the code comment: the early-out tests `fraction == 0.0`, *not* `all_solid`,
 because `all_solid` starts true and is only cleared by visiting open space —
 testing it returned after the first brush of every solid leaf, and a
-`func_door` built from two brushes only ever collided with one of them.
+`door` built from two brushes only ever collided with one of them.
 
 ### Contents and surface flags
 

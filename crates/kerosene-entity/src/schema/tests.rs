@@ -19,7 +19,7 @@ base
 
 class
 {
-    "name" "func_door"
+    "name" "door"
     "kind" "brush"
     "base" "Targetname"
     "help" "A brush that slides open and shut."
@@ -54,21 +54,21 @@ fn sample() -> Schema {
 fn classes_come_back_in_file_order() {
     let schema = sample();
     let names: Vec<&str> = schema.classes().iter().map(|c| c.name.as_str()).collect();
-    assert_eq!(names, ["func_door", "light"]);
+    assert_eq!(names, ["door", "light"]);
 }
 
 #[test]
 fn lookup_ignores_case() {
     let schema = sample();
-    assert!(schema.get("FUNC_DOOR").is_some());
-    assert!(schema.get("func_door").is_some());
+    assert!(schema.get("DOOR").is_some());
+    assert!(schema.get("door").is_some());
     assert!(schema.get("no_such_class").is_none());
 }
 
 #[test]
 fn a_class_inherits_its_bases_keys_before_its_own() {
     let schema = sample();
-    let door = schema.get("func_door").unwrap();
+    let door = schema.get("door").unwrap();
     let names: Vec<&str> = door.keys.iter().map(|k| k.name.as_str()).collect();
     // Inherited first: the common keys stay at the top of the inspector.
     assert_eq!(names, ["targetname", "speed", "movedir"]);
@@ -87,7 +87,7 @@ fn several_bases_accumulate() {
 #[test]
 fn key_types_and_defaults_survive() {
     let schema = sample();
-    let door = schema.get("func_door").unwrap();
+    let door = schema.get("door").unwrap();
     let speed = door.key("speed").unwrap();
     assert_eq!(speed.kind, KeyKind::Float);
     assert_eq!(speed.default, "100");
@@ -115,7 +115,7 @@ fn choices_are_read_in_order() {
 #[test]
 fn an_input_can_document_its_parameter() {
     let schema = sample();
-    let door = schema.get("func_door").unwrap();
+    let door = schema.get("door").unwrap();
     let set_speed = door.inputs.iter().find(|i| i.name == "SetSpeed").unwrap();
     assert_eq!(set_speed.parameter.as_deref(), Some("units per second"));
     assert_eq!(
@@ -131,14 +131,14 @@ fn an_input_can_document_its_parameter() {
 #[test]
 fn kinds_decide_what_can_be_tied_to_brushes() {
     let schema = sample();
-    assert_eq!(schema.get("func_door").unwrap().kind, ClassKind::Brush);
+    assert_eq!(schema.get("door").unwrap().kind, ClassKind::Brush);
     // Unstated kind means a point entity, which is the common case.
     assert_eq!(schema.get("light").unwrap().kind, ClassKind::Point);
     assert!(ClassKind::Brush.takes_brushes());
     assert!(ClassKind::Any.takes_brushes());
     assert!(!ClassKind::Point.takes_brushes());
     assert_eq!(schema.names_of_kind(ClassKind::Point), ["light"]);
-    assert_eq!(schema.names_of_kind(ClassKind::Brush), ["func_door"]);
+    assert_eq!(schema.names_of_kind(ClassKind::Brush), ["door"]);
 }
 
 #[test]
@@ -163,10 +163,10 @@ fn a_class_overrides_a_key_it_inherits() {
 #[test]
 fn merging_lets_a_later_file_replace_a_class() {
     let mut schema = sample();
-    let extra = Schema::parse(r#"class { "name" "func_door" "help" "mine now" }"#).unwrap();
+    let extra = Schema::parse(r#"class { "name" "door" "help" "mine now" }"#).unwrap();
     schema.merge(extra);
     assert_eq!(schema.len(), 2, "replacing a class does not add one");
-    assert_eq!(schema.get("func_door").unwrap().help, "mine now");
+    assert_eq!(schema.get("door").unwrap().help, "mine now");
 }
 
 #[test]

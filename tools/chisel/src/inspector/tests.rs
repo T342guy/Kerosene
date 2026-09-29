@@ -8,16 +8,16 @@ fn schema() -> Schema {
 }
 
 fn door() -> Entity {
-    Entity::new(7, "func_door")
+    Entity::new(7, "door")
 }
 
 #[test]
 fn a_freshly_placed_entity_still_shows_every_key_its_class_reads() {
-    // The bug this replaces: a new func_door carries only `classname`, so the
+    // The bug this replaces: a new door carries only `classname`, so the
     // inspector had nothing to list and the class looked like it had no
     // settings at all.
     let schema = schema();
-    let rows = rows(schema.get("func_door"), &door());
+    let rows = rows(schema.get("door"), &door());
     let keys: Vec<&str> = rows.iter().map(|r| r.key.as_str()).collect();
     for expected in [
         "targetname",
@@ -38,7 +38,7 @@ fn a_freshly_placed_entity_still_shows_every_key_its_class_reads() {
 #[test]
 fn an_unset_key_offers_the_games_default_without_writing_it() {
     let schema = schema();
-    let rows = rows(schema.get("func_door"), &door());
+    let rows = rows(schema.get("door"), &door());
     let speed = rows.iter().find(|r| r.key == "speed").unwrap();
     assert_eq!(
         speed.text(),
@@ -85,7 +85,7 @@ fn a_set_key_shows_its_value_rather_than_the_default() {
     let schema = schema();
     let mut entity = door();
     entity.set("speed", "250");
-    let rows = rows(schema.get("func_door"), &entity);
+    let rows = rows(schema.get("door"), &entity);
     let speed = rows.iter().find(|r| r.key == "speed").unwrap();
     assert_eq!(speed.text(), "250");
     assert!(speed.is_set());
@@ -96,7 +96,7 @@ fn class_keys_come_before_the_ones_only_this_entity_has() {
     let schema = schema();
     let mut entity = door();
     entity.set("some_mod_key", "value");
-    let rows = rows(schema.get("func_door"), &entity);
+    let rows = rows(schema.get("door"), &entity);
     let described: Vec<&str> = rows
         .iter()
         .filter(|r| r.described)
@@ -116,7 +116,7 @@ fn a_key_the_schema_does_not_know_is_kept_rather_than_dropped() {
     let schema = schema();
     let mut entity = door();
     entity.set("speeed", "100"); // a typo, and the only way to notice is to see it
-    let rows = rows(schema.get("func_door"), &entity);
+    let rows = rows(schema.get("door"), &entity);
     let typo = rows.iter().find(|r| r.key == "speeed").expect("kept");
     assert!(!typo.described);
     assert_eq!(typo.value.as_deref(), Some("100"));
@@ -125,7 +125,7 @@ fn a_key_the_schema_does_not_know_is_kept_rather_than_dropped() {
 #[test]
 fn classname_is_never_an_editable_row() {
     let schema = schema();
-    let rows = rows(schema.get("func_door"), &door());
+    let rows = rows(schema.get("door"), &door());
     assert!(rows.iter().all(|r| r.key != "classname"));
 }
 
@@ -145,7 +145,7 @@ fn applying_rows_writes_set_keys_and_removes_unset_ones() {
     let mut entity = door();
     entity.set("lip", "16");
 
-    let mut rows = rows(schema.get("func_door"), &entity);
+    let mut rows = rows(schema.get("door"), &entity);
     rows.iter_mut().find(|r| r.key == "speed").unwrap().value = Some("250".into());
     rows.iter_mut().find(|r| r.key == "lip").unwrap().value = None;
     apply(&mut entity, &rows);
@@ -156,14 +156,14 @@ fn applying_rows_writes_set_keys_and_removes_unset_ones() {
         None,
         "clearing a row removes the key rather than writing the default"
     );
-    assert_eq!(entity.classname(), "func_door", "identity survives");
+    assert_eq!(entity.classname(), "door", "identity survives");
 }
 
 #[test]
 fn applying_does_not_write_defaults_into_the_map() {
     let schema = schema();
     let mut entity = door();
-    let rows = rows(schema.get("func_door"), &entity);
+    let rows = rows(schema.get("door"), &entity);
     apply(&mut entity, &rows);
     let keys: Vec<&str> = entity.properties.iter().map(|(k, _)| k.as_str()).collect();
     assert_eq!(keys, ["classname"], "an untouched entity gains nothing");
@@ -172,7 +172,7 @@ fn applying_does_not_write_defaults_into_the_map() {
 #[test]
 fn choices_and_flags_carry_their_labels() {
     let schema = schema();
-    let rows = rows(schema.get("func_door"), &door());
+    let rows = rows(schema.get("door"), &door());
     let flags = rows.iter().find(|r| r.key == "spawnflags").unwrap();
     assert_eq!(flags.kind, KeyKind::Flags);
     assert_eq!(
@@ -184,11 +184,11 @@ fn choices_and_flags_carry_their_labels() {
 #[test]
 fn target_names_are_offered_from_the_map() {
     let mut document = Document::new();
-    let mut a = Entity::new(10, "func_door");
+    let mut a = Entity::new(10, "door");
     a.set("targetname", "gate");
-    let mut b = Entity::new(11, "func_door");
+    let mut b = Entity::new(11, "door");
     b.set("targetname", "gate"); // a shared name: one output drives both
-    let c = Entity::new(12, "func_door"); // unnamed, so not addressable
+    let c = Entity::new(12, "door"); // unnamed, so not addressable
     document.map.entities.extend([a, b, c]);
 
     assert_eq!(target_names(&document), vec!["gate"]);
@@ -219,7 +219,7 @@ fn the_inputs_offered_are_the_ones_the_target_actually_accepts() {
 fn several_entities_sharing_a_name_offer_the_union_of_their_inputs() {
     let schema = schema();
     let mut document = Document::new();
-    let mut door = Entity::new(10, "func_door");
+    let mut door = Entity::new(10, "door");
     door.set("targetname", "both");
     let mut counter = Entity::new(11, "math_counter");
     counter.set("targetname", "both");
@@ -292,7 +292,7 @@ fn a_brush_and_a_face_show_exactly_the_keys_they_carry() {
 #[test]
 fn several_objects_merge_and_a_disagreement_is_marked_mixed() {
     let schema = schema();
-    let spec = schema.get("func_door");
+    let spec = schema.get("door");
     let mut a = door();
     a.set("speed", "100");
     a.set("only_on_a", "x");
@@ -313,7 +313,7 @@ fn several_objects_merge_and_a_disagreement_is_marked_mixed() {
 #[test]
 fn a_multi_edit_writes_only_what_was_touched() {
     let schema = schema();
-    let spec = schema.get("func_door");
+    let spec = schema.get("door");
     let mut a = door();
     a.set("speed", "100");
     let mut b = door();

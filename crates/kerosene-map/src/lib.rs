@@ -684,7 +684,7 @@ entity
 entity
 {
     "id" "10"
-    "classname" "func_door"
+    "classname" "door"
     "targetname" "door1"
     connections { "OnFullyOpen" "relay1,Trigger,,0.5,-1" }
 }

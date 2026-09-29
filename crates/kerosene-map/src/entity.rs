@@ -21,7 +21,7 @@ pub struct Entity {
     pub id: u32,
     pub properties: Vec<(String, String)>,
     /// Brushes belonging to this entity. Empty for point entities; non-empty
-    /// makes it a brush entity like `func_door`.
+    /// makes it a brush entity like `door`.
     pub solids: Vec<Solid>,
     /// Polygon meshes belonging to this entity: detail geometry, compiled
     /// beside the brushes but never into the tree. See [`crate::mesh`].
@@ -109,7 +109,7 @@ impl Entity {
     ///
     /// A point entity carries an explicit `origin`. A brush entity usually has
     /// none, and its position *is* its geometry -- so the brush centre stands
-    /// in, which is what a mover like `func_door` rotates about.
+    /// in, which is what a mover like `door` rotates about.
     pub fn origin(&self) -> Vec3 {
         if let Some(o) = self.get_vec3("origin") {
             return o;
@@ -252,7 +252,7 @@ mod tests {
     #[test]
     fn brush_entity_origin_falls_back_to_its_geometry() {
         use kerosene_math::Aabb;
-        let mut e = Entity::new(1, "func_door");
+        let mut e = Entity::new(1, "door");
         e.solids.push(Solid::cube(
             Aabb::new(Vec3::ZERO, Vec3::splat(64.0)),
             "dev/grid",
@@ -298,7 +298,7 @@ mod tests {
 
     #[test]
     fn outputs_are_matched_case_insensitively() {
-        let mut e = Entity::new(1, "func_button");
+        let mut e = Entity::new(1, "button");
         e.connect(Connection::new("OnPressed", "d", "Open"));
         assert_eq!(e.outputs("onpressed").count(), 1);
         assert_eq!(e.outputs("OnPressed").count(), 1);

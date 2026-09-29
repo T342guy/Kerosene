@@ -138,7 +138,7 @@ config:
 flowchart TB
     load(["Engine::load_map"]) --> build["PhysicsProps::build_static_world(bsp, entities)"]
     build --> world["solid world brushes → static convex hulls (section 0)"]
-    build --> detail["func_detail → static hulls too"]
+    build --> detail["detail → static hulls too"]
     build --> move["contents::MOVEABLE brushes → static bodies teleported to entity pose"]
     build --> skip["triggers/water/ladders/clips skipped"]
     tick(["Engine::tick"]) --> newsync["sync_player(origin, hull, velocity)<br/>kinematic body"]

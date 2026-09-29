@@ -673,7 +673,7 @@ impl Document {
     /// Apply the current material to every selected face, or to every face of
     /// every selected brush when no individual faces are picked.
     ///
-    /// A selected brush *entity* counts too: selecting a `func_door` and
+    /// A selected brush *entity* counts too: selecting a `door` and
     /// applying a material should retexture the door, not silently do
     /// nothing.
     pub fn apply_material(&mut self) -> usize {
@@ -826,7 +826,7 @@ impl Document {
     /// Turn the selected brushes into a brush entity of the given class.
     ///
     /// This is how a designer makes a door: build the brush in the world, then
-    /// tie it to a `func_door`.
+    /// tie it to a `door`.
     pub fn tie_to_entity(&mut self, classname: &str) -> Option<u32> {
         if self.selection.solids.is_empty() {
             return None;

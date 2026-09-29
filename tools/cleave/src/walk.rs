@@ -17,7 +17,7 @@
 //! * `avoid` -- part of the map, flagged for NPCs to route around.
 //! * `always` -- part of the map even if it is not flat, for ramps.
 //!
-//! Brush entities (`func_door` and the like) are deliberately absent: they
+//! Brush entities (`door` and the like) are deliberately absent: they
 //! move, and a static walkmap that says a closed door is open would send an
 //! NPC through it. Movers belong to a later, dynamic pass.
 

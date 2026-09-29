@@ -140,10 +140,10 @@ pub fn material_for_class(classname: &str) -> Option<&'static str> {
         return Some("tools/trigger");
     }
     match lower.as_str() {
-        "func_areaportal" | "func_occluder" => Some("tools/nodraw"),
+        "areaportal" | "occluder" => Some("tools/nodraw"),
         // A ladder is invisible by definition, so texturing it by hand is a
         // step with exactly one right answer -- which is a step to remove.
-        "func_ladder" => Some("tools/ladder"),
+        "ladder" => Some("tools/ladder"),
         _ => None,
     }
 }

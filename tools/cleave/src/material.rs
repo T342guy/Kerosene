@@ -213,7 +213,7 @@ pub fn is_known_tool(material: &str) -> bool {
 /// Contents implied by an entity's classname, overriding its brushes'.
 ///
 /// A `trigger_multiple` is a trigger whatever its faces are textured with; a
-/// `func_detail` is detail geometry. This is the same override Source applies,
+/// `detail` is detail geometry. This is the same override Source applies,
 /// and it is why a designer does not have to texture every trigger by hand.
 pub fn contents_for_classname(classname: &str) -> Option<u32> {
     let lower = classname.to_lowercase();
@@ -221,15 +221,13 @@ pub fn contents_for_classname(classname: &str) -> Option<u32> {
         return Some(contents::TRIGGER);
     }
     match lower.as_str() {
-        "func_detail" => Some(contents::SOLID | contents::DETAIL),
-        "func_water" | "func_liquid" => Some(contents::WATER | contents::TRANSLUCENT),
-        "func_illusionary" => Some(contents::EMPTY),
-        "func_ladder" => Some(contents::LADDER),
+        "detail" => Some(contents::SOLID | contents::DETAIL),
+        "water" | "liquid" => Some(contents::WATER | contents::TRANSLUCENT),
+        "illusionary" => Some(contents::EMPTY),
+        "ladder" => Some(contents::LADDER),
         // A door or platform moves, so traces have to know it is not the world.
-        "func_door" | "func_door_rotating" | "func_movelinear" | "func_platform"
-        | "func_rotating" | "func_tracktrain" | "func_brush" => {
-            Some(contents::SOLID | contents::MOVEABLE)
-        }
+        "door" | "door_rotating" | "movelinear" | "platform" | "rotating" | "tracktrain"
+        | "brush" => Some(contents::SOLID | contents::MOVEABLE),
         _ => None,
     }
 }
@@ -317,7 +315,7 @@ mod tests {
     #[test]
     fn classnames_override_brush_contents() {
         assert_eq!(
-            contents_for_classname("func_detail"),
+            contents_for_classname("detail"),
             Some(contents::SOLID | contents::DETAIL)
         );
         assert_eq!(
@@ -328,7 +326,7 @@ mod tests {
             contents_for_classname("trigger_hurt"),
             Some(contents::TRIGGER)
         );
-        assert!(contents_for_classname("func_door").unwrap() & contents::MOVEABLE != 0);
+        assert!(contents_for_classname("door").unwrap() & contents::MOVEABLE != 0);
         assert_eq!(contents_for_classname("info_player_start"), None);
     }
 
@@ -420,7 +418,7 @@ mod tests {
     fn a_door_is_described_as_something_that_moves() {
         // Which is why it is its own model, and why the renderer has to draw
         // it separately from the world.
-        let said = describe_brush(&["dev/door".into()], Some("func_door"));
+        let said = describe_brush(&["dev/door".into()], Some("door"));
         assert!(said.contains("solid"), "{said}");
         assert!(said.contains("moves"), "{said}");
     }
@@ -454,14 +452,11 @@ mod tests {
     }
 
     #[test]
-    fn a_func_ladder_is_a_ladder_whatever_its_faces_are_textured_with() {
+    fn a_ladder_is_a_ladder_whatever_its_faces_are_textured_with() {
         // The same override triggers get: a designer should not have to
         // texture every face of a ladder by hand to make the class work.
-        assert_eq!(
-            contents_for_classname("func_ladder"),
-            Some(contents::LADDER)
-        );
-        let described = describe_brush(&["dev/grid".to_string()], Some("func_ladder"));
+        assert_eq!(contents_for_classname("ladder"), Some(contents::LADDER));
+        let described = describe_brush(&["dev/grid".to_string()], Some("ladder"));
         assert!(described.to_lowercase().contains("ladder"), "{described}");
     }
 }

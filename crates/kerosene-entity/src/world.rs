@@ -469,7 +469,7 @@ impl EntityWorld {
     /// `brush_bounds` is the map's brush models' bounds, indexed the way an
     /// entity's `model` key (`*1`, `*2`...) indexes them. Brush entities are
     /// given theirs as fields *before* spawn handlers run, because a class
-    /// like `func_door` needs to know how far it travels, and that comes from
+    /// like `door` needs to know how far it travels, and that comes from
     /// the geometry rather than from a keyvalue.
     ///
     /// The lump and the bounds are handed in, rather than read out of a

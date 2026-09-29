@@ -464,7 +464,7 @@ pub fn emit(
     });
 
     // Brush entities get one leaf apiece rather than a tree of their own.
-    // A `func_door` is a handful of convex brushes; walking a two-node tree to
+    // A `door` is a handful of convex brushes; walking a two-node tree to
     // find them costs more than testing them directly, and it keeps moving
     // geometry out of the world tree where it would have to be re-split every
     // time it moved.

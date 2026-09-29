@@ -1454,7 +1454,7 @@ mod tests {
         // A designer thinks of the door, not of the brushes it is made of.
         let (mut document, viewport) = setup();
         document.create_block(Vec3::ZERO, Vec3::splat(64.0));
-        let door = document.tie_to_entity("func_door").unwrap();
+        let door = document.tie_to_entity("door").unwrap();
         document.selection.clear();
 
         apply_action(
@@ -1592,7 +1592,7 @@ mod tests {
         document.selection.solids.insert(a);
         document.selection.solids.insert(b);
         let entity = document
-            .tie_to_entity("func_door")
+            .tie_to_entity("door")
             .expect("brushes tie to an entity");
 
         document.selection.clear();

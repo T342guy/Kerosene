@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 //! Where a selected entity is going, and which way it faces.
 //!
-//! A `func_door` is a box until you compile the map and walk into it. Nothing
+//! A `door` is a box until you compile the map and walk into it. Nothing
 //! in the editor said how far it opened, which way, or whether it would clear
 //! the doorway -- all of which are decided by its own size and are therefore
 //! knowable while you are drawing it. The same goes for anything with

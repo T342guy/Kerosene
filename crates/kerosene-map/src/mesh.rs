@@ -9,7 +9,7 @@
 //!
 //! Kerosene keeps both. Brushes stay the *structure* -- they seal the map,
 //! cut the tree and decide what can see what -- and meshes are *detail*, like
-//! `func_detail`: Cleave draws them, lights them and collides with them, but
+//! `detail`: Cleave draws them, lights them and collides with them, but
 //! never splits the tree on them and never lets them block visibility. Block
 //! a room out in brushes; dress it in meshes.
 //!

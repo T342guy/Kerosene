@@ -48,7 +48,7 @@ fn a_games_schema_and_runtime_reach_the_editor() {
         .get("item_pickup")
         .expect("the game's class");
     assert!(spec.key("origin").is_some(), "with the engine's bases");
-    assert!(toolset.editor.schema.get("func_door").is_some());
+    assert!(toolset.editor.schema.get("door").is_some());
     assert_eq!(
         toolset.editor.compile_settings.runtime,
         kerosene_vfs::toolchain::Runtime::Binary(PathBuf::from("/x/mygame"))

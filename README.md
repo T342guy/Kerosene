@@ -206,7 +206,7 @@ Point entities are drawn as what they are — a lamp for a light, a figure for
 the player start — and `M` opens an asset browser with names, folders, a search
 and a rendered preview for every model.
 
-A brush's type — world, `func_detail`, `func_door`, `trigger_multiple` — is a
+A brush's type — world, `detail`, `door`, `trigger_multiple` — is a
 setting at the top of its panel, with that type's settings underneath and
 nothing to press first; picking a trigger textures it invisible for you.
 Wiring is grouped by event, so a sequence reads as "do this, then that", and

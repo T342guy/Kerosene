@@ -491,11 +491,11 @@ in both orientations. Geometry has a way of being valid and still wrong; a
 test can say the brushes are solid, only a picture can say they are an arch.
 
 **Brush properties.** A brush's **type** is a setting on it, at the top of its
-panel: world geometry, `func_detail`, `func_door`, `trigger_multiple`, and so
+panel: world geometry, `detail`, `door`, `trigger_multiple`, and so
 on. Choose one and its settings appear underneath, in the same panel, with
 nothing to press first. There is no "tie to entity" step — that was a mode
 change to reach settings that were never anywhere else, and it left
-`func_detail`, which is a wall and has nothing to configure, looking exactly as
+`detail`, which is a wall and has nothing to configure, looking exactly as
 configurable as a door.
 
 Changing the type is one operation and one undo step, and it keeps the name and
@@ -698,7 +698,7 @@ Source. Everything under `tools/` is a tool material.
 | `tools/water` | Water |
 
 An entity's classname overrides its brushes' materials: a `trigger_multiple` is
-a trigger whatever its faces are textured with, and a `func_detail` is detail.
+a trigger whatever its faces are textured with, and a `detail` is detail.
 
 **Detail brushes** stay out of the world tree. A handrail modelled from thirty
 brushes would otherwise carve the room into thirty slivers, each of which the

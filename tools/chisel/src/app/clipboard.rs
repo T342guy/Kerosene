@@ -14,8 +14,9 @@ use kerosene_toolui::widgets;
 /// What the autosave last wrote, and when.
 #[derive(Debug, Default)]
 pub struct AutosaveState {
-    /// The `egui` time of the last check.
-    last: f64,
+    /// The `egui` time of the last check; `None` until the first frame, so
+    /// a host whose clock is the time of day does not autosave at once.
+    last: Option<f64>,
     /// The map and revision last written, so an idle map is not rewritten.
     written: Option<(Option<PathBuf>, u64)>,
 }
@@ -68,10 +69,11 @@ impl ChiselApp {
         let now = ctx.input(|i| i.time);
         // Idle frames are not guaranteed, so ask for one when the next is due.
         ctx.request_repaint_after(std::time::Duration::from_secs_f64(autosave::INTERVAL));
-        if now - self.autosave.last < autosave::INTERVAL {
+        let last = *self.autosave.last.get_or_insert(now);
+        if now - last < autosave::INTERVAL {
             return;
         }
-        self.autosave.last = now;
+        self.autosave.last = Some(now);
         self.write_autosave();
     }
 

@@ -336,7 +336,7 @@ fn filter_brush(tree: &mut Tree, planes: &PlaneSet, node: usize, brush: BrushWor
 /// Serialise the entity lump.
 ///
 /// Brush entities gain a `model` key naming their brush model -- `"*1"`,
-/// `"*2"` and so on. That indirection is how a `func_door` moves: the entity
+/// `"*2"` and so on. That indirection is how a `door` moves: the entity
 /// carries a model index, and moving it moves the model, leaving the world
 /// tree untouched.
 fn build_entity_lump(map: &Map, model_entities: &[usize]) -> String {

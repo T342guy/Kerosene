@@ -122,7 +122,7 @@ fn shooting_glass_breaks_it_and_fires_on_break() {
     let mut map = room();
     brush(
         &mut map,
-        "func_breakable",
+        "breakable",
         Aabb::new(Vec3::new(200.0, 0.0, 0.0), Vec3::new(208.0, 256.0, 128.0)),
         "dev/grid",
     )
@@ -168,7 +168,7 @@ fn a_toggled_wall_stops_the_player_and_then_does_not() {
     let mut map = room();
     brush(
         &mut map,
-        "func_wall_toggle",
+        "wall_toggle",
         Aabb::new(Vec3::new(200.0, 0.0, 0.0), Vec3::new(216.0, 256.0, 128.0)),
         "dev/grid",
     )

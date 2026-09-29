@@ -397,7 +397,7 @@ mod tests {
             (
                 Aabb::new(Vec3::splat(16.0), Vec3::splat(48.0)),
                 "dev/grid",
-                "func_door",
+                "door",
             ),
         ]);
         chop_brushes(&mut b, &planes);

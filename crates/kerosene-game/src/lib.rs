@@ -13,11 +13,11 @@
 //! |---|---|
 //! | `worldspawn` | Holds map-wide settings: sky, fog, level name |
 //! | `info_player_start` | Where the player appears |
-//! | `func_door` | A brush that slides open and shut |
-//! | `func_brush` | A brush that can be turned on and off |
-//! | `func_detail` | Decoration; baked into the world at compile time |
-//! | `func_ladder` | A volume the player climbs |
-//! | `func_button` | A brush the player presses |
+//! | `door` | A brush that slides open and shut |
+//! | `brush` | A brush that can be turned on and off |
+//! | `detail` | Decoration; baked into the world at compile time |
+//! | `ladder` | A volume the player climbs |
+//! | `button` | A brush the player presses |
 //! | `trigger_multiple` | Fires when something enters its volume |
 //! | `trigger_once` | The same, once |
 //! | `logic_relay` | Passes a signal on, with a delay |
@@ -29,7 +29,7 @@
 //! | `logic_ui` | Sends the game UI events and values |
 //! | `point_worldpanel` | A UI layout on a surface in the level |
 //! | `infodecal` | A decal placed by the mapper |
-//! | `func_breakable`, `func_wall_toggle`, `point_hurt`, `point_teleport`, `item_healthkit`, `item_generic`, `player_speedmod`, `game_end` | See [`gameplay`] |
+//! | `breakable`, `wall_toggle`, `point_hurt`, `point_teleport`, `item_healthkit`, `item_generic`, `player_speedmod`, `game_end` | See [`gameplay`] |
 //!
 //! Lighting entities (`light`, `light_spot`, `light_environment`) and
 //! reflection probes (`env_cubemap`) are read by Radiance at compile time and
@@ -76,11 +76,11 @@ pub fn register(registry: &mut ClassRegistry) {
         "env_cubemap",
         // Read by Resonance at compile time, like the lights by Radiance.
         "env_acoustic_override",
-        "func_detail",
+        "detail",
         // A ladder is geometry, not behaviour: the compiler gives its brushes
         // ladder contents and the movement solver does the rest, so there is
         // nothing here for it to do but be a class a map may legally contain.
-        "func_ladder",
+        "ladder",
     ] {
         registry.register(ClassDef::new(inert));
     }

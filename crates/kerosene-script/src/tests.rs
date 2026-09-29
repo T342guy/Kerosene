@@ -9,13 +9,13 @@ fn world() -> WorldView {
         ..Default::default()
     };
     view.entities.push(
-        EntityView::new(1, "func_door")
+        EntityView::new(1, "door")
             .with_name("gate")
             .with_origin(Vec3::new(100.0, 0.0, 0.0))
             .with_field("speed", "250"),
     );
     view.entities
-        .push(EntityView::new(2, "func_door").with_name("gate"));
+        .push(EntityView::new(2, "door").with_name("gate"));
     view.entities
         .push(EntityView::new(3, "light").with_origin(Vec3::new(0.0, 0.0, 128.0)));
     view.entities.push(EntityView::new(4, "light"));
@@ -159,7 +159,7 @@ fn entities_are_found_by_name_and_by_class() {
         host.run(r#" find_by_name("gate").classname "#)
             .unwrap()
             .as_deref(),
-        Some("func_door")
+        Some("door")
     );
     assert_eq!(
         host.run(r#" find_all_by_name("gate").len "#)

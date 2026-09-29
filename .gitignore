@@ -21,6 +21,7 @@
 # How thoroughly Kiln last built each map (fast or full).
 *.kbuild
 content/maps/*.kbsp
+*.kmap~
 
 # Config files are *authored*, not generated, so they are committed. The one
 # exception is the engine config, which the first program to miss it writes

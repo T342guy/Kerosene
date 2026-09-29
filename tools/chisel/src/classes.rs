@@ -3,7 +3,7 @@
 //!
 //! The shipped definitions are compiled into the game crate
 //! (`kerosene_game::schema::BUILTIN`) and parsed here first, so Chisel knows
-//! that a `func_door` has a `speed` and answers to `Open` even when the
+//! that a `door` has a `speed` and answers to `Open` even when the
 //! content tree has no `.kdef` file in it. On-disk `.kdef` files are
 //! still read and merged *over* the built-in set, exactly as Hammer reads an
 //! FGD, so a mod can override a class by dropping its own file beside the
@@ -173,10 +173,7 @@ class { "name" "npc_guard" "base" "Point" }
 "#;
         let loaded = load_with(&dir, &[game, ""]);
         assert!(loaded.errors.is_empty(), "{:?}", loaded.errors);
-        assert!(
-            loaded.schema.get("func_door").is_some(),
-            "stock classes stay"
-        );
+        assert!(loaded.schema.get("door").is_some(), "stock classes stay");
         let guard = loaded
             .schema
             .get("npc_guard")
@@ -204,7 +201,7 @@ class { "name" "npc_guard" "base" "Point" }
         assert!(loaded.errors.is_empty(), "{:?}", loaded.errors);
         let door = loaded
             .schema
-            .get("func_door")
+            .get("door")
             .expect("the sample game has doors");
         assert!(door.key("speed").is_some());
         assert!(door.has_input("Open"));
@@ -240,7 +237,7 @@ class { "name" "npc_guard" "base" "Point" }
     #[test]
     fn the_built_in_definitions_cover_an_empty_tree() {
         // The bug this module exists to prevent: an editor pointed at a tree
-        // with no `.kdef` file must still know what a `func_door` is.
+        // with no `.kdef` file must still know what a `door` is.
         let dir = scratch("empty");
         let loaded = load(&dir);
         assert!(loaded.errors.is_empty(), "{:?}", loaded.errors);
@@ -253,7 +250,7 @@ class { "name" "npc_guard" "base" "Point" }
             !loaded.schema.is_empty(),
             "the built-in schema is always present"
         );
-        assert!(loaded.schema.get("func_door").is_some());
+        assert!(loaded.schema.get("door").is_some());
         assert!(loaded.schema.get("light").is_some());
         assert!(
             loaded.summary().contains("built in"),
@@ -287,17 +284,17 @@ class { "name" "npc_guard" "base" "Point" }
         let dir = scratch("override");
         std::fs::write(
             dir.join("a-game.kdef"),
-            r#"class { "name" "func_x" "help" "first" }"#,
+            r#"class { "name" "x" "help" "first" }"#,
         )
         .unwrap();
         std::fs::write(
             dir.join("b-mod.kdef"),
-            r#"class { "name" "func_x" "help" "second" }"#,
+            r#"class { "name" "x" "help" "second" }"#,
         )
         .unwrap();
         let loaded = load(&dir);
         assert_eq!(loaded.files.len(), 2);
-        assert_eq!(loaded.schema.get("func_x").unwrap().help, "second");
+        assert_eq!(loaded.schema.get("x").unwrap().help, "second");
         std::fs::remove_dir_all(&dir).ok();
     }
 
@@ -305,9 +302,9 @@ class { "name" "npc_guard" "base" "Point" }
     fn definitions_in_a_subdirectory_are_found() {
         let dir = scratch("nested");
         std::fs::create_dir_all(dir.join("cfg")).unwrap();
-        std::fs::write(dir.join("cfg/game.kdef"), r#"class { "name" "func_y" }"#).unwrap();
+        std::fs::write(dir.join("cfg/game.kdef"), r#"class { "name" "y" }"#).unwrap();
         let loaded = load(&dir);
-        assert!(loaded.schema.get("func_y").is_some(), "{:?}", loaded.errors);
+        assert!(loaded.schema.get("y").is_some(), "{:?}", loaded.errors);
         std::fs::remove_dir_all(&dir).ok();
     }
 }

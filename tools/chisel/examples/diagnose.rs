@@ -94,7 +94,7 @@ fn main() {
 
     println!("classes      :");
 
-    for class in ["light", "ambient_generic", "logic_script", "func_door"] {
+    for class in ["light", "ambient_generic", "logic_script", "door"] {
         match app.schema.get(class) {
             Some(spec) => println!(
                 "  {class}: kind {:?}, {} keys {:?}",

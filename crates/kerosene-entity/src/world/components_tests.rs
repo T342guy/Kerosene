@@ -27,12 +27,12 @@ impl Default for Mover {
 
 fn world() -> EntityWorld {
     let mut registry = ClassRegistry::new();
-    registry.register(ClassDef::new("func_door").component::<Mover>());
+    registry.register(ClassDef::new("door").component::<Mover>());
     EntityWorld::new(Arc::new(registry))
 }
 
 fn door(w: &mut EntityWorld, keys: &[(&str, &str)]) -> EntityId {
-    w.spawn_with("func_door", keys)
+    w.spawn_with("door", keys)
 }
 
 #[test]
@@ -160,10 +160,10 @@ fn a_save_from_before_the_component_still_loads() {
 #[test]
 fn the_editor_is_offered_every_key_a_component_declares() {
     let registry = world().registry.clone();
-    let schema = crate::Schema::parse(r#"class { "name" "func_door" "kind" "brush" }"#)
+    let schema = crate::Schema::parse(r#"class { "name" "door" "kind" "brush" }"#)
         .unwrap()
         .with_component_keys(&registry);
-    let spec = schema.get("func_door").unwrap();
+    let spec = schema.get("door").unwrap();
     let speed = spec.key("speed").unwrap();
     assert_eq!(speed.label, "Speed");
     assert_eq!(speed.kind, crate::KeyKind::Float);
@@ -180,25 +180,20 @@ fn the_editor_is_offered_every_key_a_component_declares() {
 #[test]
 fn a_written_key_that_disagrees_with_the_component_is_caught() {
     let registry = world().registry.clone();
-    let text = r#"class { "name" "func_door" "kind" "brush"
+    let text = r#"class { "name" "door" "kind" "brush"
         key { "name" "speed" "type" "float" "default" "90" } }"#;
     let schema = crate::Schema::parse(text)
         .unwrap()
         .with_component_keys(&registry);
     assert_eq!(
-        schema
-            .get("func_door")
-            .unwrap()
-            .key("speed")
-            .unwrap()
-            .default,
+        schema.get("door").unwrap().key("speed").unwrap().default,
         "90"
     );
     let problems = crate::schema::check(&registry, &schema);
     assert!(
         problems
             .iter()
-            .any(|p| p.contains("func_door.speed") && p.contains("90")),
+            .any(|p| p.contains("door.speed") && p.contains("90")),
         "{problems:?}"
     );
     let unoffered = crate::schema::check(&registry, &crate::Schema::parse(text).unwrap());

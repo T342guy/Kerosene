@@ -90,7 +90,7 @@ flowchart TB
 Spawn handlers are deferred until every entity exists, so one entity can find
 another by name during its own spawn (a door finding its button). Brush
 entities get their model bounds as `model_mins`/`model_maxs` **before** spawn
-handlers run, because a class like `func_door` needs to know how far it travels
+handlers run, because a class like `door` needs to know how far it travels
 and that comes from geometry, not a keyvalue.
 
 The registry declares outputs (`ClassDef.outputs`) even though firing one is

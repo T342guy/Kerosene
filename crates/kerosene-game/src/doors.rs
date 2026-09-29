@@ -81,7 +81,7 @@ const BUTTON_OUTPUTS: MoverOutputs = MoverOutputs {
 };
 
 fn outputs_for(classname: &str) -> &'static MoverOutputs {
-    if classname.eq_ignore_ascii_case("func_button") {
+    if classname.eq_ignore_ascii_case("button") {
         &BUTTON_OUTPUTS
     } else {
         &DOOR_OUTPUTS
@@ -177,7 +177,7 @@ impl Mover {
     /// The mover a class starts with, for an editor drawing where one will
     /// end up before any key is set.
     pub fn of_class(classname: &str) -> Mover {
-        if classname.eq_ignore_ascii_case("func_button") {
+        if classname.eq_ignore_ascii_case("button") {
             Mover::button()
         } else {
             Mover::default()
@@ -216,11 +216,11 @@ mod state {
     pub const CLOSING: i32 = 3;
 }
 
-/// Register the movers: `func_door`, `func_button`, `func_rotating` and
-/// `func_brush`.
+/// Register the movers: `door`, `button`, `rotating` and
+/// `brush`.
 pub fn register(registry: &mut ClassRegistry) {
     registry.register(
-        ClassDef::new("func_door")
+        ClassDef::new("door")
             .component::<Mover>()
             .on_spawn(spawn_mover)
             .on_think(think_mover)
@@ -248,7 +248,7 @@ pub fn register(registry: &mut ClassRegistry) {
     );
 
     registry.register(
-        ClassDef::new("func_button")
+        ClassDef::new("button")
             .component_with(Mover::button)
             .on_spawn(spawn_mover)
             .on_think(think_mover)
@@ -266,7 +266,7 @@ pub fn register(registry: &mut ClassRegistry) {
     );
 
     registry.register(
-        ClassDef::new("func_rotating")
+        ClassDef::new("rotating")
             .component::<Rotating>()
             .on_spawn(spawn_rotating)
             .on_think(think_rotating)
@@ -300,7 +300,7 @@ pub fn register(registry: &mut ClassRegistry) {
     );
 
     registry.register(
-        ClassDef::new("func_brush")
+        ClassDef::new("brush")
             .component::<Switchable>()
             .input("Enable", |w, id, _| {
                 crate::components::set_disabled(w, id, false)
@@ -577,7 +577,7 @@ pub fn door_progress(world: &EntityWorld, id: EntityId) -> f32 {
     world.component::<Mover>(id).map_or(0.0, |m| m.progress)
 }
 
-/// Whether a `func_brush` is currently solid and drawn.
+/// Whether a `brush` is currently solid and drawn.
 pub fn brush_enabled(world: &EntityWorld, id: EntityId) -> bool {
     world
         .component::<Switchable>(id)

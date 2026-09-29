@@ -99,7 +99,7 @@ and always was; a `solid` and a `side` are too. The keys the format defines
 pair round-trips untouched, so a key the game or a compiler pass invents
 later, or one a person types into Chisel's key-value editor, is never
 silently dropped. Cleave reads two on a solid: `"detail" "1"` compiles the
-brush as detail without tying it to `func_detail`, and `"section" "name"`
+brush as detail without tying it to `detail`, and `"section" "name"`
 puts it in a streamed section by name. Brush and face keys never reach the
 compiled map; a brush that should mean something to the game is tied to an
 entity, as in Source.
@@ -287,7 +287,7 @@ Chisel:
 * `avoid` -- walkable, but flagged for NPCs to route around.
 * `always` -- part of the walkmap even if the face is not flat, for ramps.
 
-Brush entities are absent on purpose: a `func_door` moves, and a static
+Brush entities are absent on purpose: a `door` moves, and a static
 walkmap that said a closed door was open would send an NPC through it.
 
 Navigation is built on top of the faces: `kerosene-walk`'s `NavGraph` links
@@ -608,7 +608,7 @@ directories beside the project.
 What an editor needs to know about the game's entities: for each class, the
 keys it reads, the inputs it answers to and the outputs it fires. The engine
 never reads this — an entity there is a bag of whatever keys the map carries,
-and that is deliberate. The file exists so that a person placing a `func_door`
+and that is deliberate. The file exists so that a person placing a `door`
 is shown that `speed` and `lip` are things, instead of an empty panel.
 
 It is the FGD relationship, and it is what keeps Chisel a separate program from
@@ -625,7 +625,7 @@ base
 
 class
 {
-    "name" "func_door"
+    "name" "door"
     "kind" "brush"
     "base" "Entity"
     "help" "A brush that slides open and shut."
@@ -704,7 +704,7 @@ the limits are in [`scripting.md`](scripting.md).
 
 ```rhai
 fn on_map_start() {
-    for door in find_by_class("func_door") {
+    for door in find_by_class("door") {
         print(`${door} at ${door.origin}`);
     }
 }

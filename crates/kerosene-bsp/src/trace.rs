@@ -286,7 +286,7 @@ impl Work<'_> {
             // that is the one result that ends the loop. Testing `all_solid`
             // here instead -- which starts out true, and is only cleared by
             // visiting open space -- returned after the *first* brush of
-            // every solid leaf, and a func_door built from two brushes only
+            // every solid leaf, and a door built from two brushes only
             // ever collided with one of them.
             if self.trace.fraction == 0.0 {
                 return;

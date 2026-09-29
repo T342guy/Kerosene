@@ -154,8 +154,8 @@ fn every_opposite_is_mutual() {
 fn schema() -> kerosene_entity::Schema {
     kerosene_entity::Schema::parse(
         r#"
-class { "name" "func_button" output { "name" "OnPressed" } }
-class { "name" "func_door" input { "name" "Open" } input { "name" "Close" } }
+class { "name" "button" output { "name" "OnPressed" } }
+class { "name" "door" input { "name" "Open" } input { "name" "Close" } }
 "#,
     )
     .unwrap()
@@ -169,8 +169,8 @@ fn named(id: u32, class: &str, name: &str) -> kerosene_map::Entity {
 
 #[test]
 fn a_connection_to_a_door_that_opens_is_fine() {
-    let button = kerosene_map::Entity::new(1, "func_button");
-    let door = named(2, "func_door", "Door");
+    let button = kerosene_map::Entity::new(1, "button");
+    let door = named(2, "door", "Door");
     let c = Connection::new("OnPressed", "door", "Open");
     assert_eq!(
         validate(&button, &c, &[button.clone(), door], &schema()),
@@ -180,8 +180,8 @@ fn a_connection_to_a_door_that_opens_is_fine() {
 
 #[test]
 fn each_way_a_connection_can_do_nothing_is_named() {
-    let button = kerosene_map::Entity::new(1, "func_button");
-    let door = named(2, "func_door", "door");
+    let button = kerosene_map::Entity::new(1, "button");
+    let door = named(2, "door", "door");
     let entities = [button.clone(), door];
     let check = |c: Connection| validate(&button, &c, &entities, &schema());
     let broken = |c: Connection| match check(c) {
@@ -200,7 +200,7 @@ fn each_way_a_connection_can_do_nothing_is_named() {
 
 #[test]
 fn the_activator_is_checked_only_as_far_as_it_can_be() {
-    let button = kerosene_map::Entity::new(1, "func_button");
+    let button = kerosene_map::Entity::new(1, "button");
     let entities = [button.clone()];
     let c = Connection::new("OnPressed", "!activator", "Open");
     assert!(matches!(
@@ -213,11 +213,11 @@ fn the_activator_is_checked_only_as_far_as_it_can_be() {
 
 #[test]
 fn self_is_this_entity_and_is_checked_like_a_name() {
-    let door = named(2, "func_door", "door");
+    let door = named(2, "door", "door");
     let mut schema = schema();
     schema.merge(
         kerosene_entity::Schema::parse(
-            r#"class { "name" "func_door" input { "name" "Open" } output { "name" "OnOpen" } }"#,
+            r#"class { "name" "door" input { "name" "Open" } output { "name" "OnOpen" } }"#,
         )
         .unwrap(),
     );
@@ -243,13 +243,13 @@ fn a_class_with_no_definition_is_taken_on_trust() {
 
 #[test]
 fn inputs_are_every_connection_that_fires_at_an_entity() {
-    let mut a = kerosene_map::Entity::new(1, "func_button");
+    let mut a = kerosene_map::Entity::new(1, "button");
     a.connect(Connection::new("OnPressed", "DOOR", "Open"));
     a.connect(Connection::new("OnPressed", "light", "TurnOn"));
     let mut b = kerosene_map::Entity::new(3, "trigger_once");
     b.connect(Connection::new("OnTrigger", "door", "Close"));
-    let door = named(2, "func_door", "door");
-    let mut selfish = named(4, "func_door", "other");
+    let door = named(2, "door", "door");
+    let mut selfish = named(4, "door", "other");
     selfish.connect(Connection::new("OnOpen", "!self", "Close"));
     let entities = [a, door.clone(), b, selfish.clone()];
     assert_eq!(inputs_to(&entities, &door), vec![(1, 0), (3, 0)]);
@@ -258,10 +258,10 @@ fn inputs_are_every_connection_that_fires_at_an_entity() {
 
 #[test]
 fn a_maps_broken_wires_are_listed_by_the_entity_they_are_on() {
-    let mut button = named(1, "func_button", "switch");
+    let mut button = named(1, "button", "switch");
     button.connect(Connection::new("OnPressed", "door", "Open"));
     button.connect(Connection::new("OnPressed", "nowhere", "Open"));
-    let door = named(2, "func_door", "door");
+    let door = named(2, "door", "door");
     let problems = broken_wires(&[button, door], &schema());
     assert_eq!(problems.len(), 1, "{problems:?}");
     assert!(

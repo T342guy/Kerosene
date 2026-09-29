@@ -117,7 +117,7 @@ for completeness.
 
 - **Rigid-body dynamics.** `kerosene-physics` is the player movement solver
   plus `PhysicsWorld`, which wraps Box3D (via `box3d-rust`) and is wired into the
-  engine: world brushes become static hulls, `func_detail` joins them, and
+  engine: world brushes become static hulls, `detail` joins them, and
   moving brush entities (doors, shutters) become static bodies that follow
   their entity's pose, so a closed door blocks a thrown prop. `prop_physics`
   entities get dynamic box bodies (from their model bounds) whose **object
@@ -268,7 +268,7 @@ for completeness.
 - **Difficulty / game settings.** None.
 - **Entity classes.** The set is enough for the demo level and thin for a
   real one. Missing from Source's glue, roughly in the order a mapper hits
-  them: `func_movelinear`, `func_tracktrain` and `path_track`, `logic_case`,
+  them: `movelinear`, `tracktrain` and `path_track`, `logic_case`,
   `logic_compare`, `math_remap`, `filter_activator_name` and `_class`,
   `env_fade`, `env_shake`, `trigger_gravity`, `point_viewcontrol`,
   `env_sprite`, `game_ui`. None of these are hard; each is a class in
@@ -298,7 +298,7 @@ for completeness.
   visibility (see [`architecture.md`](architecture.md#streamed-sections)).
   Still one `.kbsp` per map, compiled and lit as one; not an open world.
 - **Visibility control for the mapper.** `tools/hint` and `tools/skip` steer
-  Cleave's splits, but there is no `func_areaportal` and no occluder, so a
+  Cleave's splits, but there is no `areaportal` and no occluder, so a
   door cannot close off what is behind it.
 - **Runtime asset hot-reload.** Game UI reloads by itself (`ui_hotreload`),
   and scripts and sound tables on command (`script_reload`, `snd_restart`).
@@ -484,7 +484,7 @@ The runtime:
   and `noise_locked`, `door/move` by default.
 - **Movers and entities.** A door does not push, stop on or crush a
   blocking player and has no `OnBlocked`; a player on a moving platform is
-  not carried; no `parentname`; no `func_door_rotating`,
+  not carried; no `parentname`; no `door_rotating`,
   `point_template`/`env_entity_maker`, `point_teleport`,
   `trigger_look`/`trigger_proximity`, `game_text` or `sky_camera`.
 - **Scripting.** No traces, spawning, or entity angles and velocity in the
@@ -578,7 +578,7 @@ Rendering:
   where it is drawn, among the solid ones and unsorted, and a two-sided
   model is still culled. Umbra and Radiance still treat a translucent brush
   as solid -- it blocks visibility and casts a full shadow -- unless it is
-  `func_detail`.
+  `detail`.
 - **No sprites, billboards or beams.** Particles need them first.
 - **No render-to-texture or second camera.** Security monitors, mirrors,
   scopes and `sky_camera` all wait on it.
@@ -618,9 +618,9 @@ Platform and saves:
 
 Entities:
 
-- **Missing classes.** ~~`func_breakable`, `func_wall_toggle`,
+- **Missing classes.** ~~`breakable`, `wall_toggle`,
   `point_hurt`, `item_*` pickups, `game_end`, `player_speedmod`~~ are in,
-  with `point_teleport`. Still missing: `func_physbox`, `env_spark`,
+  with `point_teleport`. Still missing: `physbox`, `env_spark`,
   `env_explosion`, and fog and water controllers.
 - **Thin common inputs.** `Kill`, `AddOutput` and `FireUser1` to `4` work on
   everything; `SetParent` does not, and `Enable`/`Disable` are each class's
@@ -730,7 +730,7 @@ Deliberately not:
    them. What is missing is the NPC that walks them.
 2. **The solver already does convex hulls; props do not use them.**
    `PhysicsWorld` exposes `add_dynamic_hull`, and world brushes and
-   `func_detail` go in as static hulls, so the hull path is real and running.
+   `detail` go in as static hulls, so the hull path is real and running.
    But `prop_physics` bodies are built from the model's bounding box
    (`add_dynamic_box_material`), so a barrel collides as a crate. Nothing
    calls `add_dynamic_hull`. Closing this is wiring a hull out of `.kmdl`

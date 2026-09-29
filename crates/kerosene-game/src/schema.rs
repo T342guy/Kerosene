@@ -346,7 +346,7 @@ class
 
 class
 {
-    "name" "func_detail"
+    "name" "detail"
     "kind" "brush"
     "base" "Entity"
     "help" "Brushes that decorate without shaping the level. Merged into the world at compile time and never split the BSP tree, which is what keeps a detailed map fast."
@@ -354,7 +354,7 @@ class
 
 class
 {
-    "name" "func_brush"
+    "name" "brush"
     "kind" "brush"
     "base" "Entity" "base" "Switchable"
     "help" "A brush that can be switched on and off. Off means neither drawn nor solid."
@@ -362,7 +362,7 @@ class
 
 class
 {
-    "name" "func_rotating"
+    "name" "rotating"
     "kind" "brush"
     "base" "Entity"
     "help" "A brush that spins in place -- a fan, a turntable, a rotating door. It turns about the centre of its own geometry, so no origin brush is needed."
@@ -383,7 +383,7 @@ class
 
 class
 {
-    "name" "func_ladder"
+    "name" "ladder"
     "kind" "brush"
     "base" "Entity"
     "help" "A volume the player climbs. Not solid -- you walk into it and then go up. Look up and hold forward, or hold jump. Texture the brush with anything; the class is what makes it a ladder."
@@ -391,7 +391,7 @@ class
 
 class
 {
-    "name" "func_door"
+    "name" "door"
     "kind" "brush"
     "base" "Entity"
     "help" "A brush that slides open and shut. It moves by its own size along the movement axis, so resizing a door keeps it working."
@@ -430,7 +430,7 @@ class
 
 class
 {
-    "name" "func_button"
+    "name" "button"
     "kind" "brush"
     "base" "Entity"
     "help" "A brush the player presses. The same mover as a door -- it travels by its own size along the movement axis -- but it announces being pressed rather than being open, and pops back out after its wait."
@@ -791,7 +791,7 @@ class
 
 class
 {
-    "name" "func_breakable"
+    "name" "breakable"
     "kind" "brush"
     "base" "Entity"
     "help" "A brush with health: glass, a crate, a boarded window. Shoot it, or fire Break, and it is gone."
@@ -809,7 +809,7 @@ class
 
 class
 {
-    "name" "func_wall_toggle"
+    "name" "wall_toggle"
     "kind" "brush"
     "base" "Entity"
     "help" "A wall that is there or is not: seen and solid, or neither."

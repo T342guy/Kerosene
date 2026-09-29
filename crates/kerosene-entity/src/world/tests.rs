@@ -377,7 +377,7 @@ entity
     "spawnflags" "3"
     connections { "OnTrigger" "gate,Open,,0.25,-1" }
 }
-entity { "classname" "func_door" "targetname" "gate" "model" "*1" }
+entity { "classname" "door" "targetname" "gate" "model" "*1" }
 "#;
     let mut w = world();
     let kv = KeyValues::parse(src).unwrap();
