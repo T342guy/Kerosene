@@ -169,6 +169,13 @@ old name is worse than clutter: the game still loads it, so a renamed map
 appears to work under a name that no longer exists and to be missing under the
 one that does. Renaming onto a map that already exists is refused.
 
+**Autosave.** A map with unsaved changes is written to `arena.kmap~` beside it
+every minute -- never over `arena.kmap`, so a bad afternoon cannot replace the
+last good version. Saving removes it. Opening a map whose autosave is newer
+asks whether to recover it (escape keeps the file and asks next time); a session
+that died before its first save leaves `untitled.kmap~`, offered when the
+editor starts with no map.
+
 `file → open` lists the maps in the project. Anything that would throw away
 unsaved changes asks first, and offers to save. The title bar and the status
 bar both name the file, with a `*` when there are unsaved changes; a map with
@@ -220,6 +227,9 @@ bars between the panes to resize them.
 | Double-click | object properties of what was clicked |
 | `Alt+Enter` | object properties, as a window |
 | `Ctrl+Shift+E` | the entity report |
+| `Ctrl+X` / `Ctrl+C` / `Ctrl+V` | cut / copy / paste (a paste lands a grid step over; a cut pastes back in place) |
+| `Ctrl+J` | go to an object by id (the `brush 12` in Cleave's warnings) or by part of a name or class |
+| `Ctrl+1` .. `9` | fly a pane to a camera bookmark; `Ctrl+Alt+1` .. `9` sets one (kept for the session) |
 | `Ctrl+G` / `Ctrl+U` | group / ungroup the selection |
 | `H` / `Ctrl+H` / `U` | hide the selection / hide everything else / unhide all |
 | `Ctrl+Shift+G` | a new visgroup of the selection |

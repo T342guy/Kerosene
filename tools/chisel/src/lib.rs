@@ -17,6 +17,7 @@
 //! found by its users.
 
 pub mod app;
+pub mod autosave;
 pub mod browse;
 pub mod brush;
 pub mod brush_edit;

@@ -56,6 +56,30 @@ impl Selection {
     }
 }
 
+/// Objects copied out of a map, ready to paste into it or another.
+#[derive(Clone, Debug, Default)]
+pub struct Clipboard {
+    pub solids: Vec<Solid>,
+    pub meshes: Vec<kerosene_map::Mesh>,
+    /// Whole entities, brushes and all.
+    pub entities: Vec<Entity>,
+    /// Single brushes picked out of a brush entity, with that entity's id.
+    pub entity_solids: Vec<(u32, Solid)>,
+}
+
+impl Clipboard {
+    pub fn is_empty(&self) -> bool {
+        self.solids.is_empty()
+            && self.meshes.is_empty()
+            && self.entities.is_empty()
+            && self.entity_solids.is_empty()
+    }
+
+    pub fn len(&self) -> usize {
+        self.solids.len() + self.meshes.len() + self.entities.len() + self.entity_solids.len()
+    }
+}
+
 /// What an edit did, for the undo history and the status bar.
 #[derive(Clone, Debug, PartialEq)]
 pub struct EditLabel(pub String);
@@ -154,6 +178,8 @@ impl Document {
             .map_err(|e| anyhow::anyhow!("writing {}: {e}", target.display()))?;
         self.path = Some(target.clone());
         self.saved_at = Some(self.undo.len());
+        // What the autosave was guarding is on disk now.
+        crate::autosave::remove(&crate::autosave::path_for(Some(&target), &target));
         Ok(target)
     }
 
@@ -428,47 +454,73 @@ impl Document {
         self.selection.len()
     }
 
-    /// Copy everything selected, offset by `delta`, and select the copies.
+    /// What is selected, as something that can be pasted.
     ///
-    /// Hammer's shift-drag. Copies get fresh ids throughout -- a brush, its
-    /// sides, an entity -- because ids are how undo, I/O and selection tell
-    /// objects apart, and a duplicate that shared one would be the same
-    /// object to all three. A copied entity keeps its keyvalues but not its
-    /// `targetname`, which names one thing; two would make `ent_fire` fire
-    /// both.
-    pub fn duplicate_selection(&mut self, delta: Vec3) -> usize {
-        if self.selection.is_empty() {
-            return 0;
-        }
-        self.apply("duplicate", |doc| {
-            let solids = doc.selection.solids.clone();
-            let entities = doc.selection.entities.clone();
-            let mut new_selection = Selection::default();
-
-            let world_copies: Vec<Solid> = doc
+    /// Brushes picked out of a brush entity remember which entity, so a paste
+    /// into the same map puts them back in it; a paste that finds it gone
+    /// (cut, then pasted) puts them in the world instead.
+    pub fn copy_selection(&self) -> Clipboard {
+        let sel = &self.selection;
+        let mut clip = Clipboard {
+            solids: self
                 .map
                 .world
                 .solids
                 .iter()
-                .filter(|s| solids.contains(&s.id))
+                .filter(|s| sel.solids.contains(&s.id))
                 .cloned()
-                .collect();
-            for mut copy in world_copies {
+                .collect(),
+            meshes: self
+                .map
+                .world
+                .meshes
+                .iter()
+                .filter(|m| sel.meshes.contains(&m.id))
+                .cloned()
+                .collect(),
+            ..Clipboard::default()
+        };
+        for entity in &self.map.entities {
+            if sel.entities.contains(&entity.id) {
+                clip.entities.push(entity.clone());
+            } else {
+                for solid in entity.solids.iter().filter(|s| sel.solids.contains(&s.id)) {
+                    clip.entity_solids.push((entity.id, solid.clone()));
+                }
+            }
+        }
+        clip
+    }
+
+    /// Copy the selection, then delete it.
+    pub fn cut_selection(&mut self) -> Clipboard {
+        let clip = self.copy_selection();
+        self.delete_selection();
+        clip
+    }
+
+    /// Add a copy of the clipboard's contents, offset by `delta`, and select
+    /// the copies. Returns how many objects were added.
+    ///
+    /// Copies get fresh ids throughout -- a brush, its sides, an entity --
+    /// because ids are how undo, I/O and selection tell objects apart, and a
+    /// paste that shared one would be the same object to all three. A copied
+    /// entity keeps its keyvalues but not its `targetname`, which names one
+    /// thing; two would make `ent_fire` fire both.
+    pub fn paste(&mut self, clip: &Clipboard, delta: Vec3, label: &str) -> usize {
+        if clip.is_empty() {
+            return 0;
+        }
+        self.apply(label, |doc| {
+            let mut new_selection = Selection::default();
+
+            for mut copy in clip.solids.iter().cloned() {
                 copy.translate(delta);
                 let id = doc.map.add_world_solid(copy);
                 new_selection.solids.insert(id);
             }
 
-            let meshes = doc.selection.meshes.clone();
-            let mesh_copies: Vec<kerosene_map::Mesh> = doc
-                .map
-                .world
-                .meshes
-                .iter()
-                .filter(|m| meshes.contains(&m.id))
-                .cloned()
-                .collect();
-            for mut copy in mesh_copies {
+            for mut copy in clip.meshes.iter().cloned() {
                 copy.translate(delta);
                 copy.id = doc.map.next_id();
                 for face in &mut copy.faces {
@@ -478,15 +530,7 @@ impl Document {
                 doc.map.world.meshes.push(copy);
             }
 
-            // Whole brush entities, and single brushes picked out of one.
-            let entity_copies: Vec<Entity> = doc
-                .map
-                .entities
-                .iter()
-                .filter(|e| entities.contains(&e.id))
-                .cloned()
-                .collect();
-            for mut copy in entity_copies {
+            for mut copy in clip.entities.iter().cloned() {
                 copy.id = doc.map.next_id();
                 copy.remove("targetname");
                 for solid in &mut copy.solids {
@@ -502,24 +546,18 @@ impl Document {
                 new_selection.entities.insert(copy.id);
                 doc.map.entities.push(copy);
             }
-            for entity_index in 0..doc.map.entities.len() {
-                if entities.contains(&doc.map.entities[entity_index].id) {
-                    continue;
+
+            for (owner, solid) in &clip.entity_solids {
+                let mut copy = solid.clone();
+                copy.translate(delta);
+                copy.id = doc.map.next_id();
+                for side in &mut copy.sides {
+                    side.id = doc.map.next_id();
                 }
-                let picked: Vec<Solid> = doc.map.entities[entity_index]
-                    .solids
-                    .iter()
-                    .filter(|s| solids.contains(&s.id))
-                    .cloned()
-                    .collect();
-                for mut copy in picked {
-                    copy.translate(delta);
-                    copy.id = doc.map.next_id();
-                    for side in &mut copy.sides {
-                        side.id = doc.map.next_id();
-                    }
-                    new_selection.solids.insert(copy.id);
-                    doc.map.entities[entity_index].solids.push(copy);
+                new_selection.solids.insert(copy.id);
+                match doc.map.entities.iter_mut().find(|e| e.id == *owner) {
+                    Some(entity) => entity.solids.push(copy),
+                    None => doc.map.world.solids.push(copy),
                 }
             }
 
@@ -527,6 +565,14 @@ impl Document {
             doc.selection = new_selection;
             count
         })
+    }
+
+    /// Copy everything selected, offset by `delta`, and select the copies.
+    ///
+    /// Hammer's shift-drag: a copy and a paste in one step.
+    pub fn duplicate_selection(&mut self, delta: Vec3) -> usize {
+        let clip = self.copy_selection();
+        self.paste(&clip, delta, "duplicate")
     }
 
     /// Move everything selected.
@@ -1088,6 +1134,48 @@ impl Document {
             doc.selection.meshes.extend(converted.iter().copied());
             converted.len()
         })
+    }
+
+    /// Select what `query` names: an object's id (the number Cleave prints
+    /// in `brush 12`), or part of an entity's name or class. Returns how
+    /// many objects were selected; the selection is left alone when nothing
+    /// matches.
+    pub fn go_to(&mut self, query: &str) -> usize {
+        let query = query.trim().trim_start_matches('#');
+        if query.is_empty() {
+            return 0;
+        }
+        let mut found = Selection::default();
+        if let Ok(id) = query.parse::<u32>() {
+            let in_entity = |id: u32| {
+                self.map
+                    .entities
+                    .iter()
+                    .any(|e| e.solids.iter().any(|s| s.id == id))
+            };
+            if self.map.world.solids.iter().any(|s| s.id == id) || in_entity(id) {
+                found.solids.insert(id);
+            }
+            if self.map.entities.iter().any(|e| e.id == id) {
+                found.entities.insert(id);
+            }
+            if self.map.world.meshes.iter().any(|m| m.id == id) {
+                found.meshes.insert(id);
+            }
+        } else {
+            let needle = query.to_lowercase();
+            for e in &self.map.entities {
+                let name = e.get("targetname").unwrap_or("").to_lowercase();
+                if name.contains(&needle) || e.classname().to_lowercase().contains(&needle) {
+                    found.entities.insert(e.id);
+                }
+            }
+        }
+        let n = found.len();
+        if n > 0 {
+            self.selection = found;
+        }
+        n
     }
 
     pub fn find_solid(&self, id: u32) -> Option<&Solid> {

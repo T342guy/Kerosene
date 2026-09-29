@@ -10,7 +10,7 @@
 //! result. The decisions all live in the modules it calls.
 
 use crate::compile::{CompileJob, CompileMessage, CompileSettings, Quality, available_tools};
-use crate::document::{ClipMode, Document};
+use crate::document::{ClipMode, Clipboard, Document};
 use crate::inspector::{self, PropertyRow, TargetId};
 use crate::raster::Shading;
 use crate::textures::TextureCache;
@@ -22,9 +22,10 @@ use kerosene_entity::{ClassKind, KeyKind, Schema};
 use kerosene_map::{Connection, EditorData, ObjectId, WalkmapRule};
 use kerosene_math::Vec3;
 use kerosene_rhi::wgpu;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 mod browser;
+mod clipboard;
 mod compile;
 mod dialogs;
 mod hover;
@@ -32,6 +33,7 @@ mod io;
 mod layout;
 mod menu;
 mod modelling;
+mod navigate;
 mod options_bar;
 mod outliner;
 mod panel;
@@ -394,6 +396,16 @@ pub struct ChiselApp {
     /// Bumped whenever the texture cache is emptied, so the GPU drops its
     /// copies too.
     texture_epoch: u64,
+    /// What cut and copy took.
+    clipboard: Clipboard,
+    /// How many times the clipboard has been pasted, for the offset.
+    pastes: u32,
+    autosave: clipboard::AutosaveState,
+    /// An autosave newer than its map, waiting to be recovered or refused.
+    pub recovery: Option<PathBuf>,
+    pub go_to: navigate::GoTo,
+    /// Camera bookmarks, on ctrl-1 to ctrl-9; ctrl-alt sets one.
+    bookmarks: [Option<Viewport>; navigate::BOOKMARKS],
 }
 
 /// A rendered 3D pane and the state it was rendered from.
@@ -660,6 +672,12 @@ impl ChiselApp {
             texture_epoch: 0,
             helper_mode: Default::default(),
             helpers_cache: None,
+            clipboard: Clipboard::default(),
+            pastes: 0,
+            autosave: Default::default(),
+            recovery: None,
+            go_to: Default::default(),
+            bookmarks: Default::default(),
         }
     }
 
@@ -727,6 +745,7 @@ impl ChiselApp {
                 self.document = document;
                 self.status = format!("opened {}", path.display());
                 self.frame_all();
+                self.offer_recovery();
             }
             Err(e) => self.status = format!("could not open {}: {e}", path.display()),
         }
@@ -954,7 +973,10 @@ impl ChiselApp {
         self.history_window(ctx);
         self.shortcuts_window(ctx);
         self.property_window_ui(ctx);
+        self.recovery_window(ctx);
+        self.go_to_window(ctx);
         self.viewports_panel(ctx);
+        self.tick_autosave(ctx);
         // Dragged splitters and toggles land here, once a frame, and are
         // written only when they changed.
         self.save_layout();
@@ -983,6 +1005,12 @@ impl ChiselApp {
             New,
             SelectAll,
             Duplicate,
+            GoTo,
+            SetBookmark(usize),
+            Bookmark(usize),
+            Cut,
+            Copy,
+            Paste,
             Browse,
             Delete,
             Cancel,
@@ -1047,6 +1075,51 @@ impl ChiselApp {
             }
             if i.consume_key(ctrl, Key::D) && !typing {
                 actions.push(Action::Duplicate)
+            }
+            if i.consume_key(ctrl, Key::J) && !typing {
+                actions.push(Action::GoTo)
+            }
+            // The alt chord first, for the same looseness as the shifted ones.
+            for (slot, key) in [
+                Key::Num1,
+                Key::Num2,
+                Key::Num3,
+                Key::Num4,
+                Key::Num5,
+                Key::Num6,
+                Key::Num7,
+                Key::Num8,
+                Key::Num9,
+            ]
+            .into_iter()
+            .enumerate()
+            {
+                if i.consume_key(ctrl | Modifiers::ALT, key) && !typing {
+                    actions.push(Action::SetBookmark(slot))
+                }
+                if i.consume_key(ctrl, key) && !typing {
+                    actions.push(Action::Bookmark(slot))
+                }
+            }
+            // egui turns ctrl-X, C and V into events of their own and sends
+            // no key press for them, so they are read from the event list.
+            // The shifted chords (carve, on ctrl-shift-C) are not copies.
+            if !typing && !i.modifiers.shift {
+                i.events.retain(|e| match e {
+                    egui::Event::Cut => {
+                        actions.push(Action::Cut);
+                        false
+                    }
+                    egui::Event::Copy => {
+                        actions.push(Action::Copy);
+                        false
+                    }
+                    egui::Event::Paste(_) => {
+                        actions.push(Action::Paste);
+                        false
+                    }
+                    _ => true,
+                });
             }
             // Shifted first, for the reason given above.
             if i.consume_key(ctrl | Modifiers::SHIFT, Key::G) && !typing {
@@ -1194,6 +1267,12 @@ impl ChiselApp {
                     let n = self.document.select_all();
                     self.status = format!("selected {n}");
                 }
+                Action::GoTo => self.begin_go_to(),
+                Action::SetBookmark(slot) => self.set_bookmark(slot),
+                Action::Bookmark(slot) => self.go_to_bookmark(slot),
+                Action::Cut => self.cut(),
+                Action::Copy => self.copy(),
+                Action::Paste => self.paste(),
                 Action::Duplicate => {
                     // Offset by one grid step so the copy is visibly a copy
                     // rather than a second brush hidden inside the first.
@@ -2880,6 +2959,125 @@ mod tests {
         }
         let _ = app.output_lines();
         app.compile = None;
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    // ---- clipboard and autosave ------------------------------------------
+
+    #[test]
+    fn copy_then_paste_adds_a_copy_a_step_over_and_a_cut_pastes_in_place() {
+        let (mut app, root) = app_with_a_brush("clipboard");
+        app.copy();
+        app.paste();
+        assert_eq!(app.document.map.world.solids.len(), 2);
+        let step = app.document.grid.size;
+        let moved = app.document.map.world.solids[1].bounds().min;
+        assert_eq!(moved, Vec3::new(step, step, 0.0));
+
+        app.cut();
+        assert_eq!(app.document.map.world.solids.len(), 1);
+        app.paste();
+        assert_eq!(app.document.map.world.solids.len(), 2);
+        assert_eq!(
+            app.document.map.world.solids[1].bounds().min,
+            moved,
+            "a cut goes back where it came from"
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn ctrl_c_and_ctrl_v_reach_the_clipboard_as_egui_events() {
+        let (mut app, root) = app_with_a_brush("clipboard-keys");
+        let ctx = egui::Context::default();
+        let run = |app: &mut ChiselApp, event: egui::Event| {
+            let input = egui::RawInput {
+                events: vec![event],
+                ..Default::default()
+            };
+            let _ = ctx.run(input, |ctx| app.shortcuts(ctx));
+        };
+        run(&mut app, egui::Event::Copy);
+        run(&mut app, egui::Event::Paste(String::new()));
+        assert_eq!(app.document.map.world.solids.len(), 2);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn an_edited_map_is_autosaved_once_and_a_save_clears_it() {
+        let (mut app, root) = app_in("autosave");
+        assert!(!app.write_autosave(), "an untouched map is not written");
+
+        app.document.create_block(Vec3::ZERO, Vec3::splat(64.0));
+        assert!(app.write_autosave());
+        let copy = root.join("maps/untitled.kmap~");
+        assert!(copy.exists());
+        assert!(!app.write_autosave(), "nothing changed since");
+
+        app.save(Some(root.join("maps/a.kmap")));
+        let beside = root.join("maps/a.kmap~");
+        app.document.create_block(Vec3::ZERO, Vec3::splat(64.0));
+        assert!(app.write_autosave());
+        assert!(beside.exists());
+        app.save(None);
+        assert!(!beside.exists(), "saving is what the copy was guarding");
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn a_newer_autosave_is_offered_and_recovering_it_marks_the_map_modified() {
+        let (mut app, root) = app_in("recovery");
+        let map = root.join("maps/a.kmap");
+        app.save(Some(map.clone()));
+        let saved_solids = app.document.map.world.solids.len();
+
+        app.document.create_block(Vec3::ZERO, Vec3::splat(64.0));
+        assert!(app.write_autosave());
+        // The mtime granularity of some filesystems is coarse.
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        crate::autosave::write(&app.document.map, &root.join("maps/a.kmap~")).unwrap();
+
+        app.open(map);
+        assert!(app.recovery.is_some(), "a newer autosave is offered");
+        assert_eq!(app.document.map.world.solids.len(), saved_solids);
+
+        let path = app.recovery.take().unwrap();
+        app.recover(&path);
+        assert_eq!(app.document.map.world.solids.len(), saved_solids + 1);
+        assert!(app.document.is_modified());
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn a_bookmark_brings_a_pane_back_to_where_it_was_taken() {
+        let (mut app, root) = app_in("bookmarks");
+        app.active = 0;
+        app.viewports[0].eye = Vec3::new(100.0, 200.0, 300.0);
+        app.set_bookmark(2);
+        app.viewports[0].eye = Vec3::ZERO;
+        app.viewports[0].size = (640.0, 480.0);
+
+        app.go_to_bookmark(2);
+        assert_eq!(app.viewports[0].eye, Vec3::new(100.0, 200.0, 300.0));
+        assert_eq!(
+            app.viewports[0].size,
+            (640.0, 480.0),
+            "the pane keeps its size"
+        );
+
+        app.go_to_bookmark(5);
+        assert!(app.status.contains("empty"), "{}", app.status);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn go_to_selects_and_frames() {
+        let (mut app, root) = app_with_a_brush("goto");
+        let id = app.document.map.world.solids[0].id;
+        app.document.selection.clear();
+        assert!(app.go_to(&id.to_string()));
+        assert!(app.document.selection.solids.contains(&id));
+        assert!(!app.go_to("zzz"));
         let _ = std::fs::remove_dir_all(&root);
     }
 }

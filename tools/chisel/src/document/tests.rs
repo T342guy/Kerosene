@@ -1268,3 +1268,98 @@ fn select_all_and_hiding_include_meshes() {
     assert!(!d.is_visible(kerosene_map::ObjectId::Mesh(mesh)));
     assert_eq!(d.visible_meshes().count(), 0);
 }
+
+#[test]
+fn a_copy_pastes_into_the_map_more_than_once_with_fresh_ids() {
+    let mut d = doc();
+    let original = block(&mut d, 0.0, 64.0);
+    d.selection.clear();
+    d.selection.solids.insert(original);
+    let clip = d.copy_selection();
+    assert_eq!(clip.len(), 1);
+
+    assert_eq!(d.paste(&clip, Vec3::new(64.0, 0.0, 0.0), "paste"), 1);
+    assert_eq!(d.paste(&clip, Vec3::new(128.0, 0.0, 0.0), "paste"), 1);
+    assert_eq!(d.map.world.solids.len(), 3);
+    let mut ids: Vec<u32> = d.map.world.solids.iter().map(|s| s.id).collect();
+    ids.sort();
+    ids.dedup();
+    assert_eq!(ids.len(), 3, "every paste gets ids of its own");
+    assert_eq!(d.selection.solids.len(), 1, "the newest paste is selected");
+}
+
+#[test]
+fn a_cut_is_undone_in_one_step_and_pastes_back_in_place() {
+    let mut d = doc();
+    let id = block(&mut d, 0.0, 64.0);
+    d.selection.clear();
+    d.selection.solids.insert(id);
+
+    let clip = d.cut_selection();
+    assert!(d.map.world.solids.is_empty());
+    d.paste(&clip, Vec3::ZERO, "paste");
+    assert_eq!(d.map.world.solids.len(), 1);
+    assert_eq!(d.map.world.solids[0].bounds().min, Vec3::ZERO);
+
+    d.undo();
+    assert!(d.map.world.solids.is_empty(), "paste undone");
+    d.undo();
+    assert_eq!(d.map.world.solids.len(), 1, "cut undone");
+}
+
+#[test]
+fn a_brush_picked_out_of_an_entity_goes_to_the_world_when_the_entity_is_gone() {
+    let mut d = doc();
+    let id = block(&mut d, 0.0, 64.0);
+    d.selection.clear();
+    d.selection.solids.insert(id);
+    let door = d.tie_to_entity("func_door").unwrap();
+    d.selection.clear();
+    let inner = d.find_entity(door).unwrap().solids[0].id;
+    d.selection.solids.insert(inner);
+
+    let clip = d.cut_selection();
+    assert_eq!(clip.entity_solids.len(), 1);
+    assert!(d.map.world.solids.is_empty());
+    d.paste(&clip, Vec3::ZERO, "paste");
+    assert_eq!(
+        d.map.world.solids.len(),
+        1,
+        "the entity went with its last brush"
+    );
+}
+
+#[test]
+fn an_empty_clipboard_pastes_nothing_and_records_nothing() {
+    let mut d = doc();
+    let depth = d.undo_depth();
+    assert_eq!(d.paste(&Clipboard::default(), Vec3::ZERO, "paste"), 0);
+    assert_eq!(d.undo_depth(), depth);
+}
+
+#[test]
+fn go_to_finds_a_brush_by_id_and_an_entity_by_name_or_class() {
+    let mut d = doc();
+    let brush = block(&mut d, 0.0, 64.0);
+    let door = d.create_entity("func_door", Vec3::ZERO);
+    d.find_entity_mut(door)
+        .unwrap()
+        .set("targetname", "Front_Gate");
+    d.selection.clear();
+
+    assert_eq!(d.go_to(&brush.to_string()), 1);
+    assert!(d.selection.solids.contains(&brush));
+    assert_eq!(d.go_to(&format!("#{door}")), 1);
+    assert!(d.selection.entities.contains(&door));
+    assert_eq!(d.go_to("gate"), 1, "names match in any case");
+    assert_eq!(d.go_to("func_"), 1, "and classes match by part");
+
+    d.selection.clear();
+    d.selection.solids.insert(brush);
+    assert_eq!(d.go_to("no_such_thing"), 0);
+    assert_eq!(d.go_to("999999"), 0);
+    assert!(
+        d.selection.solids.contains(&brush),
+        "a miss leaves the selection alone"
+    );
+}

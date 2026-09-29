@@ -379,7 +379,8 @@ Chisel:
   until compile and run.
 - ~~**VisGroups.**~~ Fixed: a VisGroups tab with nested user groups and
   automatic ones, quick-hide, groups, and object colours.
-- **Autosave and recovery.** None. A crash loses the session.
+- ~~**Autosave and recovery.**~~ Fixed: `arena.kmap~` every minute, offered
+  back when it is newer than the map.
 - **Recent files.** None.
 - ~~**Cordon.**~~ Fixed: a box that limits what is shown and what Cleave
   compiles, sealed by its own walls.
@@ -494,10 +495,10 @@ The runtime:
 
 The tools:
 
-- **Chisel.** No clipboard copy and paste of objects (connections have
-  one); no texture-lock toggle, though `Solid::translate_world_locked`
-  exists; no find and replace; no go-to by brush or entity id, so Cleave's
-  `brush N` warnings cannot be followed; no camera bookmarks. The layout,
+- **Chisel.** Cut, copy and paste work (in the editor, not through the system
+  clipboard); go-to by id or name and nine camera bookmarks (not saved with
+  the map) are in. No texture-lock toggle, though
+  `Solid::translate_world_locked` exists; no find and replace. The layout,
   helper mode, shading and fly speed are remembered now (`chisel.layout`);
   the grid is not, and there is no Preferences dialog, keymap file, or light
   theme. Undo keeps a whole copy of the map per step.
@@ -752,7 +753,7 @@ shooter or immersive sim, cheapest first.
    solver's regression fixture, and is the ghost system for genre 3.
 4. ~~**A game UI layer and save/load.**~~ Done, with a main menu, a loading
    screen and save and load pages.
-5. **Chisel: autosave, instances.** VisGroups are in; these two are what
+5. **Chisel: instances.** VisGroups and autosave are in; this is what
    remains of making the second real map editable.
 6. **Weapons and damage.** Hitscan, ammo, `OnDamaged`, decals for the holes.
 7. ~~**Steam, Workshop first.**~~ Done, as the `steam` feature.

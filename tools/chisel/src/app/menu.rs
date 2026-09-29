@@ -124,6 +124,29 @@ impl ChiselApp {
             ui.close();
         }
         let has_selection = !self.document.selection.is_empty();
+        if menu_item(ui, "Go to...", Some("ctrl-J")).clicked() {
+            self.begin_go_to();
+            ui.close();
+        }
+        ui.separator();
+        if menu_item_enabled(ui, has_selection, "Cut", Some("ctrl-X")).clicked() {
+            self.cut();
+            ui.close();
+        }
+        if menu_item_enabled(ui, has_selection, "Copy", Some("ctrl-C")).clicked() {
+            self.copy();
+            ui.close();
+        }
+        let can_paste = !self.clipboard.is_empty();
+        let paste = if can_paste {
+            format!("Paste {}", self.clipboard.describe())
+        } else {
+            "Paste".to_string()
+        };
+        if menu_item_enabled(ui, can_paste, &paste, Some("ctrl-V")).clicked() {
+            self.paste();
+            ui.close();
+        }
         if menu_item_enabled(ui, has_selection, "Duplicate", Some("ctrl-D")).clicked() {
             let step = self.document.grid.size;
             let n = self

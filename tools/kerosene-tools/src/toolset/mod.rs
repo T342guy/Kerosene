@@ -304,6 +304,10 @@ impl Toolset {
         } else if found.is_none() {
             editor.document = chisel::app::starter_document();
         }
+        if !opened_map {
+            // A session that died before its first save left an untitled copy.
+            editor.offer_recovery();
+        }
 
         // The sound editor needs a `sound/` tree; without one it simply stays
         // closed and the tab says why, rather than refusing to open the
