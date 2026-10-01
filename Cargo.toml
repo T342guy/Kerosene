@@ -41,7 +41,7 @@ members = [
     "tools/vault",
     "tools/loupe",
     "tools/kerosene-tools",
-    "xtask",
+    "xtask", "kerror",
 ]
 
 [workspace.package]
