@@ -29,6 +29,23 @@
 - [Versioning](./docs/versioning.md)
 - [Releasing](./docs/releasing.md)
 
+# Design document
+
+- [Software design document](./sdd/README.md)
+  - [Goals and scope](./sdd/goals-and-scope.md)
+  - [Design principles](./sdd/principles.md)
+  - [Architecture](./sdd/architecture.md)
+  - [Runtime](./sdd/runtime.md)
+  - [Data and the build pipeline](./sdd/data-and-pipeline.md)
+  - [World and entities](./sdd/world-and-entities.md)
+  - [Subsystems](./sdd/subsystems.md)
+  - [Tools](./sdd/tools.md)
+  - [Public API](./sdd/public-api.md)
+  - [Quality](./sdd/quality.md)
+  - [Decision log](./sdd/decisions.md)
+  - [Status and roadmap](./sdd/status-and-roadmap.md)
+  - [Open issues](./sdd/open-issues.md)
+
 # Devnotes
 
 - [Architecture notes](./devnotes/README.md)
