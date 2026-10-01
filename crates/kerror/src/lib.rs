@@ -1,4 +1,4 @@
-// add spdx here
+// SPDX-License-Identifier: GPL-3.0-or-later WITH AdditionRef-Kerosene-Exception-1.0
 
 //! This crate, the `kerror` crate, is the custom error handling and values tool used in kerosene.
 //! Custom errors are used to better discribe failures (obviously), and make things easier in terms of debugging.
