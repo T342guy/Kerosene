@@ -48,6 +48,7 @@ kerosene-platform.workspace = true
 kerosene-audio.workspace = true
 kerosene-kv.workspace = true
 kerror.workspace = true
+kerosene-lifecycle.workspace = true
 kerosene-walk.workspace = true
 egui.workspace = true
 egui-wgpu.workspace = true

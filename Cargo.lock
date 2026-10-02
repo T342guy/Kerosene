@@ -1741,6 +1741,7 @@ dependencies = [
  "kerosene-entity",
  "kerosene-game",
  "kerosene-kv",
+ "kerosene-lifecycle",
  "kerosene-map",
  "kerosene-material",
  "kerosene-math",
@@ -1918,6 +1919,7 @@ dependencies = [
  "kerosene-entity",
  "kerosene-game",
  "kerosene-kv",
+ "kerosene-lifecycle",
  "kerosene-map",
  "kerosene-math",
  "kerosene-physics",
@@ -2006,6 +2008,14 @@ version = "1.0.0-a4"
 dependencies = [
  "kerosene-math",
  "thiserror 2.0.20",
+]
+
+[[package]]
+name = "kerosene-lifecycle"
+version = "1.0.0-a4"
+dependencies = [
+ "kerror",
+ "log",
 ]
 
 [[package]]

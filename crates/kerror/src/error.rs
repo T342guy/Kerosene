@@ -42,6 +42,8 @@ pub enum EngineError {
     Script(String),
     #[error("platform: {0}")]
     Platform(String),
+    #[error("thread: {0}")]
+    Thread(String),
     #[error("io: {0}")]
     Io(#[from] std::io::Error),
     #[error("{0}")]
@@ -58,6 +60,7 @@ impl KError for EngineError {
             Self::Config(_) => "ConfigError",
             Self::Script(_) => "ScriptError",
             Self::Platform(_) => "PlatformError",
+            Self::Thread(_) => "ThreadError",
             Self::Io(_) => "IoError",
             Self::Other(_) => "Error",
         };
@@ -66,7 +69,7 @@ impl KError for EngineError {
 
     fn severity(&self) -> Severity {
         match self {
-            Self::Render(_) | Self::Platform(_) => Severity::Fatal,
+            Self::Render(_) | Self::Platform(_) | Self::Thread(_) => Severity::Fatal,
             _ => Severity::Recoverable,
         }
     }
@@ -83,7 +86,11 @@ pub struct GameError {
 
 impl GameError {
     pub fn new(name: impl Into<String>, message: impl Into<String>) -> Self {
-        Self { name: name.into(), message: message.into(), severity: Severity::Recoverable }
+        Self {
+            name: name.into(),
+            message: message.into(),
+            severity: Severity::Recoverable,
+        }
     }
 
     pub fn with_severity(mut self, severity: Severity) -> Self {

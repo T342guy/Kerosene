@@ -20,7 +20,10 @@ impl Health {
     /// Add one to `id`, returning the new count.
     pub fn bump(&self, id: &str) -> u64 {
         let mut map = self.counters.lock().unwrap_or_else(|e| e.into_inner());
-        map.entry(id.to_string()).or_default().fetch_add(1, Ordering::Relaxed) + 1
+        map.entry(id.to_string())
+            .or_default()
+            .fetch_add(1, Ordering::Relaxed)
+            + 1
     }
 
     /// Count an error under its id.
@@ -42,7 +45,9 @@ impl Health {
     /// Every counter, sorted by name.
     pub fn snapshot(&self) -> Vec<(String, u64)> {
         let map = self.counters.lock().unwrap_or_else(|e| e.into_inner());
-        map.iter().map(|(k, v)| (k.clone(), v.load(Ordering::Relaxed))).collect()
+        map.iter()
+            .map(|(k, v)| (k.clone(), v.load(Ordering::Relaxed)))
+            .collect()
     }
 }
 

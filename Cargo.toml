@@ -43,6 +43,7 @@ members = [
     "tools/kerosene-tools",
     "xtask",
     "crates/kerror",
+    "crates/kerosene-lifecycle",
 ]
 
 [workspace.package]
@@ -88,6 +89,7 @@ kerosene-toolui  = { version = "=1.0.0-a4", path = "crates/kerosene-toolui" }
 kerosene-ui      = { version = "=1.0.0-a4", path = "crates/kerosene-ui" }
 kerosene-platform = { version = "=1.0.0-a4", path = "crates/kerosene-platform" }
 kerror         = { version = "=1.0.0-a4", path = "crates/kerror" }
+kerosene-lifecycle = { version = "=1.0.0-a4", path = "crates/kerosene-lifecycle" }
 kerosene         = { version = "=1.0.0-a4", path = "crates/kerosene" }
 
 # The tools, as libraries. The packages are kerosene-<tool>; code says

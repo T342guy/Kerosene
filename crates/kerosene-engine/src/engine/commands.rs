@@ -392,6 +392,21 @@ const CONDUMP: &str = "condump";
 
 pub(super) fn register_commands(console: &mut Console) {
     console.register_command(
+        "mem",
+        ConVarFlags::NONE,
+        "Show memory use, overall and by module: mem [reset_peak].",
+        |con, args| {
+            if args.rest.trim() == "reset_peak" {
+                kerosene_lifecycle::mem::reset_peak();
+                con.print("peak memory reset");
+                return;
+            }
+            for line in kerosene_lifecycle::mem::snapshot().report() {
+                con.print(line);
+            }
+        },
+    );
+    console.register_command(
         "toggleconsole",
         ConVarFlags::NONE,
         "Open or close the developer console.",

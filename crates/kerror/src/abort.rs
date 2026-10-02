@@ -64,12 +64,18 @@ impl Shutdown {
     }
 
     pub fn reason(&self) -> Option<ShutdownReason> {
-        self.reason.lock().unwrap_or_else(|e| e.into_inner()).clone()
+        self.reason
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
     }
 
     /// Register cleanup to run at shutdown, named for the log.
     pub fn on_shutdown(&self, name: &str, hook: impl FnOnce() + Send + 'static) {
-        self.hooks.lock().unwrap_or_else(|e| e.into_inner()).push((name.to_string(), Box::new(hook)));
+        self.hooks
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .push((name.to_string(), Box::new(hook)));
     }
 
     /// Run the hooks, last registered first, each at most once. A hook that
@@ -155,7 +161,12 @@ mod unix {
     pub fn install() {
         for sig in [libc::SIGINT, libc::SIGTERM] {
             // SAFETY: `handler` is async-signal-safe.
-            unsafe { libc::signal(sig, handler as extern "C" fn(libc::c_int) as libc::sighandler_t) };
+            unsafe {
+                libc::signal(
+                    sig,
+                    handler as extern "C" fn(libc::c_int) as libc::sighandler_t,
+                )
+            };
         }
     }
 

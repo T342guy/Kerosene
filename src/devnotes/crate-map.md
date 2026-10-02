@@ -18,9 +18,11 @@ The crates sit in layers, and a crate depends only on the layers below it.
 | 1 core services | config, vfs, platform | layer 0; each other |
 | 2 data and hardware | resource, asset, bsp, walk, map, scene, rhi, material | layers 0–1; each other |
 | 3 subsystems | render, physics, anim, audio, entity, script, ui | layers 0–2, **not each other** |
-| 4 host and game | engine, game | layers 0–3 |
-| 5 tools | toolui and every tool | layers 0–4; each other |
-| 6 facade | `kerosene` | everything |
+| 4 lifecycle | lifecycle | layers 0–3 |
+| 5 host and game | engine, game | layers 0–4 |
+| 6 tools | toolui and every tool | layers 0–5; each other |
+| 7 facade | `kerosene` | everything |
+| 8 runtime | `kerosene-runtime` | everything |
 
 Two extra rules. `kerosene-map`, the `.kmap` source format, is for the tools
 only: nothing below layer 5 may link it, because the runtime loads compiled
@@ -62,7 +64,10 @@ flowchart TB
         script["kerosene-script<br/>Rhai layer"]
         ui["kerosene-ui<br/>game UI: layout, style, bindings"]
     end
-    subgraph L4["4 host and game"]
+    subgraph L4A["4 lifecycle"]
+        lifecycle["kerosene-lifecycle<br/>start/stop order, managed threads, memory tracking"]
+    end
+    subgraph L4["5 host and game"]
         engine["kerosene-engine<br/>Engine, Game, host"]
         game["kerosene-game<br/>stock classes"]
     end
@@ -266,6 +271,7 @@ internal dependency is pinned at `=<version>` and moved by
 | `kerosene-math` | Units, `Plane`/`Winding`/`Aabb`, angles, `Pose`, epsilon constants | `src/units.rs`, `src/plane.rs`, `src/winding.rs` |
 | `kerosene-kv` | KeyValues parse/serialise, typed reads, `format_float`, the I/O `Connection` encoding | `src/parse.rs`, `src/value.rs`, `src/connection.rs` |
 | `kerosene-console` | ConVars, ConCommands, command buffer, log relay, crash handler | `src/lib.rs`, `src/logging.rs` |
+| `kerosene-lifecycle` | `Module`s started in phases and stopped in reverse, managed named threads and the worker `Pool`, the counting `TrackingAllocator` | `src/manager.rs`, `src/thread.rs`, `src/pool.rs`, `src/mem.rs` |
 | `kerosene-config` | `engine.kcfg` with defaults for every key | `src/lib.rs`, `src/renderer.rs` |
 | `kerosene-vfs` | Search-path stack, `.vault` archives, content discovery, toolchain | `src/lib.rs`, `src/root.rs`, `src/archive.rs` |
 | `kerosene-resource` | The compiled resource container (header, typed blocks, references, source hash), `Resource<T>` handles and their cache, the asset-type table | `src/container.rs`, `src/handle.rs`, `src/types.rs` |

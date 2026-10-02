@@ -1,0 +1,18 @@
+[package]
+name = "kerosene-lifecycle"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+# Published only as part of the one `kerosene` crate: `cargo xtask bundle`.
+publish = false
+description = "Kerosene's start/stop manager: ordered module lifecycle, managed threads, and memory tracking."
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+kerror.workspace = true
+log.workspace = true

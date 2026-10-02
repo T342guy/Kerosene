@@ -27,10 +27,11 @@ use std::process::Command;
 /// | 1 | core services: config, the file system, the store |
 /// | 2 | data and hardware: compiled resources, the scene contract, the RHI |
 /// | 3 | subsystems: render, physics, audio, entities, scripting, UI |
-/// | 4 | the engine host, and the stock game |
-/// | 5 | the tools |
-/// | 6 | the published facade |
-/// | 7 | the stock runtime binary |
+/// | 4 | the lifecycle: who starts and stops what, and owns the threads |
+/// | 5 | the engine host, and the stock game |
+/// | 6 | the tools |
+/// | 7 | the published facade |
+/// | 8 | the stock runtime binary |
 const LAYERS: &[(&str, u8)] = &[
     ("kerosene-math", CORE),
     ("kerosene-kv", CORE),
@@ -56,6 +57,7 @@ const LAYERS: &[(&str, u8)] = &[
     ("kerosene-entity", SUBSYSTEM),
     ("kerosene-script", SUBSYSTEM),
     ("kerosene-ui", SUBSYSTEM),
+    ("kerosene-lifecycle", LIFECYCLE),
     ("kerosene-engine", HOST),
     ("kerosene-game", HOST),
     ("kerosene-toolui", TOOLS),
@@ -79,10 +81,11 @@ const CORE: u8 = 0;
 const SERVICES: u8 = 1;
 const DATA: u8 = 2;
 const SUBSYSTEM: u8 = 3;
-const HOST: u8 = 4;
-const TOOLS: u8 = 5;
-const FACADE: u8 = 6;
-const RUNTIME: u8 = 7;
+const LIFECYCLE: u8 = 4;
+const HOST: u8 = 5;
+const TOOLS: u8 = 6;
+const FACADE: u8 = 7;
+const RUNTIME: u8 = 8;
 
 /// Layers whose crates may depend on each other. Everywhere else, a crate
 /// depends only on strictly lower layers.

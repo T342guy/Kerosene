@@ -40,7 +40,7 @@
 //!
 //! * the items at the root -- [`launch`], [`LaunchOptions`], [`Game`],
 //!   [`Engine`], [`EngineConfig`], [`VERSION`] -- and the [`prelude`];
-//! * the modules [`engine`], [`entity`], [`math`], [`console`],
+//! * the modules [`engine`], [`entity`], [`lifecycle`], [`math`], [`console`],
 //!   [`physics`], [`script`], [`ui`], [`platform`], [`vfs`], [`game`] and,
 //!   with the `tools` feature, `tools`;
 //! * the third-party crates re-exported here -- [`egui`], [`glam`], [`rhai`],
@@ -64,6 +64,7 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub use kerosene_console as console;
 pub use kerosene_engine as engine;
 pub use kerosene_entity as entity;
+pub use kerosene_lifecycle as lifecycle;
 pub use kerosene_math as math;
 pub use kerosene_physics as physics;
 pub use kerosene_platform as platform;
@@ -79,7 +80,6 @@ pub mod internals {
     pub use kerosene_bsp as bsp;
     pub use kerosene_config as config;
     pub use kerosene_kv as kv;
-    pub use kerror;
     pub use kerosene_map as map;
     pub use kerosene_material as material;
     pub use kerosene_render as render;
@@ -87,6 +87,7 @@ pub mod internals {
     pub use kerosene_rhi as rhi;
     pub use kerosene_scene as scene;
     pub use kerosene_walk as walk;
+    pub use kerror;
 }
 
 /// What [`Game::save`] returns and

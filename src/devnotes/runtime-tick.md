@@ -30,13 +30,14 @@ flowchart TB
     choice -- no --> host["host::run_with"]
     host --> engine["Engine::with_game(config, game)"]
     engine --> classes["game.classes(registry)"]
+    engine --> modules["lifecycle: engine modules,<br/>then game.modules()"]
     engine --> setup["game.setup(&amp;mut engine)"]
     engine --> cfgs["exec config.cfg, autoexec.cfg,<br/>then startup_commands"]
     cfgs --> loop{{"winit event loop"}}
 
     classDef proc fill:#FF6D00,color:#fff
     classDef data fill:#2962FF,color:#fff
-    class launch,args,resolve,headless,host,classes,setup,cfgs proc
+    class launch,args,resolve,headless,host,classes,modules,setup,cfgs proc
     class logger,engine data
 ```
 
@@ -45,6 +46,13 @@ classes and gets `setup` **after** the console exists but **before**
 `config.cfg`, `autoexec.cfg` and the command line run — so a convar a game
 registers in `setup` can be set from any of the three. The VFS is built first
 and wrapped in an `Arc`; archives mount after directories so loose files win.
+
+Between the two, `kerosene-lifecycle` starts the background threads: the
+engine's own modules (the streaming workers), then the game's
+(`Game::modules`), so a game's `setup` runs with everything it builds on
+already up. `Engine::shutdown` is the mirror image: the game's `shutdown`
+hook, then the modules in reverse, each with its threads signalled and joined.
+See [Threads and memory](../docs/threads.md).
 
 ## The fixed tick vs the render frame
 

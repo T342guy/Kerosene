@@ -622,7 +622,7 @@ impl App {
                 let bsp = Arc::clone(&level.bsp);
                 let tx = map.tx.clone();
                 let generation = map.generation;
-                std::thread::spawn(move || {
+                self.engine.spawn_job(move || {
                     let keep = |f: usize| bsp.face_section(f) as usize == section;
                     let atlas = LightmapAtlas::build_for(&bsp, 1.0, keep);
                     let mesh = WorldMesh::build_for(&bsp, &atlas, keep);

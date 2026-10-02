@@ -11,6 +11,25 @@ with what to do about them.
 
 ## [Unreleased]
 
+### Added
+- `kerosene::lifecycle`, the start/stop manager. Anything that runs its own
+  threads is a `Module`; the manager starts modules in phases (the engine's,
+  then module crates', then the game's), preloading all of them before
+  starting any, and stops them in exactly the reverse order, signalling and
+  joining each module's named threads (`kerosene-<module>-<thread>`) and
+  giving up on one that will not stop rather than hanging the exit.
+- `Game::modules`, so a game can bring modules of its own. It is optional,
+  and a game that does not implement it is unchanged.
+- `Engine::spawn_job` and a bounded pool of streaming workers (at most four,
+  fewer on a small machine; `KEROSENE_THREADS` overrides the count) in place
+  of one unnamed, unjoined thread per level section.
+- `TrackingAllocator`, a counting global allocator, and the `mem` console
+  command: live and peak bytes, allocation counts, and a breakdown by module.
+  Install it with a `#[global_allocator]` line in `main.rs`; `kerosene-tools
+  new` puts it in new games, and without it `mem` says tracking is off.
+- `kerror::EngineError::Thread`, a fatal error for a managed thread that
+  panics.
+
 ## [1.0.0-a4] - 2026-09-28
 
 ### Added

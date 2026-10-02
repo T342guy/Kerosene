@@ -323,8 +323,9 @@ work everywhere, and a `logic_relay` in an unloaded room still fires. Brush
 entities are never streamed: a door is drawn and collided with wherever it has
 moved to.
 
-The host side is `App::stream_sections`: it spawns a worker thread per wanted,
-not-yet-resident section to build `WorldMesh` + `LightmapAtlas` from the shared
+The host side is `App::stream_sections`: it queues a job on the engine's
+streaming workers (`Engine::spawn_job`, a bounded pool owned by the
+lifecycle manager) per wanted, not-yet-resident section to build `WorldMesh` + `LightmapAtlas` from the shared
 `Arc<Bsp>`, and uploads on the main thread when the `mpsc` receiver delivers.
 `mark_loaded` ignores a build that finishes after the section was dropped
 again, so a stale build cannot resurrect it. `r_stream_debug 1` draws each

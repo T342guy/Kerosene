@@ -32,6 +32,7 @@ mod commands;
 mod config;
 mod debug;
 mod level;
+mod lifecycle;
 mod player;
 mod tick;
 pub use commands::{SCREENSHOT, report_unhandled, take_console_requests};
@@ -155,6 +156,10 @@ pub struct Engine {
     pub(crate) max_health: f32,
     /// Set once [`Engine::shutdown`] has told the game.
     shut_down: bool,
+    /// Owns every background thread the engine runs; see [`lifecycle`].
+    pub(crate) lifecycle: kerosene_lifecycle::Manager,
+    /// The workers that build level sections, if they started.
+    pub(crate) workers: Option<kerosene_lifecycle::Pool>,
     /// What the game has drawn with [`Engine::debug_line`] and friends.
     pub(crate) debug_draw: crate::debug_draw::DebugDraw,
     /// The game's dice. See [`Engine::rng`].
@@ -412,6 +417,8 @@ impl Engine {
             background: false,
             max_health: 100.0,
             shut_down: false,
+            lifecycle: kerosene_lifecycle::Manager::new(),
+            workers: None,
             debug_draw: Default::default(),
             rng: kerosene_math::Rng::default(),
             input: crate::input::InputSystem::new(),
@@ -435,6 +442,12 @@ impl Engine {
 
         let vfs = engine.vfs.clone();
         engine.audio.load_scripts(&vfs);
+
+        // Engine, then module crates, then the game: its own threads, if it
+        // has any, come up after everything it builds on.
+        let (manager, workers) = lifecycle::start(game.modules());
+        engine.lifecycle = manager;
+        engine.workers = workers;
 
         game.setup(&mut engine);
         engine.game = Some(game);
@@ -584,6 +597,10 @@ impl Engine {
             return;
         }
         self.with_game_mut(|game, engine| game.shutdown(engine));
+        // After the game, reverse of how it all came up. Pending section
+        // builds are dropped; ones under way finish first.
+        self.workers = None;
+        self.lifecycle.stop();
     }
 
     /// Ask the host to exit at the end of this frame: what `quit` does.

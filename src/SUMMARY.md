@@ -25,6 +25,7 @@
 - [Positioning](./docs/positioning.md)
 - [Scripting](./docs/scripting.md)
 - [Game UI](./docs/ui.md)
+- [Threads and memory](./docs/threads.md)
 - [Tools](./docs/tools.md)
 - [Versioning](./docs/versioning.md)
 - [Releasing](./docs/releasing.md)

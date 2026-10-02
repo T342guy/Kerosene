@@ -41,6 +41,16 @@ pub trait Game: 'static {
     /// spawns, thinks and answers inputs the same way the stock ones do.
     fn classes(&self, registry: &mut ClassRegistry) {}
 
+    /// Modules this game brings: background services with their own
+    /// threads. Asked once, when the engine is made. They start after the
+    /// engine's own modules and before [`setup`](Game::setup), and stop
+    /// after [`shutdown`](Game::shutdown), in reverse. Spawn threads through
+    /// the module's [`Ctx`](kerosene_lifecycle::Ctx), never `std::thread`,
+    /// so they are named, counted and joined.
+    fn modules(&self) -> Vec<Box<dyn kerosene_lifecycle::Module>> {
+        Vec::new()
+    }
+
     /// The `.kdef` text describing [`classes`](Game::classes), for the
     /// tools: what Chisel shows in its property inspector. Empty means the
     /// game has no classes of its own to describe.

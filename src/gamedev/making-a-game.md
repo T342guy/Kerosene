@@ -273,6 +273,11 @@ impl Game for MyGame {
 // src/main.rs
 mod game;
 
+// Counts allocations for the `mem` console command.
+#[global_allocator]
+static ALLOCATOR: kerosene::lifecycle::TrackingAllocator =
+    kerosene::lifecycle::TrackingAllocator::new();
+
 fn main() -> kerosene::anyhow::Result<()> {
     kerosene::launch(
         game::MyGame::default(),

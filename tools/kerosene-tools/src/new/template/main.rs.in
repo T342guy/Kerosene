@@ -5,6 +5,11 @@
 
 mod game;
 
+// Counts allocations, for the `mem` console command. Delete these two lines
+// to use the system allocator without counting.
+#[global_allocator]
+static ALLOCATOR: kerosene::lifecycle::TrackingAllocator = kerosene::lifecycle::TrackingAllocator::new();
+
 fn main() -> kerosene::anyhow::Result<()> {
     kerosene::launch(
         game::@TYPE@::default(),
