@@ -57,6 +57,7 @@ kerosene-physics.workspace = true
 serde_json.workspace = true
 kerosene-config.workspace = true
 kerosene-kv.workspace = true
+kerror.workspace = true
 kerosene-asset.workspace = true
 kerosene-walk.workspace = true
 kerosene-scene.workspace = true

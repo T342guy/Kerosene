@@ -1755,6 +1755,7 @@ dependencies = [
  "kerosene-ui",
  "kerosene-vfs",
  "kerosene-walk",
+ "kerror",
  "log",
  "rhai",
  "serde_json",
@@ -1930,6 +1931,7 @@ dependencies = [
  "kerosene-umbra",
  "kerosene-vfs",
  "kerosene-walk",
+ "kerror",
  "log",
  "png",
  "pollster",
@@ -2314,6 +2316,11 @@ dependencies = [
 [[package]]
 name = "kerror"
 version = "1.0.0-a4"
+dependencies = [
+ "libc",
+ "log",
+ "thiserror 2.0.20",
+]
 
 [[package]]
 name = "khronos-egl"

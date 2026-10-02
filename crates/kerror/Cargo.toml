@@ -5,9 +5,18 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 authors.workspace = true
+# Published only as part of the one `kerosene` crate: `cargo xtask bundle`.
+publish = false
+description = "Kerosene's custom errors, health counters and graceful abort/shutdown."
 repository.workspace = true
 homepage.workspace = true
 keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
+thiserror.workspace = true
+log.workspace = true
+
+# Signal handlers for Ctrl+C / SIGTERM. Already in the tree.
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"

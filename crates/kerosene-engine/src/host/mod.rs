@@ -115,8 +115,14 @@ pub fn run_with(config: EngineConfig, game: Box<dyn Game>) -> anyhow::Result<()>
         app.engine.show_splash();
     }
 
+    kerror::install_signal_handlers();
     event_loop.run_app(&mut app)?;
-    Ok(())
+    // A fatal error asked for the shutdown that just finished; say so to
+    // the caller, which turns it into an exit code.
+    match kerror::shutdown_reason() {
+        Some(kerror::ShutdownReason::Fatal(why)) => Err(anyhow::anyhow!(why)),
+        _ => Ok(()),
+    }
 }
 
 impl App {
@@ -136,7 +142,9 @@ impl ApplicationHandler for App {
                 self.last_frame = Instant::now();
             }
             Err(e) => {
-                log::error!("could not start the renderer: {e}");
+                kerror::abort(&kerror::EngineError::Render(format!(
+                    "could not start the renderer: {e}"
+                )));
                 // The window never opened, so without this the player saw
                 // the game do nothing at all.
                 kerosene_console::dialog::show_error(
@@ -319,7 +327,11 @@ impl ApplicationHandler for App {
         }
     }
 
-    fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
+    fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        if kerror::poll_shutdown() {
+            event_loop.exit();
+            return;
+        }
         if let Some(gfx) = &self.gfx {
             gfx.window.request_redraw();
         }
@@ -327,6 +339,7 @@ impl ApplicationHandler for App {
 
     fn exiting(&mut self, _event_loop: &ActiveEventLoop) {
         self.engine.shutdown();
+        kerror::run_shutdown_hooks();
         // Whatever was set this session -- a sensitivity, a field of view,
         // a rebound key -- is written where the next start reads it back.
         // Done here rather than on `quit` alone so that closing the window

@@ -9,3 +9,14 @@
 //!
 //! `kerror` also handles health checking, so the error tracking value `kengineCountRenderIssueRecovery` would be counting up from how many render errors were,
 //! and then recovered from successfully.
+
+mod abort;
+mod error;
+mod health;
+
+pub use abort::{
+    Shutdown, ShutdownReason, abort, install_signal_handlers, on_shutdown, poll_shutdown,
+    request_shutdown, run_shutdown_hooks, shutdown, shutdown_reason, shutdown_requested,
+};
+pub use error::{EngineError, GameError, KError, Result, Severity};
+pub use health::{Health, health, recovery_id};

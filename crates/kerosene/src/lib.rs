@@ -79,6 +79,7 @@ pub mod internals {
     pub use kerosene_bsp as bsp;
     pub use kerosene_config as config;
     pub use kerosene_kv as kv;
+    pub use kerror;
     pub use kerosene_map as map;
     pub use kerosene_material as material;
     pub use kerosene_render as render;

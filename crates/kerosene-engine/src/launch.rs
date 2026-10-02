@@ -477,6 +477,7 @@ pub fn run_headless(config: EngineConfig, game: Box<dyn Game>, ticks: u64) -> Re
         ..Default::default()
     };
 
+    kerror::install_signal_handlers();
     let started = std::time::Instant::now();
     for _ in 0..ticks {
         engine.tick(interval, &input);
@@ -488,10 +489,11 @@ pub fn run_headless(config: EngineConfig, game: Box<dyn Game>, ticks: u64) -> Re
         // `map` from a script or a startup command lands here, since there
         // is no `frame` to pick it up.
         engine.load_pending_map();
-        if engine.should_quit {
+        if engine.should_quit || kerror::poll_shutdown() {
             break;
         }
     }
+    kerror::run_shutdown_hooks();
     let elapsed = started.elapsed().as_secs_f32();
     engine.shutdown();
 

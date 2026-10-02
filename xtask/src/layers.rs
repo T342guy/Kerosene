@@ -34,6 +34,7 @@ use std::process::Command;
 const LAYERS: &[(&str, u8)] = &[
     ("kerosene-math", CORE),
     ("kerosene-kv", CORE),
+    ("kerror", CORE),
     ("kerosene-console", CORE),
     ("kerosene-config", SERVICES),
     ("kerosene-reflect", SERVICES),
